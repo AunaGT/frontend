@@ -78,6 +78,7 @@ import NewQuotePage from "@/components/quotes/NewQuotePage";
 import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
 import OrdersManagement from "@/components/orders/OrdersManagement";
 import OrderDetailPage from "@/components/orders/OrderDetailPage";
+import HrPage from "@/components/hr/HrPage";
 import PublicQuotePage from "@/pages/PublicQuotePage";
 
 function LegacyProveedorIdRedirect() {
@@ -520,6 +521,16 @@ const App = () => (
                 />
                 <Route path="/catalogos" element={<Navigate to="/datos-maestros" replace />} />
                 <Route path="/catalogos/importar" element={<Navigate to="/datos-maestros/importar" replace />} />
+
+                {/* RRHH */}
+                <Route
+                  path="/rrhh"
+                  element={
+                    <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
+                      <HrPage />
+                    </PermissionRoute>
+                  }
+                />
 
                 {/* Users (Admin) */}
                 <Route
