@@ -101,7 +101,14 @@ export const AdvancesManagement = () => {
                   </TableCell>
                   <TableCell className="text-right">
                     {canManage && advance.status === 'PENDIENTE' && Number(advance.balance) === Number(advance.amount) && (
-                      <Button variant="ghost" size="sm" disabled={cancel.isPending} onClick={() => cancel.mutate(advance.id)}>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={cancel.isPending}
+                        aria-label="Cancelar anticipo"
+                        title="Cancelar anticipo"
+                        onClick={() => cancel.mutate(advance.id)}
+                      >
                         <Ban className="h-4 w-4" />
                       </Button>
                     )}

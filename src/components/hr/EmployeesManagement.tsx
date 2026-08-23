@@ -148,6 +148,8 @@ export const EmployeesManagement = () => {
                         variant="ghost"
                         size="sm"
                         disabled={terminate.isPending}
+                        aria-label="Dar de baja al empleado"
+                        title="Dar de baja"
                         onClick={(e) => { e.stopPropagation(); terminate.mutate(employee.id) }}
                       >
                         <UserMinus className="h-4 w-4" />

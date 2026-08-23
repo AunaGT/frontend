@@ -125,13 +125,16 @@ export const AttendanceSheet = () => {
                       <td key={date} className="p-0.5">
                         <button
                           type="button"
-                          title={mark ? ATTENDANCE_STATUS_LABELS[mark.status] : 'Sin marca'}
+                          title={`${mark ? ATTENDANCE_STATUS_LABELS[mark.status] : 'Sin marca'} · clic para cambiar, shift+clic para horas extra`}
                           className={`h-6 w-6 rounded text-[10px] ${mark ? CELL_CLASS[mark.status] : 'bg-muted'}`}
-                          onClick={() => cycle(employee.id, date)}
-                          onDoubleClick={() => {
+                          onClick={(event) => {
                             if (!canManage) return
-                            setOvertime(Number(mark?.overtime_hours ?? 0))
-                            setDetail({ employeeId: employee.id, date })
+                            if (event.shiftKey) {
+                              setOvertime(Number(mark?.overtime_hours ?? 0))
+                              setDetail({ employeeId: employee.id, date })
+                              return
+                            }
+                            cycle(employee.id, date)
                           }}
                         >
                           {mark ? mark.status[0] : ''}
@@ -152,7 +155,7 @@ export const AttendanceSheet = () => {
               </tbody>
             </table>
             <p className="mt-3 text-xs text-muted-foreground">
-              Un clic cambia el estado; doble clic edita las horas extra del día. La asistencia no
+              Un clic cambia el estado; shift+clic edita las horas extra del día. La asistencia no
               descuenta días del sueldo: solo las horas extra pasan a la planilla.
             </p>
           </div>
