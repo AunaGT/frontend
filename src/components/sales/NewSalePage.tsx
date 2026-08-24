@@ -64,7 +64,7 @@ import {
   pendingOrderLineQty,
   type Order,
 } from '@/services/orderService'
-import { postPricingPreview, fetchProductsAvailability } from '@/services/productService'
+import { postPricingPreview, fetchPosAvailability, type ProductAvailability } from '@/services/productService'
 import {
   saveNewSaleDraft,
   loadNewSaleDraft,
@@ -132,6 +132,7 @@ const ProductCard = ({
   displayUnitPrice,
   availableQty,
   physicalStock,
+  posQty,
 }: {
   product: Product
   onAdd: () => void
@@ -140,6 +141,8 @@ const ProductCard = ({
   displayUnitPrice: number
   availableQty?: number
   physicalStock?: number
+  /** Existencias en la ubicación desde la que despacha la caja. */
+  posQty?: number | null
 }) => (
   <Card className="overflow-hidden transition-shadow hover:shadow-md">
     <div className="aspect-square bg-muted relative">
@@ -161,10 +164,17 @@ const ProductCard = ({
       </p>
       <p className="text-xs text-muted-foreground">
         {formatPrice(displayUnitPrice)}
-        {availableQty != null && physicalStock != null && physicalStock !== availableQty
-          ? ` · Disp: ${availableQty} (${physicalStock} fís.)`
-          : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
+        {posQty != null
+          ? ` · Mostrador: ${posQty}`
+          : availableQty != null && physicalStock != null && physicalStock !== availableQty
+            ? ` · Disp: ${availableQty} (${physicalStock} fís.)`
+            : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
       </p>
+      {posQty != null && availableQty != null && availableQty > posQty ? (
+        <p className="text-xs text-amber-600">
+          {availableQty - posQty} en otros almacenes
+        </p>
+      ) : null}
       <Button
         size="sm"
         className="w-full mt-2"
@@ -249,6 +259,10 @@ export default function NewSalePage() {
     () => warehousesQuery.data?.flatMap((w) => w.locations).find((l) => l.is_sales)?.id ?? null,
     [warehousesQuery.data]
   )
+  // Sin ubicación de venta, la caja no sabe de dónde despacha: el stock que
+  // mostraría es la suma de todos los almacenes de la sucursal, que no es lo que
+  // tiene a mano. Antes esto se ignoraba en silencio y se vendía igual.
+  const posSinConfigurar = warehousesQuery.isSuccess && !posLocationId
 
   const [productSearch, setProductSearch] = useState('')
   const [productPage, setProductPage] = useState(1)
@@ -260,7 +274,7 @@ export default function NewSalePage() {
   const [pickedCustomerId, setPickedCustomerId] = useState<string>('__none__')
   const [salesChannel, setSalesChannel] = useState<'POS' | 'WHOLESALE' | 'ONLINE'>('POS')
   const [unitPricesById, setUnitPricesById] = useState<Record<string, number>>({})
-  const [availabilityById, setAvailabilityById] = useState<Record<string, { stock: number; reserved: number; available: number }>>({})
+  const [availabilityById, setAvailabilityById] = useState<Record<string, ProductAvailability>>({})
   const [isFinalConsumer, setIsFinalConsumer] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null)
   const [amountReceived, setAmountReceived] = useState('')
@@ -305,6 +319,15 @@ export default function NewSalePage() {
    * sigue el flujo de siempre (cantidad adicional, autorización de admin).
    */
   const addProduct = async (product: Product) => {
+    if (posSinConfigurar) {
+      toast({
+        title: 'Falta configurar el punto de venta',
+        description:
+          'Esta sucursal no tiene una ubicación de venta marcada, así que la caja no sabe de qué almacén despacha. Configurala en Sucursales → Almacenes antes de vender.',
+        variant: 'destructive',
+      })
+      return
+    }
     if (!posLocationId) { cart.addToCart(product); return }
     try {
       const rows = await queryClient.fetchQuery({
@@ -450,8 +473,8 @@ export default function NewSalePage() {
     }
     void (async () => {
       try {
-        const map = await fetchProductsAvailability(ids)
-        if (!cancelled) setAvailabilityById(map)
+        const { availability } = await fetchPosAvailability(ids)
+        if (!cancelled) setAvailabilityById(availability)
       } catch {
         if (!cancelled) setAvailabilityById({})
       }
@@ -1560,6 +1583,16 @@ export default function NewSalePage() {
                   </span>
                 ) : null}
               </p>
+              {posSinConfigurar ? (
+                <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-medium">Falta configurar el punto de venta</p>
+                  <p className="text-xs mt-0.5">
+                    Esta sucursal no tiene una ubicación de venta marcada, así que las
+                    existencias que se ven suman todos los almacenes y no reflejan lo que hay
+                    en el mostrador. Marcá la ubicación en Sucursales → Almacenes para poder vender.
+                  </p>
+                </div>
+              ) : null}
               {productsQuery.isLoading ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-8 text-center text-muted-foreground">
                   Cargando productos...
@@ -1606,6 +1639,7 @@ export default function NewSalePage() {
                         displayUnitPrice={getUnitPrice(product)}
                         availableQty={availabilityById[product.id]?.available ?? product.stock}
                         physicalStock={availabilityById[product.id]?.stock ?? product.stock}
+                        posQty={posLocationId ? availabilityById[product.id]?.location_stock ?? null : null}
                       />
                     ))}
                   </div>
