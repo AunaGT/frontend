@@ -39,7 +39,9 @@ const STATUS_VARIANT: Record<PayrollStatus, 'default' | 'secondary' | 'outline' 
   ANULADA: 'destructive',
 }
 
-const today = () => new Date().toISOString().slice(0, 10)
+// en-CA da 'yyyy-mm-dd' en zona local: con toISOString(), después de las 18:00
+// en Guatemala la fecha de pago por defecto salta al día siguiente.
+const today = () => new Date().toLocaleDateString('en-CA')
 
 export const PayrollRunsManagement = () => {
   const { toast } = useToast()
