@@ -627,7 +627,7 @@ export default function ProductDetailPage() {
                     </div>
                     <div className="md:col-span-2">
                       <Label htmlFor="edit-tracks-expiry" className="text-muted-foreground">
-                        Controla caducidad (lotes)
+                        Exige lote y caducidad
                       </Label>
                       {isEditing && canEdit ? (
                         <div className="mt-2 flex items-center gap-3">
@@ -637,12 +637,12 @@ export default function ProductDetailPage() {
                             onCheckedChange={setEditTracksExpiry}
                           />
                           <span className="text-sm text-muted-foreground">
-                            Si lo activas, cada ingreso de mercancía exigirá fecha de caducidad.
+                            Si lo activas, cada ingreso exigirá número de lote y fecha de caducidad.
                           </span>
                         </div>
                       ) : (
                         <p className="text-foreground font-medium mt-1">
-                          {product.tracksExpiry === true ? 'Sí, exige fecha de caducidad al ingresar' : 'No'}
+                          {product.tracksExpiry === true ? 'Sí, exige lote y caducidad al ingresar' : 'No'}
                         </p>
                       )}
                     </div>

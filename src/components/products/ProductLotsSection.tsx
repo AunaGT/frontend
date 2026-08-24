@@ -19,15 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CalendarClock, PackageOpen, Pencil, Trash2 } from "lucide-react";
 import { apiFetch } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
-
-type ProductLot = {
-  id: string;
-  lot_code: string | null;
-  expiry_date: string | null;
-  qty_received: number;
-  qty_remaining: number;
-  received_at: string;
-};
+import type { LotReconciliation, ProductLotApi, ProductLotsResponse } from "@/types/product";
 
 type Props = {
   productId: string;
@@ -46,36 +38,37 @@ const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props) {
   const { toast } = useToast();
-  const [lots, setLots] = useState<ProductLot[] | null>(null);
+  const [lots, setLots] = useState<ProductLotApi[] | null>(null);
+  const [reconciliation, setReconciliation] = useState<LotReconciliation | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const [editing, setEditing] = useState<ProductLot | null>(null);
+  const [editing, setEditing] = useState<ProductLotApi | null>(null);
   const [editCode, setEditCode] = useState("");
   const [editExpiry, setEditExpiry] = useState("");
   const [editQty, setEditQty] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [deleting, setDeleting] = useState<ProductLot | null>(null);
+  const [deleting, setDeleting] = useState<ProductLotApi | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
   const loadLots = useCallback(() => {
     setLoading(true);
-    return apiFetch<{ lots: ProductLot[] }>(`/api/products/${productId}/lots`)
-      .then((data) => setLots(data.lots))
-      .catch(() => setLots([]))
+    return apiFetch<ProductLotsResponse>(`/api/products/${productId}/lots`)
+      .then((data) => { setLots(data.lots); setReconciliation(data.reconciliation); })
+      .catch(() => { setLots([]); setReconciliation(null); })
       .finally(() => setLoading(false));
   }, [productId]);
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<{ lots: ProductLot[] }>(`/api/products/${productId}/lots`)
-      .then((data) => { if (!cancelled) setLots(data.lots); })
-      .catch(() => { if (!cancelled) setLots([]); })
+    apiFetch<ProductLotsResponse>(`/api/products/${productId}/lots`)
+      .then((data) => { if (!cancelled) { setLots(data.lots); setReconciliation(data.reconciliation); } })
+      .catch(() => { if (!cancelled) { setLots([]); setReconciliation(null); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [productId]);
 
-  const openEdit = (lot: ProductLot) => {
+  const openEdit = (lot: ProductLotApi) => {
     setEditing(lot);
     setEditCode(lot.lot_code ?? "");
     setEditExpiry(toDateInput(lot.expiry_date));
@@ -129,8 +122,6 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
     }
   };
 
-  if (!loading && (!lots || lots.length === 0) && !tracksExpiry) return null;
-
   return (
     <Card>
       <CardHeader>
@@ -139,7 +130,21 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
           Lotes y caducidad
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {reconciliation && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium tabular-nums">
+              Físico {reconciliation.physical} <span className="text-muted-foreground">|</span>{" "}
+              Trazado {reconciliation.traced} <span className="text-muted-foreground">|</span>{" "}
+              Diferencia {reconciliation.difference}
+            </p>
+            {!reconciliation.consistent && (
+              <div role="alert" className="rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+                El inventario físico y sus partidas no coinciden. No realices movimientos hasta reconciliar la diferencia.
+              </div>
+            )}
+          </div>
+        )}
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando lotes…</p>
         ) : !lots || lots.length === 0 ? (
@@ -154,6 +159,8 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
               <TableHeader>
                 <TableRow>
                   <TableHead>Lote</TableHead>
+                  <TableHead>Ubicación</TableHead>
+                  <TableHead>Origen</TableHead>
                   <TableHead>Caducidad</TableHead>
                   <TableHead className="text-right">Existencia</TableHead>
                   <TableHead>Estado</TableHead>
@@ -168,6 +175,12 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
                   return (
                     <TableRow key={lot.id}>
                       <TableCell>{lot.lot_code || "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {lot.location ? `${lot.location.warehouse.code} · ${lot.location.code}` : "Sin ubicación"}
+                      </TableCell>
+                      <TableCell>
+                        {lot.is_system_generated ? <Badge variant="secondary">Partida automática</Badge> : "Proveedor"}
+                      </TableCell>
                       <TableCell>{lot.expiry_date ? formatDate(lot.expiry_date) : "—"}</TableCell>
                       <TableCell className="text-right font-medium">{lot.qty_remaining}</TableCell>
                       <TableCell>

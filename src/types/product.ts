@@ -12,6 +12,34 @@ import { BaseEntity, ProductCategory, StockStatus } from "./common";
 
 export type ProductKind = "STANDARD" | "KIT";
 
+export type ProductLotApi = {
+  id: string;
+  lot_code: string | null;
+  expiry_date: string | null;
+  qty_received: number;
+  qty_remaining: number;
+  received_at: string;
+  is_system_generated: boolean;
+  location: {
+    id: string;
+    code: string;
+    name: string | null;
+    warehouse: { id: string; code: string; name: string };
+  } | null;
+};
+
+export type LotReconciliation = {
+  physical: number;
+  traced: number;
+  difference: number;
+  consistent: boolean;
+};
+
+export type ProductLotsResponse = {
+  lots: ProductLotApi[];
+  reconciliation: LotReconciliation;
+};
+
 export type ProductBomComponentDraft = {
   component_product_id: string;
   qty_per_unit: number;
