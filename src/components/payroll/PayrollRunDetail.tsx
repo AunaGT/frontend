@@ -51,7 +51,12 @@ export const PayrollRunDetail = () => {
   const transition = (fn: (runId: string) => Promise<unknown>, title: string) => ({
     mutationFn: () => fn(id),
     onSuccess: () => { invalidate(); toast({ title }) },
-    onError: (e: Error) => toast({ title: 'No se pudo completar', description: e.message, variant: 'destructive' }),
+    onError: (e: Error) => {
+      // Un 409 acá es normal: alguien más ya movió la planilla. Hay que refrescar
+      // para que los botones reflejen el estado real y no invite a reintentar.
+      invalidate()
+      toast({ title: 'No se pudo completar', description: e.message, variant: 'destructive' })
+    },
   })
 
   const recalc = useMutation(transition(() => recalculatePayrollRun(id), 'Planilla recalculada'))
