@@ -27,7 +27,20 @@ type ProductLot = {
   qty_received: number;
   qty_remaining: number;
   received_at: string;
+  /** Anaquel donde está; null = lote heredado sin ubicación conocida. */
+  location: { id: string; code: string; warehouse: { id: string; name: string } } | null;
 };
+
+/** Físico vs. lotificado. Antes la página mostraba las dos sumas por separado. */
+type Reconciliation = {
+  physical: number;
+  lotted: number;
+  unlotted: number;
+  tracks_expiry: boolean;
+  balanced: boolean;
+};
+
+type LotsResponse = { lots: ProductLot[]; reconciliation: Reconciliation };
 
 type Props = {
   productId: string;
@@ -47,6 +60,7 @@ const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props) {
   const { toast } = useToast();
   const [lots, setLots] = useState<ProductLot[] | null>(null);
+  const [recon, setRecon] = useState<Reconciliation | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [editing, setEditing] = useState<ProductLot | null>(null);
@@ -60,16 +74,16 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
 
   const loadLots = useCallback(() => {
     setLoading(true);
-    return apiFetch<{ lots: ProductLot[] }>(`/api/products/${productId}/lots`)
-      .then((data) => setLots(data.lots))
+    return apiFetch<LotsResponse>(`/api/products/${productId}/lots`)
+      .then((data) => { setLots(data.lots); setRecon(data.reconciliation ?? null); })
       .catch(() => setLots([]))
       .finally(() => setLoading(false));
   }, [productId]);
 
   useEffect(() => {
     let cancelled = false;
-    apiFetch<{ lots: ProductLot[] }>(`/api/products/${productId}/lots`)
-      .then((data) => { if (!cancelled) setLots(data.lots); })
+    apiFetch<LotsResponse>(`/api/products/${productId}/lots`)
+      .then((data) => { if (!cancelled) { setLots(data.lots); setRecon(data.reconciliation ?? null); } })
       .catch(() => { if (!cancelled) setLots([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -140,6 +154,30 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {recon && !loading ? (
+          <div
+            className={`mb-4 rounded-md border px-3 py-2 text-sm ${
+              recon.balanced
+                ? 'border-border bg-muted/40'
+                : recon.tracks_expiry
+                  ? 'border-destructive/50 bg-destructive/10 text-destructive'
+                  : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+            }`}
+          >
+            <div className="flex flex-wrap gap-x-6 gap-y-1">
+              <span>Existencia física: <strong>{recon.physical}</strong></span>
+              <span>Con lote: <strong>{recon.lotted}</strong></span>
+              <span>Sin lote: <strong>{recon.unlotted}</strong></span>
+            </div>
+            {!recon.balanced ? (
+              <p className="text-xs mt-1">
+                {recon.tracks_expiry
+                  ? 'Este producto controla caducidad, así que toda unidad debería tener lote. Corré scripts/backfill-lots.js para abrir lotes LEGACY por la diferencia.'
+                  : 'Este producto no controla caducidad: las unidades sin lote son normales (saldos iniciales y ajustes no generan lote).'}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         {loading ? (
           <p className="text-sm text-muted-foreground">Cargando lotes…</p>
         ) : !lots || lots.length === 0 ? (
@@ -154,6 +192,7 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
               <TableHeader>
                 <TableRow>
                   <TableHead>Lote</TableHead>
+                  <TableHead>Ubicación</TableHead>
                   <TableHead>Caducidad</TableHead>
                   <TableHead className="text-right">Existencia</TableHead>
                   <TableHead>Estado</TableHead>
@@ -168,6 +207,9 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
                   return (
                     <TableRow key={lot.id}>
                       <TableCell>{lot.lot_code || "—"}</TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {lot.location ? `${lot.location.warehouse.name} · ${lot.location.code}` : "Sin ubicación"}
+                      </TableCell>
                       <TableCell>{lot.expiry_date ? formatDate(lot.expiry_date) : "—"}</TableCell>
                       <TableCell className="text-right font-medium">{lot.qty_remaining}</TableCell>
                       <TableCell>
