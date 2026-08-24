@@ -79,6 +79,8 @@ import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
 import OrdersManagement from "@/components/orders/OrdersManagement";
 import OrderDetailPage from "@/components/orders/OrderDetailPage";
 import HrPage from "@/components/hr/HrPage";
+import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
+import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
 import PublicQuotePage from "@/pages/PublicQuotePage";
 
 function LegacyProveedorIdRedirect() {
@@ -528,6 +530,24 @@ const App = () => (
                   element={
                     <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
                       <HrPage />
+                    </PermissionRoute>
+                  }
+                />
+
+                {/* Nómina */}
+                <Route
+                  path="/nomina"
+                  element={
+                    <PermissionRoute any={["payroll.view"]}>
+                      <PayrollRunsManagement />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/nomina/:id"
+                  element={
+                    <PermissionRoute any={["payroll.view"]}>
+                      <PayrollRunDetail />
                     </PermissionRoute>
                   }
                 />
