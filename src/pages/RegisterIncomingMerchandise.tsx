@@ -314,10 +314,18 @@ export const RegisterIncomingMerchandise = () => {
         })
         return
       }
+      if (item.tracks_expiry && !item.lot_code.trim()) {
+        toast({
+          title: 'Número de lote requerido',
+          description: `"${item.product_name}" requiere el número de lote del proveedor`,
+          variant: 'destructive',
+        })
+        return
+      }
       if (item.tracks_expiry && !item.expiry_date) {
         toast({
           title: 'Fecha de caducidad requerida',
-          description: `"${item.product_name}" controla caducidad: ingrese la fecha del lote recibido`,
+          description: `"${item.product_name}" requiere la fecha de caducidad`,
           variant: 'destructive',
         })
         return
@@ -401,6 +409,9 @@ export const RegisterIncomingMerchandise = () => {
       return sum + (qty * cost)
     }, 0)
   }, [items])
+  const hasIncompleteControlledLot = items.some(
+    (item) => item.tracks_expiry && (!item.lot_code.trim() || !item.expiry_date)
+  )
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
@@ -675,7 +686,7 @@ export const RegisterIncomingMerchandise = () => {
                         {item.product_id && (
                           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
-                              <Label>Nº de lote (opcional)</Label>
+                              <Label>Nº de lote {item.tracks_expiry ? '*' : '(opcional)'}</Label>
                               <Input
                                 placeholder="Se genera automático si se deja vacío"
                                 maxLength={60}
@@ -683,6 +694,9 @@ export const RegisterIncomingMerchandise = () => {
                                 value={item.lot_code}
                                 onChange={(e) => handleLotFieldChange(index, 'lot_code', e.target.value)}
                               />
+                              {item.tracks_expiry && !item.lot_code.trim() && (
+                                <p className="text-xs text-destructive mt-1">El número del proveedor es obligatorio.</p>
+                              )}
                             </div>
                             <div>
                               <Label>
@@ -700,6 +714,11 @@ export const RegisterIncomingMerchandise = () => {
                                 </p>
                               )}
                             </div>
+                            {!item.tracks_expiry && (
+                              <p className="sm:col-span-2 text-xs text-muted-foreground">
+                                Si lo dejas vacío, se crea una partida interna automáticamente.
+                              </p>
+                            )}
                           </div>
                         )}
                         {item.product_id && (
@@ -786,6 +805,7 @@ export const RegisterIncomingMerchandise = () => {
                 items.length === 0 ||
                 !selectedSupplierId ||
                 supplierDetailLoading ||
+                hasIncompleteControlledLot ||
                 (paymentTermsOptions.length === 0 && !!selectedSupplierId)
               }
               className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"

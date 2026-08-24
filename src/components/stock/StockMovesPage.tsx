@@ -42,7 +42,14 @@ import {
     type StockMovement,
 } from '@/services/stockMoveService'
 
-type Draft = { product_id: string; name: string; qty: number }
+type Draft = {
+    product_id: string
+    name: string
+    qty: number
+    tracks_expiry: boolean
+    lot_code: string
+    expiry_date: string
+}
 
 const formatDate = (iso: string) =>
     new Date(iso).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })
@@ -87,7 +94,10 @@ const LinesEditor = ({
                                     setDraft((d) =>
                                         d.some((x) => x.product_id === String(p.id))
                                             ? d
-                                            : [...d, { product_id: String(p.id), name: p.name, qty: 1 }]
+                                            : [...d, {
+                                                product_id: String(p.id), name: p.name, qty: 1,
+                                                tracks_expiry: p.tracksExpiry === true, lot_code: '', expiry_date: '',
+                                            }]
                                     )
                                 }
                             >
@@ -103,28 +113,63 @@ const LinesEditor = ({
                 <div className='space-y-2'>
                     <Label>{signed ? 'Diferencias (− merma, + sobrante)' : 'Productos a mover'}</Label>
                     {draft.map((d) => (
-                        <div key={d.product_id} className='flex items-center gap-2'>
-                            <span className='flex-1 truncate text-sm'>{d.name}</span>
-                            <Input
-                                type='number'
-                                min={signed ? undefined : 1}
-                                className='w-24'
-                                value={d.qty}
-                                onChange={(e) =>
-                                    setDraft((rows) =>
-                                        rows.map((r) =>
+                        <div key={d.product_id} className='space-y-3 rounded-md border p-3'>
+                            <div className='flex items-center gap-2'>
+                                <span className='flex-1 truncate text-sm'>{d.name}</span>
+                                <Input
+                                    type='number'
+                                    min={signed ? undefined : 1}
+                                    className='w-24'
+                                    value={d.qty}
+                                    onChange={(e) =>
+                                        setDraft((rows) => rows.map((r) =>
                                             r.product_id === d.product_id ? { ...r, qty: Number(e.target.value) } : r
-                                        )
-                                    )
-                                }
-                            />
-                            <Button
-                                size='icon'
-                                variant='ghost'
-                                onClick={() => setDraft((rows) => rows.filter((r) => r.product_id !== d.product_id))}
-                            >
-                                <X className='h-4 w-4' />
-                            </Button>
+                                        ))
+                                    }
+                                />
+                                <Button
+                                    size='icon'
+                                    variant='ghost'
+                                    aria-label={`Quitar ${d.name}`}
+                                    onClick={() => setDraft((rows) => rows.filter((r) => r.product_id !== d.product_id))}
+                                >
+                                    <X className='h-4 w-4' />
+                                </Button>
+                            </div>
+                            {signed && d.qty > 0 && (
+                                <div className='grid gap-3 sm:grid-cols-2'>
+                                    <div className='space-y-1'>
+                                        <Label>Nº de lote {d.tracks_expiry ? '*' : '(opcional)'}</Label>
+                                        <Input
+                                            value={d.lot_code}
+                                            maxLength={60}
+                                            onChange={(e) => setDraft((rows) => rows.map((r) =>
+                                                r.product_id === d.product_id ? { ...r, lot_code: e.target.value } : r
+                                            ))}
+                                        />
+                                    </div>
+                                    <div className='space-y-1'>
+                                        <Label>Caducidad {d.tracks_expiry ? '*' : '(opcional)'}</Label>
+                                        <Input
+                                            type='date'
+                                            value={d.expiry_date}
+                                            onChange={(e) => setDraft((rows) => rows.map((r) =>
+                                                r.product_id === d.product_id ? { ...r, expiry_date: e.target.value } : r
+                                            ))}
+                                        />
+                                    </div>
+                                    {!d.tracks_expiry && (
+                                        <p className='text-xs text-muted-foreground sm:col-span-2'>
+                                            Si lo dejas vacío, se crea una partida interna automáticamente.
+                                        </p>
+                                    )}
+                                    {d.tracks_expiry && (!d.lot_code.trim() || !d.expiry_date) && (
+                                        <p className='text-xs text-destructive sm:col-span-2'>
+                                            Este producto requiere número de lote y fecha de caducidad.
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
@@ -212,13 +257,31 @@ export const StockMovesPage = () => {
             toast({ title: 'Elige la ubicación a ajustar', variant: 'destructive' })
             return
         }
-        const lines = adjDraft.filter((d) => d.qty !== 0).map((d) => ({ product_id: d.product_id, qty: d.qty }))
+        const controlledMissing = adjDraft.find(
+            (row) => row.qty > 0 && row.tracks_expiry && (!row.lot_code.trim() || !row.expiry_date)
+        )
+        if (controlledMissing) {
+            toast({
+                title: 'Lote incompleto',
+                description: `"${controlledMissing.name}" requiere número de lote y caducidad`,
+                variant: 'destructive',
+            })
+            return
+        }
+        const lines = adjDraft.filter((d) => d.qty !== 0).map((d) => ({
+            product_id: d.product_id, qty: d.qty,
+            lot_code: d.qty > 0 ? d.lot_code.trim() || undefined : undefined,
+            expiry_date: d.qty > 0 ? d.expiry_date || undefined : undefined,
+        }))
         if (lines.length === 0) {
             toast({ title: 'Agrega al menos una diferencia', variant: 'destructive' })
             return
         }
         adjustMutation.mutate({ location_id: adjLocationId, lines, notes: adjNotes.trim() || undefined })
     }
+    const hasIncompleteControlledAdjustment = adjDraft.some(
+        (row) => row.qty > 0 && row.tracks_expiry && (!row.lot_code.trim() || !row.expiry_date)
+    )
 
     /** Carga la sugerencia en el formulario de arriba; confirmar sigue siendo del usuario. */
     const preloadMove = (row: (typeof replenishment)[number]) => {
@@ -227,7 +290,10 @@ export const StockMovesPage = () => {
         setDraft((d) =>
             d.some((x) => x.product_id === row.product_id)
                 ? d
-                : [...d, { product_id: row.product_id, name: row.product_name, qty: row.suggested_qty }]
+                : [...d, {
+                    product_id: row.product_id, name: row.product_name, qty: row.suggested_qty,
+                    tracks_expiry: false, lot_code: '', expiry_date: '',
+                }]
         )
         setNotes('Reposición sugerida')
         window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -351,7 +417,11 @@ export const StockMovesPage = () => {
                             />
                         </div>
 
-                        <Button variant='secondary' onClick={submitAdjust} disabled={adjustMutation.isPending || locations.length === 0}>
+                        <Button
+                            variant='secondary'
+                            onClick={submitAdjust}
+                            disabled={adjustMutation.isPending || locations.length === 0 || hasIncompleteControlledAdjustment}
+                        >
                             <Scale className='mr-2 h-4 w-4' />
                             {adjustMutation.isPending ? 'Ajustando…' : 'Ajustar'}
                         </Button>

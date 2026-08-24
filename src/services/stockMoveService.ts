@@ -75,6 +75,8 @@ export const fetchMovements = (filters: MovementFilters = {}) => {
 export interface MoveLine {
   product_id: string;
   qty: number;
+  lot_code?: string;
+  expiry_date?: string;
 }
 
 export const createStockMove = (payload: {
