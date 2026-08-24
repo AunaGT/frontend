@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
@@ -25,7 +26,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import {
   createEmployee, fetchEmployees, terminateEmployee, updateEmployee,
-  EMPLOYEE_STATUS_LABELS, type Employee, type EmployeePayload,
+  EMPLOYEE_STATUS_LABELS, fetchLinkableUsers, type Employee, type EmployeePayload,
 } from '@/services/hrService'
 
 const emptyForm: EmployeePayload = {
@@ -53,8 +54,17 @@ export const EmployeesManagement = () => {
     queryFn: () => fetchEmployees({ q: search || undefined }),
   })
 
+  // Solo se pide con el diálogo abierto: el listado no necesita los usuarios.
+  const { data: linkable } = useQuery({
+    queryKey: ['hr-linkable-users', editing?.id ?? 'nuevo'],
+    queryFn: () => fetchLinkableUsers(editing?.id),
+    enabled: dialogOpen,
+  })
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['hr-employees'] })
+    // Vincular o desvincular cambia qué usuarios quedan disponibles.
+    qc.invalidateQueries({ queryKey: ['hr-linkable-users'] })
     qc.invalidateQueries({ queryKey: ['hr-advances'] })
   }
 
@@ -91,6 +101,7 @@ export const EmployeesManagement = () => {
       dpi: employee.dpi ?? '',
       igss_number: employee.igss_number ?? '',
       phone: employee.phone ?? '',
+      user_id: employee.user?.id ?? null,
     })
     setDialogOpen(true)
   }
@@ -188,6 +199,24 @@ export const EmployeesManagement = () => {
             <div>
               <Label>Bonificación incentivo</Label>
               <Input type="number" step="0.01" value={form.bonificacion_incentivo ?? 250} onChange={(e) => setForm({ ...form, bonificacion_incentivo: Number(e.target.value) })} />
+            </div>
+            <div className="col-span-2">
+              <Label>Usuario del sistema</Label>
+              <Select
+                value={form.user_id ?? '__none__'}
+                onValueChange={(v) => setForm({ ...form, user_id: v === '__none__' ? null : v })}
+              >
+                <SelectTrigger><SelectValue placeholder="Sin vincular" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin vincular</SelectItem>
+                  {(linkable?.items ?? []).map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.name} · {u.email}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Solo aparecen los usuarios que todavía no están vinculados a otro empleado.
+              </p>
             </div>
           </div>
           <DialogFooter>

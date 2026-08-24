@@ -66,6 +66,7 @@ export interface Employee {
   bank_account: string | null;
   status: EmployeeStatus;
   branch?: { id: string; name: string; code: string };
+  user?: { id: string; name: string; email: string } | null;
 }
 
 export interface EmployeePayload {
@@ -86,6 +87,15 @@ export interface EmployeePayload {
   pay_frequency?: PayFrequency;
   bank_account?: string;
   status?: EmployeeStatus;
+  /** Usuario del sistema vinculado; null desvincula. */
+  user_id?: string | null;
+}
+
+/** Usuario ofrecible en el selector de vinculación. */
+export interface LinkableUser {
+  id: string;
+  name: string;
+  email: string;
 }
 
 export interface Attendance {
@@ -151,6 +161,15 @@ const qs = (params: Record<string, string | undefined>) => {
 
 export const fetchEmployees = (filters: { status?: string; q?: string; department?: string } = {}) =>
   apiFetch<Paginated<Employee>>(`/api/hr/employees${qs({ ...filters, pageSize: "200" })}`);
+
+/**
+ * Usuarios de la empresa que todavía no tienen empleado. Al editar se pasa
+ * employeeId para que el que ya está vinculado siga apareciendo en el selector.
+ */
+export const fetchLinkableUsers = (employeeId?: string) =>
+  apiFetch<{ items: LinkableUser[] }>(
+    `/api/hr/employees/linkable-users${qs(employeeId ? { employee_id: employeeId } : {})}`
+  );
 
 export const createEmployee = (payload: EmployeePayload) =>
   apiFetch<Employee>("/api/hr/employees", { method: "POST", body: JSON.stringify(payload) });
