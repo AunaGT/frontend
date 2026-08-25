@@ -133,6 +133,7 @@ const ProductCard = ({
   availableQty,
   physicalStock,
   posQty,
+  posMode,
 }: {
   product: Product
   onAdd: () => void
@@ -143,6 +144,8 @@ const ProductCard = ({
   physicalStock?: number
   /** Existencias en la ubicación desde la que despacha la caja. */
   posQty?: number | null
+  /** La caja despacha de una ubicación concreta: el total de sucursal no sirve acá. */
+  posMode?: boolean
 }) => (
   <Card className="overflow-hidden transition-shadow hover:shadow-md">
     <div className="aspect-square bg-muted relative">
@@ -164,8 +167,12 @@ const ProductCard = ({
       </p>
       <p className="text-xs text-muted-foreground">
         {formatPrice(displayUnitPrice)}
-        {posQty != null
-          ? ` · Mostrador: ${posQty}`
+        {posMode
+          ? // Mientras no llegue el dato de la ubicación no se enseña el total de
+            // sucursal: en la caja ese número miente sobre lo que hay a la mano.
+            posQty != null
+            ? ` · Mostrador: ${posQty}`
+            : ' · Mostrador: …'
           : availableQty != null && physicalStock != null && physicalStock !== availableQty
             ? ` · Disp: ${availableQty} (${physicalStock} fís.)`
             : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
@@ -318,6 +325,8 @@ export default function NewSalePage() {
    * venta: se dice en qué anaquel está el producto y el cajero decide. Después
    * sigue el flujo de siempre (cantidad adicional, autorización de admin).
    */
+  const addingRef = useRef<Set<string>>(new Set())
+
   const addProduct = async (product: Product) => {
     if (posSinConfigurar) {
       toast({
@@ -329,6 +338,11 @@ export default function NewSalePage() {
       return
     }
     if (!posLocationId) { cart.addToCart(product); return }
+    // Un clic a la vez por producto: la consulta de abajo tarda, y sin esto dos
+    // clics seguidos leen el mismo carrito viejo, no ven que el mostrador ya se
+    // agotó y se saltan el aviso.
+    if (addingRef.current.has(product.id)) return
+    addingRef.current.add(product.id)
     try {
       const rows = await queryClient.fetchQuery({
         queryKey: ['stock-by-location', product.id],
@@ -346,6 +360,8 @@ export default function NewSalePage() {
       }
     } catch {
       // Si no se pudo consultar, no se estorba la venta: sigue el flujo normal.
+    } finally {
+      addingRef.current.delete(product.id)
     }
     cart.addToCart(product)
   }
@@ -1640,6 +1656,7 @@ export default function NewSalePage() {
                         availableQty={availabilityById[product.id]?.available ?? product.stock}
                         physicalStock={availabilityById[product.id]?.stock ?? product.stock}
                         posQty={posLocationId ? availabilityById[product.id]?.location_stock ?? null : null}
+                        posMode={Boolean(posLocationId)}
                       />
                     ))}
                   </div>
