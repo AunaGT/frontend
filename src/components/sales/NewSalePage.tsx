@@ -330,6 +330,8 @@ export default function NewSalePage() {
    * sigue el flujo de siempre (cantidad adicional, autorización de admin).
    */
   const addingRef = useRef<Set<string>>(new Set())
+  /** Hay un aviso de "está en otro almacén" esperando que el cajero decida. */
+  const decisionPendienteRef = useRef(false)
 
   const addProduct = async (product: Product) => {
     if (posSinConfigurar) {
@@ -360,9 +362,14 @@ export default function NewSalePage() {
         .filter((r) => r.location.id !== posLocationId && r.stock > 0)
         .map((r) => ({ label: `${r.location.warehouse.name} · ${r.location.code}`, stock: r.stock }))
       if (enCarrito + 1 > atPos && otras.length > 0) {
+        // Un solo aviso a la vez. Con dos productos en vuelo, el segundo abría su
+        // aviso justo después de que el cajero resolvía el primero, y parecía que
+        // el mismo diálogo reaparecía. Ese clic se descarta: el cajero lo repite.
+        if (decisionPendienteRef.current) return
         // El candado NO se suelta acá: sigue puesto hasta que el cajero decida.
         // Si se soltara al abrir, un segundo clic pendiente volvía a abrir el
         // aviso que el cajero ya había resuelto.
+        decisionPendienteRef.current = true
         esperaDecision = true
         setElsewhere({ product, atPos, rows: otras })
         return
@@ -382,6 +389,7 @@ export default function NewSalePage() {
    */
   const cerrarElsewhere = () => {
     addingRef.current.clear()
+    decisionPendienteRef.current = false
     setElsewhere(null)
   }
 
@@ -1729,11 +1737,13 @@ export default function NewSalePage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
+              {/* El nombre va en las dos ramas: sin él, dos avisos seguidos de
+                  productos distintos se ven idénticos. */}
               {elsewhereView == null
                 ? ''
                 : elsewhereView.atPos === 0
                   ? `No queda ${elsewhereView.product.name} en el mostrador`
-                  : `Solo quedan ${elsewhereView.atPos} en el mostrador`}
+                  : `Solo quedan ${elsewhereView.atPos} de ${elsewhereView.product.name} en el mostrador`}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
