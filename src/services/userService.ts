@@ -20,6 +20,11 @@ export interface User {
     name: string;
   };
   is_employee?: boolean;
+  /** Ficha de RRHH vinculada; is_employee se deriva de su existencia. */
+  employee?: {
+    id: string; code: string; first_name: string; last_name: string;
+    status: string; phone: string | null;
+  } | null;
   photo_url?: string | null;
   phone?: string | null;
   address?: string | null;

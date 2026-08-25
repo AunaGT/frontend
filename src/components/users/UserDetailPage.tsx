@@ -12,7 +12,7 @@
  * Vista de detalle de usuario: foto a un costado (40%), datos al otro (60%), edición inline.
  */
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -76,10 +76,6 @@ export default function UserDetailPage() {
 
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
-  const [editPhone, setEditPhone] = useState('')
-  const [editAddress, setEditAddress] = useState('')
-  const [editIsEmployee, setEditIsEmployee] = useState(false)
-  const [editHireDate, setEditHireDate] = useState('')
   const [editPassword, setEditPassword] = useState('')
   const [editRoleId, setEditRoleId] = useState('')
   // '' = sin caja asignada (usa la predeterminada)
@@ -134,10 +130,6 @@ export default function UserDetailPage() {
     if (!user) return
     setEditName(user.name)
     setEditEmail(user.email)
-    setEditPhone(user.phone ?? '')
-    setEditAddress(user.address ?? '')
-    setEditIsEmployee(user.is_employee ?? false)
-    setEditHireDate(user.hire_date ? format(new Date(user.hire_date), 'yyyy-MM-dd') : '')
     setEditPassword('')
     setEditRoleId(String(user.role_id))
     setEditCashRegisterId(user.cash_register_id ?? '')
@@ -147,10 +139,6 @@ export default function UserDetailPage() {
     if (!user) return
     setEditName(user.name)
     setEditEmail(user.email)
-    setEditPhone(user.phone ?? '')
-    setEditAddress(user.address ?? '')
-    setEditIsEmployee(user.is_employee ?? false)
-    setEditHireDate(user.hire_date ? format(new Date(user.hire_date), 'yyyy-MM-dd') : '')
     setEditPassword('')
     setEditRoleId(String(user.role_id))
     setEditCashRegisterId(user.cash_register_id ?? '')
@@ -210,10 +198,7 @@ export default function UserDetailPage() {
         name: editName.trim(),
         email: editEmail.trim(),
         role_id: Number(editRoleId),
-        is_employee: editIsEmployee,
-        phone: editPhone.trim() || null,
-        address: editAddress.trim() || null,
-        hire_date: editHireDate || null,
+
         cash_register_id: editCashRegisterId || null,
         ...(editPassword.trim() ? { password: editPassword } : {}),
       }
@@ -425,11 +410,10 @@ export default function UserDetailPage() {
                     <Label className="text-muted-foreground flex items-center gap-2">
                       <Phone className="w-4 h-4" /> Teléfono
                     </Label>
-                    {isEditing && canEdit ? (
-                      <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} placeholder="Opcional" className="mt-1" />
-                    ) : (
-                      <p className="text-foreground mt-1">{user.phone || '—'}</p>
-                    )}
+                    <p className="text-foreground mt-1">{user.employee?.phone || user.phone || '—'}</p>
+                    {user.employee ? (
+                      <p className="text-xs text-muted-foreground">Se edita en la ficha de RRHH</p>
+                    ) : null}
                   </div>
                   <div>
                     <Label className="text-muted-foreground flex items-center gap-2">
@@ -456,19 +440,24 @@ export default function UserDetailPage() {
                   <Label className="text-muted-foreground flex items-center gap-2">
                     <MapPin className="w-4 h-4" /> Dirección
                   </Label>
-                  {isEditing && canEdit ? (
-                    <Textarea value={editAddress} onChange={(e) => setEditAddress(e.target.value)} placeholder="Opcional" rows={2} className="mt-1 resize-none" />
-                  ) : (
-                    <p className="text-foreground mt-1">{user.address || '—'}</p>
-                  )}
+                  <p className="text-foreground mt-1">{user.address || '—'}</p>
                 </div>
 
-                <div className="mt-4 flex items-center gap-2">
-                  <Label className="text-muted-foreground">Es empleado</Label>
-                  {isEditing && canEdit ? (
-                    <Checkbox id="edit-is-employee" checked={editIsEmployee} onCheckedChange={(c) => setEditIsEmployee(c === true)} />
+                <div className="mt-4">
+                  <Label className="text-muted-foreground">Empleado</Label>
+                  {user.employee ? (
+                    <p className="text-foreground mt-1">
+                      Sí ·{' '}
+                      <Link to="/rrhh" className="underline underline-offset-2">
+                        {user.employee.code} — {user.employee.first_name} {user.employee.last_name}
+                      </Link>
+                    </p>
                   ) : (
-                    <span className="text-foreground">{user.is_employee ? 'Sí' : 'No'}</span>
+                    <p className="text-foreground mt-1">
+                      No.{' '}
+                      <Link to="/rrhh" className="underline underline-offset-2">Crear su ficha en RRHH</Link>{' '}
+                      para incluirlo en planilla.
+                    </p>
                   )}
                 </div>
 
@@ -476,13 +465,9 @@ export default function UserDetailPage() {
                   <Label className="text-muted-foreground flex items-center gap-2">
                     <Calendar className="w-4 h-4" /> Fecha de contratación
                   </Label>
-                  {isEditing && canEdit ? (
-                    <Input type="date" value={editHireDate} onChange={(e) => setEditHireDate(e.target.value)} className="mt-1" />
-                  ) : (
-                    <p className="text-foreground mt-1">
-                      {user.hire_date ? format(new Date(user.hire_date), 'dd MMMM yyyy', { locale: es }) : '—'}
-                    </p>
-                  )}
+                  <p className="text-foreground mt-1">
+                    {user.hire_date ? format(new Date(user.hire_date), 'dd MMMM yyyy', { locale: es }) : '—'}
+                  </p>
                 </div>
 
                 {(cashRegisters.length > 0 || user.cash_register) && (
