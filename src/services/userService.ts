@@ -63,11 +63,7 @@ export interface CreateUserPayload {
   email: string;
   password: string;
   role_id: number;
-  is_employee?: boolean;
   photo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  hire_date?: string | null;
 }
 
 export interface UpdateUserPayload {
@@ -75,11 +71,7 @@ export interface UpdateUserPayload {
   email?: string;
   role_id?: number;
   password?: string;
-  is_employee?: boolean;
   photo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  hire_date?: string | null;
   cash_register_id?: string | null;
 }
 
