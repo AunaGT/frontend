@@ -61,7 +61,7 @@ const IncomingMerchandiseManagement = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const { currencyCode, locale } = useSystemSettings()
+  const { currencyCode, locale, timezone } = useSystemSettings()
 
   const [searchTerm, setSearchTerm] = useState('')
   const {
@@ -163,12 +163,15 @@ const IncomingMerchandiseManagement = () => {
   }
 
   const formatDate = (dateString: string) => {
+    // Sin `timeZone`, esto usa la del navegador — que no tiene por qué coincidir
+    // con la configurada en Configuración → General.
     return new Date(dateString).toLocaleDateString(loc, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: timezone,
     })
   }
 
