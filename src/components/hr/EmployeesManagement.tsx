@@ -15,12 +15,13 @@ import { Plus, Loader2, UserMinus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -48,6 +49,9 @@ export const EmployeesManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Employee | null>(null)
   const [form, setForm] = useState<EmployeePayload>(emptyForm)
+  // Estado aparte y no derivado de igss_number: si no, marcar la casilla y
+  // todavía no escribir el número la desmarcaría sola.
+  const [afiliadoIgss, setAfiliadoIgss] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['hr-employees', search],
@@ -87,7 +91,7 @@ export const EmployeesManagement = () => {
     onError: (e: Error) => toast({ title: 'No se pudo dar de baja', description: e.message, variant: 'destructive' }),
   })
 
-  const openNew = () => { setEditing(null); setForm(emptyForm); setDialogOpen(true) }
+  const openNew = () => { setEditing(null); setForm(emptyForm); setAfiliadoIgss(false); setDialogOpen(true) }
   const openEdit = (employee: Employee) => {
     setEditing(employee)
     setForm({
@@ -103,6 +107,7 @@ export const EmployeesManagement = () => {
       phone: employee.phone ?? '',
       user_id: employee.user?.id ?? null,
     })
+    setAfiliadoIgss(Boolean(employee.igss_number?.trim()))
     setDialogOpen(true)
   }
 
@@ -185,12 +190,43 @@ export const EmployeesManagement = () => {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? 'Editar empleado' : 'Nuevo empleado'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Datos personales, puesto, sueldo y afiliación al IGSS del empleado.
+            </DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-2 gap-4">
             <div><Label>Nombre</Label><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></div>
             <div><Label>Apellido</Label><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></div>
             <div><Label>DPI</Label><Input value={form.dpi ?? ''} onChange={(e) => setForm({ ...form, dpi: e.target.value })} /></div>
-            <div><Label>No. IGSS</Label><Input value={form.igss_number ?? ''} onChange={(e) => setForm({ ...form, igss_number: e.target.value })} /></div>
+            <div>
+              {/* El número es la única marca de afiliación que hay: sin él la
+                  nómina lo deja fuera de la planilla del IGSS. */}
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={afiliadoIgss}
+                  onCheckedChange={(v) => {
+                    const on = v === true
+                    setAfiliadoIgss(on)
+                    if (!on) setForm((f) => ({ ...f, igss_number: '' }))
+                  }}
+                />
+                <span className="text-sm font-medium leading-none">Afiliado al IGSS</span>
+              </label>
+              {afiliadoIgss ? (
+                <div className="mt-2">
+                  <Label>No. IGSS</Label>
+                  <Input
+                    autoFocus
+                    value={form.igss_number ?? ''}
+                    onChange={(e) => setForm({ ...form, igss_number: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  No se le retiene cuota laboral ni se le paga cuota patronal.
+                </p>
+              )}
+            </div>
             <div><Label>Puesto</Label><Input value={form.position ?? ''} onChange={(e) => setForm({ ...form, position: e.target.value })} /></div>
             <div><Label>Departamento</Label><Input value={form.department ?? ''} onChange={(e) => setForm({ ...form, department: e.target.value })} /></div>
             <div><Label>Fecha de ingreso</Label><Input type="date" value={form.hire_date} onChange={(e) => setForm({ ...form, hire_date: e.target.value })} /></div>
@@ -221,7 +257,20 @@ export const EmployeesManagement = () => {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
-            <Button disabled={save.isPending} onClick={() => save.mutate(form)}>
+            <Button
+              disabled={save.isPending}
+              onClick={() => {
+                if (afiliadoIgss && !form.igss_number?.trim()) {
+                  toast({
+                    title: 'Falta el número de IGSS',
+                    description: 'Escribilo, o destildá la casilla si el empleado no está afiliado.',
+                    variant: 'destructive',
+                  })
+                  return
+                }
+                save.mutate(form)
+              }}
+            >
               {save.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar
             </Button>
           </DialogFooter>

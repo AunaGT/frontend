@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import {
@@ -30,6 +30,20 @@ import {
 
 /** El orden del ciclo al hacer clic en una celda. */
 const CYCLE: AttendanceStatus[] = ['PRESENTE', 'TARDE', 'AUSENTE', 'VACACIONES', 'INCAPACIDAD', 'PERMISO', 'ASUETO']
+
+/**
+ * La inicial no sirve: Presente/Permiso y Ausente/Asueto empiezan igual, y el
+ * color solo no alcanza para quien no distingue verde de gris.
+ */
+const CELL_LETTER: Record<AttendanceStatus, string> = {
+  PRESENTE: 'P',
+  TARDE: 'T',
+  AUSENTE: 'A',
+  VACACIONES: 'V',
+  INCAPACIDAD: 'I',
+  PERMISO: 'M',
+  ASUETO: 'F',
+}
 
 const CELL_CLASS: Record<AttendanceStatus, string> = {
   PRESENTE: 'bg-emerald-100 text-emerald-900',
@@ -104,6 +118,23 @@ export const AttendanceSheet = () => {
           <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : (
           <div className="overflow-x-auto">
+            {/* Los chips son idénticos a las celdas: la leyenda se lee mirando, no traduciendo. */}
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/30 px-3 py-2">
+              {CYCLE.map((status) => (
+                <span key={status} className="flex items-center gap-1.5 text-xs">
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-medium ${CELL_CLASS[status]}`}
+                  >
+                    {CELL_LETTER[status]}
+                  </span>
+                  <span className="text-muted-foreground">{ATTENDANCE_STATUS_LABELS[status]}</span>
+                </span>
+              ))}
+              <span className="flex items-center gap-1.5 text-xs">
+                <span className="h-5 w-5 rounded bg-muted" />
+                <span className="text-muted-foreground">Sin marcar</span>
+              </span>
+            </div>
             <table className="text-xs">
               <thead>
                 <tr>
@@ -137,7 +168,7 @@ export const AttendanceSheet = () => {
                             cycle(employee.id, date)
                           }}
                         >
-                          {mark ? mark.status[0] : ''}
+                          {mark ? CELL_LETTER[mark.status] : ''}
                         </button>
                       </td>
                     )
@@ -155,8 +186,9 @@ export const AttendanceSheet = () => {
               </tbody>
             </table>
             <p className="mt-3 text-xs text-muted-foreground">
-              Un clic cambia el estado; shift+clic edita las horas extra del día. La asistencia no
-              descuenta días del sueldo: solo las horas extra pasan a la planilla.
+              Un clic avanza al siguiente estado en el orden de la leyenda; shift+clic edita las
+              horas extra del día. La asistencia no descuenta días del sueldo: solo las horas extra
+              pasan a la planilla.
             </p>
           </div>
         )}
@@ -164,7 +196,12 @@ export const AttendanceSheet = () => {
 
       <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Horas extra del {detail?.date}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Horas extra del {detail?.date}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Editar las horas extra registradas para este empleado en este día.
+            </DialogDescription>
+          </DialogHeader>
           <div>
             <Label>Horas extra</Label>
             <Input type="number" step="0.5" min={0} max={24} value={overtime} onChange={(e) => setOvertime(Number(e.target.value))} />
