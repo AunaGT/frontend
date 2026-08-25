@@ -53,6 +53,7 @@ import AlertsManagement from "./components/AlertsManagement";
 import ScannerManagement from "@/components/ScannerManagement";
 import UserManagement from "@/components/UserManagement";
 import UserDetailPage from "@/components/users/UserDetailPage";
+import MyProfilePage from "@/components/users/MyProfilePage";
 import UserCreatePage from "@/components/users/UserCreatePage";
 import RolesPermissionsManagement from "@/components/users/RolesPermissionsManagement";
 import RolePermissionsDetail from "@/components/users/RolePermissionsDetail";
@@ -114,6 +115,9 @@ const App = () => (
               <Route element={<MainLayout />}>
                 {/* Home - App Grid (siempre accesible tras login) */}
                 <Route path="/" element={<HomePage />} />
+
+                {/* Mi perfil - sin permisos: todo usuario puede verse a sí mismo */}
+                <Route path="/mi-perfil" element={<MyProfilePage />} />
 
                 {/* Dashboard - requiere ver analíticas */}
                 <Route

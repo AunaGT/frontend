@@ -171,6 +171,9 @@ export const fetchLinkableUsers = (employeeId?: string) =>
     `/api/hr/employees/linkable-users${qs(employeeId ? { employee_id: employeeId } : {})}`
   );
 
+/** Mi propia ficha de empleado. 404 si el usuario no está en planilla. */
+export const fetchMyEmployee = () => apiFetch<Employee>("/api/hr/employees/me");
+
 export const createEmployee = (payload: EmployeePayload) =>
   apiFetch<Employee>("/api/hr/employees", { method: "POST", body: JSON.stringify(payload) });
 
