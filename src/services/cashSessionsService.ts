@@ -52,8 +52,6 @@ export interface CashRegisterDto {
   active: boolean
   /** Sucursal dueña de la caja: una caja pertenece a una sola sucursal */
   branch?: { id: string; name: string; code: string } | null
-  /** Sucursal dueña de la caja */
-  branch?: { id: string; name: string; code: string } | null
   /** Solo en listados de gestión */
   assigned_users?: Array<{ id: string; name: string }>
   has_open_session?: boolean
