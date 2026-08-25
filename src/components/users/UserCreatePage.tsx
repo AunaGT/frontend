@@ -36,14 +36,10 @@ export default function UserCreatePage() {
   const { toast } = useToast()
   const createUserMutation = useCreateUser()
 
-  const [isEmployee, setIsEmployee] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [roleId, setRoleId] = useState('')
-  const [phone, setPhone] = useState('')
-  const [address, setAddress] = useState('')
-  const [hireDate, setHireDate] = useState('')
   const [roles, setRoles] = useState<Role[]>([])
   const [rolesLoading, setRolesLoading] = useState(true)
   const [rolePopoverOpen, setRolePopoverOpen] = useState(false)
@@ -130,12 +126,6 @@ export default function UserCreatePage() {
         email: email.trim(),
         password,
         role_id: Number(roleId),
-        is_employee: isEmployee,
-        ...(isEmployee && {
-          phone: phone.trim() || undefined,
-          address: address.trim() || undefined,
-          hire_date: hireDate || undefined,
-        }),
       })
       const userId = result?.user?.id
       if (userId && branchIds.length > 0) {
@@ -230,49 +220,13 @@ export default function UserCreatePage() {
 
             {/* Datos - 60% */}
             <div className="lg:col-span-3 space-y-6">
-              <div className="flex items-center space-x-2 pb-2 border-b border-border">
-                <Checkbox
-                  id="is-employee"
-                  checked={isEmployee}
-                  onCheckedChange={(c) => setIsEmployee(c === true)}
-                />
-                <Label htmlFor="is-employee" className="cursor-pointer font-medium">Es empleado</Label>
+              <div className="pb-2 border-b border-border">
+                <p className="text-sm text-muted-foreground">
+                  Esto crea una <strong className="text-foreground">cuenta de acceso</strong>. Si además
+                  entra en planilla, creá su ficha en RRHH y vinculá ahí esta cuenta: el teléfono, la
+                  dirección y la fecha de ingreso viven en la ficha, que es de donde los lee la nómina.
+                </p>
               </div>
-              {isEmployee && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 rounded-lg bg-muted/50 border border-border">
-                  <div>
-                    <Label htmlFor="phone">Teléfono</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="Opcional"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="hire-date">Fecha de contratación</Label>
-                    <Input
-                      id="hire-date"
-                      type="date"
-                      value={hireDate}
-                      onChange={(e) => setHireDate(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="address">Dirección</Label>
-                    <Input
-                      id="address"
-                      placeholder="Opcional"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <Label htmlFor="name">Nombre completo *</Label>
