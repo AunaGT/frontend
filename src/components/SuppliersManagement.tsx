@@ -35,6 +35,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -576,6 +577,9 @@ const SuppliersManagement = () => {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Editar contacto</DialogTitle>
+            <DialogDescription className="sr-only">
+              Editar los datos de contacto, categorías y términos de pago.
+            </DialogDescription>
           </DialogHeader>
           {selectedSupplier && (
             <div className="grid grid-cols-2 gap-4">

@@ -35,7 +35,7 @@ import {
     DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import type { Product } from '@/types'
@@ -441,11 +441,11 @@ const ProductManagement = () => {
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Escáner de códigos</DialogTitle>
+                        <DialogDescription>Ingrese el código de barras manualmente</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="text-center">
                             <QrCode className="w-24 h-24 mx-auto text-muted-foreground mb-4" />
-                            <p className="text-muted-foreground text-sm">Ingrese el código de barras manualmente</p>
                         </div>
                         <div>
                             <Label htmlFor="scannedCode">Código de barras</Label>

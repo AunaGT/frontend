@@ -14,7 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Receipt } from 'lucide-react'
 import { CartPanel } from './CartPanel'
@@ -106,6 +106,9 @@ export const NewSaleDialog = ({
             <DialogContent className='max-w-4xl max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                     <DialogTitle>Registrar Nueva Venta</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Formulario para registrar una nueva venta: datos del cliente, productos y método de pago.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className='space-y-6'>
                     {/* Customer Info */}
