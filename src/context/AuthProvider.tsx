@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthContext, type AuthUser } from "./AuthContext";
 import { fetchMe, logoutRequest } from "@/services/authService";
 
@@ -16,6 +17,7 @@ const AUTH_KEY = "auth:isAuthenticated";
 const USER_KEY = "auth:user";
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const queryClient = useQueryClient();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Start as loading
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -99,9 +101,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         localStorage.removeItem(USER_KEY);
         setIsAuthenticated(false);
         setUser(null);
+        // Datos sensibles por usuario (mi ficha de RRHH, sueldo, cajas, lo que
+        // sea) quedaban en la caché de react-query después de cerrar sesión —
+        // si otra persona entra en el mismo navegador sin recargar, el primer
+        // render podía mostrar por un instante los datos de la sesión anterior.
+        queryClient.clear();
       },
     }),
-    [isAuthenticated, isLoading, user]
+    [isAuthenticated, isLoading, user, queryClient]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
