@@ -234,6 +234,24 @@ export const appModules: AppModule[] = [
         permissions: ['branches.manage', 'companies.manage']
     },
     {
+        id: 'hr',
+        label: 'RRHH',
+        path: '/rrhh',
+        icon: UsuariosIcon,
+        color: 'bg-pink-100/90',
+        iconColor: 'text-pink-900',
+        permissions: ['hr.employees.view']
+    },
+    {
+        id: 'payroll',
+        label: 'Nómina',
+        path: '/nomina',
+        icon: ReporteFinancieroIcon,
+        color: 'bg-emerald-100/90',
+        iconColor: 'text-emerald-900',
+        permissions: ['payroll.view']
+    },
+    {
         id: 'users',
         label: 'Usuarios',
         path: '/usuarios',

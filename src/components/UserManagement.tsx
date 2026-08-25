@@ -90,10 +90,6 @@ const UserManagement = () => {
   const [editEmail, setEditEmail] = useState("");
   const [editPassword, setEditPassword] = useState("");
   const [editRoleId, setEditRoleId] = useState<string>("");
-  const [editIsEmployee, setEditIsEmployee] = useState(false);
-  const [editPhone, setEditPhone] = useState("");
-  const [editAddress, setEditAddress] = useState("");
-  const [editHireDate, setEditHireDate] = useState("");
 
   // Búsqueda y filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -137,10 +133,6 @@ const UserManagement = () => {
     setEditEmail(user.email);
     setEditPassword("");
     setEditRoleId(String(user.role_id));
-    setEditIsEmployee(user.is_employee ?? false);
-    setEditPhone(user.phone ?? "");
-    setEditAddress(user.address ?? "");
-    setEditHireDate(user.hire_date ? new Date(user.hire_date).toISOString().slice(0, 10) : "");
     setIsEditOpen(true);
   };
 
@@ -202,10 +194,6 @@ const UserManagement = () => {
         name: editName.trim(),
         email: editEmail.trim(),
         role_id: Number(editRoleId),
-        is_employee: editIsEmployee,
-        phone: editPhone.trim() || null,
-        address: editAddress.trim() || null,
-        hire_date: editHireDate || null,
         ...(editPassword && editPassword.trim() !== "" ? { password: editPassword } : {}),
       };
 
@@ -604,45 +592,16 @@ const UserManagement = () => {
           </DialogHeader>
           {selectedUser && (
             <div className="space-y-4">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="edit-is-employee"
-                  checked={editIsEmployee}
-                  onCheckedChange={(c) => setEditIsEmployee(c === true)}
-                />
-                <Label htmlFor="edit-is-employee" className="cursor-pointer font-medium">Es empleado</Label>
-              </div>
-              {editIsEmployee && (
-                <div className="grid grid-cols-1 gap-3 p-3 rounded-lg bg-muted/50 border border-border">
-                  <div>
-                    <Label htmlFor="edit-phone">Teléfono</Label>
-                    <Input
-                      id="edit-phone"
-                      type="tel"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      placeholder="Opcional"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-address">Dirección</Label>
-                    <Input
-                      id="edit-address"
-                      value={editAddress}
-                      onChange={(e) => setEditAddress(e.target.value)}
-                      placeholder="Opcional"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit-hire-date">Fecha de contratación</Label>
-                    <Input
-                      id="edit-hire-date"
-                      type="date"
-                      value={editHireDate}
-                      onChange={(e) => setEditHireDate(e.target.value)}
-                    />
-                  </div>
-                </div>
+              {selectedUser.employee ? (
+                <p className="text-sm text-muted-foreground">
+                  Empleado: <strong className="text-foreground">{selectedUser.employee.code} — {selectedUser.employee.first_name} {selectedUser.employee.last_name}</strong>.
+                  Su teléfono, dirección y fecha de ingreso se editan en RRHH.
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Esta cuenta no tiene ficha de empleado. Creála en RRHH y vinculá el usuario ahí
+                  para que entre en planilla.
+                </p>
               )}
               <div>
                 <Label htmlFor="edit-name">Nombre Completo</Label>

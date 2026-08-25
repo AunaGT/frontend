@@ -216,7 +216,17 @@ export const postPricingPreview = async (
   });
 };
 
-export type ProductAvailability = { stock: number; reserved: number; available: number };
+export type ProductAvailability = {
+  stock: number;
+  reserved: number;
+  available: number;
+  /** Solo con scope "pos": lo que hay en la ubicación de venta de la sucursal. */
+  location_stock?: number;
+  location_available?: number;
+};
+
+/** Ubicación de venta de la sucursal. Sin configurar, el POS no debe vender. */
+export type SalesLocationInfo = { configured: boolean; id: string | null };
 
 export async function fetchProductsAvailability(
   productIds: string[]
@@ -228,6 +238,27 @@ export async function fetchProductsAvailability(
     { method: "GET" }
   );
   return res.availability ?? {};
+}
+
+/**
+ * Igual que la anterior pero para el punto de venta: agrega el stock de la
+ * ubicación desde la que la caja despacha, y avisa si no hay ninguna configurada.
+ */
+export async function fetchPosAvailability(
+  productIds: string[]
+): Promise<{ availability: Record<string, ProductAvailability>; salesLocation: SalesLocationInfo }> {
+  if (productIds.length === 0) {
+    return { availability: {}, salesLocation: { configured: true, id: null } };
+  }
+  const q = new URLSearchParams({ ids: productIds.join(","), scope: "pos" });
+  const res = await apiFetch<{
+    availability: Record<string, ProductAvailability>;
+    sales_location: SalesLocationInfo;
+  }>(`/api/products/availability?${q.toString()}`, { method: "GET" });
+  return {
+    availability: res.availability ?? {},
+    salesLocation: res.sales_location ?? { configured: false, id: null },
+  };
 }
 
 export type CreateProductPayload = CreateProductPayloadType;

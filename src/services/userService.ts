@@ -20,6 +20,11 @@ export interface User {
     name: string;
   };
   is_employee?: boolean;
+  /** Ficha de RRHH vinculada; is_employee se deriva de su existencia. */
+  employee?: {
+    id: string; code: string; first_name: string; last_name: string;
+    status: string; phone: string | null;
+  } | null;
   photo_url?: string | null;
   phone?: string | null;
   address?: string | null;
@@ -58,11 +63,7 @@ export interface CreateUserPayload {
   email: string;
   password: string;
   role_id: number;
-  is_employee?: boolean;
   photo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  hire_date?: string | null;
 }
 
 export interface UpdateUserPayload {
@@ -70,11 +71,7 @@ export interface UpdateUserPayload {
   email?: string;
   role_id?: number;
   password?: string;
-  is_employee?: boolean;
   photo_url?: string | null;
-  phone?: string | null;
-  address?: string | null;
-  hire_date?: string | null;
   cash_register_id?: string | null;
 }
 
