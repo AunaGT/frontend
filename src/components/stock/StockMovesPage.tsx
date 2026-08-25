@@ -105,10 +105,11 @@ const LinesEditor = ({
                                 </span>
                             </button>
                         ))}
-                        {results.length === 0 && !isFetching && locationLabel && (
+                        {results.length === 0 && !isFetching && (
                             <p className='px-3 py-2 text-sm text-muted-foreground'>
-                                Nada con existencia en {locationLabel}. Puede estar en otro almacén: revisá la
-                                tabla de abajo para ver de dónde traerlo.
+                                {locationLabel
+                                    ? `Nada con existencia en ${locationLabel}. Puede estar en otro almacén: mirá la tabla de reposición de abajo para ver de dónde traerlo.`
+                                    : 'Sin resultados.'}
                             </p>
                         )}
                     </div>

@@ -291,9 +291,13 @@ export default function NewSalePage() {
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
   const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
-  const [elsewhere, setElsewhere] = useState<
-    { product: Product; atPos: number; rows: { label: string; stock: number }[] } | null
-  >(null)
+  type ElsewhereState = { product: Product; atPos: number; rows: { label: string; stock: number }[] }
+  const [elsewhere, setElsewhere] = useState<ElsewhereState | null>(null)
+  // El AlertDialog sigue montado durante la animación de cierre, cuando `elsewhere`
+  // ya es null: leerlo directo pintaba "Solo quedan undefined en el mostrador".
+  const elsewhereShownRef = useRef<ElsewhereState | null>(null)
+  if (elsewhere) elsewhereShownRef.current = elsewhere
+  const elsewhereView = elsewhere ?? elsewhereShownRef.current
   const [loadOrderRef, setLoadOrderRef] = useState('')
   const [loadOrderOpen, setLoadOrderOpen] = useState(false)
   const orderLineIdByProductRef = useRef<Map<string, string>>(new Map())
@@ -343,6 +347,7 @@ export default function NewSalePage() {
     // agotó y se saltan el aviso.
     if (addingRef.current.has(product.id)) return
     addingRef.current.add(product.id)
+    let esperaDecision = false
     try {
       const rows = await queryClient.fetchQuery({
         queryKey: ['stock-by-location', product.id],
@@ -355,15 +360,29 @@ export default function NewSalePage() {
         .filter((r) => r.location.id !== posLocationId && r.stock > 0)
         .map((r) => ({ label: `${r.location.warehouse.name} · ${r.location.code}`, stock: r.stock }))
       if (enCarrito + 1 > atPos && otras.length > 0) {
+        // El candado NO se suelta acá: sigue puesto hasta que el cajero decida.
+        // Si se soltara al abrir, un segundo clic pendiente volvía a abrir el
+        // aviso que el cajero ya había resuelto.
+        esperaDecision = true
         setElsewhere({ product, atPos, rows: otras })
         return
       }
     } catch {
       // Si no se pudo consultar, no se estorba la venta: sigue el flujo normal.
     } finally {
-      addingRef.current.delete(product.id)
+      if (!esperaDecision) addingRef.current.delete(product.id)
     }
     cart.addToCart(product)
+  }
+
+  /**
+   * Cierra el aviso y suelta los candados. Se limpian todos, no solo el del
+   * producto mostrado: si dos productos quedaron en vuelo, el segundo aviso pisa
+   * al primero y el candado del primero se quedaría puesto para siempre.
+   */
+  const cerrarElsewhere = () => {
+    addingRef.current.clear()
+    setElsewhere(null)
   }
 
   const repriceCartRef = useRef(cart.repriceCartLines)
@@ -1706,19 +1725,21 @@ export default function NewSalePage() {
         </div>
       </div>
 
-      <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && setElsewhere(null)}>
+      <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && cerrarElsewhere()}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {elsewhere?.atPos === 0
-                ? `No queda ${elsewhere?.product.name} en el mostrador`
-                : `Solo quedan ${elsewhere?.atPos} en el mostrador`}
+              {elsewhereView == null
+                ? ''
+                : elsewhereView.atPos === 0
+                  ? `No queda ${elsewhereView.product.name} en el mostrador`
+                  : `Solo quedan ${elsewhereView.atPos} en el mostrador`}
             </AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div>
                 <p>Pero sí hay en:</p>
                 <ul className="mt-2 space-y-1">
-                  {elsewhere?.rows.map((r) => (
+                  {elsewhereView?.rows.map((r) => (
                     <li key={r.label} className="text-foreground">
                       <span className="font-mono">{r.label}</span>
                       <span className="text-muted-foreground"> — {r.stock} unidad(es)</span>
@@ -1737,7 +1758,7 @@ export default function NewSalePage() {
             <AlertDialogAction
               onClick={() => {
                 if (elsewhere) cart.addToCart(elsewhere.product)
-                setElsewhere(null)
+                cerrarElsewhere()
               }}
             >
               Continuar
