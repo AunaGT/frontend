@@ -53,18 +53,25 @@ const LinesEditor = ({
     draft,
     setDraft,
     signed = false,
+    locationId,
+    locationLabel,
 }: {
     id: string
     draft: Draft[]
     setDraft: React.Dispatch<React.SetStateAction<Draft[]>>
     signed?: boolean
+    /** Al mover, el origen: solo se puede sacar lo que está ahí. */
+    locationId?: string
+    locationLabel?: string
 }) => {
     const [search, setSearch] = useState('')
-    const { data } = useQuery({
-        queryKey: ['stock-move-products', search],
-        queryFn: () => fetchProducts({ search, pageSize: 20, inBranchOnly: true }),
+    const { data, isFetching } = useQuery({
+        queryKey: ['stock-move-products', search, locationId ?? 'branch'],
+        queryFn: () =>
+            fetchProducts({ search, pageSize: 20, inBranchOnly: true, locationId: locationId || undefined }),
         enabled: search.trim().length > 0,
     })
+    const results = data?.items ?? []
 
     return (
         <>
@@ -78,7 +85,7 @@ const LinesEditor = ({
                 />
                 {search && (
                     <div className='max-h-40 overflow-y-auto rounded-md border'>
-                        {(data?.items ?? []).map((p) => (
+                        {results.map((p) => (
                             <button
                                 key={p.id}
                                 type='button'
@@ -92,9 +99,18 @@ const LinesEditor = ({
                                 }
                             >
                                 <span>{p.name}</span>
-                                <span className='text-muted-foreground'>en sucursal: {p.stock ?? 0}</span>
+                                <span className='text-muted-foreground'>
+                                    {locationLabel ? `en ${locationLabel}: ` : 'en sucursal: '}
+                                    {p.stock ?? 0}
+                                </span>
                             </button>
                         ))}
+                        {results.length === 0 && !isFetching && locationLabel && (
+                            <p className='px-3 py-2 text-sm text-muted-foreground'>
+                                Nada con existencia en {locationLabel}. Puede estar en otro almacén: revisá la
+                                tabla de abajo para ver de dónde traerlo.
+                            </p>
+                        )}
                     </div>
                 )}
             </div>
@@ -298,7 +314,13 @@ export const StockMovesPage = () => {
                             </div>
                         </div>
 
-                        <LinesEditor id='move-search' draft={draft} setDraft={setDraft} />
+                        <LinesEditor
+                            id='move-search'
+                            draft={draft}
+                            setDraft={setDraft}
+                            locationId={fromId}
+                            locationLabel={locations.find((l) => l.id === fromId)?.label}
+                        />
 
                         <div className='space-y-2'>
                             <Label htmlFor='move-notes'>Nota (opcional)</Label>

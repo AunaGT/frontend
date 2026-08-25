@@ -100,8 +100,12 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
         const requestedQty = currentQty + 1
 
         if (requestedQty <= available) {
+            // La decisión de fusionar se toma con `prev`, no con el `cartItems` del
+            // closure: dos llamadas en el mismo tick veían ambas "no está" y metían
+            // dos renglones del mismo producto.
             setCartItems(prev => {
-                if (existing) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
+                const found = prev.find(i => i.id === product.id)
+                if (found) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
                 return [...prev, { ...product, price: unit, qty: 1 }]
             })
             return
