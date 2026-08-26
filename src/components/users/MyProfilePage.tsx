@@ -32,6 +32,7 @@ import { ApiError } from '@/services/api'
 import {
   fetchMyEmployee,
   EMPLOYEE_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
   type Employee,
   type EmployeeStatus,
 } from '@/services/hrService'
@@ -308,7 +309,16 @@ export default function MyProfilePage() {
                         label='Frecuencia de pago'
                         value={FREQUENCY_LABELS[employee.pay_frequency]}
                       />
-                      <Field label='Cuenta bancaria' value={employee.bank_account} />
+                      <Field
+                        label='Forma de pago'
+                        value={PAYMENT_METHOD_LABELS[employee.payment_method]}
+                      />
+                      {employee.payment_method === 'TRANSFERENCIA' && (
+                        <>
+                          <Field label='Banco' value={employee.bank_name} />
+                          <Field label='Cuenta bancaria' value={employee.bank_account} />
+                        </>
+                      )}
                     </div>
                   ) : (
                     <p className='text-sm text-muted-foreground'>

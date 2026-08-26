@@ -50,7 +50,10 @@ export interface Payslip {
   total_deductions: string;
   net_pay: string;
   employer_cost: string;
-  employee?: { id: string; code: string; first_name: string; last_name: string; position: string | null; igss_number: string | null };
+  employee?: {
+    id: string; code: string; first_name: string; last_name: string; position: string | null; igss_number: string | null;
+    payment_method: "EFECTIVO" | "TRANSFERENCIA" | "CHEQUE"; bank_name: string | null; bank_account: string | null;
+  };
   lines: PayslipLine[];
 }
 

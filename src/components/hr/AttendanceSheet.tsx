@@ -15,7 +15,7 @@
  */
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -25,8 +25,24 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import {
   fetchAttendance, fetchEmployees, saveAttendance,
-  ATTENDANCE_STATUS_LABELS, type AttendanceStatus,
+  ATTENDANCE_STATUS_LABELS, type AttendanceStatus, type Employee,
 } from '@/services/hrService'
+
+const initials = (employee: Employee) =>
+  `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`.toUpperCase()
+
+const EmployeeAvatar = ({ employee }: { employee: Employee }) =>
+  employee.photo_url ? (
+    <img
+      src={employee.photo_url}
+      alt={`${employee.first_name} ${employee.last_name}`}
+      className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-border"
+    />
+  ) : (
+    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-liquor-amber/15 text-[10px] font-semibold text-liquor-amber ring-1 ring-liquor-amber/25">
+      {initials(employee)}
+    </div>
+  )
 
 /** El orden del ciclo al hacer clic en una celda. */
 const CYCLE: AttendanceStatus[] = ['PRESENTE', 'TARDE', 'AUSENTE', 'VACACIONES', 'INCAPACIDAD', 'PERMISO', 'ASUETO']
@@ -57,6 +73,10 @@ const CELL_CLASS: Record<AttendanceStatus, string> = {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const monthKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
+const MONTH_NAMES = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+]
 
 export const AttendanceSheet = () => {
   const { toast } = useToast()
@@ -69,6 +89,7 @@ export const AttendanceSheet = () => {
   const daysInMonth = new Date(year, monthNumber, 0).getDate()
   const from = `${month}-01`
   const to = `${month}-${pad(daysInMonth)}`
+  const shiftMonth = (delta: number) => setMonth(monthKey(new Date(year, monthNumber - 1 + delta, 1)))
 
   const [detail, setDetail] = useState<{ employeeId: string; date: string } | null>(null)
   const [overtime, setOvertime] = useState(0)
@@ -111,7 +132,20 @@ export const AttendanceSheet = () => {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
         <CardTitle>Asistencia</CardTitle>
-        <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-44" />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="min-w-[8.5rem] px-1 text-center text-sm font-medium">
+              {MONTH_NAMES[monthNumber - 1]} {year}
+            </span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(1)} aria-label="Mes siguiente">
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40" aria-label="Ir a un mes" />
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -135,56 +169,70 @@ export const AttendanceSheet = () => {
                 <span className="text-muted-foreground">Sin marcar</span>
               </span>
             </div>
-            <table className="text-xs">
-              <thead>
-                <tr>
-                  <th className="sticky left-0 bg-background px-2 py-1 text-left">Empleado</th>
-                  {Array.from({ length: daysInMonth }, (_, i) => (
-                    <th key={i} className="w-7 px-1 py-1 text-center font-normal text-muted-foreground">{i + 1}</th>
-                  ))}
-                  <th className="px-2 py-1 text-right">Extra</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(employees?.items ?? []).map((employee) => {
-                  let totalOvertime = 0
-                  const cells = Array.from({ length: daysInMonth }, (_, i) => {
-                    const date = `${month}-${pad(i + 1)}`
-                    const mark = byKey.get(`${employee.id}|${date}`)
-                    totalOvertime += Number(mark?.overtime_hours ?? 0)
+            <div className="rounded-md border">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/40">
+                    <th className="sticky left-0 z-10 bg-muted/40 px-3 py-2 text-left font-medium">Empleado</th>
+                    {Array.from({ length: daysInMonth }, (_, i) => (
+                      <th key={i} className="w-7 px-1 py-2 text-center font-normal text-muted-foreground">{i + 1}</th>
+                    ))}
+                    <th className="px-3 py-2 text-right font-medium">Extra</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(employees?.items ?? []).map((employee) => {
+                    let totalOvertime = 0
+                    const cells = Array.from({ length: daysInMonth }, (_, i) => {
+                      const date = `${month}-${pad(i + 1)}`
+                      const mark = byKey.get(`${employee.id}|${date}`)
+                      totalOvertime += Number(mark?.overtime_hours ?? 0)
+                      return (
+                        <td key={date} className="p-0.5 text-center">
+                          <button
+                            type="button"
+                            title={`${mark ? ATTENDANCE_STATUS_LABELS[mark.status] : 'Sin marca'} · clic para cambiar, shift+clic para horas extra`}
+                            className={`h-6 w-6 rounded-md text-[10px] font-medium transition-transform hover:scale-105 ${mark ? CELL_CLASS[mark.status] : 'bg-muted hover:bg-muted-foreground/10'} ${!canManage ? 'cursor-default' : ''}`}
+                            onClick={(event) => {
+                              if (!canManage) return
+                              if (event.shiftKey) {
+                                setOvertime(Number(mark?.overtime_hours ?? 0))
+                                setDetail({ employeeId: employee.id, date })
+                                return
+                              }
+                              cycle(employee.id, date)
+                            }}
+                          >
+                            {mark ? CELL_LETTER[mark.status] : ''}
+                          </button>
+                        </td>
+                      )
+                    })
                     return (
-                      <td key={date} className="p-0.5">
-                        <button
-                          type="button"
-                          title={`${mark ? ATTENDANCE_STATUS_LABELS[mark.status] : 'Sin marca'} · clic para cambiar, shift+clic para horas extra`}
-                          className={`h-6 w-6 rounded text-[10px] ${mark ? CELL_CLASS[mark.status] : 'bg-muted'}`}
-                          onClick={(event) => {
-                            if (!canManage) return
-                            if (event.shiftKey) {
-                              setOvertime(Number(mark?.overtime_hours ?? 0))
-                              setDetail({ employeeId: employee.id, date })
-                              return
-                            }
-                            cycle(employee.id, date)
-                          }}
-                        >
-                          {mark ? CELL_LETTER[mark.status] : ''}
-                        </button>
-                      </td>
+                      <tr key={employee.id} className="border-b last:border-0 hover:bg-muted/20">
+                        <td className="sticky left-0 z-10 whitespace-nowrap bg-background px-3 py-1.5">
+                          <div className="flex items-center gap-2">
+                            <EmployeeAvatar employee={employee} />
+                            <span>{employee.first_name} {employee.last_name}</span>
+                          </div>
+                        </td>
+                        {cells}
+                        <td className="px-3 py-1.5 text-right font-medium">
+                          {totalOvertime > 0 ? totalOvertime.toFixed(2) : <span className="text-muted-foreground">—</span>}
+                        </td>
+                      </tr>
                     )
-                  })
-                  return (
-                    <tr key={employee.id}>
-                      <td className="sticky left-0 bg-background whitespace-nowrap px-2 py-1">
-                        {employee.first_name} {employee.last_name}
+                  })}
+                  {(employees?.items ?? []).length === 0 && (
+                    <tr>
+                      <td colSpan={daysInMonth + 2} className="py-8 text-center text-muted-foreground">
+                        Sin empleados activos
                       </td>
-                      {cells}
-                      <td className="px-2 py-1 text-right font-medium">{totalOvertime.toFixed(2)}</td>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+                  )}
+                </tbody>
+              </table>
+            </div>
             <p className="mt-3 text-xs text-muted-foreground">
               Un clic avanza al siguiente estado en el orden de la leyenda; shift+clic edita las
               horas extra del día. La asistencia no descuenta días del sueldo: solo las horas extra

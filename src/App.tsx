@@ -80,6 +80,8 @@ import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
 import OrdersManagement from "@/components/orders/OrdersManagement";
 import OrderDetailPage from "@/components/orders/OrderDetailPage";
 import HrPage from "@/components/hr/HrPage";
+import EmployeeCreatePage from "@/components/hr/EmployeeCreatePage";
+import EmployeeDetailPage from "@/components/hr/EmployeeDetailPage";
 import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
 import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
 import PublicQuotePage from "@/pages/PublicQuotePage";
@@ -534,6 +536,22 @@ const App = () => (
                   element={
                     <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
                       <HrPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/rrhh/empleados/nuevo"
+                  element={
+                    <PermissionRoute any={["hr.employees.create"]}>
+                      <EmployeeCreatePage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/rrhh/empleados/:id"
+                  element={
+                    <PermissionRoute any={["hr.employees.view"]}>
+                      <EmployeeDetailPage />
                     </PermissionRoute>
                   }
                 />

@@ -12,11 +12,12 @@
  * RRHH de la empresa y sucursal activas. La sucursal viaja en las cabeceras que
  * agrega apiFetch, así que aquí no se pasa nunca.
  */
-import { apiFetch } from "./api";
+import { apiFetch, getAuthToken, getApiBaseUrl, tenantHeaders } from "./api";
 
 export type EmployeeStatus = "ACTIVO" | "SUSPENDIDO" | "BAJA";
 export type ContractType = "INDEFINIDO" | "PLAZO_FIJO" | "POR_OBRA";
 export type PayFrequency = "MENSUAL" | "QUINCENAL";
+export type EmployeePaymentMethod = "EFECTIVO" | "TRANSFERENCIA" | "CHEQUE";
 export type AttendanceStatus =
   | "PRESENTE" | "TARDE" | "AUSENTE" | "VACACIONES" | "INCAPACIDAD" | "PERMISO" | "ASUETO";
 export type AdvanceStatus = "PENDIENTE" | "PAGADO" | "CANCELADO";
@@ -37,6 +38,12 @@ export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
   ASUETO: "Asueto",
 };
 
+export const PAYMENT_METHOD_LABELS: Record<EmployeePaymentMethod, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  CHEQUE: "Cheque",
+};
+
 export const ADVANCE_STATUS_LABELS: Record<AdvanceStatus, string> = {
   PENDIENTE: "Pendiente",
   PAGADO: "Pagado",
@@ -55,6 +62,7 @@ export interface Employee {
   phone: string | null;
   email: string | null;
   address: string | null;
+  photo_url: string | null;
   position: string | null;
   department: string | null;
   hire_date: string;
@@ -63,6 +71,8 @@ export interface Employee {
   pay_frequency: PayFrequency;
   base_salary: string;
   bonificacion_incentivo: string;
+  payment_method: EmployeePaymentMethod;
+  bank_name: string | null;
   bank_account: string | null;
   status: EmployeeStatus;
   branch?: { id: string; name: string; code: string };
@@ -85,6 +95,8 @@ export interface EmployeePayload {
   department?: string;
   contract_type?: ContractType;
   pay_frequency?: PayFrequency;
+  payment_method?: EmployeePaymentMethod;
+  bank_name?: string;
   bank_account?: string;
   status?: EmployeeStatus;
   /** Usuario del sistema vinculado; null desvincula. */
@@ -174,11 +186,29 @@ export const fetchLinkableUsers = (employeeId?: string) =>
 /** Mi propia ficha de empleado. 404 si el usuario no está en planilla. */
 export const fetchMyEmployee = () => apiFetch<Employee>("/api/hr/employees/me");
 
+export const fetchEmployeeById = (id: string) => apiFetch<Employee>(`/api/hr/employees/${id}`);
+
 export const createEmployee = (payload: EmployeePayload) =>
   apiFetch<Employee>("/api/hr/employees", { method: "POST", body: JSON.stringify(payload) });
 
 export const updateEmployee = (id: string, payload: Partial<EmployeePayload>) =>
   apiFetch<Employee>(`/api/hr/employees/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+
+/** Sube la foto de un empleado (mismo bucket que las fotos de usuario). */
+export const uploadEmployeePhoto = async (id: string, file: File): Promise<Employee> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await fetch(`${getApiBaseUrl()}/hr/employees/${id}/photo`, {
+    method: "POST",
+    headers: { ...tenantHeaders(), ...(getAuthToken() ? { Authorization: `Bearer ${getAuthToken()}` } : {}) },
+    credentials: "include",
+    body: formData,
+  });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : undefined;
+  if (!res.ok) throw new Error((data && (data.message || data.error)) || res.statusText || "Error al subir la foto");
+  return data as Employee;
+};
 
 export const terminateEmployee = (id: string, termination_date?: string) =>
   apiFetch<Employee>(`/api/hr/employees/${id}`, {
