@@ -42,6 +42,7 @@ const KEY_LABELS: Record<string, string> = {
   pequenoTaxExpense: 'IVA pequeño contribuyente (gasto)',
   currentEarnings: 'Utilidad del ejercicio',
   retainedEarnings: 'Utilidades acumuladas',
+  cashOverShort: 'Sobrantes / faltantes de caja',
 }
 
 export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canManage: boolean }) => {

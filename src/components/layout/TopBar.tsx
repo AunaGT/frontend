@@ -14,13 +14,14 @@
  */
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, LogOut, ChevronDown } from 'lucide-react'
+import { Menu, Bell, LogOut, ChevronDown, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { AppLauncher } from './AppLauncher'
@@ -199,8 +200,13 @@ export const TopBar = () => {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align='end' className='w-64 p-0 overflow-hidden' sideOffset={8}>
-                            <div className='bg-muted/40 px-3 py-3 border-b border-border/60'>
-                                <div className='flex gap-3'>
+                            {/* La tarjeta es el acceso al perfil: es lo primero que se
+                                mira y lo primero que se intenta hacer clic. */}
+                            <DropdownMenuItem
+                                onSelect={() => navigate('/mi-perfil')}
+                                className='group/perfil cursor-pointer rounded-none bg-muted/40 px-3 py-3 border-b border-border/60 focus:bg-muted'
+                            >
+                                <div className='flex w-full items-center gap-3'>
                                     <Avatar className='h-11 w-11 border border-border shadow-sm'>
                                         {photoUrl && !imageError ? (
                                             <AvatarImage
@@ -219,12 +225,20 @@ export const TopBar = () => {
                                         <p className='mt-1 truncate text-xs text-muted-foreground'>
                                             {currentUser?.email || '—'}
                                         </p>
+                                        <p className='mt-1.5 text-xs font-medium text-primary'>
+                                            Ver mi perfil
+                                        </p>
                                     </div>
+                                    <ChevronRight
+                                        className='h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover/perfil:translate-x-0.5'
+                                        aria-hidden
+                                    />
                                 </div>
-                            </div>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator className='m-0' />
                             <div className='p-1'>
                                 <DropdownMenuItem
-                                    onClick={handleLogout}
+                                    onSelect={handleLogout}
                                     className='text-destructive focus:text-destructive cursor-pointer rounded-md'
                                 >
                                     <LogOut className='mr-2 h-4 w-4' />

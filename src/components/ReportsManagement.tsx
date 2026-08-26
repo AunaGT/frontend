@@ -79,6 +79,10 @@ const ReportsManagement = () => {
     week: 'Esta semana', month: 'Un mes', quarter: 'Un trimestre',
     semester: 'Un semestre', year: 'Un año', all: 'Todo el histórico',
   }
+  const MONTH_NAMES = [
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+  ]
 
   /** Qué alcance y qué período se lleva el documento, en texto. */
   const scopeSummary = (() => {
@@ -91,7 +95,15 @@ const ReportsManagement = () => {
     return alm ? `${suc} · ${alm}` : suc
   })()
 
-  const periodSummary = `${PERIOD_LABELS[fPeriod] ?? 'Período'}${fYear === 'all' ? '' : ` de ${fYear}`}`
+  // "Un mes" no le decía al usuario CUÁL mes generó el archivo — con el
+  // selector abierto se ve, pero una vez cerrado el resumen era la única
+  // confirmación visual de qué se estaba por generar.
+  const periodDetail =
+    fPeriod === 'month' && fMonth ? MONTH_NAMES[fMonth - 1]
+    : fPeriod === 'quarter' && fMonth ? `trimestre ${Math.ceil(fMonth / 3)}`
+    : fPeriod === 'semester' ? `semestre ${fSem}`
+    : null
+  const periodSummary = `${periodDetail ?? PERIOD_LABELS[fPeriod] ?? 'Período'}${fYear === 'all' ? '' : ` de ${fYear}`}`
 
   /** Descarga el reporte con los filtros elegidos. */
   const generateReport = async (format: 'pdf' | 'csv') => {

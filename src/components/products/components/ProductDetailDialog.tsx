@@ -13,7 +13,7 @@
  */
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { QrCode } from 'lucide-react'
 import type { Product } from '@/types/product'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -50,6 +50,9 @@ export const ProductDetailDialog = ({
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Detalle del Producto</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Información completa del producto: precio, stock, categoría y proveedor.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                     {product.imageUrl && (

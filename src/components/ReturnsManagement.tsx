@@ -24,7 +24,7 @@ import {
   Package
 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useReturns, useUpdateReturnStatus } from '@/hooks/useReturns'
@@ -315,6 +315,9 @@ const ReturnsManagement = () => {
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedReturn?.type === 'EXCHANGE' ? 'Detalle de Cambio' : 'Detalle de Devolución'}</DialogTitle>
+            <DialogDescription className="sr-only">
+              Productos, montos y estado de esta {selectedReturn?.type === 'EXCHANGE' ? 'cambio' : 'devolución'}.
+            </DialogDescription>
           </DialogHeader>
           {selectedReturn && (
             <div className="space-y-4">
@@ -467,11 +470,11 @@ const ReturnsManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Cambio de Estado</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de cambiar el estado de esta devolución a <strong>Aprobada</strong>?
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <p>
-              ¿Estás seguro de cambiar el estado de esta devolución a <strong>Aprobada</strong>?
-            </p>
             <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
               <p className="font-medium mb-3 text-blue-900">¿Deseas restaurar el stock de los productos devueltos?</p>
               <div className="space-y-2">
@@ -534,11 +537,11 @@ const ReturnsManagement = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirmar Cambio de Estado</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de cambiar el estado de esta devolución a <strong>{statusToUpdate}</strong>?
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <p>
-              ¿Estás seguro de cambiar el estado de esta devolución a <strong>{statusToUpdate}</strong>?
-            </p>
             {statusToUpdate === 'Rechazada' && (
               <div className="bg-red-50 p-3 rounded text-sm">
                 <strong>Nota:</strong> Esta acción no se puede revertir.

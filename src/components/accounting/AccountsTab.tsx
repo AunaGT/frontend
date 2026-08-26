@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -195,7 +195,12 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
       {/* Nueva cuenta */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Nueva cuenta contable</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nueva cuenta contable</DialogTitle>
+            <DialogDescription className="sr-only">
+              Código, tipo, nombre y cuenta padre de la nueva cuenta contable.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
@@ -247,7 +252,10 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
       {/* Editar nombre */}
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null) }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Editar cuenta {editing?.code}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Editar cuenta {editing?.code}</DialogTitle>
+            <DialogDescription className="sr-only">Editar el nombre y el tipo de esta cuenta contable.</DialogDescription>
+          </DialogHeader>
           <div className="space-y-1">
             <Label className="text-xs">Nombre</Label>
             <Input value={editName} onChange={(e) => setEditName(e.target.value)} />

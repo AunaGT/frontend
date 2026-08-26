@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -127,7 +127,12 @@ export const AdvancesManagement = () => {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Nuevo anticipo</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Nuevo anticipo</DialogTitle>
+            <DialogDescription className="sr-only">
+              Registrar un anticipo a un empleado, con su cuota de descuento por planilla.
+            </DialogDescription>
+          </DialogHeader>
           <div className="space-y-3">
             <div>
               <Label>Empleado</Label>

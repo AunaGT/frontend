@@ -40,6 +40,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -89,7 +90,7 @@ import { OpenCashRegisterPrompt } from './OpenCashRegisterPrompt'
 import { CashRegisterPicker } from './CashRegisterPicker'
 import { closeCashSession, fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/components/cash-closure/hooks/useMineClosureGate'
-import type { CashRegisterSessionDto } from '@/services/cashSessionsService'
+import type { CashRegisterSessionDto, CashSessionCurrentResult } from '@/services/cashSessionsService'
 import type { CartProduct } from './types'
 
 type ProductBrowseLayout = 'flat' | 'byCategory'
@@ -542,8 +543,42 @@ export default function NewSalePage() {
   const [cashSessionOpen, setCashSessionOpen] = useState(false)
   const [cashRegisterMeta, setCashRegisterMeta] = useState<{ id: string; name: string } | null>(null)
   const [activeCashSession, setActiveCashSession] = useState<CashRegisterSessionDto | null>(null)
+  // La caja resuelta ya tiene un turno abierto, pero de otra persona: no es "mi" turno
+  // aunque el backend haya encontrado uno abierto — hay que bloquear, no dejar vender.
+  const [openedByOther, setOpenedByOther] = useState<{ id: string; name: string | null } | null>(null)
   const [showCloseCashDialog, setShowCloseCashDialog] = useState(false)
   const [isClosingCashSession, setIsClosingCashSession] = useState(false)
+
+  const isAdminUser = String(user?.role?.name ?? '').toLowerCase() === 'admin'
+
+  /**
+   * `/cash-sessions/current` devuelve el turno abierto en la caja resuelta sin
+   * importar quién lo abrió (otras pantallas, como el cierre de caja, sí
+   * necesitan verlo así). Acá hay que decidir "¿puedo vender con este turno?" —
+   * un no-admin solo puede si es el suyo; si es de otra persona, se trata como
+   * si no hubiera turno, pero guardando de quién es para bloquear con el
+   * mensaje correcto en vez de mandarlo a "Abrir caja" (que fallaría igual,
+   * la caja ya tiene turno).
+   */
+  const applyCashCheckResult = useCallback(
+    (r: Extract<CashSessionCurrentResult, { ok: true }>) => {
+      const session = r.session ?? null
+      const belongsToOther = Boolean(
+        session && !isAdminUser && String(session.opened_by_id) !== String(user?.id)
+      )
+      setCashRegisterMeta(
+        r.register?.id ? { id: r.register.id, name: r.register.name } : null
+      )
+      setCashSessionOpen(Boolean(session) && !belongsToOther)
+      setActiveCashSession(session)
+      setOpenedByOther(
+        belongsToOther && session
+          ? { id: session.opened_by_id, name: session.openedBy?.name ?? null }
+          : null
+      )
+    },
+    [isAdminUser, user?.id]
+  )
 
   const runCashCheck = useCallback(async (registerId: string) => {
     setCashCheckError(null)
@@ -555,14 +590,11 @@ export default function NewSalePage() {
       setCashSessionOpen(false)
       setCashRegisterMeta(null)
       setActiveCashSession(null)
+      setOpenedByOther(null)
       return
     }
-    setCashRegisterMeta(
-      r.register?.id ? { id: r.register.id, name: r.register.name } : null
-    )
-    setCashSessionOpen(Boolean(r.session))
-    setActiveCashSession(r.session ?? null)
-  }, [])
+    applyCashCheckResult(r)
+  }, [applyCashCheckResult])
 
   useEffect(() => {
     if (selectedRegisterId) void runCashCheck(selectedRegisterId)
@@ -577,21 +609,18 @@ export default function NewSalePage() {
       setCashSessionOpen(false)
       setCashRegisterMeta(null)
       setActiveCashSession(null)
+      setOpenedByOther(null)
       return
     }
-    setCashRegisterMeta(
-      r.register?.id ? { id: r.register.id, name: r.register.name } : null
-    )
-    setCashSessionOpen(Boolean(r.session))
-    setActiveCashSession(r.session ?? null)
-    if (r.ok && !r.session) {
+    applyCashCheckResult(r)
+    if (!r.session) {
       toast({
         title: 'Sesión no detectada',
         description: 'Abra de nuevo o contacte a un supervisor.',
         variant: 'destructive',
       })
     }
-  }, [toast])
+  }, [applyCashCheckResult, toast])
 
   const canUserCloseCashTurn = useMemo(() => {
     if (!activeCashSession || !user) return false
@@ -1123,6 +1152,35 @@ export default function NewSalePage() {
         </Alert>
         <div className="flex flex-wrap gap-2">
           <Button type="button" onClick={() => void runCashCheck(selectedRegisterId)}>
+            Reintentar
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setSelectedRegisterId(null)}>
+            Cambiar de caja
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (openedByOther) {
+    return (
+      <div className="px-4 sm:px-8 lg:px-14 py-8 w-full max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-xl font-bold">Nueva venta</h1>
+        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Caja en uso</AlertTitle>
+          <AlertDescription className="mt-2">
+            {cashRegisterMeta?.name ? `La caja "${cashRegisterMeta.name}"` : 'Esta caja'} ya tiene un
+            turno abierto por {openedByOther.name ?? 'otro usuario'}. Debe cerrar ese turno o utilizar
+            una caja asignada.
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void runCashCheck(selectedRegisterId as string)}>
             Reintentar
           </Button>
           <Button type="button" variant="outline" onClick={() => setSelectedRegisterId(null)}>
@@ -1832,6 +1890,10 @@ export default function NewSalePage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cargar pedido en POS</DialogTitle>
+            <DialogDescription>
+              Trae al carrito las líneas de un pedido ya confirmado, buscándolo por su referencia
+              o su identificador interno.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2 py-2">
             <Label htmlFor="load-order-ref">Referencia P- o UUID</Label>

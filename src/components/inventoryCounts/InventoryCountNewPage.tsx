@@ -101,11 +101,27 @@ export default function InventoryCountNewPage() {
         notes: notes.trim() || undefined,
         dual_approval: dualApproval,
       });
-      await startInventorySession(session.id);
-      return session.id;
+      // Una vez creada la sesión ya no debe quedar huérfana en este formulario:
+      // si arrancarla falla (o tarda), el detalle tiene su propio botón
+      // "Armar lista y contar" para reintentar, en vez de invitar a otro click
+      // acá que crearía una sesión DRAFT nueva por encima de la anterior.
+      let startError: string | null = null;
+      try {
+        await startInventorySession(session.id);
+      } catch (e) {
+        startError = e instanceof Error ? e.message : "No se pudo armar la lista automáticamente";
+      }
+      return { id: session.id, startError };
     },
-    onSuccess: (id) => {
-      toast({ title: "Todo listo", description: "Te llevamos a la pantalla para contar." });
+    onSuccess: ({ id, startError }) => {
+      if (startError) {
+        toast({
+          title: "Sesión creada",
+          description: `${startError} Usa «Armar lista y contar» en el detalle para reintentar.`,
+        });
+      } else {
+        toast({ title: "Todo listo", description: "Te llevamos a la pantalla para contar." });
+      }
       navigate(`/inventario/inventariado/${id}`);
     },
     onError: (err: unknown) => {

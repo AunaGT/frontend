@@ -14,7 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { AdminAuthDialogState } from '../types'
 
 interface AdminAuthDialogProps {
@@ -43,11 +43,11 @@ export const AdminAuthDialog = ({
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Autorización de Administrador</DialogTitle>
+                    <DialogDescription>
+                        Para agregar productos sin stock registrado, necesitas autorización de un administrador.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                    <p className="text-sm text-muted-foreground">
-                        Para agregar productos sin stock registrado, necesitas autorización de un administrador.
-                    </p>
                     <div className="space-y-3">
                         <div className="space-y-2">
                             <Label htmlFor="admin-username">Usuario</Label>

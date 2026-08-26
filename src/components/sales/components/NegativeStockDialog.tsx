@@ -13,7 +13,7 @@
  */
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { AlertTriangle } from 'lucide-react'
 import type { NegativeStockDialogState } from '../types'
@@ -37,6 +37,9 @@ export const NegativeStockDialog = ({
                         <AlertTriangle className="h-5 w-5" />
                         No se puede generar el Cierre de Caja
                     </DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Lista de productos con stock negativo que deben corregirse antes de generar el cierre de caja.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     <Alert variant="destructive">

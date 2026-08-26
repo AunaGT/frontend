@@ -53,6 +53,7 @@ import AlertsManagement from "./components/AlertsManagement";
 import ScannerManagement from "@/components/ScannerManagement";
 import UserManagement from "@/components/UserManagement";
 import UserDetailPage from "@/components/users/UserDetailPage";
+import MyProfilePage from "@/components/users/MyProfilePage";
 import UserCreatePage from "@/components/users/UserCreatePage";
 import RolesPermissionsManagement from "@/components/users/RolesPermissionsManagement";
 import RolePermissionsDetail from "@/components/users/RolePermissionsDetail";
@@ -79,6 +80,8 @@ import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
 import OrdersManagement from "@/components/orders/OrdersManagement";
 import OrderDetailPage from "@/components/orders/OrderDetailPage";
 import HrPage from "@/components/hr/HrPage";
+import EmployeeCreatePage from "@/components/hr/EmployeeCreatePage";
+import EmployeeDetailPage from "@/components/hr/EmployeeDetailPage";
 import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
 import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
 import PublicQuotePage from "@/pages/PublicQuotePage";
@@ -114,6 +117,9 @@ const App = () => (
               <Route element={<MainLayout />}>
                 {/* Home - App Grid (siempre accesible tras login) */}
                 <Route path="/" element={<HomePage />} />
+
+                {/* Mi perfil - sin permisos: todo usuario puede verse a sí mismo */}
+                <Route path="/mi-perfil" element={<MyProfilePage />} />
 
                 {/* Dashboard - requiere ver analíticas */}
                 <Route
@@ -530,6 +536,22 @@ const App = () => (
                   element={
                     <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
                       <HrPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/rrhh/empleados/nuevo"
+                  element={
+                    <PermissionRoute any={["hr.employees.create"]}>
+                      <EmployeeCreatePage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/rrhh/empleados/:id"
+                  element={
+                    <PermissionRoute any={["hr.employees.view"]}>
+                      <EmployeeDetailPage />
                     </PermissionRoute>
                   }
                 />

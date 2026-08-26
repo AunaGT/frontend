@@ -14,7 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AlertTriangle, PackageX, RefreshCw, RotateCcw, Tag } from 'lucide-react'
 import { Sale, SaleStatus } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils'
@@ -57,6 +57,9 @@ export const SaleDetailDialog = ({
             <DialogContent className='max-w-3xl max-h-[90vh] overflow-hidden flex flex-col'>
                 <DialogHeader>
                     <DialogTitle>Detalle de Venta {sale.reference ?? sale.id}</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Productos, totales y devoluciones asociadas a esta venta.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className='space-y-4 overflow-y-auto pr-2'>
                     {/* Resumen rápido: fecha, estado, método de pago*/}
