@@ -23,6 +23,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -40,6 +41,8 @@ import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { usePaymentMethods } from "@/hooks/usePaymentMethods";
 import { useTenant } from "@/context/useTenant";
+import { useAuth } from "@/context/useAuth";
+import { listCashRegisters } from "@/services/cashSessionsService";
 import { formatMoney, formatDateTime } from "@/utils/formatters";
 import {
   cancelOrder,
@@ -66,18 +69,21 @@ export default function OrderDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuthPermissions();
+  const { user } = useAuth();
   const { locale, currencyCode } = useSystemSettings();
   const { data: paymentMethods = [] } = usePaymentMethods();
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const canManage = hasPermission("orders.manage");
   const canSell = hasPermission("sales.create");
+  const isAdmin = String(user?.role?.name ?? "").toLowerCase() === "admin";
   const { branches } = useTenant();
 
   const [saleDialogOpen, setSaleDialogOpen] = useState(false);
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [amountReceived, setAmountReceived] = useState("");
   const [saleQtys, setSaleQtys] = useState<Record<string, string>>({});
+  const [cashRegisterId, setCashRegisterId] = useState<string>("");
 
   const { data: order, isLoading, isError } = useQuery({
     queryKey: ["order", id],
@@ -89,6 +95,29 @@ export default function OrderDetailPage() {
   const canRegisterSale =
     order && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
 
+  // Este botón vende directo desde el pedido, sin pasar por el selector de
+  // caja de "Abrir en POS" — necesita saber solas cuáles cajas puede usar
+  // este cajero, si no, adivina la predeterminada de la sucursal y falla en
+  // silencio cuando el turno del cajero está abierto en otra caja distinta.
+  const { data: cashRegisters = [], isLoading: cashRegistersLoading } = useQuery({
+    queryKey: ["cash-registers", "for-order-sale", order?.branch_id],
+    queryFn: () => listCashRegisters(),
+    enabled: Boolean(canRegisterSale && canSell),
+    staleTime: 15_000,
+  });
+
+  const usableCashRegisters = useMemo(() => {
+    // listCashRegisters() ya devuelve solo cajas activas de la sucursal activa: un
+    // admin puede usar cualquiera; un cajero solo aquella donde tiene turno propio.
+    if (isAdmin) return cashRegisters;
+    return cashRegisters.filter(
+      (r) => r.open_session && String(r.open_session.opened_by_id) === String(user?.id)
+    );
+  }, [cashRegisters, isAdmin, user?.id]);
+
+  const noUsableCashRegister =
+    canRegisterSale && canSell && !cashRegistersLoading && usableCashRegisters.length === 0;
+
   const saleTotal = useMemo(() => {
     if (!order) return 0;
     return order.lines.reduce((acc, line) => {
@@ -96,6 +125,17 @@ export default function OrderDetailPage() {
       if (!Number.isFinite(q) || q <= 0) return acc;
       return acc + q * num(line.unit_price);
     }, 0);
+  }, [order, saleQtys]);
+
+  // Respaldo del recorte en el onChange: si el pedido se refrescó mientras el diálogo
+  // estaba abierto (otra entrega en paralelo bajó lo pendiente), no dejar confirmar
+  // con una cantidad que ya no cabe.
+  const hasQtyOverPending = useMemo(() => {
+    if (!order) return false;
+    return order.lines.some((line) => {
+      const q = Number(saleQtys[line.id] || 0);
+      return Number.isFinite(q) && q > pendingOrderLineQty(line);
+    });
   }, [order, saleQtys]);
 
   const invalidate = () => {
@@ -111,8 +151,13 @@ export default function OrderDetailPage() {
       if (pending > 0) init[line.id] = String(pending);
     }
     setSaleQtys(init);
+    setCashRegisterId(usableCashRegisters.length === 1 ? usableCashRegisters[0].id : "");
     setSaleDialogOpen(true);
   };
+
+  // Con una sola caja usable no hace falta preguntar; con varias, elegir es obligatorio.
+  const effectiveCashRegisterId =
+    cashRegisterId || (usableCashRegisters.length === 1 ? usableCashRegisters[0].id : "");
 
   const confirmMutation = useMutation({
     mutationFn: () => confirmOrder(id!),
@@ -154,6 +199,7 @@ export default function OrderDetailPage() {
         payment_method_id: Number(paymentMethodId),
         amount_received: amountReceived ? Number(amountReceived) : undefined,
         lines,
+        cash_register_id: effectiveCashRegisterId || undefined,
       });
     },
     onSuccess: (result) => {
@@ -212,7 +258,15 @@ export default function OrderDetailPage() {
                 <ShoppingCart className="h-4 w-4 mr-2" />
                 Abrir en POS
               </Button>
-              <Button onClick={openSaleDialog}>
+              <Button
+                onClick={openSaleDialog}
+                disabled={noUsableCashRegister}
+                title={
+                  noUsableCashRegister
+                    ? "No tenés un turno de caja abierto. Abrí caja desde \"Abrir en POS\" primero."
+                    : undefined
+                }
+              >
                 <Receipt className="h-4 w-4 mr-2" />
                 Registrar venta
               </Button>
@@ -325,11 +379,11 @@ export default function OrderDetailPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar venta (entrega parcial)</DialogTitle>
+            <DialogDescription>
+              Indica cuántas unidades entregar en esta venta. Total parcial: <strong>{fmt(saleTotal)}</strong>
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[50vh] overflow-y-auto">
-            <p className="text-sm text-muted-foreground">
-              Indica cuántas unidades entregar en esta venta. Total parcial: <strong>{fmt(saleTotal)}</strong>
-            </p>
             {order.lines
               .filter((l) => pendingOrderLineQty(l) > 0)
               .map((line) => {
@@ -343,12 +397,39 @@ export default function OrderDetailPage() {
                       max={pending}
                       className="w-20"
                       value={saleQtys[line.id] ?? ""}
-                      onChange={(e) => setSaleQtys((s) => ({ ...s, [line.id]: e.target.value }))}
+                      onChange={(e) => {
+                        // `max` en un <input type="number"> es cosmético — no bloquea lo que
+                        // se escribe, solo el paso de las flechas. Sin este recorte se podía
+                        // pedir más de lo pendiente (2 de 1) y el backend recién lo rechazaba
+                        // al confirmar.
+                        const raw = e.target.value
+                        if (raw === "") {
+                          setSaleQtys((s) => ({ ...s, [line.id]: "" }))
+                          return
+                        }
+                        const n = Number(raw)
+                        if (!Number.isFinite(n)) return
+                        const clamped = Math.max(0, Math.min(Math.floor(n), pending))
+                        setSaleQtys((s) => ({ ...s, [line.id]: String(clamped) }))
+                      }}
                     />
                     <span className="text-muted-foreground w-16 text-right">/ {pending}</span>
                   </div>
                 );
               })}
+            {usableCashRegisters.length > 1 && (
+              <div className="space-y-2 pt-2">
+                <Label>Caja</Label>
+                <Select value={effectiveCashRegisterId} onValueChange={setCashRegisterId}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar caja" /></SelectTrigger>
+                  <SelectContent>
+                    {usableCashRegisters.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-2 pt-2">
               <Label>Método de pago</Label>
               <Select value={paymentMethodId} onValueChange={setPaymentMethodId}>
@@ -370,7 +451,13 @@ export default function OrderDetailPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSaleDialogOpen(false)}>Cerrar</Button>
             <Button
-              disabled={!paymentMethodId || convertMutation.isPending || saleTotal <= 0}
+              disabled={
+                !paymentMethodId ||
+                !effectiveCashRegisterId ||
+                convertMutation.isPending ||
+                saleTotal <= 0 ||
+                hasQtyOverPending
+              }
               onClick={() => convertMutation.mutate()}
             >
               {convertMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}

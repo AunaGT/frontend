@@ -474,10 +474,6 @@ const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, comp
         })
     }
 
-    const codeCount = selectedCodes.length > 0
-        ? selectedCodes.length
-        : (promotion?.codes?.length || 0)
-
     return (
         <Dialog open={dialog.open} onOpenChange={(open) => setDialog({ ...dialog, open })}>
             <DialogContent className='max-w-3xl max-h-[90vh] overflow-y-auto'>
@@ -563,9 +559,9 @@ const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, comp
                     <Button variant='outline' onClick={() => setDialog({ ...dialog, open: false })}>
                         Cerrar
                     </Button>
-                    <Button onClick={handleGeneratePDF} disabled={codeCount === 0}>
+                    <Button onClick={handleGeneratePDF} disabled={selectedCodes.length === 0}>
                         <FileDown className='w-4 h-4 mr-2' />
-                        Descargar PDF {selectedCodes.length > 0 ? `(${selectedCodes.length})` : 'Todos'}
+                        Descargar PDF ({selectedCodes.length})
                     </Button>
                 </DialogFooter>
             </DialogContent>

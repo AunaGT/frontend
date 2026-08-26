@@ -15,7 +15,7 @@
 import { useState, useMemo } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -98,6 +98,13 @@ export const AppLauncher = ({ open, onOpenChange }: AppLauncherProps) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className='max-w-3xl p-0 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100'>
+                {/* Sin encabezado visible por diseño (el buscador hace ese papel): el
+                    título y la descripción son solo para lectores de pantalla — Radix
+                    exige un DialogTitle en todo DialogContent, visible o no. */}
+                <DialogTitle className='sr-only'>Buscador de módulos</DialogTitle>
+                <DialogDescription className='sr-only'>
+                    Busca y abre cualquier módulo del sistema al que tengas acceso.
+                </DialogDescription>
                 {/* Header with search */}
                 <div className='p-4 bg-white border-b'>
                     <div className='relative'>

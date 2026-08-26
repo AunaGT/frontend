@@ -15,10 +15,20 @@ import type { Payslip } from '@/services/payrollService'
 const money = (v: string | number) =>
   new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(v))
 
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', CHEQUE: 'Cheque',
+}
+
 export const PayslipCard = ({ payslip }: { payslip: Payslip }) => {
   const devengos = payslip.lines.filter((l) => l.type === 'DEVENGO')
   const deducciones = payslip.lines.filter((l) => l.type === 'DEDUCCION')
   const patronal = payslip.lines.filter((l) => l.type === 'COSTO_PATRONAL')
+  const employee = payslip.employee
+  const pago = employee
+    ? employee.payment_method === 'TRANSFERENCIA'
+      ? `Transferencia · ${employee.bank_name ?? 'banco no especificado'} · ${employee.bank_account ?? 'sin cuenta'}`
+      : PAYMENT_METHOD_LABELS[employee.payment_method]
+    : null
 
   return (
     <Card className="print:break-inside-avoid">
@@ -30,6 +40,7 @@ export const PayslipCard = ({ payslip }: { payslip: Payslip }) => {
         <p className="text-xs text-muted-foreground">
           {payslip.employee?.position ?? 'Sin puesto'} · {Number(payslip.days_worked)} días · IGSS {payslip.employee?.igss_number ?? '—'}
         </p>
+        {pago && <p className="text-xs text-muted-foreground">Pago: {pago}</p>}
       </CardHeader>
       <CardContent className="grid gap-4 text-sm sm:grid-cols-3">
         <div>

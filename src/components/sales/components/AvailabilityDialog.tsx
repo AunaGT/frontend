@@ -14,7 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { AvailabilityDialogState } from '../types'
 
 interface AvailabilityDialogProps {
@@ -37,11 +37,11 @@ export const AvailabilityDialog = ({
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Producto sin stock suficiente</DialogTitle>
+                    <DialogDescription>
+                        El producto <strong>"{state.product?.name}"</strong> no tiene suficiente stock en el sistema.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
-                    <p className="text-sm text-muted-foreground">
-                        El producto <strong>"{state.product?.name}"</strong> no tiene suficiente stock en el sistema.
-                    </p>
                     <div className="bg-muted p-3 rounded-md space-y-1">
                         <div className="flex justify-between text-sm">
                             <span>Stock en sistema:</span>

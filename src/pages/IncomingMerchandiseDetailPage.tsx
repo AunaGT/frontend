@@ -74,7 +74,7 @@ export default function IncomingMerchandiseDetailPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const { currencyCode, locale } = useSystemSettings()
+  const { currencyCode, locale, timezone } = useSystemSettings()
 
   /** Solo el permiso dedicado permite tocar pagos/abonos: ver detalles NO implica poder abonar. */
   const canEditPayment = hasPermission('merchandise.mark_paid')
@@ -153,12 +153,15 @@ export default function IncomingMerchandiseDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
+    // Sin `timeZone`, esto usa la del navegador — que no tiene por qué coincidir
+    // con la configurada en Configuración → General.
     return new Date(dateString).toLocaleDateString(loc, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: timezone,
     })
   }
 
@@ -167,6 +170,7 @@ export default function IncomingMerchandiseDetailPage() {
       year: 'numeric',
       month: 'short',
       day: 'numeric',
+      timeZone: timezone,
     })
   }
 

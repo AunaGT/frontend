@@ -14,7 +14,7 @@
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { X, ThumbsDown } from 'lucide-react'
 
 interface RejectClosureDialogProps {
@@ -37,6 +37,9 @@ export const RejectClosureDialog = ({
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Rechazar Cierre de Caja</DialogTitle>
+                    <DialogDescription className="sr-only">
+                        Escribe el motivo del rechazo de este cierre de caja.
+                    </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4">
                     <div>

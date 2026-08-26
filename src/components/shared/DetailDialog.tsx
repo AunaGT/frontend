@@ -14,6 +14,7 @@
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
@@ -62,6 +63,7 @@ export const DetailDialog = ({
             <DialogContent className={`${maxWidthClass} max-h-[90vh] overflow-y-auto`}>
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
+                    <DialogDescription className="sr-only">Detalle de {title}.</DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-6">
