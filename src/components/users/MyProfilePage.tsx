@@ -139,7 +139,10 @@ export default function MyProfilePage() {
           <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
             <div className='flex items-end gap-4 min-w-0'>
               <Avatar className='h-20 w-20 border-4 border-card shadow-md shrink-0'>
-                {user.photo_url ? <AvatarImage src={user.photo_url} alt='' /> : null}
+                {/* La ficha de RRHH es la fuente autorizada de la foto; la de cuenta es respaldo. */}
+                {employee?.photo_url || user.photo_url ? (
+                  <AvatarImage src={employee?.photo_url || user.photo_url} alt='' />
+                ) : null}
                 <AvatarFallback className='bg-primary/10 text-xl font-semibold text-primary'>
                   {initials(nombre)}
                 </AvatarFallback>
@@ -210,15 +213,25 @@ export default function MyProfilePage() {
         {/* Ficha de empleado */}
         <Card>
           <CardHeader className='pb-3'>
-            <CardTitle className='flex items-center gap-2 text-base'>
-              <IdCard className='h-4 w-4 text-muted-foreground' />
-              Ficha de empleado
+            <div className='flex items-center gap-3'>
               {employee && (
-                <span className='ml-auto font-mono text-xs font-normal text-muted-foreground'>
-                  {employee.code}
-                </span>
+                <Avatar className='h-11 w-11 shrink-0 border shadow-sm'>
+                  {employee.photo_url ? <AvatarImage src={employee.photo_url} alt='' /> : null}
+                  <AvatarFallback className='bg-primary/10 text-sm font-semibold text-primary'>
+                    {initials(`${employee.first_name} ${employee.last_name}`)}
+                  </AvatarFallback>
+                </Avatar>
               )}
-            </CardTitle>
+              <CardTitle className='flex flex-1 items-center gap-2 text-base'>
+                <IdCard className='h-4 w-4 text-muted-foreground' />
+                Ficha de empleado
+                {employee && (
+                  <span className='ml-auto font-mono text-xs font-normal text-muted-foreground'>
+                    {employee.code}
+                  </span>
+                )}
+              </CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             {isLoading && (
