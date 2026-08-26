@@ -228,6 +228,27 @@ export const resolveAlert = async (id: string) => {
   })
 }
 
+export interface AlertLookup { id: number; name: string }
+
+/** Usuarios a quienes se les puede asignar una alerta — pide alerts.manage, no users.view. */
+export const fetchAssignableAlertUsers = async () =>
+  apiFetch<{ id: string; name: string }[]>('/api/alerts/assignable-users')
+
+export const fetchAlertTypes = async () => apiFetch<AlertLookup[]>('/api/alerts/types')
+export const fetchAlertPriorities = async () => apiFetch<AlertLookup[]>('/api/alerts/priorities')
+
+export interface CreateAlertPayload {
+  type_id: number
+  priority_id: number
+  title: string
+  message?: string
+  product_id: string
+  current_stock?: number
+  min_stock?: number
+}
+export const createAlert = async (payload: CreateAlertPayload) =>
+  apiFetch('/api/alerts', { method: 'POST', body: JSON.stringify(payload) })
+
 /**
  * Descarga un archivo del backend (PDF, CSV) y lo guarda con el nombre que
  * mande el servidor. El interceptor ya le pone empresa, sucursal y sesión: acá
