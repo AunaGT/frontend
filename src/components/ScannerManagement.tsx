@@ -266,7 +266,7 @@ const ScannerManagement = () => {
             <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
               {isScanning ? (
                 <div className="space-y-4">
-                  <div className="w-16 h-16 mx-auto bg-gradient-primary rounded-lg flex items-center justify-center animate-pulse">
+                  <div className="w-16 h-16 mx-auto bg-primary rounded-lg flex items-center justify-center animate-pulse">
                     <Camera className="w-8 h-8 text-primary-foreground" />
                   </div>
                   <p className="text-foreground">Escaneando código...</p>
@@ -279,7 +279,7 @@ const ScannerManagement = () => {
                   <Camera className="w-16 h-16 mx-auto text-muted-foreground" />
                   <p className="text-muted-foreground">Presiona para activar la cámara</p>
                   <Button 
-                    className="bg-gradient-primary hover:opacity-90"
+                    className="bg-primary hover:opacity-90"
                     onClick={() => setIsScanning(true)}
                   >
                     <Scan className="w-4 h-4 mr-2" />
@@ -369,7 +369,7 @@ const ScannerManagement = () => {
                     </div>
 
                     <div className="flex space-x-2">
-                      <Button size="sm" className="bg-gradient-primary hover:opacity-90">
+                      <Button size="sm" className="bg-primary hover:opacity-90">
                         <Plus className="w-3 h-3 mr-1" />
                         Agregar Stock
                       </Button>
@@ -391,7 +391,7 @@ const ScannerManagement = () => {
                       <p className="font-mono text-foreground">{scanResult.code}</p>
                     </div>
 
-                    <Button className="w-full bg-gradient-primary hover:opacity-90">
+                    <Button className="w-full bg-primary hover:opacity-90">
                       <Plus className="w-4 h-4 mr-2" />
                       Agregar Nuevo Producto
                     </Button>

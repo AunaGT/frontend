@@ -315,7 +315,7 @@ const AlertsManagement = () => {
                 <Settings className="w-4 h-4 mr-2" />
                 Configurar
               </Button>
-              <Button className="bg-gradient-primary hover:opacity-90" onClick={() => setNewAlertOpen(true)}>
+              <Button className="bg-primary hover:opacity-90" onClick={() => setNewAlertOpen(true)}>
                 <Bell className="w-4 h-4 mr-2" />
                 Nueva Alerta
               </Button>
