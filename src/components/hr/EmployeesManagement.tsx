@@ -30,8 +30,11 @@ import {
   EMPLOYEE_STATUS_LABELS, fetchLinkableUsers, type Employee, type EmployeePayload,
 } from '@/services/hrService'
 
+const FREQUENCY_LABELS: Record<string, string> = { MENSUAL: 'Mensual', QUINCENAL: 'Quincenal' }
+
 const emptyForm: EmployeePayload = {
   first_name: '', last_name: '', hire_date: '', base_salary: 0, bonificacion_incentivo: 250,
+  pay_frequency: 'MENSUAL',
 }
 
 const money = (v: string | number) =>
@@ -105,6 +108,8 @@ export const EmployeesManagement = () => {
       dpi: employee.dpi ?? '',
       igss_number: employee.igss_number ?? '',
       phone: employee.phone ?? '',
+      pay_frequency: employee.pay_frequency,
+      bank_account: employee.bank_account ?? '',
       user_id: employee.user?.id ?? null,
     })
     setAfiliadoIgss(Boolean(employee.igss_number?.trim()))
@@ -236,6 +241,21 @@ export const EmployeesManagement = () => {
               <Label>Bonificación incentivo</Label>
               <Input type="number" step="0.01" value={form.bonificacion_incentivo ?? 250} onChange={(e) => setForm({ ...form, bonificacion_incentivo: Number(e.target.value) })} />
             </div>
+            <div>
+              <Label>Frecuencia de pago</Label>
+              <Select
+                value={form.pay_frequency ?? 'MENSUAL'}
+                onValueChange={(v) => setForm({ ...form, pay_frequency: v as EmployeePayload['pay_frequency'] })}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Cuenta bancaria</Label><Input value={form.bank_account ?? ''} onChange={(e) => setForm({ ...form, bank_account: e.target.value })} /></div>
             <div className="col-span-2">
               <Label>Usuario del sistema</Label>
               <Select
