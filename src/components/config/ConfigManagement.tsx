@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import { format as formatDate } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTenant } from '@/context/useTenant'
@@ -94,12 +95,13 @@ export default function ConfigManagement() {
     const currencyCode = form.currency_code === 'US$' ? 'USD' : form.currency_code === 'MX$' ? 'MXN' : form.currency_code === 'Q' ? 'GTQ' : (form.currency_code || 'GTQ')
     try {
       const num = new Intl.NumberFormat(loc, { style: 'currency', currency: currencyCode, minimumFractionDigits: 2 }).format(1234.5)
-      const date = new Intl.DateTimeFormat(loc, { dateStyle: 'short', timeStyle: 'short' }).format(new Date())
+      const time = new Intl.DateTimeFormat(loc, { timeStyle: 'short' }).format(new Date())
+      const date = `${formatDate(new Date(), form.date_format || 'dd/MM/yyyy')} ${time}`
       return { num, date }
     } catch {
       return { num: '—', date: '—' }
     }
-  }, [form.locale, form.currency_code])
+  }, [form.locale, form.currency_code, form.date_format])
 
   useEffect(() => {
     let cancelled = false
