@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://deposito-backend-hsfi.vercel.app/api/:path*" },
+    { "source": "/api/:path*", "destination": "https://backend-kappa-ruby-17.vercel.app/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
