@@ -139,9 +139,9 @@ export default function MyProfilePage() {
           <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
             <div className='flex items-end gap-4 min-w-0'>
               <Avatar className='h-20 w-20 border-4 border-card shadow-md shrink-0'>
-                {/* La ficha de RRHH es la fuente autorizada de la foto; la de cuenta es respaldo. */}
-                {employee?.photo_url || user.photo_url ? (
-                  <AvatarImage src={employee?.photo_url || user.photo_url} alt='' />
+                {/* La foto de cuenta manda; si no tiene, se usa la de RRHH. */}
+                {user.photo_url || employee?.photo_url ? (
+                  <AvatarImage src={user.photo_url || employee?.photo_url} alt='' />
                 ) : null}
                 <AvatarFallback className='bg-primary/10 text-xl font-semibold text-primary'>
                   {initials(nombre)}
@@ -216,7 +216,9 @@ export default function MyProfilePage() {
             <div className='flex items-center gap-3'>
               {employee && (
                 <Avatar className='h-11 w-11 shrink-0 border shadow-sm'>
-                  {employee.photo_url ? <AvatarImage src={employee.photo_url} alt='' /> : null}
+                  {user.photo_url || employee.photo_url ? (
+                    <AvatarImage src={user.photo_url || employee.photo_url} alt='' />
+                  ) : null}
                   <AvatarFallback className='bg-primary/10 text-sm font-semibold text-primary'>
                     {initials(`${employee.first_name} ${employee.last_name}`)}
                   </AvatarFallback>
