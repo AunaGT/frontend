@@ -71,7 +71,7 @@ export default function PublicQuotePage() {
           <CompanyLogo
             src={data.company_logo_url}
             size="lg"
-            fallback={data.company_name?.slice(0, 1) || "D"}
+            fallback={data.company_name?.slice(0, 1) || "A"}
             className="mx-auto"
           />
           <p className="text-sm text-muted-foreground">{data.company_name}</p>

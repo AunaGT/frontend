@@ -24,7 +24,7 @@ export function CompanyLogo({
   alt = 'Logo del negocio',
   className,
   imgClassName,
-  fallback = 'D',
+  fallback = 'A',
   size = 'sm',
 }: CompanyLogoProps) {
   const [error, setError] = useState(false)
