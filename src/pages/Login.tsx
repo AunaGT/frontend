@@ -22,7 +22,7 @@ const Login = () => {
   const { mutateAsync, isPending, error } = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [companyName, setCompanyName] = useState("Deposito");
+  const [companyName, setCompanyName] = useState("Auna");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
 
   useEffect(() => {
@@ -42,10 +42,10 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
       <Card className="w-full max-w-sm border-border">
         <CardHeader className="items-center space-y-3">
-          <CompanyLogo src={companyLogoUrl} size="lg" fallback={companyName.slice(0, 1) || "D"} />
+          <CompanyLogo src={companyLogoUrl} size="lg" fallback={companyName.slice(0, 1) || "A"} />
           <CardTitle className="text-center text-2xl">{companyName}</CardTitle>
           <p className="text-sm text-muted-foreground text-center">Accede a tu cuenta</p>
         </CardHeader>
@@ -82,6 +82,10 @@ const Login = () => {
           </form>
         </CardContent>
       </Card>
+      <div className="mt-6 flex items-center gap-1.5 text-xs text-muted-foreground/70">
+        <img src="/auna/isotipo-192.png" alt="" className="h-4 w-4 opacity-70" />
+        <span>Powered by Auna</span>
+      </div>
     </div>
   );
 };

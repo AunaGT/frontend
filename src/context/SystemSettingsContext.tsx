@@ -9,7 +9,7 @@ import { createContext, useCallback, useEffect, useState } from 'react'
 import { getPublicSettings } from '@/services/settingsService'
 
 const DEFAULT_TIMEZONE = 'America/Guatemala'
-const DEFAULT_COMPANY_NAME = 'Deposito'
+const DEFAULT_COMPANY_NAME = 'Auna'
 const DEFAULT_CURRENCY_CODE = 'GTQ'
 const DEFAULT_CURRENCY_NAME = 'Quetzal'
 const DEFAULT_DATE_FORMAT = 'dd/MM/yyyy'

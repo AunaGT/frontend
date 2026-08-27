@@ -149,6 +149,12 @@ export const AppLauncher = ({ open, onOpenChange }: AppLauncherProps) => {
                         </div>
                     )}
                 </div>
+
+                {/* Footer brand mark */}
+                <div className='flex items-center justify-center gap-1.5 border-t bg-white/60 py-2 text-[11px] text-muted-foreground/70'>
+                    <img src='/auna/isotipo-192.png' alt='' className='h-3.5 w-3.5 opacity-70' />
+                    <span>Auna</span>
+                </div>
             </DialogContent>
         </Dialog>
     )
