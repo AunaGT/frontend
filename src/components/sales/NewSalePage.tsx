@@ -56,6 +56,7 @@ import { useCategories } from '@/hooks/useCategories'
 import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { checkCustomerCredit } from '@/services/receivablesService'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { formatMoney } from '@/utils'
 import { createSale } from '@/services/saleService'
@@ -310,6 +311,12 @@ export default function NewSalePage() {
   const customerContactIdForPricing =
     pickedCustomerId !== '__none__' && pickedCustomerId.trim() ? pickedCustomerId : undefined
 
+  // ---- Venta al crédito ----
+  const [creditDueDate, setCreditDueDate] = useState('')
+  const [creditOverride, setCreditOverride] = useState(false)
+  const isCreditSale = Boolean(paymentMethod?.is_credit)
+  const canOverrideCredit = hasPermission('sales.credit.override')
+
   const getUnitPrice = useCallback(
     (p: Product) => {
       const u = unitPricesById[p.id]
@@ -535,6 +542,17 @@ export default function NewSalePage() {
       : 0
 
   const canCreate = hasPermission('sales.create')
+
+  /**
+   * ¿Puede el cliente llevarse este total al crédito? Se consulta al servidor
+   * porque el saldo depende de todas sus facturas abiertas, no solo de esta venta.
+   */
+  const creditCheck = useQuery({
+    queryKey: ['credit-check', customerContactIdForPricing, displayTotal],
+    queryFn: () => checkCustomerCredit(customerContactIdForPricing!, displayTotal),
+    enabled: isCreditSale && Boolean(customerContactIdForPricing) && displayTotal > 0,
+    staleTime: 15 * 1000,
+  })
 
   // Caja elegida en el selector previo; null = aún no se ha elegido (se muestra el picker)
   const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
@@ -996,6 +1014,25 @@ export default function NewSalePage() {
       toast({ title: 'Agrega al menos un producto', variant: 'destructive' })
       return
     }
+    if (isCreditSale) {
+      if (!customerContactIdForPricing) {
+        toast({
+          title: 'Falta el cliente',
+          description: 'Una venta al crédito debe ir a nombre de un cliente del maestro.',
+          variant: 'destructive',
+        })
+        return
+      }
+      // El servidor vuelve a validar; esto solo evita el viaje perdido.
+      if (creditCheck.data && !creditCheck.data.ok && !(canOverrideCredit && creditOverride)) {
+        toast({
+          title: 'Crédito no disponible',
+          description: creditCheck.data.motivo ?? 'El cliente no puede llevar esta venta al crédito.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
     const isCash = paymentMethod.name?.toLowerCase() === 'efectivo'
     if (isCash) {
       const received = parseFloat(amountReceived || '0')
@@ -1027,6 +1064,12 @@ export default function NewSalePage() {
       admin_authorized_products: Array.from(cart.adminAuthorizedProducts),
       promotion_codes: promotions.promotionCodes,
       idempotency_key: intentoDeCobroRef.current,
+      ...(isCreditSale
+        ? {
+            due_date: creditDueDate || undefined,
+            credit_override: canOverrideCredit && creditOverride ? true : undefined,
+          }
+        : {}),
     }
     setIsProcessing(true)
     try {
@@ -1436,6 +1479,61 @@ export default function NewSalePage() {
                   </SelectContent>
                 </Select>
               </div>
+              {isCreditSale && (
+                <div className="space-y-2">
+                  {!customerContactIdForPricing ? (
+                    <p className="text-xs text-destructive">
+                      Una venta al crédito necesita un cliente del maestro: seleccionalo arriba.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <Label htmlFor="due-date">Vence el</Label>
+                        <Input
+                          id="due-date"
+                          type="date"
+                          value={creditDueDate}
+                          onChange={(e) => setCreditDueDate(e.target.value)}
+                        />
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Si se deja vacío se usa el plazo por defecto del cliente.
+                        </p>
+                      </div>
+                      {creditCheck.data && !creditCheck.data.ok && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
+                          <p className="font-medium text-destructive">{creditCheck.data.motivo}</p>
+                          <p className="mt-1 text-muted-foreground">
+                            Saldo actual {fmt(creditCheck.data.saldo_actual)}
+                            {creditCheck.data.limite != null &&
+                              ` · Límite ${fmt(creditCheck.data.limite)}`}
+                          </p>
+                          {canOverrideCredit ? (
+                            <label className="mt-2 flex items-center gap-2 text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={creditOverride}
+                                onChange={(e) => setCreditOverride(e.target.checked)}
+                                className="h-3.5 w-3.5"
+                              />
+                              Autorizar de todas formas
+                            </label>
+                          ) : (
+                            <p className="mt-1 text-muted-foreground">
+                              Requiere permiso para autorizarla.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {creditCheck.data?.ok && creditCheck.data.limite != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Disponible tras esta venta:{' '}
+                          {fmt(creditCheck.data.limite - creditCheck.data.saldo_resultante)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
               {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
                 <div>
                   <Label htmlFor="amount">Monto recibido</Label>
@@ -1581,7 +1679,12 @@ export default function NewSalePage() {
                 (paymentMethod?.name?.toLowerCase() === 'efectivo' &&
                   (!amountReceived ||
                     Number.isNaN(parseFloat(amountReceived)) ||
-                    parseFloat(amountReceived) < displayTotal))
+                    parseFloat(amountReceived) < displayTotal)) ||
+                (isCreditSale &&
+                  (!customerContactIdForPricing ||
+                    (creditCheck.data != null &&
+                      !creditCheck.data.ok &&
+                      !(canOverrideCredit && creditOverride))))
               }
             >
               {isProcessing ? (

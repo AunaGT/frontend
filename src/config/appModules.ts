@@ -151,6 +151,15 @@ export const appModules: AppModule[] = [
         permissions: ['contacts.suppliers.view', 'contacts.clients.view']
     },
     {
+        id: 'receivables',
+        label: 'Cartera',
+        path: '/cartera',
+        icon: ReporteFinancieroIcon,
+        color: 'bg-teal-100/90',
+        iconColor: 'text-teal-900',
+        permissions: ['receivables.view']
+    },
+    {
         id: 'merchandise',
         label: 'Mercancía',
         path: '/mercancia',

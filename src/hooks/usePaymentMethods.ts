@@ -16,6 +16,8 @@ export const PAYMENT_METHODS_QUERY_KEY = ["payment-methods"] as const;
 export interface PaymentMethod {
   id: number;
   name: string;
+  /** Venta al crédito: no entra dinero, genera cuenta por cobrar. */
+  is_credit?: boolean;
 }
 
 const fetchPaymentMethods = async (): Promise<PaymentMethod[]> => {
