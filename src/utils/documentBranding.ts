@@ -2,8 +2,8 @@
  * Título de pestaña y favicon según configuración del negocio.
  */
 
-const DEFAULT_TITLE = 'Deposito'
-const DEFAULT_FAVICON = '/logo.svg'
+const DEFAULT_TITLE = 'Auna'
+const DEFAULT_FAVICON = '/auna/favicon.ico'
 
 function faviconMimeType(url: string): string {
   const lower = url.toLowerCase()

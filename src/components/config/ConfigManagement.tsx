@@ -334,7 +334,7 @@ export default function ConfigManagement() {
             <CardContent className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-start">
                 <div className="flex flex-col items-center gap-2">
-                  <CompanyLogo src={logoUrl} size="lg" fallback={form.company_name?.slice(0, 1) || 'D'} />
+                  <CompanyLogo src={logoUrl} size="lg" fallback={form.company_name?.slice(0, 1) || 'A'} />
                   {logoUrl && canManage && (
                     <Button
                       type="button"

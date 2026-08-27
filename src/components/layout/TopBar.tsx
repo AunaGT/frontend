@@ -106,7 +106,7 @@ export const TopBar = () => {
                 >
                     <CompanyLogo
                         src={companyLogoUrl}
-                        fallback={companyName.slice(0, 1) || 'D'}
+                        fallback={companyName.slice(0, 1) || 'A'}
                         size="sm"
                     />
                     <span className="font-semibold text-sm sm:text-lg truncate max-w-[9rem] sm:max-w-[14rem] md:max-w-none min-w-0">
