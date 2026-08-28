@@ -1504,6 +1504,8 @@ export default function NewSalePage() {
                           <p className="font-medium text-destructive">{creditCheck.data.motivo}</p>
                           <p className="mt-1 text-muted-foreground">
                             Saldo actual {fmt(creditCheck.data.saldo_actual)}
+                            {creditCheck.data.credito_disponible > 0 &&
+                              ` (a favor ${fmt(creditCheck.data.credito_disponible)} · neto ${fmt(creditCheck.data.saldo_neto)})`}
                             {creditCheck.data.limite != null &&
                               ` · Límite ${fmt(creditCheck.data.limite)}`}
                           </p>
