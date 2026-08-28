@@ -277,6 +277,8 @@ export interface CreateSupplierPayload {
   rating?: number;
   /** ID fiscal (NIT, VAT, RFC, …); opcional */
   tax_id?: string | null;
+  /** Solo clientes. null = sin límite. */
+  credit_limit?: number | string | null;
   /** Persona individual vs empresa */
   entity_kind?: "PERSON" | "ORGANIZATION";
   /** Solo clientes: tarifa por defecto si no hay regla de canal */

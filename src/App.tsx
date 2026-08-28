@@ -82,6 +82,8 @@ import OrderDetailPage from "@/components/orders/OrderDetailPage";
 import HrPage from "@/components/hr/HrPage";
 import EmployeeCreatePage from "@/components/hr/EmployeeCreatePage";
 import EmployeeDetailPage from "@/components/hr/EmployeeDetailPage";
+import ReceivablesManagement from "@/components/receivables/ReceivablesManagement";
+import CustomerStatementPage from "@/components/receivables/CustomerStatementPage";
 import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
 import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
 import PublicQuotePage from "@/pages/PublicQuotePage";
@@ -552,6 +554,24 @@ const App = () => (
                   element={
                     <PermissionRoute any={["hr.employees.view"]}>
                       <EmployeeDetailPage />
+                    </PermissionRoute>
+                  }
+                />
+
+                {/* Cartera (cuentas por cobrar) */}
+                <Route
+                  path="/cartera"
+                  element={
+                    <PermissionRoute any={["receivables.view"]}>
+                      <ReceivablesManagement />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path="/cartera/:id"
+                  element={
+                    <PermissionRoute any={["receivables.view"]}>
+                      <CustomerStatementPage />
                     </PermissionRoute>
                   }
                 />

@@ -45,6 +45,7 @@ export default function SupplierCreatePage() {
   const [newEmail, setNewEmail] = useState('')
   const [newAddress, setNewAddress] = useState('')
   const [newTaxId, setNewTaxId] = useState('')
+  const [creditLimit, setCreditLimit] = useState('')
   const [entityKind, setEntityKind] = useState<'PERSON' | 'ORGANIZATION'>('ORGANIZATION')
   const [partyKind, setPartyKind] = useState<'SUPPLIER' | 'CUSTOMER'>('SUPPLIER')
   const [newCategoryIds, setNewCategoryIds] = useState<string[]>([])
@@ -136,6 +137,7 @@ export default function SupplierCreatePage() {
         email: newEmail.trim(),
         address: newAddress.trim(),
         tax_id: newTaxId.trim() || null,
+        credit_limit: partyKind === 'CUSTOMER' ? (creditLimit.trim() || null) : undefined,
         category_ids: partyKind === 'SUPPLIER' ? newCategoryIds.map((id) => Number(id)) : undefined,
         payment_terms,
       })
@@ -505,6 +507,24 @@ export default function SupplierCreatePage() {
                   className="mt-1"
                 />
               </div>
+              {partyKind === 'CUSTOMER' && (
+                <div>
+                  <Label htmlFor="credit-limit">Límite de crédito (opcional)</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Máximo que puede deber al crédito. Vacío = sin límite; 0 = no se le vende al crédito.
+                  </p>
+                  <Input
+                    id="credit-limit"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={creditLimit}
+                    onChange={(e) => setCreditLimit(e.target.value)}
+                    placeholder="Sin límite"
+                    className="mt-1"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

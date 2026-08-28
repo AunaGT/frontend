@@ -14,7 +14,7 @@
  */
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, LogOut, ChevronDown, ChevronRight } from 'lucide-react'
+import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -30,6 +30,7 @@ import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import { appModules, getUserRole } from '@/config/appModules'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
+import { useOverdueReceivablesCount } from '@/hooks/useOverdueReceivablesCount'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useAuth } from '@/context/useAuth'
 import type { User as UserType } from '@/services/userService'
@@ -75,6 +76,10 @@ export const TopBar = () => {
 
     // Cantidad de alertas activas para la burbuja de notificación de la campana
     const { data: activeAlertsCount = 0 } = useActiveAlertsCount()
+    // Facturas al crédito vencidas: la campana no las cubre porque las alertas
+    // de esa tabla son de stock.
+    const { data: vencidas } = useOverdueReceivablesCount()
+    const overdueCount = vencidas?.count ?? 0
 
     // Find current module based on path
     const currentModule = appModules.find(
@@ -156,7 +161,25 @@ export const TopBar = () => {
                         </Button>
                     )}
 
-                    {canViewAlerts && (
+                    {/* Cartera vencida */}
+                    {overdueCount > 0 && (
+                        <Button
+                            type='button'
+                            variant='ghost'
+                            size='icon'
+                            className='relative h-10 w-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80'
+                            onClick={() => navigate('/cartera')}
+                            aria-label={`Cartera vencida: ${overdueCount} factura(s)`}
+                            title={`${overdueCount} factura(s) al crédito vencida(s)`}
+                        >
+                            <Wallet className='h-5 w-5' strokeWidth={2} />
+                            <span className='absolute -top-0.5 -right-0.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground shadow-sm ring-2 ring-card'>
+                                {overdueCount > 9 ? '9+' : overdueCount}
+                            </span>
+                        </Button>
+                    )}
+
+                    {(canViewAlerts || overdueCount > 0) && (
                         <div
                             className='hidden sm:block h-8 w-px bg-border shrink-0'
                             aria-hidden
