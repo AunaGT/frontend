@@ -983,7 +983,7 @@ export default function SupplierDetailPage() {
                                           { id: 3, name: '30 días' },
                                           { id: 4, name: '45 días' },
                                         ]
-                                    ).map((t: { id: number | string; name: string }) => {
+                                    ).map((t: { id: number | string; name: string; net_days?: number | null }) => {
                                       const idStr = String(t.id)
                                       const selected = editPaymentTermIds.includes(idStr)
                                       return (
@@ -1005,6 +1005,11 @@ export default function SupplierDetailPage() {
                                             )}
                                           />
                                           {t.name}
+                                          {/* El nombre puede decir "30 días" y el término no
+                                              tener días: ahí no hay vencimiento que calcular. */}
+                                          <span className="ml-2 text-xs text-muted-foreground">
+                                            {t.net_days != null ? `${t.net_days} d` : 'sin días'}
+                                          </span>
                                         </CommandItem>
                                       )
                                     })}
@@ -1021,9 +1026,10 @@ export default function SupplierDetailPage() {
                                 .filter((t: { id: number | string }) =>
                                   editPaymentTermIds.includes(String(t.id))
                                 )
-                                .map((t: { id: number | string; name: string }) => (
+                                .map((t: { id: number | string; name: string; net_days?: number | null }) => (
                                   <Badge key={String(t.id)} variant="secondary" className="text-xs">
                                     {t.name}
+                                    {t.net_days != null ? ` · ${t.net_days} d` : ' · sin días'}
                                     {String(t.id) === editDefaultPaymentTermId
                                       ? ' · predeterminado'
                                       : ''}

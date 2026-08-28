@@ -563,6 +563,32 @@ export default function NewSalePage() {
     setCreditDueDate((actual) => actual || sugerida.slice(0, 10))
   }, [isCreditSale, sugerida])
 
+  // La ayuda del campo decía "Sugerido por su plazo" pasara lo que pasara, así
+  // que prometía una fecha que muchas veces no llegaba: sin productos todavía
+  // no se consulta, el término puede no tener días definidos (net_days es
+  // opcional en el catálogo) y la consulta puede fallar. Cada caso se dice.
+  const term = creditCheck.data?.payment_term
+  const dueDateHint: { text: string; bad: boolean } = creditCheck.isError
+    ? { text: 'No se pudo consultar el plazo del cliente: elegí la fecha a mano.', bad: true }
+    : creditCheck.isFetching
+      ? { text: 'Consultando el plazo del cliente…', bad: false }
+      : !creditCheck.data
+        ? { text: 'El vencimiento sugerido aparece al agregar productos.', bad: false }
+        : !term
+          ? {
+              text: 'Este cliente no tiene término de pago: elegí la fecha a mano, o asignáselo en su ficha de contacto.',
+              bad: true,
+            }
+          : term.net_days == null
+            ? {
+                text: `Su término «${term.name}» no tiene días definidos, así que no hay fecha que sugerir: elegila a mano, o ponéle los días en Catálogos → Términos de pago.`,
+                bad: true,
+              }
+            : {
+                text: `Sugerido por su plazo (${term.name}, ${term.net_days} días). Se puede cambiar.`,
+                bad: false,
+              }
+
   // Caja elegida en el selector previo; null = aún no se ha elegido (se muestra el picker)
   const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
   const [cashCheckDone, setCashCheckDone] = useState(false)
@@ -1514,20 +1540,13 @@ export default function NewSalePage() {
                           value={creditDueDate}
                           onChange={(e) => setCreditDueDate(e.target.value)}
                         />
-                        {creditCheck.data && !creditCheck.data.payment_term ? (
-                          <p className="mt-1 text-xs text-destructive">
-                            Este cliente no tiene término de pago configurado: elegí la fecha a
-                            mano, o asignáselo en su ficha de contacto.
-                          </p>
-                        ) : (
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Sugerido por su plazo
-                            {creditCheck.data?.payment_term?.name
-                              ? ` (${creditCheck.data.payment_term.name})`
-                              : ''}
-                            . Se puede cambiar.
-                          </p>
-                        )}
+                        <p
+                          className={`mt-1 text-xs ${
+                            dueDateHint.bad ? 'text-destructive' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {dueDateHint.text}
+                        </p>
                       </div>
                       {creditCheck.data && !creditCheck.data.ok && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
