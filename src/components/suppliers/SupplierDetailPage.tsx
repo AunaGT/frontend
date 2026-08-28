@@ -335,28 +335,23 @@ export default function SupplierDetailPage() {
   const handleSave = async () => {
     if (!supplier || !id) return
     try {
-      let payment_terms:
-        | Array<{ payment_term_id: number; is_default: boolean; sort_order: number }>
-        | undefined
-      if (isSupplierParty) {
-        if (
-          editPaymentTermIds.length === 0 ||
-          !editDefaultPaymentTermId ||
-          !editPaymentTermIds.includes(editDefaultPaymentTermId)
-        ) {
-          toast({
-            title: 'Términos de pago',
-            description: 'Selecciona al menos un término y uno predeterminado',
-            variant: 'destructive',
-          })
-          return
-        }
-        payment_terms = editPaymentTermIds.map((tid, i) => ({
-          payment_term_id: Number(tid),
-          is_default: tid === editDefaultPaymentTermId,
-          sort_order: i,
-        }))
+      if (
+        editPaymentTermIds.length === 0 ||
+        !editDefaultPaymentTermId ||
+        !editPaymentTermIds.includes(editDefaultPaymentTermId)
+      ) {
+        toast({
+          title: 'Términos de pago',
+          description: 'Selecciona al menos un término y uno predeterminado',
+          variant: 'destructive',
+        })
+        return
       }
+      const payment_terms = editPaymentTermIds.map((tid, i) => ({
+        payment_term_id: Number(tid),
+        is_default: tid === editDefaultPaymentTermId,
+        sort_order: i,
+      }))
       await updateSupplierAsync({
         id,
         payload: {
@@ -370,7 +365,7 @@ export default function SupplierDetailPage() {
           ...(partyType === 'CUSTOMER' ? { credit_limit: editCreditLimit.trim() || null } : {}),
           category_ids:
             isSupplierParty && editCategoryIds.length ? editCategoryIds : undefined,
-          ...(isSupplierParty && payment_terms ? { payment_terms } : {}),
+          payment_terms,
           estado: editEstado,
         },
       })
@@ -949,9 +944,13 @@ export default function SupplierDetailPage() {
                       <div className="mt-1">{getStatusBadge(String(supplier.status))}</div>
                     )}
                   </div>
-                  {isSupplierParty && (
                   <div>
                     <Label className="text-muted-foreground">Términos de Pago</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {isSupplierParty
+                        ? 'Plazo en que se le paga a este proveedor.'
+                        : 'Plazo que se le da a este cliente. El predeterminado fija el vencimiento de sus ventas al crédito.'}
+                    </p>
                     {isEditing && canEditSupplier ? (
                       <>
                         <Popover open={paymentTermPopoverOpen} onOpenChange={setPaymentTermPopoverOpen}>
@@ -1061,7 +1060,6 @@ export default function SupplierDetailPage() {
                       <p className="text-foreground font-medium">{supplier.paymentTerms || '—'}</p>
                     )}
                   </div>
-                  )}
                   <div>
                     <Label className="text-muted-foreground">ID fiscal (facturación)</Label>
                     {isEditing && canEditSupplier ? (

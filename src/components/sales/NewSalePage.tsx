@@ -554,6 +554,15 @@ export default function NewSalePage() {
     staleTime: 15 * 1000,
   })
 
+  // El plazo del cliente se aplicaba solo en el servidor: el cajero no veía qué
+  // fecha iba a quedar, y un cliente sin plazo generaba una venta sin
+  // vencimiento en silencio. Ahora la sugerencia se muestra y se puede editar.
+  const sugerida = creditCheck.data?.due_date_sugerida
+  useEffect(() => {
+    if (!isCreditSale || !sugerida) return
+    setCreditDueDate((actual) => actual || sugerida.slice(0, 10))
+  }, [isCreditSale, sugerida])
+
   // Caja elegida en el selector previo; null = aún no se ha elegido (se muestra el picker)
   const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
   const [cashCheckDone, setCashCheckDone] = useState(false)
@@ -1019,6 +1028,16 @@ export default function NewSalePage() {
         toast({
           title: 'Falta el cliente',
           description: 'Una venta al crédito debe ir a nombre de un cliente del maestro.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!creditDueDate) {
+        toast({
+          title: 'Falta el vencimiento',
+          description:
+            'Una venta al crédito sin fecha de vencimiento nunca aparece como vencida. ' +
+            'Indicá la fecha o configurá un término de pago para este cliente.',
           variant: 'destructive',
         })
         return
@@ -1495,9 +1514,20 @@ export default function NewSalePage() {
                           value={creditDueDate}
                           onChange={(e) => setCreditDueDate(e.target.value)}
                         />
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Si se deja vacío se usa el plazo por defecto del cliente.
-                        </p>
+                        {creditCheck.data && !creditCheck.data.payment_term ? (
+                          <p className="mt-1 text-xs text-destructive">
+                            Este cliente no tiene término de pago configurado: elegí la fecha a
+                            mano, o asignáselo en su ficha de contacto.
+                          </p>
+                        ) : (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Sugerido por su plazo
+                            {creditCheck.data?.payment_term?.name
+                              ? ` (${creditCheck.data.payment_term.name})`
+                              : ''}
+                            . Se puede cambiar.
+                          </p>
+                        )}
                       </div>
                       {creditCheck.data && !creditCheck.data.ok && (
                         <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">

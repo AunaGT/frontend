@@ -127,6 +127,10 @@ export interface CreditCheck {
   customer_id: string;
   customer_name: string;
   ok: boolean;
+  /** Plazo predeterminado del cliente, si tiene uno configurado. */
+  payment_term: { name: string; net_days: number | null } | null;
+  /** Vencimiento que le tocaría a una venta hecha hoy; null si no tiene plazo. */
+  due_date_sugerida: string | null;
   saldo_actual: number;
   saldo_neto: number;
   credito_disponible: number;
