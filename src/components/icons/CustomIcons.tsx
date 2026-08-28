@@ -71,7 +71,7 @@ export const CierreCajaIcon = createModuleIcon(`${base}/cierre-caja.svg`, 'Cierr
 export const ProveedoresIcon = createModuleIcon(`${base}/proveedores.svg`, 'ProveedoresIcon')
 // Papirus apps: libreoffice-chart.svg
 export const AnalyticsIcon = createModuleIcon(`${base}/analytics.svg`, 'AnalyticsIcon')
-// Papirus mimetypes: x-office-spreadsheet.svg
+// Papirus mimetypes: x-office-presentation.svg (documento con gráfica)
 export const ReportesIcon = createModuleIcon(`${base}/reportes.svg`, 'ReportesIcon')
 // Papirus apps: libreoffice-calc.svg (P&L / cuadros financieros)
 export const ReporteFinancieroIcon = createModuleIcon(`${base}/reporte-financiero.svg`, 'ReporteFinancieroIcon')
@@ -93,3 +93,13 @@ export const ConfiguracionIcon = createModuleIcon(`${base}/configuracion.svg`, '
 export const TrasladosIcon = createModuleIcon(`${base}/traslados.svg`, 'TrasladosIcon')
 
 export const SucursalesIcon = createModuleIcon(`${base}/sucursales.svg`, 'SucursalesIcon')
+
+// Papirus apps: moneydance.svg (monedas — dinero por cobrar)
+export const CarteraIcon = createModuleIcon(`${base}/cartera.svg`, 'CarteraIcon')
+
+// Papirus apps: money-manager-ex.svg (sueldos pagados)
+export const NominaIcon = createModuleIcon(`${base}/nomina.svg`, 'NominaIcon')
+
+// Papirus apps: kwalletmanager.svg (credencial — expediente del empleado).
+// kaddressbook queda descartado: es exactamente el mismo dibujo que proveedores.svg.
+export const RrhhIcon = createModuleIcon(`${base}/rrhh.svg`, 'RrhhIcon')
