@@ -15,7 +15,8 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ChevronRight, Loader2, Search, Wallet } from 'lucide-react'
+import { AlertTriangle, ChevronRight, Download, Loader2, Search, Wallet } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +38,22 @@ const CustomerAvatar = ({ name }: { name: string }) => (
 
 const fechaCorta = (iso: string | null) =>
   iso ? new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+
+/** CSV con separador de punto y coma: es lo que Excel en español abre sin pelear. */
+const descargarCsv = (nombre: string, filas: (string | number)[][]) => {
+  const escapar = (v: string | number) => {
+    const t = String(v ?? '')
+    return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t
+  }
+  const csv = filas.map((f) => f.map(escapar).join(';')).join('\n')
+  // El BOM hace que Excel reconozca UTF-8 y no destroce los acentos.
+  const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = nombre
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export const ReceivablesManagement = () => {
   const navigate = useNavigate()
@@ -62,6 +79,22 @@ export const ReceivablesManagement = () => {
 
   const abrir = (customerId: string) => navigate(`/cartera/${customerId}`)
 
+  const exportarSaldos = () =>
+    descargarCsv('cartera.csv', [
+      ['Cliente', 'Saldo', 'Vencido', 'Saldo a favor', 'Saldo neto', 'Facturas', 'Vence', 'Límite'],
+      ...filas.map((r) => [
+        r.customer_name, r.saldo, r.vencido, r.credito_disponible, r.saldo_neto,
+        r.facturas, r.vence_primero ? r.vence_primero.slice(0, 10) : '',
+        r.credit_limit == null ? 'Sin límite' : r.credit_limit,
+      ]),
+    ])
+
+  const exportarAntiguedad = () =>
+    descargarCsv('antiguedad-saldos.csv', [
+      ['Cliente', ...AGING_BUCKETS.map((b) => b.label), 'Total'],
+      ...filasAging.map((r) => [r.customer_name, ...AGING_BUCKETS.map((b) => r[b.key]), r.total]),
+    ])
+
   return (
     <div className='container mx-auto space-y-4 p-4 sm:p-6'>
       <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -83,7 +116,7 @@ export const ReceivablesManagement = () => {
         </div>
       </div>
 
-      <div className='grid gap-3 sm:grid-cols-2'>
+      <div className='grid gap-3 sm:grid-cols-3'>
         <Card>
           <CardHeader className='pb-2'>
             <CardTitle className='text-sm font-medium text-muted-foreground'>Total por cobrar</CardTitle>
@@ -105,6 +138,15 @@ export const ReceivablesManagement = () => {
             </p>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className='pb-2'>
+            <CardTitle className='text-sm font-medium text-muted-foreground'>Saldo a favor</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className='text-2xl font-semibold'>{money(cartera.data?.total_credito ?? 0)}</p>
+            <p className='text-xs text-muted-foreground'>Anticipos sin aplicar</p>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs defaultValue='saldos'>
@@ -113,7 +155,13 @@ export const ReceivablesManagement = () => {
           <TabsTrigger value='antiguedad'>Antigüedad</TabsTrigger>
         </TabsList>
 
-        <TabsContent value='saldos' className='mt-3'>
+        <TabsContent value='saldos' className='mt-3 space-y-2'>
+          <div className='flex justify-end'>
+            <Button variant='outline' size='sm' onClick={exportarSaldos} disabled={filas.length === 0}>
+              <Download className='mr-1.5 h-4 w-4' />
+              Exportar CSV
+            </Button>
+          </div>
           <div className='overflow-x-auto rounded-lg border'>
             <table className='w-full min-w-[46rem] text-sm'>
               <thead className='bg-muted/50 text-xs uppercase text-muted-foreground'>
@@ -121,6 +169,7 @@ export const ReceivablesManagement = () => {
                   <th className='px-3 py-2 text-left font-medium'>Cliente</th>
                   <th className='px-3 py-2 text-right font-medium'>Saldo</th>
                   <th className='px-3 py-2 text-right font-medium'>Vencido</th>
+                  <th className='px-3 py-2 text-right font-medium'>A favor</th>
                   <th className='px-3 py-2 text-center font-medium'>Facturas</th>
                   <th className='px-3 py-2 text-left font-medium'>Vence</th>
                   <th className='px-3 py-2 text-right font-medium'>Límite</th>
@@ -130,14 +179,14 @@ export const ReceivablesManagement = () => {
               <tbody>
                 {cartera.isLoading && (
                   <tr>
-                    <td colSpan={7} className='px-3 py-10 text-center text-muted-foreground'>
+                    <td colSpan={8} className='px-3 py-10 text-center text-muted-foreground'>
                       <Loader2 className='mx-auto h-5 w-5 animate-spin' />
                     </td>
                   </tr>
                 )}
                 {!cartera.isLoading && filas.length === 0 && (
                   <tr>
-                    <td colSpan={7} className='px-3 py-10 text-center text-muted-foreground'>
+                    <td colSpan={8} className='px-3 py-10 text-center text-muted-foreground'>
                       {search ? 'Ningún cliente coincide' : 'No hay saldos pendientes'}
                     </td>
                   </tr>
@@ -162,6 +211,13 @@ export const ReceivablesManagement = () => {
                         <span className='text-muted-foreground'>—</span>
                       )}
                     </td>
+                    <td className='px-3 py-2 text-right tabular-nums'>
+                      {row.credito_disponible > 0 ? (
+                        <span className='font-medium text-teal-600'>{money(row.credito_disponible)}</span>
+                      ) : (
+                        <span className='text-muted-foreground'>—</span>
+                      )}
+                    </td>
                     <td className='px-3 py-2 text-center text-muted-foreground'>{row.facturas}</td>
                     <td className='px-3 py-2 text-muted-foreground'>{fechaCorta(row.vence_primero)}</td>
                     <td className='px-3 py-2 text-right tabular-nums text-muted-foreground'>
@@ -181,7 +237,18 @@ export const ReceivablesManagement = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value='antiguedad' className='mt-3'>
+        <TabsContent value='antiguedad' className='mt-3 space-y-2'>
+          <div className='flex justify-end'>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={exportarAntiguedad}
+              disabled={filasAging.length === 0}
+            >
+              <Download className='mr-1.5 h-4 w-4' />
+              Exportar CSV
+            </Button>
+          </div>
           <div className='overflow-x-auto rounded-lg border'>
             <table className='w-full min-w-[46rem] text-sm'>
               <thead className='bg-muted/50 text-xs uppercase text-muted-foreground'>

@@ -16,6 +16,15 @@ import { apiFetch } from "./api";
 
 export type SalePaymentStatus = "PENDING" | "PARTIAL" | "PAID";
 
+/** Un cobro entra dinero; los ajustes solo bajan la deuda. */
+export type CustomerPaymentKind = "PAYMENT" | "CREDIT_NOTE" | "WRITE_OFF";
+
+export const PAYMENT_KIND_LABELS: Record<CustomerPaymentKind, string> = {
+  PAYMENT: "Cobro",
+  CREDIT_NOTE: "Nota de crédito",
+  WRITE_OFF: "Incobrable",
+};
+
 export const SALE_PAYMENT_STATUS_LABELS: Record<SalePaymentStatus, string> = {
   PENDING: "Pendiente",
   PARTIAL: "Abonada",
@@ -41,12 +50,15 @@ export interface ReceivableRow {
   vencido: number;
   facturas: number;
   vence_primero: string | null;
+  credito_disponible: number;
+  saldo_neto: number;
 }
 
 export interface ReceivablesList {
   items: ReceivableRow[];
   total_por_cobrar: number;
   total_vencido: number;
+  total_credito: number;
 }
 
 export type AgingRow = {
@@ -79,8 +91,11 @@ export interface StatementPayment {
   paid_at: string;
   reference: string | null;
   notes: string | null;
+  kind: CustomerPaymentKind;
   payment_method: { id: number; name: string } | null;
   registered_by: { id: string; name: string } | null;
+  aplicado: number;
+  no_aplicado: number;
   aplicaciones: { sale_id?: string; reference?: string | null; amount: number }[];
 }
 
@@ -100,6 +115,8 @@ export interface CustomerStatement {
     vencido: number;
     facturas_abiertas: number;
     facturas_vencidas: number;
+    credito_disponible: number;
+    saldo_neto: number;
     disponible: number | null;
   };
   ventas: StatementSale[];
@@ -111,11 +128,18 @@ export interface CreditCheck {
   customer_name: string;
   ok: boolean;
   saldo_actual: number;
+  saldo_neto: number;
+  credito_disponible: number;
   saldo_resultante: number;
   limite: number | null;
   vencido: number;
   facturas_vencidas: number;
   motivo: string | null;
+}
+
+export interface PaymentApplication {
+  sale_id: string;
+  amount: number;
 }
 
 export interface CreatePaymentPayload {
@@ -126,6 +150,20 @@ export interface CreatePaymentPayload {
   reference?: string;
   notes?: string;
   cash_register_session_id?: string;
+  /** Si viene, el cobro se aplica a estas facturas en vez de FIFO. */
+  applications?: PaymentApplication[];
+  /** Confirma dejar el sobrante como anticipo (si no, un sobrepago se rechaza). */
+  allow_advance?: boolean;
+}
+
+export interface CreateAdjustmentPayload {
+  customer_id: string;
+  amount: number;
+  kind: Exclude<CustomerPaymentKind, "PAYMENT">;
+  notes: string;
+  date?: string;
+  reference?: string;
+  applications?: PaymentApplication[];
 }
 
 export interface CreatedPayment {
@@ -137,7 +175,39 @@ export interface CreatedPayment {
     payment_status?: SalePaymentStatus;
     amount: number;
   }[];
-  resumen: { saldo: number; vencido: number; facturas_abiertas: number; facturas_vencidas: number };
+  aplicado?: number;
+  no_aplicado?: number;
+  resumen: CustomerStatement["resumen"];
+}
+
+export interface PaymentReceipt {
+  id: string;
+  amount: number;
+  paid_at: string;
+  reference: string | null;
+  notes: string | null;
+  kind: CustomerPaymentKind;
+  payment_method: { id: number; name: string } | null;
+  customer: {
+    id: string;
+    name: string;
+    tax_id: string | null;
+    phone: string | null;
+    address: string | null;
+  };
+  branch: { id: string; name: string } | null;
+  registered_by: { id: string; name: string } | null;
+  aplicado: number;
+  no_aplicado: number;
+  aplicaciones: {
+    sale_id?: string;
+    reference?: string | null;
+    date?: string;
+    due_date?: string | null;
+    total: number;
+    amount: number;
+  }[];
+  resumen: CustomerStatement["resumen"];
 }
 
 export const fetchReceivables = () => apiFetch<ReceivablesList>("/api/receivables");
@@ -169,3 +239,26 @@ export const deleteCustomerPayment = (id: string) =>
     had_journal_entry: boolean;
     journal_entry_number: string | null;
   }>(`/api/receivables/payments/${id}`, { method: "DELETE" });
+
+export const createCustomerAdjustment = (payload: CreateAdjustmentPayload) =>
+  apiFetch<CreatedPayment>("/api/receivables/adjustments", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+
+/** Imputa el saldo a favor del cliente a sus facturas abiertas. */
+export const applyCustomerCredit = (customerId: string) =>
+  apiFetch<{ aplicado: number; ventas_afectadas: number; resumen: CustomerStatement["resumen"] }>(
+    `/api/receivables/customers/${customerId}/apply-credit`,
+    { method: "POST" }
+  );
+
+/** Prórroga: mueve el vencimiento de una venta al crédito ya emitida. */
+export const updateSaleDueDate = (saleId: string, dueDate: string) =>
+  apiFetch<{ id: string; reference: string | null; due_date: string }>(
+    `/api/receivables/sales/${saleId}/due-date`,
+    { method: "PATCH", body: JSON.stringify({ due_date: dueDate }) }
+  );
+
+export const fetchPaymentReceipt = (id: string) =>
+  apiFetch<PaymentReceipt>(`/api/receivables/payments/${id}`);
