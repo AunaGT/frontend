@@ -155,6 +155,7 @@ export default function SupplierDetailPage() {
       ? 'CUSTOMER'
       : 'SUPPLIER'
   const isSupplierParty = partyType === 'SUPPLIER'
+  const creditLimit = (rawSupplier as { credit_limit?: number | string | null })?.credit_limit
 
   const canViewMerchandise = hasPermission('merchandise.view')
   const canViewCustomerSales = hasPermission('sales.view')
@@ -261,6 +262,7 @@ export default function SupplierDetailPage() {
   const [paymentTermPopoverOpen, setPaymentTermPopoverOpen] = useState(false)
   const [editEstado, setEditEstado] = useState<number>(1)
   const [editTaxId, setEditTaxId] = useState('')
+  const [editCreditLimit, setEditCreditLimit] = useState('')
   const [editEntityKind, setEditEntityKind] = useState<'PERSON' | 'ORGANIZATION'>('ORGANIZATION')
 
   useEffect(() => {
@@ -271,6 +273,7 @@ export default function SupplierDetailPage() {
     setEditEmail(supplier.email ?? '')
     setEditAddress(supplier.address ?? '')
     setEditTaxId(supplier.taxId ?? '')
+    setEditCreditLimit(creditLimit == null ? '' : String(creditLimit))
     setEditCategoryIds([])
     const ptList = supplier.paymentTermsList
     if (ptList && ptList.length > 0) {
@@ -283,7 +286,7 @@ export default function SupplierDetailPage() {
     }
     setEditEstado(supplier.estado !== undefined && supplier.estado !== null ? Number(supplier.estado) : 1)
     setEditEntityKind(supplier.entityKind ?? 'ORGANIZATION')
-  }, [supplier])
+  }, [supplier, creditLimit])
 
   useEffect(() => {
     if (editPaymentTermIds.length === 0) {
@@ -332,28 +335,23 @@ export default function SupplierDetailPage() {
   const handleSave = async () => {
     if (!supplier || !id) return
     try {
-      let payment_terms:
-        | Array<{ payment_term_id: number; is_default: boolean; sort_order: number }>
-        | undefined
-      if (isSupplierParty) {
-        if (
-          editPaymentTermIds.length === 0 ||
-          !editDefaultPaymentTermId ||
-          !editPaymentTermIds.includes(editDefaultPaymentTermId)
-        ) {
-          toast({
-            title: 'Términos de pago',
-            description: 'Selecciona al menos un término y uno predeterminado',
-            variant: 'destructive',
-          })
-          return
-        }
-        payment_terms = editPaymentTermIds.map((tid, i) => ({
-          payment_term_id: Number(tid),
-          is_default: tid === editDefaultPaymentTermId,
-          sort_order: i,
-        }))
+      if (
+        editPaymentTermIds.length === 0 ||
+        !editDefaultPaymentTermId ||
+        !editPaymentTermIds.includes(editDefaultPaymentTermId)
+      ) {
+        toast({
+          title: 'Términos de pago',
+          description: 'Selecciona al menos un término y uno predeterminado',
+          variant: 'destructive',
+        })
+        return
       }
+      const payment_terms = editPaymentTermIds.map((tid, i) => ({
+        payment_term_id: Number(tid),
+        is_default: tid === editDefaultPaymentTermId,
+        sort_order: i,
+      }))
       await updateSupplierAsync({
         id,
         payload: {
@@ -364,9 +362,10 @@ export default function SupplierDetailPage() {
           email: editEmail,
           address: editAddress,
           tax_id: editTaxId.trim() || null,
+          ...(partyType === 'CUSTOMER' ? { credit_limit: editCreditLimit.trim() || null } : {}),
           category_ids:
             isSupplierParty && editCategoryIds.length ? editCategoryIds : undefined,
-          ...(isSupplierParty && payment_terms ? { payment_terms } : {}),
+          payment_terms,
           estado: editEstado,
         },
       })
@@ -945,9 +944,13 @@ export default function SupplierDetailPage() {
                       <div className="mt-1">{getStatusBadge(String(supplier.status))}</div>
                     )}
                   </div>
-                  {isSupplierParty && (
                   <div>
                     <Label className="text-muted-foreground">Términos de Pago</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {isSupplierParty
+                        ? 'Plazo en que se le paga a este proveedor.'
+                        : 'Plazo que se le da a este cliente. El predeterminado fija el vencimiento de sus ventas al crédito.'}
+                    </p>
                     {isEditing && canEditSupplier ? (
                       <>
                         <Popover open={paymentTermPopoverOpen} onOpenChange={setPaymentTermPopoverOpen}>
@@ -1057,7 +1060,6 @@ export default function SupplierDetailPage() {
                       <p className="text-foreground font-medium">{supplier.paymentTerms || '—'}</p>
                     )}
                   </div>
-                  )}
                   <div>
                     <Label className="text-muted-foreground">ID fiscal (facturación)</Label>
                     {isEditing && canEditSupplier ? (
@@ -1071,6 +1073,36 @@ export default function SupplierDetailPage() {
                       <p className="text-foreground font-medium">{supplier.taxId || '—'}</p>
                     )}
                   </div>
+                  {partyType === 'CUSTOMER' && (
+                    <div>
+                      <Label className="text-muted-foreground">Límite de crédito</Label>
+                      {isEditing && canEditSupplier ? (
+                        <>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={editCreditLimit}
+                            onChange={(e) => setEditCreditLimit(e.target.value)}
+                            placeholder="Sin límite"
+                            className="mt-1"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Vacío = sin límite. 0 = no se le vende al crédito.
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-foreground font-medium">
+                          {creditLimit == null
+                            ? 'Sin límite'
+                            : Number(creditLimit).toLocaleString('es-GT', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
               </div>

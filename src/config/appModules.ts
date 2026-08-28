@@ -33,6 +33,9 @@ import {
     ConfiguracionIcon,
     TrasladosIcon,
     SucursalesIcon,
+    CarteraIcon,
+    NominaIcon,
+    RrhhIcon,
     type ModuleIconProps
 } from '@/components/icons/CustomIcons'
 import { ForwardRefExoticComponent, RefAttributes } from 'react'
@@ -151,6 +154,15 @@ export const appModules: AppModule[] = [
         permissions: ['contacts.suppliers.view', 'contacts.clients.view']
     },
     {
+        id: 'receivables',
+        label: 'Cartera',
+        path: '/cartera',
+        icon: CarteraIcon,
+        color: 'bg-teal-100/90',
+        iconColor: 'text-teal-900',
+        permissions: ['receivables.view']
+    },
+    {
         id: 'merchandise',
         label: 'Mercancía',
         path: '/mercancia',
@@ -237,7 +249,7 @@ export const appModules: AppModule[] = [
         id: 'hr',
         label: 'RRHH',
         path: '/rrhh',
-        icon: UsuariosIcon,
+        icon: RrhhIcon,
         color: 'bg-pink-100/90',
         iconColor: 'text-pink-900',
         permissions: ['hr.employees.view']
@@ -246,7 +258,7 @@ export const appModules: AppModule[] = [
         id: 'payroll',
         label: 'Nómina',
         path: '/nomina',
-        icon: ReporteFinancieroIcon,
+        icon: NominaIcon,
         color: 'bg-emerald-100/90',
         iconColor: 'text-emerald-900',
         permissions: ['payroll.view']
