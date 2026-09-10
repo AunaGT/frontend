@@ -11,6 +11,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { fetchOverdueCount } from '@/services/receivablesService'
+import { useModules } from '@/context/useModules'
 
 /**
  * Facturas al crédito vencidas, para el indicador de la barra superior.
@@ -23,10 +24,11 @@ export const OVERDUE_RECEIVABLES_QUERY_KEY = ['receivables', 'overdue-count'] as
 
 export const useOverdueReceivablesCount = () => {
   const { hasPermission } = useAuthPermissions()
+  const { enabledModuleCodes, isEnabled } = useModules()
   return useQuery({
     queryKey: OVERDUE_RECEIVABLES_QUERY_KEY,
     queryFn: fetchOverdueCount,
-    enabled: hasPermission('receivables.view'),
+    enabled: enabledModuleCodes !== null && isEnabled('receivables') && hasPermission('receivables.view'),
     staleTime: 5 * 60 * 1000,
   })
 }

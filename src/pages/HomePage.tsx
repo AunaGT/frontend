@@ -23,6 +23,7 @@ import { getVisibleModules, AppModule, getUserRole } from '@/config/appModules'
 import type { AuthUser } from '@/context/AuthContext'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
+import { useModules } from '@/context/useModules'
 
 const ModuleTile = ({
     module,
@@ -81,8 +82,12 @@ export const HomePage = () => {
     const user = rawUser as AuthUser | null
     const { companyName } = useSystemSettings()
     const { data: activeAlertsCount = 0 } = useActiveAlertsCount()
+    const { enabledModuleCodes } = useModules()
 
-    const modules = useMemo(() => getVisibleModules(), [])
+    const modules = useMemo(
+        () => getVisibleModules(enabledModuleCodes),
+        [enabledModuleCodes]
+    )
 
     const filteredModules = useMemo(() => {
         if (!search.trim()) return modules
@@ -162,7 +167,7 @@ export const HomePage = () => {
                                     <p className="text-base font-medium text-foreground">
                                         No tienes módulos asignados todavía.
                                     </p>
-                                    <p className="mt-1 text-sm">Contacta con un administrador para que revise tus permisos.</p>
+                                    <p className="mt-1 text-sm">Contacta con un administrador para que revise tus permisos y módulos activos.</p>
                                 </>
                             ) : (
                                 <>

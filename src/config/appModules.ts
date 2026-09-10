@@ -61,6 +61,8 @@ export interface AppModule {
     // Permisos (códigos) necesarios para ver este módulo.
     // Si el usuario tiene AL MENOS UNO de estos permisos, el módulo se muestra.
     permissions?: string[]
+    /** Prefijos legacy que también pertenecen a este módulo. */
+    routePrefixes?: string[]
 }
 
 export const appModules: AppModule[] = [
@@ -109,7 +111,8 @@ export const appModules: AppModule[] = [
         icon: InventarioIcon,
         color: 'bg-violet-100/90',
         iconColor: 'text-violet-800',
-        permissions: ['products.view']
+        permissions: ['products.view'],
+        routePrefixes: ['/productos', '/scanner']
     },
     {
         id: 'inventory-count',
@@ -132,7 +135,8 @@ export const appModules: AppModule[] = [
         icon: DevolucionesIcon,
         color: 'bg-orange-100/90',
         iconColor: 'text-orange-800',
-        permissions: ['returns.view']
+        permissions: ['returns.view'],
+        routePrefixes: ['/returns']
     },
     {
         id: 'cash-closure',
@@ -151,7 +155,8 @@ export const appModules: AppModule[] = [
         icon: ProveedoresIcon,
         color: 'bg-indigo-100/90',
         iconColor: 'text-indigo-800',
-        permissions: ['contacts.suppliers.view', 'contacts.clients.view']
+        permissions: ['contacts.suppliers.view', 'contacts.clients.view'],
+        routePrefixes: ['/proveedores']
     },
     {
         id: 'receivables',
@@ -169,7 +174,8 @@ export const appModules: AppModule[] = [
         icon: MercanciaIcon,
         color: 'bg-amber-100/90',
         iconColor: 'text-amber-900',
-        permissions: ['merchandise.view']
+        permissions: ['merchandise.view'],
+        routePrefixes: ['/inventario/registrar-ingreso']
     },
     {
         id: 'analytics',
@@ -225,7 +231,8 @@ export const appModules: AppModule[] = [
         color: 'bg-blue-100/90',
         iconColor: 'text-blue-800',
         adminOnly: true,
-        permissions: ['catalogs.view']
+        permissions: ['catalogs.view'],
+        routePrefixes: ['/catalogos']
     },
     {
         id: 'transfers',
@@ -311,8 +318,11 @@ export const getUserRole = () => {
 /**
  * Filter modules based on user role
  */
-export const getVisibleModules = () => {
+export const getVisibleModules = (enabledModuleCodes?: ReadonlySet<string> | null) => {
     const { isSeller, isAdmin, user } = getUserRole()
+    const availableModules = enabledModuleCodes
+        ? appModules.filter((module) => enabledModuleCodes.has(module.id))
+        : appModules
     const hasPermissionsField = Array.isArray(user?.permissions)
     const permissions: string[] = hasPermissionsField
         ? (user!.permissions as unknown[]).map((p) => String(p))
@@ -322,7 +332,7 @@ export const getVisibleModules = () => {
     if (hasPermissionsField) {
         // Admin ve todo siempre
         if (isAdmin) {
-            return appModules
+            return availableModules
         }
 
         // Usuario con campo permissions pero sin ningún permiso asignado:
@@ -332,7 +342,7 @@ export const getVisibleModules = () => {
         }
 
         // Usuario con uno o más permisos: filtrar por permisos declarados en cada módulo
-        return appModules.filter((module) => {
+        return availableModules.filter((module) => {
             // Si el módulo define permisos, basta con tener uno de ellos
             if (Array.isArray(module.permissions) && module.permissions.length > 0) {
                 return module.permissions.some((code) => permissions.includes(code))
@@ -350,9 +360,19 @@ export const getVisibleModules = () => {
 
     // Fallback legacy por rol cuando aún no hay campo permissions en el token
     if (isSeller) {
-        return appModules.filter(m => m.sellerAllowed)
+        return availableModules.filter(m => m.sellerAllowed)
     }
 
-    return appModules.filter(m => !m.adminOnly || isAdmin)
+    return availableModules.filter(m => !m.adminOnly || isAdmin)
+}
+
+/** Devuelve el módulo dueño de una URL usando el prefijo más específico. */
+export const findModuleForPath = (pathname: string): AppModule | undefined => {
+    const candidates = appModules.flatMap((module) =>
+        [module.path, ...(module.routePrefixes ?? [])].map((prefix) => ({ module, prefix }))
+    )
+    return candidates
+        .filter(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`))
+        .sort((a, b) => b.prefix.length - a.prefix.length)[0]?.module
 }
 

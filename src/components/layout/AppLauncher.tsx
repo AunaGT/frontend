@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { getVisibleModules, AppModule } from '@/config/appModules'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
+import { useModules } from '@/context/useModules'
 
 interface AppLauncherProps {
     open: boolean
@@ -77,8 +78,12 @@ export const AppLauncher = ({ open, onOpenChange }: AppLauncherProps) => {
     const navigate = useNavigate()
     const location = useLocation()
     const { data: activeAlertsCount = 0 } = useActiveAlertsCount()
+    const { enabledModuleCodes } = useModules()
 
-    const modules = useMemo(() => getVisibleModules(), [])
+    const modules = useMemo(
+        () => getVisibleModules(enabledModuleCodes),
+        [enabledModuleCodes]
+    )
 
     const filteredModules = useMemo(() => {
         if (!search.trim()) return modules

@@ -13,80 +13,84 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import NotFound from "./pages/NotFound";
 import PublicRoute from "@/routes/PublicRoute";
 import PrivateRoute from "@/routes/PrivateRoute";
 import PermissionRoute from "@/routes/PermissionRoute";
 import Login from "@/pages/Login";
-import NewReturn from "./pages/NewReturn";
 import HomePage from "./pages/HomePage";
-import ImportPage from "./pages/ImportPage";
-import DeletedProductsPage from "./pages/DeletedProductsPage";
-import SupplierImportPage from "./pages/SupplierImportPage";
-import CatalogImportPage from "./pages/CatalogImportPage";
-import UserImportPage from "./pages/UserImportPage";
-import { RegisterIncomingMerchandise } from "./pages/RegisterIncomingMerchandise";
-import LotsExpiryPage from "./pages/LotsExpiryPage";
-import StockMovesPage from "@/components/stock/StockMovesPage";
 import AuthProvider from "@/context/AuthProvider";
 import TenantProvider from "@/context/TenantProvider";
 
 // Layout
 import { MainLayout } from "@/components/layout";
 
-// Page Components (direct imports to avoid circular deps)
-import Dashboard from "@/components/Dashboard";
-import ProductManagement from "@/components/ProductManagement";
-import Analytics from "@/components/Analytics";
-import AccountingManagement from "@/components/accounting/AccountingManagement";
-import AccountingImportPage from "@/pages/AccountingImportPage";
-import SalesManagement from "@/components/SalesManagement";
-import NewSalePage from "@/components/sales/NewSalePage";
-import { SaleInvoicePage } from "@/components/sales/SaleInvoicePage";
-import SuppliersManagement from "@/components/SuppliersManagement";
-import SupplierDetailPage from "./components/suppliers/SupplierDetailPage";
-import SupplierCreatePage from "./components/suppliers/SupplierCreatePage";
-import ProductDetailPage from "./components/products/ProductDetailPage";
-import ProductCreatePage from "./components/products/ProductCreatePage";
-import ReportsManagement from "./components/ReportsManagement";
-import AlertsManagement from "./components/AlertsManagement";
-import ScannerManagement from "@/components/ScannerManagement";
-import UserManagement from "@/components/UserManagement";
-import UserDetailPage from "@/components/users/UserDetailPage";
 import MyProfilePage from "@/components/users/MyProfilePage";
-import UserCreatePage from "@/components/users/UserCreatePage";
-import RolesPermissionsManagement from "@/components/users/RolesPermissionsManagement";
-import RolePermissionsDetail from "@/components/users/RolePermissionsDetail";
-import RoleCreatePage from "@/components/users/RoleCreatePage";
-import { CatalogsManagement } from "@/components/CatalogsManagement";
-import BranchesManagement from "@/components/branches/BranchesManagement";
-import TransfersManagement from "@/components/transfers/TransfersManagement";
-import ReturnsManagement from "@/components/ReturnsManagement";
-import CashClosureManagement from "@/components/CashClosureManagement";
-import { CashClosureCreatePage } from "@/components/cash-closure/CashClosureCreatePage";
-import { ClosureDetailPage } from "@/components/cash-closure/ClosureDetailPage";
-import PromotionsManagement from "@/components/PromotionsManagement";
-import PromotionCreatePage from "@/components/promotions/PromotionCreatePage";
-import PromotionEditPage from "@/components/promotions/PromotionEditPage";
-import IncomingMerchandiseManagement from "@/components/IncomingMerchandiseManagement";
-import IncomingMerchandiseDetailPage from "@/pages/IncomingMerchandiseDetailPage";
-import ConfigManagement from "@/components/config/ConfigManagement";
-import InventoryCountListPage from "@/components/inventoryCounts/InventoryCountListPage";
-import InventoryCountNewPage from "@/components/inventoryCounts/InventoryCountNewPage";
-import InventoryCountSessionPage from "@/components/inventoryCounts/InventoryCountSessionPage";
-import QuotesManagement from "@/components/quotes/QuotesManagement";
-import NewQuotePage from "@/components/quotes/NewQuotePage";
-import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
-import OrdersManagement from "@/components/orders/OrdersManagement";
-import OrderDetailPage from "@/components/orders/OrderDetailPage";
-import HrPage from "@/components/hr/HrPage";
-import EmployeeCreatePage from "@/components/hr/EmployeeCreatePage";
-import EmployeeDetailPage from "@/components/hr/EmployeeDetailPage";
-import ReceivablesManagement from "@/components/receivables/ReceivablesManagement";
-import CustomerStatementPage from "@/components/receivables/CustomerStatementPage";
-import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
-import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
 import PublicQuotePage from "@/pages/PublicQuotePage";
+import { promotionsModule } from "@/modules/promotions/manifest";
+
+// Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
+// perfil sí permanecen en el bundle inicial.
+const NewReturn = lazy(() => import("./pages/NewReturn"));
+const ImportPage = lazy(() => import("./pages/ImportPage"));
+const DeletedProductsPage = lazy(() => import("./pages/DeletedProductsPage"));
+const SupplierImportPage = lazy(() => import("./pages/SupplierImportPage"));
+const CatalogImportPage = lazy(() => import("./pages/CatalogImportPage"));
+const UserImportPage = lazy(() => import("./pages/UserImportPage"));
+const RegisterIncomingMerchandise = lazy(() => import("./pages/RegisterIncomingMerchandise").then((module) => ({ default: module.RegisterIncomingMerchandise })));
+const LotsExpiryPage = lazy(() => import("./pages/LotsExpiryPage"));
+const StockMovesPage = lazy(() => import("@/components/stock/StockMovesPage"));
+const Dashboard = lazy(() => import("@/components/Dashboard"));
+const ProductManagement = lazy(() => import("@/components/ProductManagement"));
+const Analytics = lazy(() => import("@/components/Analytics"));
+const AccountingManagement = lazy(() => import("@/components/accounting/AccountingManagement"));
+const AccountingImportPage = lazy(() => import("@/pages/AccountingImportPage"));
+const SalesManagement = lazy(() => import("@/components/SalesManagement"));
+const NewSalePage = lazy(() => import("@/components/sales/NewSalePage"));
+const SaleInvoicePage = lazy(() => import("@/components/sales/SaleInvoicePage").then((module) => ({ default: module.SaleInvoicePage })));
+const SuppliersManagement = lazy(() => import("@/components/SuppliersManagement"));
+const SupplierDetailPage = lazy(() => import("./components/suppliers/SupplierDetailPage"));
+const SupplierCreatePage = lazy(() => import("./components/suppliers/SupplierCreatePage"));
+const ProductDetailPage = lazy(() => import("./components/products/ProductDetailPage"));
+const ProductCreatePage = lazy(() => import("./components/products/ProductCreatePage"));
+const ReportsManagement = lazy(() => import("./components/ReportsManagement"));
+const AlertsManagement = lazy(() => import("./components/AlertsManagement"));
+const ScannerManagement = lazy(() => import("@/components/ScannerManagement"));
+const UserManagement = lazy(() => import("@/components/UserManagement"));
+const UserDetailPage = lazy(() => import("@/components/users/UserDetailPage"));
+const UserCreatePage = lazy(() => import("@/components/users/UserCreatePage"));
+const RolesPermissionsManagement = lazy(() => import("@/components/users/RolesPermissionsManagement"));
+const RolePermissionsDetail = lazy(() => import("@/components/users/RolePermissionsDetail"));
+const RoleCreatePage = lazy(() => import("@/components/users/RoleCreatePage"));
+const CatalogsManagement = lazy(() => import("@/components/CatalogsManagement").then((module) => ({ default: module.CatalogsManagement })));
+const BranchesManagement = lazy(() => import("@/components/branches/BranchesManagement"));
+const TransfersManagement = lazy(() => import("@/components/transfers/TransfersManagement"));
+const ReturnsManagement = lazy(() => import("@/components/ReturnsManagement"));
+const CashClosureManagement = lazy(() => import("@/components/CashClosureManagement"));
+const CashClosureCreatePage = lazy(() => import("@/components/cash-closure/CashClosureCreatePage"));
+const ClosureDetailPage = lazy(() => import("@/components/cash-closure/ClosureDetailPage").then((module) => ({ default: module.ClosureDetailPage })));
+const PromotionsManagement = promotionsModule.pages.Management;
+const PromotionCreatePage = promotionsModule.pages.Create;
+const PromotionEditPage = promotionsModule.pages.Edit;
+const IncomingMerchandiseManagement = lazy(() => import("@/components/IncomingMerchandiseManagement"));
+const IncomingMerchandiseDetailPage = lazy(() => import("@/pages/IncomingMerchandiseDetailPage"));
+const ConfigManagement = lazy(() => import("@/components/config/ConfigManagement"));
+const InventoryCountListPage = lazy(() => import("@/components/inventoryCounts/InventoryCountListPage"));
+const InventoryCountNewPage = lazy(() => import("@/components/inventoryCounts/InventoryCountNewPage"));
+const InventoryCountSessionPage = lazy(() => import("@/components/inventoryCounts/InventoryCountSessionPage"));
+const QuotesManagement = lazy(() => import("@/components/quotes/QuotesManagement"));
+const NewQuotePage = lazy(() => import("@/components/quotes/NewQuotePage"));
+const QuoteDetailPage = lazy(() => import("@/components/quotes/QuoteDetailPage"));
+const OrdersManagement = lazy(() => import("@/components/orders/OrdersManagement"));
+const OrderDetailPage = lazy(() => import("@/components/orders/OrderDetailPage"));
+const HrPage = lazy(() => import("@/components/hr/HrPage"));
+const EmployeeCreatePage = lazy(() => import("@/components/hr/EmployeeCreatePage"));
+const EmployeeDetailPage = lazy(() => import("@/components/hr/EmployeeDetailPage"));
+const ReceivablesManagement = lazy(() => import("@/components/receivables/ReceivablesManagement"));
+const CustomerStatementPage = lazy(() => import("@/components/receivables/CustomerStatementPage"));
+const PayrollRunsManagement = lazy(() => import("@/components/payroll/PayrollRunsManagement"));
+const PayrollRunDetail = lazy(() => import("@/components/payroll/PayrollRunDetail"));
 
 function LegacyProveedorIdRedirect() {
   const { id } = useParams<{ id: string }>();
@@ -103,6 +107,7 @@ const App = () => (
       <AuthProvider>
        <TenantProvider>
         <BrowserRouter>
+          <Suspense fallback={<div className="flex min-h-[240px] items-center justify-center text-sm text-muted-foreground">Cargando módulo…</div>}>
           <Routes>
             {/* Public routes (only when NOT authenticated) */}
             <Route element={<PublicRoute />}>
@@ -667,6 +672,7 @@ const App = () => (
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
        </TenantProvider>
       </AuthProvider>

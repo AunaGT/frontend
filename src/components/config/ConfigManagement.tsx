@@ -26,6 +26,7 @@ import { getSettings, updateSettings, uploadCompanyLogo, removeCompanyLogo, type
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import { Loader2, Save, Trash2 } from 'lucide-react'
+import { ModulesSettings } from './ModulesSettings'
 
 const CURRENCIES: { code: string; name: string }[] = [
   { code: 'GTQ', name: 'Quetzal' },
@@ -323,6 +324,7 @@ export default function ConfigManagement() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="fiscal">Datos fiscales</TabsTrigger>
           <TabsTrigger value="denominations">Cierre de caja (denominaciones)</TabsTrigger>
+          <TabsTrigger value="modules">Módulos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-4">
@@ -712,6 +714,10 @@ export default function ConfigManagement() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="modules" className="space-y-4">
+          <ModulesSettings canManage={canManage} />
         </TabsContent>
       </Tabs>
     </div>
