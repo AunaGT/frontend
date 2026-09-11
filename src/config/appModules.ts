@@ -39,6 +39,7 @@ import {
     type ModuleIconProps
 } from '@/components/icons/CustomIcons'
 import { ForwardRefExoticComponent, RefAttributes } from 'react'
+import { inventoryModule } from '@/modules/inventory/manifest'
 
 type IconComponent = ForwardRefExoticComponent<ModuleIconProps & RefAttributes<HTMLSpanElement>>
 
@@ -112,7 +113,7 @@ export const appModules: AppModule[] = [
         color: 'bg-violet-100/90',
         iconColor: 'text-violet-800',
         permissions: ['products.view'],
-        routePrefixes: ['/productos', '/scanner']
+        routePrefixes: [...inventoryModule.routePrefixes]
     },
     {
         id: 'inventory-count',
@@ -375,4 +376,3 @@ export const findModuleForPath = (pathname: string): AppModule | undefined => {
         .filter(({ prefix }) => pathname === prefix || pathname.startsWith(`${prefix}/`))
         .sort((a, b) => b.prefix.length - a.prefix.length)[0]?.module
 }
-

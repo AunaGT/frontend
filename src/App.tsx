@@ -28,21 +28,17 @@ import { MainLayout } from "@/components/layout";
 
 import MyProfilePage from "@/components/users/MyProfilePage";
 import PublicQuotePage from "@/pages/PublicQuotePage";
+import { inventoryModule } from "@/modules/inventory/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
 
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
 const NewReturn = lazy(() => import("./pages/NewReturn"));
-const ImportPage = lazy(() => import("./pages/ImportPage"));
-const DeletedProductsPage = lazy(() => import("./pages/DeletedProductsPage"));
 const SupplierImportPage = lazy(() => import("./pages/SupplierImportPage"));
 const CatalogImportPage = lazy(() => import("./pages/CatalogImportPage"));
 const UserImportPage = lazy(() => import("./pages/UserImportPage"));
 const RegisterIncomingMerchandise = lazy(() => import("./pages/RegisterIncomingMerchandise").then((module) => ({ default: module.RegisterIncomingMerchandise })));
-const LotsExpiryPage = lazy(() => import("./pages/LotsExpiryPage"));
-const StockMovesPage = lazy(() => import("@/components/stock/StockMovesPage"));
 const Dashboard = lazy(() => import("@/components/Dashboard"));
-const ProductManagement = lazy(() => import("@/components/ProductManagement"));
 const Analytics = lazy(() => import("@/components/Analytics"));
 const AccountingManagement = lazy(() => import("@/components/accounting/AccountingManagement"));
 const AccountingImportPage = lazy(() => import("@/pages/AccountingImportPage"));
@@ -52,8 +48,6 @@ const SaleInvoicePage = lazy(() => import("@/components/sales/SaleInvoicePage").
 const SuppliersManagement = lazy(() => import("@/components/SuppliersManagement"));
 const SupplierDetailPage = lazy(() => import("./components/suppliers/SupplierDetailPage"));
 const SupplierCreatePage = lazy(() => import("./components/suppliers/SupplierCreatePage"));
-const ProductDetailPage = lazy(() => import("./components/products/ProductDetailPage"));
-const ProductCreatePage = lazy(() => import("./components/products/ProductCreatePage"));
 const ReportsManagement = lazy(() => import("./components/ReportsManagement"));
 const AlertsManagement = lazy(() => import("./components/AlertsManagement"));
 const ScannerManagement = lazy(() => import("@/components/ScannerManagement"));
@@ -73,6 +67,13 @@ const ClosureDetailPage = lazy(() => import("@/components/cash-closure/ClosureDe
 const PromotionsManagement = promotionsModule.pages.Management;
 const PromotionCreatePage = promotionsModule.pages.Create;
 const PromotionEditPage = promotionsModule.pages.Edit;
+const ProductManagement = inventoryModule.pages.Management;
+const ProductCreatePage = inventoryModule.pages.Create;
+const ProductDetailPage = inventoryModule.pages.Detail;
+const ImportPage = inventoryModule.pages.Import;
+const DeletedProductsPage = inventoryModule.pages.Deleted;
+const LotsExpiryPage = inventoryModule.pages.Lots;
+const StockMovesPage = inventoryModule.pages.Movements;
 const IncomingMerchandiseManagement = lazy(() => import("@/components/IncomingMerchandiseManagement"));
 const IncomingMerchandiseDetailPage = lazy(() => import("@/pages/IncomingMerchandiseDetailPage"));
 const ConfigManagement = lazy(() => import("@/components/config/ConfigManagement"));
@@ -210,7 +211,7 @@ const App = () => (
 
                 {/* Products & Inventory */}
                 <Route
-                  path="/productos"
+                  path={inventoryModule.paths.legacyList}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductManagement />
@@ -218,7 +219,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario"
+                  path={inventoryModule.paths.list}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductManagement />
@@ -226,7 +227,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/nuevo"
+                  path={inventoryModule.paths.create}
                   element={
                     <PermissionRoute any={["products.create", "products.view"]}>
                       <ProductCreatePage />
@@ -267,7 +268,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/lotes"
+                  path={inventoryModule.paths.lots}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <LotsExpiryPage />
@@ -275,7 +276,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/movimientos"
+                  path={inventoryModule.paths.movements}
                   element={
                     <PermissionRoute any={["stock_moves.view", "stock_moves.create"]}>
                       <StockMovesPage />
@@ -283,7 +284,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/eliminados"
+                  path={inventoryModule.paths.deleted}
                   element={
                     <PermissionRoute any={["products.delete"]}>
                       <DeletedProductsPage />
@@ -291,7 +292,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/:id"
+                  path={inventoryModule.paths.detail}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductDetailPage />
@@ -299,7 +300,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/importar"
+                  path={inventoryModule.paths.import}
                   element={
                     <PermissionRoute any={["products.import"]}>
                       <ImportPage />
