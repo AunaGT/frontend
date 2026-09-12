@@ -30,6 +30,7 @@ import MyProfilePage from "@/components/users/MyProfilePage";
 import PublicQuotePage from "@/pages/PublicQuotePage";
 import { inventoryModule } from "@/modules/inventory/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
+import { salesModule } from "@/modules/sales/manifest";
 
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
@@ -42,9 +43,6 @@ const Dashboard = lazy(() => import("@/components/Dashboard"));
 const Analytics = lazy(() => import("@/components/Analytics"));
 const AccountingManagement = lazy(() => import("@/components/accounting/AccountingManagement"));
 const AccountingImportPage = lazy(() => import("@/pages/AccountingImportPage"));
-const SalesManagement = lazy(() => import("@/components/SalesManagement"));
-const NewSalePage = lazy(() => import("@/components/sales/NewSalePage"));
-const SaleInvoicePage = lazy(() => import("@/components/sales/SaleInvoicePage").then((module) => ({ default: module.SaleInvoicePage })));
 const SuppliersManagement = lazy(() => import("@/components/SuppliersManagement"));
 const SupplierDetailPage = lazy(() => import("./components/suppliers/SupplierDetailPage"));
 const SupplierCreatePage = lazy(() => import("./components/suppliers/SupplierCreatePage"));
@@ -67,6 +65,9 @@ const ClosureDetailPage = lazy(() => import("@/components/cash-closure/ClosureDe
 const PromotionsManagement = promotionsModule.pages.Management;
 const PromotionCreatePage = promotionsModule.pages.Create;
 const PromotionEditPage = promotionsModule.pages.Edit;
+const SalesManagement = salesModule.pages.Management;
+const NewSalePage = salesModule.pages.Create;
+const SaleInvoicePage = salesModule.pages.Invoice;
 const ProductManagement = inventoryModule.pages.Management;
 const ProductCreatePage = inventoryModule.pages.Create;
 const ProductDetailPage = inventoryModule.pages.Detail;
@@ -141,7 +142,7 @@ const App = () => (
 
                 {/* Sales */}
                 <Route
-                  path="/ventas"
+                  path={salesModule.paths.list}
                   element={
                     <PermissionRoute any={["sales.view", "sales.create"]}>
                       <SalesManagement />
@@ -149,7 +150,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/ventas/nueva"
+                  path={salesModule.paths.create}
                   element={
                     <PermissionRoute any={["sales.create"]}>
                       <NewSalePage />
@@ -157,7 +158,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/ventas/:id/factura"
+                  path={salesModule.paths.invoice}
                   element={
                     <PermissionRoute any={["sales.view_invoice", "sales.view_detail"]}>
                       <SaleInvoicePage />
