@@ -31,11 +31,11 @@ import PublicQuotePage from "@/pages/PublicQuotePage";
 import { inventoryModule } from "@/modules/inventory/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
 import { salesModule } from "@/modules/sales/manifest";
+import { contactsModule } from "@/modules/contacts/manifest";
 
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
 const NewReturn = lazy(() => import("./pages/NewReturn"));
-const SupplierImportPage = lazy(() => import("./pages/SupplierImportPage"));
 const CatalogImportPage = lazy(() => import("./pages/CatalogImportPage"));
 const UserImportPage = lazy(() => import("./pages/UserImportPage"));
 const RegisterIncomingMerchandise = lazy(() => import("./pages/RegisterIncomingMerchandise").then((module) => ({ default: module.RegisterIncomingMerchandise })));
@@ -43,9 +43,6 @@ const Dashboard = lazy(() => import("@/components/Dashboard"));
 const Analytics = lazy(() => import("@/components/Analytics"));
 const AccountingManagement = lazy(() => import("@/components/accounting/AccountingManagement"));
 const AccountingImportPage = lazy(() => import("@/pages/AccountingImportPage"));
-const SuppliersManagement = lazy(() => import("@/components/SuppliersManagement"));
-const SupplierDetailPage = lazy(() => import("./components/suppliers/SupplierDetailPage"));
-const SupplierCreatePage = lazy(() => import("./components/suppliers/SupplierCreatePage"));
 const ReportsManagement = lazy(() => import("./components/ReportsManagement"));
 const AlertsManagement = lazy(() => import("./components/AlertsManagement"));
 const ScannerManagement = lazy(() => import("@/components/ScannerManagement"));
@@ -68,6 +65,10 @@ const PromotionEditPage = promotionsModule.pages.Edit;
 const SalesManagement = salesModule.pages.Management;
 const NewSalePage = salesModule.pages.Create;
 const SaleInvoicePage = salesModule.pages.Invoice;
+const SuppliersManagement = contactsModule.pages.Management;
+const SupplierCreatePage = contactsModule.pages.Create;
+const SupplierImportPage = contactsModule.pages.Import;
+const SupplierDetailPage = contactsModule.pages.Detail;
 const ProductManagement = inventoryModule.pages.Management;
 const ProductCreatePage = inventoryModule.pages.Create;
 const ProductDetailPage = inventoryModule.pages.Detail;
@@ -367,7 +368,7 @@ const App = () => (
                 <Route path="/proveedores/importar" element={<Navigate to="/contactos/importar" replace />} />
                 <Route path="/proveedores/:id" element={<LegacyProveedorIdRedirect />} />
                 <Route
-                  path="/contactos"
+                  path={contactsModule.paths.list}
                   element={
                     <PermissionRoute any={["contacts.suppliers.view", "contacts.clients.view"]}>
                       <SuppliersManagement />
@@ -375,7 +376,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/nuevo"
+                  path={contactsModule.paths.create}
                   element={
                     <PermissionRoute any={["contacts.suppliers.create", "contacts.clients.create"]}>
                       <SupplierCreatePage />
@@ -383,7 +384,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/importar"
+                  path={contactsModule.paths.import}
                   element={
                     <PermissionRoute any={["contacts.suppliers.import"]}>
                       <SupplierImportPage />
@@ -391,7 +392,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/:id"
+                  path={contactsModule.paths.detail}
                   element={
                     <PermissionRoute any={["contacts.suppliers.view", "contacts.clients.view"]}>
                       <SupplierDetailPage />

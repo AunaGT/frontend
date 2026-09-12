@@ -39,6 +39,7 @@ import {
     type ModuleIconProps
 } from '@/components/icons/CustomIcons'
 import { ForwardRefExoticComponent, RefAttributes } from 'react'
+import { contactsModule } from '@/modules/contacts/manifest'
 import { inventoryModule } from '@/modules/inventory/manifest'
 import { salesModule } from '@/modules/sales/manifest'
 
@@ -154,12 +155,12 @@ export const appModules: AppModule[] = [
     {
         id: 'contacts',
         label: 'Contactos',
-        path: '/contactos',
+        path: contactsModule.paths.list,
         icon: ProveedoresIcon,
         color: 'bg-indigo-100/90',
         iconColor: 'text-indigo-800',
         permissions: ['contacts.suppliers.view', 'contacts.clients.view'],
-        routePrefixes: ['/proveedores']
+        routePrefixes: [...contactsModule.routePrefixes]
     },
     {
         id: 'receivables',
