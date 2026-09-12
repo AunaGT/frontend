@@ -26,6 +26,7 @@ import { useRealtimeSales } from '@/hooks/useRealtimeSales'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { useModules } from '@/context/useModules'
 
 // Feature imports
 import { useSalesData, normalizeRawSale } from './hooks'
@@ -64,6 +65,7 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
     }, [user?.id, location.pathname])
     const { toast } = useToast()
     const { hasPermission } = useAuthPermissions()
+    const { isEnabled } = useModules()
     const { locale, currencyCode } = useSystemSettings()
 
     const salesData = useSalesData()
@@ -78,7 +80,7 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
     // Permission-based capabilities
     const canCreateSale = hasPermission('sales.create')
     const canChangeSaleStatus = hasPermission('sales.cancel', 'sales.create')
-    const canAccessCashClosure = hasPermission('cashclosure.view', 'cashclosure.create')
+    const canAccessCashClosure = isEnabled('cash-closure') && hasPermission('cashclosure.view', 'cashclosure.create')
     const canViewDetail = hasPermission('sales.view_detail')
     const canViewInvoice = hasPermission('sales.view_invoice')
 
@@ -138,8 +140,9 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
             const response = await fetch(`${API_URL}/cash-closures/validate-stocks`, {
                 headers: { Authorization: `Bearer ${token}` },
             })
+            if (!response.ok) throw new Error('No se pudo validar el inventario')
             const data = await response.json()
-            if (!data.valid && data.products.length > 0) {
+            if (!data.valid && Array.isArray(data.products) && data.products.length > 0) {
                 setNegativeStockDialog({ open: true, products: data.products })
             } else {
                 navigate('/cierre-caja')

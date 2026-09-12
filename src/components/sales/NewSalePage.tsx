@@ -75,6 +75,7 @@ import {
   type NewSaleDraft,
 } from '@/services/saleDraftStorage'
 import { useAuth } from '@/context/useAuth'
+import { useModules } from '@/context/useModules'
 import { getCompanyNamePublic } from '@/services/settingsService'
 import { generateSaleTicket } from './documents/generateSaleTicket'
 import type { Product } from '@/types/product'
@@ -250,6 +251,9 @@ export default function NewSalePage() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const { hasPermission } = useAuthPermissions()
+  const { isEnabled } = useModules()
+  const canLoadOrders = isEnabled('orders') && hasPermission('orders.view')
+  const promotionsEnabled = isEnabled('promotions')
   const userId = user?.id ?? ''
   const { locale, currencyCode, companyName, companyLogoUrl, vatRegime, ivaRate } = useSystemSettings()
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
@@ -535,7 +539,9 @@ export default function NewSalePage() {
     }
   }, [pageProducts, cart.cartItems])
 
-  const displayTotal = loadedOrder ? cart.cartTotal : (promotions.finalTotal ?? cart.cartTotal)
+  const displayTotal = loadedOrder || !promotionsEnabled
+    ? cart.cartTotal
+    : (promotions.finalTotal ?? cart.cartTotal)
   const changeAmount =
     paymentMethod?.name?.toLowerCase() === 'efectivo' && amountReceived
       ? Math.max(0, parseFloat(amountReceived) - displayTotal)
@@ -878,6 +884,7 @@ export default function NewSalePage() {
   ])
 
   useEffect(() => {
+    if (!promotionsEnabled) return
     if (!promoCodesToRestore?.length) return
     if (cart.cartItems.length === 0) {
       setPromoCodesToRestore(null)
@@ -896,7 +903,7 @@ export default function NewSalePage() {
       cancelled = true
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps -- applyCode al restaurar códigos del borrador
-  }, [promoCodesToRestore, cart.cartItems.length])
+  }, [promoCodesToRestore, cart.cartItems.length, promotionsEnabled])
 
   const handleSaveForLater = () => {
     if (!userId) {
@@ -1008,14 +1015,14 @@ export default function NewSalePage() {
 
   useEffect(() => {
     const pedidoRef = searchParams.get('pedido')?.trim()
-    if (!pedidoRef || pedidoLoadedRef.current === pedidoRef || !productsQuery.isSuccess) return
+    if (!canLoadOrders || !pedidoRef || pedidoLoadedRef.current === pedidoRef || !productsQuery.isSuccess) return
     pedidoLoadedRef.current = pedidoRef
     void fetchOrderById(pedidoRef)
       .then(applyOrderToPos)
       .catch((e: Error) => {
         toast({ title: 'Pedido', description: e.message, variant: 'destructive' })
       })
-  }, [searchParams, productsQuery.isSuccess, applyOrderToPos, toast])
+  }, [searchParams, productsQuery.isSuccess, applyOrderToPos, toast, canLoadOrders])
 
   const clearLoadedOrder = () => {
     setLoadedOrder(null)
@@ -1027,6 +1034,12 @@ export default function NewSalePage() {
       return prev
     })
   }
+
+  useEffect(() => {
+    if (canLoadOrders || !loadedOrder) return
+    clearLoadedOrder()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- descarta un pedido si desaparece su capacidad
+  }, [canLoadOrders, loadedOrder])
 
   const handleSubmit = async () => {
     if (!canCreate) {
@@ -1107,7 +1120,7 @@ export default function NewSalePage() {
       amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
       change: isCash ? changeAmount : undefined,
       admin_authorized_products: Array.from(cart.adminAuthorizedProducts),
-      promotion_codes: promotions.promotionCodes,
+      promotion_codes: promotionsEnabled ? promotions.promotionCodes : [],
       idempotency_key: intentoDeCobroRef.current,
       ...(isCreditSale
         ? {
@@ -1316,7 +1329,7 @@ export default function NewSalePage() {
             </p>
           </div>
         </div>
-        {!loadedOrder && (
+        {canLoadOrders && !loadedOrder && (
           <Button variant="outline" size="sm" className="shrink-0" onClick={() => setLoadOrderOpen(true)}>
             <Package className="h-4 w-4 mr-2" />
             Cargar pedido
@@ -1677,7 +1690,7 @@ export default function NewSalePage() {
                   ))}
                 </ul>
               )}
-              {promotions.appliedPromotions?.length ? (
+              {promotionsEnabled && promotions.appliedPromotions?.length ? (
                 <div className="pt-2 border-t">
                   <p className="text-xs text-muted-foreground">Descuentos aplicados</p>
                   <p className="text-green-600 font-medium">
@@ -1698,7 +1711,7 @@ export default function NewSalePage() {
             </CardContent>
           </Card>
 
-          {!loadedOrder && (
+          {promotionsEnabled && !loadedOrder && (
           <PromotionCodeInput
             appliedPromotions={promotions.appliedPromotions ?? []}
             totalDiscount={promotions.totalDiscount ?? 0}
@@ -2040,7 +2053,7 @@ export default function NewSalePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={loadOrderOpen} onOpenChange={setLoadOrderOpen}>
+      <Dialog open={canLoadOrders && loadOrderOpen} onOpenChange={setLoadOrderOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Cargar pedido en POS</DialogTitle>
