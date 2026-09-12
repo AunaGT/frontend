@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { useModules } from "@/context/useModules";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { formatMoney, formatDateTime } from "@/utils/formatters";
 import { getCompanyNamePublic } from "@/services/settingsService";
@@ -48,11 +49,13 @@ export default function QuoteDetailPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { hasPermission } = useAuthPermissions();
+  const { isEnabled } = useModules();
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings();
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const canManage = hasPermission("quotes.manage");
   const canEdit = hasPermission("quotes.create");
+  const ordersEnabled = isEnabled("orders");
 
   const { data: quote, isLoading, isError } = useQuery({
     queryKey: ["quote", id],
@@ -150,6 +153,7 @@ export default function QuoteDetailPage() {
 
   const linkedOrder = quote.convertedChildren?.find((c) => c.doc_type === "ORDER");
   const canConvert =
+    ordersEnabled &&
     canManage &&
     !linkedOrder &&
     quote.status === "ACCEPTED";
@@ -234,13 +238,17 @@ export default function QuoteDetailPage() {
         <Card>
           <CardContent className="pt-4 text-sm">
             Pedido vinculado:{" "}
-            <button
-              type="button"
-              className="text-primary underline"
-              onClick={() => navigate(`/pedidos/${linkedOrder.id}`)}
-            >
-              {linkedOrder.reference ?? linkedOrder.id.slice(0, 8)}
-            </button>{" "}
+            {ordersEnabled ? (
+              <button
+                type="button"
+                className="text-primary underline"
+                onClick={() => navigate(`/pedidos/${linkedOrder.id}`)}
+              >
+                {linkedOrder.reference ?? linkedOrder.id.slice(0, 8)}
+              </button>
+            ) : (
+              <span>{linkedOrder.reference ?? linkedOrder.id.slice(0, 8)}</span>
+            )}{" "}
             ({linkedOrder.status})
           </CardContent>
         </Card>

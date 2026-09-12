@@ -42,6 +42,7 @@ import { ForwardRefExoticComponent, RefAttributes } from 'react'
 import { contactsModule } from '@/modules/contacts/manifest'
 import { inventoryModule } from '@/modules/inventory/manifest'
 import { salesModule } from '@/modules/sales/manifest'
+import { quotesModule } from '@/modules/quotes/manifest'
 
 type IconComponent = ForwardRefExoticComponent<ModuleIconProps & RefAttributes<HTMLSpanElement>>
 
@@ -93,11 +94,12 @@ export const appModules: AppModule[] = [
     {
         id: 'quotes',
         label: 'Cotizaciones',
-        path: '/cotizaciones',
+        path: quotesModule.paths.list,
         icon: CotizacionesIcon,
         color: 'bg-sky-100/90',
         iconColor: 'text-sky-800',
-        permissions: ['quotes.view', 'quotes.create']
+        permissions: ['quotes.view', 'quotes.create'],
+        routePrefixes: [...quotesModule.routePrefixes]
     },
     {
         id: 'orders',

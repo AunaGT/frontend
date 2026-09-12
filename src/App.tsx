@@ -27,11 +27,11 @@ import TenantProvider from "@/context/TenantProvider";
 import { MainLayout } from "@/components/layout";
 
 import MyProfilePage from "@/components/users/MyProfilePage";
-import PublicQuotePage from "@/pages/PublicQuotePage";
 import { inventoryModule } from "@/modules/inventory/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
 import { salesModule } from "@/modules/sales/manifest";
 import { contactsModule } from "@/modules/contacts/manifest";
+import { quotesModule } from "@/modules/quotes/manifest";
 
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
@@ -82,9 +82,10 @@ const ConfigManagement = lazy(() => import("@/components/config/ConfigManagement
 const InventoryCountListPage = lazy(() => import("@/components/inventoryCounts/InventoryCountListPage"));
 const InventoryCountNewPage = lazy(() => import("@/components/inventoryCounts/InventoryCountNewPage"));
 const InventoryCountSessionPage = lazy(() => import("@/components/inventoryCounts/InventoryCountSessionPage"));
-const QuotesManagement = lazy(() => import("@/components/quotes/QuotesManagement"));
-const NewQuotePage = lazy(() => import("@/components/quotes/NewQuotePage"));
-const QuoteDetailPage = lazy(() => import("@/components/quotes/QuoteDetailPage"));
+const QuotesManagement = quotesModule.pages.Management;
+const NewQuotePage = quotesModule.pages.Create;
+const QuoteDetailPage = quotesModule.pages.Detail;
+const PublicQuotePage = quotesModule.pages.Public;
 const OrdersManagement = lazy(() => import("@/components/orders/OrdersManagement"));
 const OrderDetailPage = lazy(() => import("@/components/orders/OrderDetailPage"));
 const HrPage = lazy(() => import("@/components/hr/HrPage"));
@@ -117,7 +118,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
             </Route>
 
-            <Route path="/q/:token" element={<PublicQuotePage />} />
+            <Route path={quotesModule.paths.public} element={<PublicQuotePage />} />
 
             {/* Global 404 route (sin layout) */}
             <Route path="/404" element={<NotFound />} />
@@ -169,7 +170,7 @@ const App = () => (
 
                 {/* Cotizaciones */}
                 <Route
-                  path="/cotizaciones"
+                  path={quotesModule.paths.list}
                   element={
                     <PermissionRoute any={["quotes.view", "quotes.create"]}>
                       <QuotesManagement />
@@ -177,7 +178,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cotizaciones/nueva"
+                  path={quotesModule.paths.create}
                   element={
                     <PermissionRoute any={["quotes.create"]}>
                       <NewQuotePage />
@@ -185,7 +186,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cotizaciones/:id"
+                  path={quotesModule.paths.detail}
                   element={
                     <PermissionRoute any={["quotes.view", "quotes.create"]}>
                       <QuoteDetailPage />
