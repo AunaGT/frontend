@@ -10,8 +10,8 @@ export const inventoryCountModule = {
   },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/inventoryCounts/InventoryCountListPage')),
-    Create: lazy(() => import('@/components/inventoryCounts/InventoryCountNewPage')),
-    Session: lazy(() => import('@/components/inventoryCounts/InventoryCountSessionPage')),
+    Management: lazy(() => import('./pages/InventoryCountListPage')),
+    Create: lazy(() => import('./pages/InventoryCountNewPage')),
+    Session: lazy(() => import('./pages/InventoryCountSessionPage')),
   },
 } as const

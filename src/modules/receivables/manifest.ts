@@ -6,7 +6,7 @@ export const receivablesModule = {
   paths: { list: '/cartera', statement: '/cartera/:id' },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/receivables/ReceivablesManagement')),
-    Statement: lazy(() => import('@/components/receivables/CustomerStatementPage')),
+    Management: lazy(() => import('./pages/ReceivablesManagement')),
+    Statement: lazy(() => import('./pages/CustomerStatementPage')),
   },
 } as const

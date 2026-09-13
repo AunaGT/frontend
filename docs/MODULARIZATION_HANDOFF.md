@@ -25,11 +25,18 @@ el catálogo modular.
 
 ## Qué falta
 
+`dashboard`, `alerts`, `analytics`, `branches`, `config`, `promotions`, `hr`,
+`payroll`, `returns`, `transfers`, `receivables`, `inventory-count` y
+`merchandise` ya poseen páginas propias dentro de `src/modules`. En los casos
+exclusivos también se movieron hooks y API. Cartera y Mercadería exponen
+`index.ts` públicos para Ventas, la barra superior y Contactos; ningún
+consumidor externo importa sus rutas internas.
+
 La activación, carga lazy y navegación ya tienen frontera modular. Aún falta
 mover la propiedad física de páginas, componentes, hooks y llamadas API que
 siguen en carpetas legacy:
 
-1. Usar `alerts` o `dashboard` como primera extracción pequeña.
+1. Usar `alerts`, `dashboard` o `hr` como patrones ya terminados.
 2. Crear `src/modules/<code>/{pages,components,hooks,api,tests}` solo según sea
    necesario; evitar carpetas vacías.
 3. Mover archivos sin cambiar sus exports y actualizar únicamente el
@@ -38,8 +45,8 @@ siguen en carpetas legacy:
 4. Cuando el patrón sea estable, mover el JSX de rutas y sus permisos desde
    `App.tsx` a una interfaz pública `routes.tsx` por módulo. El shell debe seguir
    siendo el único compositor.
-5. Extraer después módulos medianos y dejar para el final Ventas, Inventario,
-   Cotizaciones, Pedidos y Contabilidad.
+5. Continuar con Catálogos, Usuarios, Contactos y Cierre de caja; dejar para el
+   final Ventas, Inventario, Cotizaciones, Pedidos, Reportes y Contabilidad.
 6. Añadir Vitest/Testing Library o la herramienta elegida por el equipo para
    probar catálogo, bloqueo por módulo, permisos y cambio de empresa. Hoy la
    verificación automatizada disponible es la compilación de producción.

@@ -5,5 +5,5 @@ export const alertsModule = {
   dependencies: ['inventory'] as const,
   paths: { list: '/alertas' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/AlertsManagement')) },
+  pages: { Management: lazy(() => import('./pages/AlertsManagement')) },
 } as const

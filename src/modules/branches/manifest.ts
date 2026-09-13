@@ -5,5 +5,5 @@ export const branchesModule = {
   dependencies: [] as const,
   paths: { list: '/sucursales' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/branches/BranchesManagement')) },
+  pages: { Management: lazy(() => import('./pages/BranchesManagement')) },
 } as const

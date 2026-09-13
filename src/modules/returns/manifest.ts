@@ -6,7 +6,7 @@ export const returnsModule = {
   paths: { list: '/devoluciones', create: '/returns/new' },
   routePrefixes: ['/returns'] as const,
   pages: {
-    Management: lazy(() => import('@/components/ReturnsManagement')),
-    Create: lazy(() => import('@/pages/NewReturn')),
+    Management: lazy(() => import('./pages/ReturnsManagement')),
+    Create: lazy(() => import('./pages/NewReturn')),
   },
 } as const

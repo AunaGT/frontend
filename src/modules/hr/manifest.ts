@@ -10,8 +10,8 @@ export const hrModule = {
   },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/hr/HrPage')),
-    Create: lazy(() => import('@/components/hr/EmployeeCreatePage')),
-    Detail: lazy(() => import('@/components/hr/EmployeeDetailPage')),
+    Management: lazy(() => import('./pages/HrPage')),
+    Create: lazy(() => import('./pages/EmployeeCreatePage')),
+    Detail: lazy(() => import('./pages/EmployeeDetailPage')),
   },
 } as const

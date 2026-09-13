@@ -6,5 +6,5 @@ export const configModule = {
   protected: true,
   paths: { list: '/configuracion' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/config/ConfigManagement')) },
+  pages: { Management: lazy(() => import('./pages/ConfigManagement')) },
 } as const

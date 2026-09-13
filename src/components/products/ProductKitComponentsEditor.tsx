@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ProductCombobox } from "@/components/promotions/ProductCombobox";
+import { ProductCombobox } from "@/components/shared/ProductCombobox";
 import type { ProductBomComponentDraft } from "@/types/product";
 
 type Props = {

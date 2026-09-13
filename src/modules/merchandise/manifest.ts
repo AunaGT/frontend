@@ -10,9 +10,9 @@ export const merchandiseModule = {
   },
   routePrefixes: ['/inventario/registrar-ingreso'] as const,
   pages: {
-    Management: lazy(() => import('@/components/IncomingMerchandiseManagement')),
-    Create: lazy(() => import('@/pages/RegisterIncomingMerchandise')
+    Management: lazy(() => import('./pages/IncomingMerchandiseManagement')),
+    Create: lazy(() => import('./pages/RegisterIncomingMerchandise')
       .then((module) => ({ default: module.RegisterIncomingMerchandise }))),
-    Detail: lazy(() => import('@/pages/IncomingMerchandiseDetailPage')),
+    Detail: lazy(() => import('./pages/IncomingMerchandiseDetailPage')),
   },
 } as const

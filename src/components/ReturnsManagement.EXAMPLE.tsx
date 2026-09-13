@@ -31,8 +31,8 @@ import { RotateCcw, Search, Eye, Check, X, Package } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { useReturns, useUpdateReturnStatus } from '@/hooks/useReturns'
-import { Return } from '@/services/returnService'
+import { useReturns, useUpdateReturnStatus } from '@/modules/returns/hooks/useReturns'
+import { Return } from '@/modules/returns/api/returnService'
 
 //  Import shared utilities instead of defining locally
 import { formatMoney, formatDateTime } from '@/utils'

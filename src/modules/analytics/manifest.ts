@@ -5,5 +5,5 @@ export const analyticsModule = {
   dependencies: ['sales'] as const,
   paths: { list: '/analisis' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/Analytics')) },
+  pages: { Management: lazy(() => import('./pages/Analytics')) },
 } as const

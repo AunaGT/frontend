@@ -5,5 +5,5 @@ export const dashboardModule = {
   dependencies: [] as const,
   paths: { list: '/dashboard' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/Dashboard')) },
+  pages: { Management: lazy(() => import('./pages/Dashboard')) },
 } as const

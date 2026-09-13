@@ -10,19 +10,25 @@
 
 import { useState } from "react";
 import Header from "@/components/Header";
-import Dashboard from "@/components/Dashboard";
+import { dashboardModule } from "@/modules/dashboard/manifest";
+import { alertsModule } from "@/modules/alerts/manifest";
+import { analyticsModule } from "@/modules/analytics/manifest";
+import { promotionsModule } from "@/modules/promotions/manifest";
+import { returnsModule } from "@/modules/returns/manifest";
 import ProductManagement from "@/components/ProductManagement";
-import Analytics from "@/components/Analytics";
 import SalesManagement from "@/components/SalesManagement";
+
+const Dashboard = dashboardModule.pages.Management;
+const AlertsManagement = alertsModule.pages.Management;
+const Analytics = analyticsModule.pages.Management;
+const PromotionsManagement = promotionsModule.pages.Management;
+const ReturnsManagement = returnsModule.pages.Management;
 import SuppliersManagement from "@/components/SuppliersManagement";
 import ReportsManagement from "@/components/ReportsManagement";
-import AlertsManagement from "@/components/AlertsManagement";
 import ScannerManagement from "@/components/ScannerManagement";
 import UserManagement from "@/components/UserManagement";
 import { CatalogsManagement } from "@/components/CatalogsManagement";
-import ReturnsManagement from "@/components/ReturnsManagement";
 import CashClosureManagement from "@/components/CashClosureManagement";
-import PromotionsManagement from "@/components/PromotionsManagement";
 
 const Index = () => {
   const [activeSection, setActiveSectionState] = useState("dashboard");

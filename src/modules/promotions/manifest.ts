@@ -11,8 +11,8 @@ export const promotionsModule = {
   },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/PromotionsManagement')),
-    Create: lazy(() => import('@/components/promotions/PromotionCreatePage')),
-    Edit: lazy(() => import('@/components/promotions/PromotionEditPage')),
+    Management: lazy(() => import('./pages/PromotionsManagement')),
+    Create: lazy(() => import('./pages/PromotionCreatePage')),
+    Edit: lazy(() => import('./pages/PromotionEditPage')),
   },
 } as const

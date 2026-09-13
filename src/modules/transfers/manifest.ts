@@ -5,5 +5,5 @@ export const transfersModule = {
   dependencies: ['inventory', 'branches'] as const,
   paths: { list: '/traslados' },
   routePrefixes: [] as const,
-  pages: { Management: lazy(() => import('@/components/transfers/TransfersManagement')) },
+  pages: { Management: lazy(() => import('./pages/TransfersManagement')) },
 } as const
