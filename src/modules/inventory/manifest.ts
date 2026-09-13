@@ -12,6 +12,7 @@ export const inventoryModule = {
     deleted: '/inventario/eliminados',
     detail: '/inventario/:id',
     import: '/inventario/importar',
+    scanner: '/scanner',
   },
   routePrefixes: ['/productos', '/scanner'] as const,
   pages: {
@@ -22,5 +23,6 @@ export const inventoryModule = {
     Deleted: lazy(() => import('@/pages/DeletedProductsPage')),
     Lots: lazy(() => import('@/pages/LotsExpiryPage')),
     Movements: lazy(() => import('@/components/stock/StockMovesPage')),
+    Scanner: lazy(() => import('@/components/ScannerManagement')),
   },
 } as const

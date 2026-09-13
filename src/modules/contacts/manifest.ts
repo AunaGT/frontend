@@ -8,6 +8,10 @@ export const contactsModule = {
     create: '/contactos/nuevo',
     import: '/contactos/importar',
     detail: '/contactos/:id',
+    legacyList: '/proveedores',
+    legacyCreate: '/proveedores/nuevo',
+    legacyImport: '/proveedores/importar',
+    legacyDetail: '/proveedores/:id',
   },
   routePrefixes: ['/proveedores'] as const,
   pages: {

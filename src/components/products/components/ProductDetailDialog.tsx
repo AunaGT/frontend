@@ -57,7 +57,6 @@ export const ProductDetailDialog = ({
                 <div className="space-y-4">
                     {product.imageUrl && (
                         <div className="w-full rounded-md overflow-hidden border border-border bg-muted flex items-center justify-center">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                                 src={product.imageUrl}
                                 alt={product.name}

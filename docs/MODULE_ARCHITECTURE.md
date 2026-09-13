@@ -20,9 +20,11 @@ src/modules/<module>/
   tests/
 ```
 
-El piloto está en `src/modules/promotions/manifest.ts`. Durante la transición
-sus páginas continúan en `components/`, pero ningún consumidor nuevo debe
-importarlas directamente: debe usar el manifiesto.
+Las 23 capacidades registradas tienen manifiesto y catálogo común en
+`src/modules/catalog.ts`. Durante la transición varias páginas continúan en
+`components/`, pero ningún consumidor nuevo debe importarlas directamente:
+debe usar el manifiesto. La secuencia restante está en
+`docs/MODULARIZATION_HANDOFF.md`.
 
 ## Reglas
 

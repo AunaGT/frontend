@@ -39,17 +39,39 @@ import {
     type ModuleIconProps
 } from '@/components/icons/CustomIcons'
 import { ForwardRefExoticComponent, RefAttributes } from 'react'
-import { contactsModule } from '@/modules/contacts/manifest'
-import { inventoryModule } from '@/modules/inventory/manifest'
-import { salesModule } from '@/modules/sales/manifest'
-import { quotesModule } from '@/modules/quotes/manifest'
+import {
+    MODULE_MANIFESTS,
+    alertsModule,
+    analyticsModule,
+    accountingModule,
+    branchesModule,
+    cashClosureModule,
+    catalogsModule,
+    configModule,
+    contactsModule,
+    dashboardModule,
+    hrModule,
+    inventoryCountModule,
+    inventoryModule,
+    merchandiseModule,
+    ordersModule,
+    payrollModule,
+    promotionsModule,
+    quotesModule,
+    receivablesModule,
+    reportsModule,
+    returnsModule,
+    salesModule,
+    transfersModule,
+    usersModule,
+} from '@/modules/catalog'
 
 type IconComponent = ForwardRefExoticComponent<ModuleIconProps & RefAttributes<HTMLSpanElement>>
 
 /** Etiqueta y rutas del módulo de listas compartidas (categorías, términos de pago, etc.). */
-export const MASTER_DATA_MODULE_LABEL = 'Datos maestros'
-export const MASTER_DATA_MODULE_PATH = '/datos-maestros'
-export const MASTER_DATA_IMPORT_PATH = `${MASTER_DATA_MODULE_PATH}/importar`
+export const MASTER_DATA_MODULE_LABEL = catalogsModule.label
+export const MASTER_DATA_MODULE_PATH = catalogsModule.paths.list
+export const MASTER_DATA_IMPORT_PATH = catalogsModule.paths.import
 
 export interface AppModule {
     id: string
@@ -71,9 +93,9 @@ export interface AppModule {
 
 export const appModules: AppModule[] = [
     {
-        id: 'dashboard',
+        id: dashboardModule.code,
         label: 'Dashboard',
-        path: '/dashboard',
+        path: dashboardModule.paths.list,
         icon: DashboardIcon,
         color: 'bg-sky-100/90',
         iconColor: 'text-sky-800',
@@ -81,7 +103,7 @@ export const appModules: AppModule[] = [
         permissions: ['analytics.view']
     },
     {
-        id: 'sales',
+        id: salesModule.code,
         label: 'Ventas',
         path: salesModule.paths.list,
         icon: VentasIcon,
@@ -92,7 +114,7 @@ export const appModules: AppModule[] = [
         routePrefixes: [...salesModule.routePrefixes]
     },
     {
-        id: 'quotes',
+        id: quotesModule.code,
         label: 'Cotizaciones',
         path: quotesModule.paths.list,
         icon: CotizacionesIcon,
@@ -102,18 +124,18 @@ export const appModules: AppModule[] = [
         routePrefixes: [...quotesModule.routePrefixes]
     },
     {
-        id: 'orders',
+        id: ordersModule.code,
         label: 'Pedidos',
-        path: '/pedidos',
+        path: ordersModule.paths.list,
         icon: PedidosIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-900',
         permissions: ['orders.view', 'orders.create']
     },
     {
-        id: 'inventory',
+        id: inventoryModule.code,
         label: 'Inventario',
-        path: '/inventario',
+        path: inventoryModule.paths.list,
         icon: InventarioIcon,
         color: 'bg-violet-100/90',
         iconColor: 'text-violet-800',
@@ -121,9 +143,9 @@ export const appModules: AppModule[] = [
         routePrefixes: [...inventoryModule.routePrefixes]
     },
     {
-        id: 'inventory-count',
+        id: inventoryCountModule.code,
         label: 'Inventariado',
-        path: '/inventario/inventariado',
+        path: inventoryCountModule.paths.list,
         icon: InventariadoIcon,
         color: 'bg-cyan-100/90',
         iconColor: 'text-cyan-800',
@@ -135,19 +157,19 @@ export const appModules: AppModule[] = [
         ]
     },
     {
-        id: 'returns',
+        id: returnsModule.code,
         label: 'Devoluciones',
-        path: '/devoluciones',
+        path: returnsModule.paths.list,
         icon: DevolucionesIcon,
         color: 'bg-orange-100/90',
         iconColor: 'text-orange-800',
         permissions: ['returns.view'],
-        routePrefixes: ['/returns']
+        routePrefixes: [...returnsModule.routePrefixes]
     },
     {
-        id: 'cash-closure',
+        id: cashClosureModule.code,
         label: 'Cierre de Caja',
-        path: '/cierre-caja',
+        path: cashClosureModule.paths.list,
         icon: CierreCajaIcon,
         color: 'bg-lime-100/90',
         iconColor: 'text-lime-900',
@@ -155,7 +177,7 @@ export const appModules: AppModule[] = [
         permissions: ['cashclosure.view']
     },
     {
-        id: 'contacts',
+        id: contactsModule.code,
         label: 'Contactos',
         path: contactsModule.paths.list,
         icon: ProveedoresIcon,
@@ -165,64 +187,64 @@ export const appModules: AppModule[] = [
         routePrefixes: [...contactsModule.routePrefixes]
     },
     {
-        id: 'receivables',
+        id: receivablesModule.code,
         label: 'Cartera',
-        path: '/cartera',
+        path: receivablesModule.paths.list,
         icon: CarteraIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-900',
         permissions: ['receivables.view']
     },
     {
-        id: 'merchandise',
+        id: merchandiseModule.code,
         label: 'Mercancía',
-        path: '/mercancia',
+        path: merchandiseModule.paths.list,
         icon: MercanciaIcon,
         color: 'bg-amber-100/90',
         iconColor: 'text-amber-900',
         permissions: ['merchandise.view'],
-        routePrefixes: ['/inventario/registrar-ingreso']
+        routePrefixes: [...merchandiseModule.routePrefixes]
     },
     {
-        id: 'analytics',
+        id: analyticsModule.code,
         label: 'Análisis',
-        path: '/analisis',
+        path: analyticsModule.paths.list,
         icon: AnalyticsIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-800',
         permissions: ['analytics.view']
     },
     {
-        id: 'accounting',
+        id: accountingModule.code,
         label: 'Contabilidad',
-        path: '/contabilidad',
+        path: accountingModule.paths.list,
         icon: ReporteFinancieroIcon,
         color: 'bg-cyan-100/90',
         iconColor: 'text-cyan-800',
         permissions: ['accounting.view']
     },
     {
-        id: 'reports',
+        id: reportsModule.code,
         label: 'Reportes',
-        path: '/reportes',
+        path: reportsModule.paths.list,
         icon: ReportesIcon,
         color: 'bg-green-100/90',
         iconColor: 'text-green-900',
         permissions: ['reports.view']
     },
     {
-        id: 'alerts',
+        id: alertsModule.code,
         label: 'Alertas',
-        path: '/alertas',
+        path: alertsModule.paths.list,
         icon: AlertasIcon,
         color: 'bg-red-100/90',
         iconColor: 'text-red-800',
         permissions: ['alerts.view']
     },
     {
-        id: 'promotions',
+        id: promotionsModule.code,
         label: 'Promociones',
-        path: '/promociones',
+        path: promotionsModule.paths.list,
         icon: PromocionesIcon,
         color: 'bg-fuchsia-100/90',
         iconColor: 'text-fuchsia-800',
@@ -230,7 +252,7 @@ export const appModules: AppModule[] = [
         permissions: ['promotions.view', 'promotions.manage']
     },
     {
-        id: 'catalogs',
+        id: catalogsModule.code,
         label: MASTER_DATA_MODULE_LABEL,
         path: MASTER_DATA_MODULE_PATH,
         icon: CatalogosIcon,
@@ -238,48 +260,48 @@ export const appModules: AppModule[] = [
         iconColor: 'text-blue-800',
         adminOnly: true,
         permissions: ['catalogs.view'],
-        routePrefixes: ['/catalogos']
+        routePrefixes: [...catalogsModule.routePrefixes]
     },
     {
-        id: 'transfers',
+        id: transfersModule.code,
         label: 'Traslados',
-        path: '/traslados',
+        path: transfersModule.paths.list,
         icon: TrasladosIcon,
         color: 'bg-cyan-100/90',
         iconColor: 'text-cyan-900',
         permissions: ['transfers.view', 'transfers.create']
     },
     {
-        id: 'branches',
+        id: branchesModule.code,
         label: 'Sucursales',
-        path: '/sucursales',
+        path: branchesModule.paths.list,
         icon: SucursalesIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-900',
         permissions: ['branches.manage', 'companies.manage']
     },
     {
-        id: 'hr',
+        id: hrModule.code,
         label: 'RRHH',
-        path: '/rrhh',
+        path: hrModule.paths.list,
         icon: RrhhIcon,
         color: 'bg-pink-100/90',
         iconColor: 'text-pink-900',
         permissions: ['hr.employees.view']
     },
     {
-        id: 'payroll',
+        id: payrollModule.code,
         label: 'Nómina',
-        path: '/nomina',
+        path: payrollModule.paths.list,
         icon: NominaIcon,
         color: 'bg-emerald-100/90',
         iconColor: 'text-emerald-900',
         permissions: ['payroll.view']
     },
     {
-        id: 'users',
+        id: usersModule.code,
         label: 'Usuarios',
-        path: '/usuarios',
+        path: usersModule.paths.list,
         icon: UsuariosIcon,
         color: 'bg-rose-100/90',
         iconColor: 'text-rose-900',
@@ -287,9 +309,9 @@ export const appModules: AppModule[] = [
         permissions: ['users.view', 'roles.manage']
     },
     {
-        id: 'config',
+        id: configModule.code,
         label: 'Configuración',
-        path: '/configuracion',
+        path: configModule.paths.list,
         icon: ConfiguracionIcon,
         color: 'bg-slate-200/80',
         iconColor: 'text-slate-800',
@@ -297,6 +319,25 @@ export const appModules: AppModule[] = [
         permissions: ['settings.view', 'settings.manage']
     }
 ]
+
+/** Mantiene sincronizados el catálogo técnico y las tarjetas/navegación. */
+export function assertAppModuleCatalog() {
+    const appCodes = new Set(appModules.map((module) => module.id))
+    if (appCodes.size !== appModules.length) {
+        throw new Error('Hay módulos duplicados en appModules')
+    }
+    for (const manifest of MODULE_MANIFESTS) {
+        if (!appCodes.has(manifest.code)) {
+            throw new Error(`El módulo ${manifest.code} no tiene entrada de navegación`)
+        }
+    }
+    if (appModules.length !== MODULE_MANIFESTS.length) {
+        throw new Error('appModules contiene módulos sin manifiesto')
+    }
+    return true
+}
+
+assertAppModuleCatalog()
 
 /**
  * Get user role from localStorage
