@@ -7,6 +7,7 @@
 
 import { createContext, useCallback, useEffect, useState } from 'react'
 import { getPublicSettings } from '@/services/settingsService'
+import type { ExperienceProfile } from '@/config/experienceProfiles'
 
 const DEFAULT_TIMEZONE = 'America/Guatemala'
 const DEFAULT_COMPANY_NAME = 'Auna'
@@ -31,6 +32,10 @@ export interface SystemSettingsState {
   vatRegime: 'general' | 'pequeno'
   /** Tasa de IVA general en % (SystemSetting iva_rate) */
   ivaRate: number
+  defaultExperienceProfile: ExperienceProfile
+  salesAllowCredit: boolean
+  salesShowFiscalFields: boolean
+  salesShowChannels: boolean
   loading: boolean
   error: boolean
   /** Recarga la configuración pública desde el servidor (p. ej. tras guardar en Configuración). */
@@ -48,6 +53,10 @@ const defaultState: Omit<SystemSettingsState, 'refetch'> = {
   cashClosureMaxDiffPct: DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT,
   vatRegime: 'general',
   ivaRate: DEFAULT_IVA_RATE,
+  defaultExperienceProfile: 'CASHIER',
+  salesAllowCredit: true,
+  salesShowFiscalFields: true,
+  salesShowChannels: true,
   loading: true,
   error: false
 }
@@ -74,6 +83,12 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           cashClosureMaxDiffPct: pct,
           vatRegime: /peque/i.test(d?.vat_affiliation || '') ? 'pequeno' : 'general',
           ivaRate: (() => { const n = parseFloat(String(d?.iva_rate ?? '')); return Number.isFinite(n) && n >= 0 && n < 100 ? n : DEFAULT_IVA_RATE })(),
+          defaultExperienceProfile: ['CASHIER', 'MANAGER', 'OWNER', 'ADVANCED'].includes(String(d?.default_experience_profile))
+            ? d.default_experience_profile
+            : 'CASHIER',
+          salesAllowCredit: String(d?.sales_allow_credit ?? 'true').toLowerCase() === 'true',
+          salesShowFiscalFields: String(d?.sales_show_fiscal_fields ?? 'true').toLowerCase() === 'true',
+          salesShowChannels: String(d?.sales_show_channels ?? 'true').toLowerCase() === 'true',
           loading: false,
           error: false
         })
@@ -91,6 +106,10 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           cashClosureMaxDiffPct: DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT,
           vatRegime: 'general',
           ivaRate: DEFAULT_IVA_RATE,
+          defaultExperienceProfile: 'CASHIER',
+          salesAllowCredit: true,
+          salesShowFiscalFields: true,
+          salesShowChannels: true,
           loading: false,
           error: true
         }))

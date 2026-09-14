@@ -8,6 +8,11 @@ usuario. La UI oculta accesos no contratados y `ModuleAccessBoundary` bloquea
 la navegación directa; aun así, la seguridad definitiva siempre vive en el
 backend.
 
+El perfil `CASHIER | MANAGER | OWNER | ADVANCED` es una cuarta capa: únicamente
+cambia densidad y revelado progresivo. Se resuelve con
+`useExperienceProfile`; nunca debe usarse como reemplazo de
+`hasPermission()` ni de `useModules()`.
+
 ## Estructura objetivo
 
 ```text
@@ -42,6 +47,8 @@ el manifiesto o el `index.ts` público del módulo.
 8. Cambiar de empresa invalida las consultas y vuelve a consultar módulos.
 9. Un fallo temporal al consultar el catálogo no concede seguridad: la UI abre
    por compatibilidad, pero el backend continúa bloqueando la operación.
+10. Ocultar por perfil siempre debe dejar una ruta visible para revelar la
+    función si el módulo/configuración y el permiso sí la permiten.
 
 ## Añadir un módulo
 

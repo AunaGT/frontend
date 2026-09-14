@@ -12,6 +12,7 @@ import { useTenant } from '@/context/useTenant'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -27,6 +28,12 @@ import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import { Loader2, Save, Trash2 } from 'lucide-react'
 import { ModulesSettings } from './ModulesSettings'
+import {
+  EXPERIENCE_PROFILES,
+  EXPERIENCE_PROFILE_DESCRIPTIONS,
+  EXPERIENCE_PROFILE_LABELS,
+  type ExperienceProfile,
+} from '@/config/experienceProfiles'
 
 const CURRENCIES: { code: string; name: string }[] = [
   { code: 'GTQ', name: 'Quetzal' },
@@ -87,6 +94,12 @@ export default function ConfigManagement() {
     establishment_code: '',
     vat_affiliation: '',
   })
+  const [experienceForm, setExperienceForm] = useState({
+    default_experience_profile: 'CASHIER' as ExperienceProfile,
+    sales_allow_credit: true,
+    sales_show_fiscal_fields: true,
+    sales_show_channels: true,
+  })
   const [denominations, setDenominations] = useState<DenominationItem[]>([])
   const [logoUrl, setLogoUrl] = useState('')
   const [logoUploading, setLogoUploading] = useState(false)
@@ -139,6 +152,12 @@ export default function ConfigManagement() {
           company_postal_code: data.company_postal_code ?? '',
           establishment_code: data.establishment_code ?? '',
           vat_affiliation: data.vat_affiliation ?? '',
+        })
+        setExperienceForm({
+          default_experience_profile: data.default_experience_profile ?? 'CASHIER',
+          sales_allow_credit: String(data.sales_allow_credit ?? 'true').toLowerCase() === 'true',
+          sales_show_fiscal_fields: String(data.sales_show_fiscal_fields ?? 'true').toLowerCase() === 'true',
+          sales_show_channels: String(data.sales_show_channels ?? 'true').toLowerCase() === 'true',
         })
       })
       .catch(() => {
@@ -218,6 +237,34 @@ export default function ConfigManagement() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar datos fiscales'
       toast({ title: msg, variant: 'destructive' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveExperience = async () => {
+    if (!canManage) return
+    setSaving(true)
+    try {
+      const payload = {
+        default_experience_profile: experienceForm.default_experience_profile,
+        sales_allow_credit: String(experienceForm.sales_allow_credit),
+        sales_show_fiscal_fields: String(experienceForm.sales_show_fiscal_fields),
+        sales_show_channels: String(experienceForm.sales_show_channels),
+      }
+      await updateSettings(payload)
+      setSettings((current) => ({ ...current, ...payload }))
+      refetchSystemSettings()
+      toast({
+        title: 'Experiencia de venta actualizada',
+        description: 'Los permisos de los usuarios no fueron modificados.',
+      })
+    } catch (err) {
+      toast({
+        title: 'No se pudo guardar la experiencia',
+        description: err instanceof Error ? err.message : 'Error al guardar',
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
     }
@@ -322,6 +369,7 @@ export default function ConfigManagement() {
       <Tabs defaultValue="general" className="space-y-4">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="experience">Experiencia de venta</TabsTrigger>
           <TabsTrigger value="fiscal">Datos fiscales</TabsTrigger>
           <TabsTrigger value="denominations">Cierre de caja (denominaciones)</TabsTrigger>
           <TabsTrigger value="modules">Módulos</TabsTrigger>
@@ -553,6 +601,95 @@ export default function ConfigManagement() {
                 <Button onClick={handleSaveGeneral} disabled={saving}>
                   {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                   Guardar
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="experience" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Experiencia progresiva</CardTitle>
+              <CardDescription>
+                Define qué tan detallada inicia la pantalla de venta. Los módulos y permisos siguen
+                controlando qué funciones existen y quién puede usarlas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label>Perfil predeterminado</Label>
+                <Select
+                  value={experienceForm.default_experience_profile}
+                  onValueChange={(value) => setExperienceForm((current) => ({
+                    ...current,
+                    default_experience_profile: value as ExperienceProfile,
+                  }))}
+                  disabled={!canManage}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {EXPERIENCE_PROFILES.map((profile) => (
+                      <SelectItem key={profile} value={profile}>
+                        {EXPERIENCE_PROFILE_LABELS[profile]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {EXPERIENCE_PROFILE_DESCRIPTIONS[experienceForm.default_experience_profile]}
+                </p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="sales-credit">Permitir ventas al crédito</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Muestra métodos marcados como crédito. El servidor mantiene límite, vencimiento y autorización.
+                    </p>
+                  </div>
+                  <Switch
+                    id="sales-credit"
+                    checked={experienceForm.sales_allow_credit}
+                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_allow_credit: checked }))}
+                    disabled={!canManage}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="sales-fiscal">Datos fiscales del cliente</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Conserva NIT y consumidor final para negocios que facturan o se conectarán a FEL.
+                    </p>
+                  </div>
+                  <Switch
+                    id="sales-fiscal"
+                    checked={experienceForm.sales_show_fiscal_fields}
+                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_show_fiscal_fields: checked }))}
+                    disabled={!canManage}
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <Label htmlFor="sales-channels">Canales de venta</Label>
+                    <p className="text-xs text-muted-foreground">
+                      Permite cambiar entre mostrador, mayoreo/ruta y venta en línea.
+                    </p>
+                  </div>
+                  <Switch
+                    id="sales-channels"
+                    checked={experienceForm.sales_show_channels}
+                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_show_channels: checked }))}
+                    disabled={!canManage}
+                  />
+                </div>
+              </div>
+
+              {canManage && (
+                <Button onClick={handleSaveExperience} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Guardar experiencia
                 </Button>
               )}
             </CardContent>

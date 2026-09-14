@@ -10,6 +10,7 @@
 
 import { apiFetch } from "./api";
 import type { Branch, Company } from "@/context/AuthContext";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export const fetchCompanies = () => apiFetch<Company[]>("/api/companies", { method: "GET" });
 
@@ -78,6 +79,19 @@ export const removeUserFromCompany = (companyId: string, userId: string) =>
   apiFetch<{ ok: boolean }>(
     `/api/companies/${encodeURIComponent(companyId)}/users/${encodeURIComponent(userId)}`,
     { method: "DELETE" }
+  );
+
+export const updateUserExperienceProfile = (
+  companyId: string,
+  userId: string,
+  experienceProfile: ExperienceProfile | null
+) =>
+  apiFetch<{ experience_profile: ExperienceProfile | null }>(
+    `/api/companies/${encodeURIComponent(companyId)}/users/${encodeURIComponent(userId)}/experience-profile`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ experience_profile: experienceProfile }),
+    }
   );
 
 // ---------- Traslados entre sucursales ----------

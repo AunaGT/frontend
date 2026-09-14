@@ -9,6 +9,7 @@
  */
 
 import { apiFetch } from "./api";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface User {
   id: string;
@@ -37,7 +38,7 @@ export interface User {
   /** false = quedó sin ninguna empresa; sale en la lista para poder recuperarlo. */
   in_company?: boolean;
   /** Empresas a las que pertenece (solo en el detalle) */
-  companies?: { id: string; name: string; code: string }[];
+  companies?: { id: string; name: string; code: string; experience_profile?: ExperienceProfile | null }[];
   default_branch_id?: string | null;
   created_at?: string;
   updated_at?: string;

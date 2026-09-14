@@ -10,6 +10,7 @@
 
 /* eslint-disable react-refresh/only-export-components */
 import { createContext } from "react";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface Company {
   id: string;
@@ -17,6 +18,8 @@ export interface Company {
   code: string;
   logo_url?: string | null;
   active?: boolean;
+  /** Densidad visual dentro de esta empresa; no concede permisos. */
+  experience_profile?: ExperienceProfile | null;
 }
 
 export interface Branch {

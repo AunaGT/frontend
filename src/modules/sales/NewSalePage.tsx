@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,7 +47,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Receipt, Search, ChevronLeft, ChevronRight, PauseCircle, RotateCcw, Loader2, Landmark, Settings, List, LayoutGrid, ImageIcon, Package } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, ChevronRight, PauseCircle, RotateCcw, Loader2, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWarehouses } from '@/services/warehouseService'
@@ -56,6 +57,8 @@ import { useCategories } from '@/hooks/useCategories'
 import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import { EXPERIENCE_PROFILE_LABELS } from '@/config/experienceProfiles'
 import { checkCustomerCredit } from '@/modules/receivables'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { formatMoney } from '@/utils'
@@ -255,7 +258,18 @@ export default function NewSalePage() {
   const canLoadOrders = isEnabled('orders') && hasPermission('orders.view')
   const promotionsEnabled = isEnabled('promotions')
   const userId = user?.id ?? ''
-  const { locale, currencyCode, companyName, companyLogoUrl, vatRegime, ivaRate } = useSystemSettings()
+  const {
+    locale,
+    currencyCode,
+    companyName,
+    companyLogoUrl,
+    vatRegime,
+    ivaRate,
+    salesAllowCredit,
+    salesShowFiscalFields,
+    salesShowChannels,
+  } = useSystemSettings()
+  const { profile, isCompact, showAdvancedByDefault } = useExperienceProfile()
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
   const salesData = useSalesData()
 
@@ -278,24 +292,31 @@ export default function NewSalePage() {
   const posSinConfigurar = warehousesQuery.isSuccess && !posLocationId
 
   const [productSearch, setProductSearch] = useState('')
+  const productSearchRef = useRef<HTMLInputElement | null>(null)
   const [productPage, setProductPage] = useState(1)
   const [productPageSize, setProductPageSize] = useState(9)
   const [productLayout, setProductLayout] = useState<ProductBrowseLayout>(readProductBrowseLayout)
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null)
-  const [customer, setCustomer] = useState('')
+  const [customer, setCustomer] = useState('Consumidor final')
   const [customerNit, setCustomerNit] = useState('')
   const [pickedCustomerId, setPickedCustomerId] = useState<string>('__none__')
   const [salesChannel, setSalesChannel] = useState<'POS' | 'WHOLESALE' | 'ONLINE'>('POS')
   const [unitPricesById, setUnitPricesById] = useState<Record<string, number>>({})
   const [availabilityById, setAvailabilityById] = useState<Record<string, ProductAvailability>>({})
-  const [isFinalConsumer, setIsFinalConsumer] = useState(false)
+  const [isFinalConsumer, setIsFinalConsumer] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null)
   const [amountReceived, setAmountReceived] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
+  const [showCustomerDetails, setShowCustomerDetails] = useState(showAdvancedByDefault)
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(showAdvancedByDefault)
   const [promoCodesToRestore, setPromoCodesToRestore] = useState<string[] | null>(null)
   /** Fuerza recomputar si hay borrador en localStorage (React no observa el storage). */
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
   const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
+  const visiblePaymentMethods = useMemo(
+    () => paymentMethods.filter((method) => (salesAllowCredit && !loadedOrder) || !method.is_credit),
+    [paymentMethods, salesAllowCredit, loadedOrder]
+  )
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
   type ElsewhereState = { product: Product; atPos: number; rows: { label: string; stock: number }[] }
   const [elsewhere, setElsewhere] = useState<ElsewhereState | null>(null)
@@ -311,6 +332,10 @@ export default function NewSalePage() {
   // mismo intento y no una segunda venta; se renueva al terminar uno.
   const intentoDeCobroRef = useRef<string>(crypto.randomUUID())
   const pedidoLoadedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    productSearchRef.current?.focus()
+  }, [])
 
   const customerContactIdForPricing =
     pickedCustomerId !== '__none__' && pickedCustomerId.trim() ? pickedCustomerId : undefined
@@ -548,6 +573,30 @@ export default function NewSalePage() {
       : 0
 
   const canCreate = hasPermission('sales.create')
+
+  // En mostrador la opción habitual queda lista. El usuario aún puede cambiarla;
+  // un método de crédito nunca se autoselecciona.
+  useEffect(() => {
+    if (paymentMethod && visiblePaymentMethods.some((method) => method.id === paymentMethod.id)) return
+    const cash = visiblePaymentMethods.find((method) => method.name.toLowerCase() === 'efectivo')
+    setPaymentMethod(cash ?? visiblePaymentMethods.find((method) => !method.is_credit) ?? null)
+  }, [paymentMethod, salesAllowCredit, visiblePaymentMethods])
+
+  useEffect(() => {
+    if (!salesShowChannels && salesChannel !== 'POS') setSalesChannel('POS')
+  }, [salesShowChannels, salesChannel])
+
+  useEffect(() => {
+    if (isCreditSale || pickedCustomerId !== '__none__' || loadedOrder) {
+      setShowCustomerDetails(true)
+    }
+  }, [isCreditSale, pickedCustomerId, loadedOrder])
+
+  useEffect(() => {
+    if (!showAdvancedByDefault) return
+    setShowCustomerDetails(true)
+    setShowAdvancedOptions(true)
+  }, [showAdvancedByDefault])
 
   /**
    * ¿Puede el cliente llevarse este total al crédito? Se consulta al servidor
@@ -915,7 +964,7 @@ export default function NewSalePage() {
       return
     }
     const hasCart = cart.cartItems.length > 0
-    const hasCustomer = customer.trim().length > 0
+    const hasCustomer = !isFinalConsumer && customer.trim().length > 0
     if (!hasCart && !hasCustomer) {
       toast({
         title: 'Nada que guardar',
@@ -939,12 +988,11 @@ export default function NewSalePage() {
     })
     cart.clearCart()
     promotions.clearPromotions()
-    setCustomer('')
+    setCustomer('Consumidor final')
     setCustomerNit('')
     setPickedCustomerId('__none__')
     setSalesChannel('POS')
-    setIsFinalConsumer(false)
-    setPaymentMethod(null)
+    setIsFinalConsumer(true)
     setAmountReceived('')
     setProductSearch('')
     setProductPage(1)
@@ -1164,10 +1212,10 @@ export default function NewSalePage() {
         salesData.refreshSales()
         await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
         clearLoadedOrder()
-        setCustomer('')
+        setCustomer('Consumidor final')
         setCustomerNit('')
         setPickedCustomerId('__none__')
-        setPaymentMethod(null)
+        setIsFinalConsumer(true)
         setAmountReceived('')
         if (saleId) navigate(`/ventas/${saleId}/factura`)
         return
@@ -1199,12 +1247,14 @@ export default function NewSalePage() {
       }
       cart.clearCart()
       promotions.clearPromotions()
-      setCustomer('')
+      setCustomer('Consumidor final')
       setCustomerNit('')
       setPickedCustomerId('__none__')
       setSalesChannel('POS')
-      setPaymentMethod(null)
+      setIsFinalConsumer(true)
       setAmountReceived('')
+      setProductSearch('')
+      requestAnimationFrame(() => productSearchRef.current?.focus())
     } catch (e) {
       toast({
         title: 'Error al registrar la venta',
@@ -1325,7 +1375,9 @@ export default function NewSalePage() {
             <p className="text-sm text-muted-foreground">
               {loadedOrder
                 ? `Venta desde pedido ${loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}`
-                : 'Completa la información y agrega productos'}
+                : isCompact
+                  ? 'Agrega productos, recibe el pago y cobra'
+                  : 'Agrega productos; cliente y opciones especiales aparecen cuando hacen falta'}
             </p>
           </div>
         </div>
@@ -1437,108 +1489,171 @@ export default function NewSalePage() {
         {/* Columna izquierda: información de la venta */}
         <div className="lg:col-span-2 space-y-4">
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Información de la venta</CardTitle>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center justify-between gap-3 text-base">
+                <span>Cobro</span>
+                <span className="text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
+                  Perfil {EXPERIENCE_PROFILE_LABELS[profile]}
+                </span>
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {canPickSavedCustomer && (
-                <SavedCustomerMany2One
-                  valueId={pickedCustomerId}
-                  linkedDisplayName={customer}
-                  onPick={(row) => {
-                    setPickedCustomerId(String(row.id))
-                    setCustomer(row.name)
-                    setCustomerNit(row.taxId ?? '')
-                    setIsFinalConsumer(false)
-                  }}
-                  onClear={() => {
-                    setPickedCustomerId('__none__')
-                  }}
-                  canCreateContact={canCreateClientContact}
-                />
-              )}
-              <div>
-                <Label htmlFor="customer">Cliente *</Label>
-                <Input
-                  id="customer"
-                  placeholder="Nombre o razón social"
-                  value={customer}
-                  onChange={(e) => {
-                    setCustomer(e.target.value)
-                    setPickedCustomerId('__none__')
-                  }}
-                />
-              </div>
-              <div>
-                <Label htmlFor="nit">ID fiscal</Label>
-                <Input
-                  id="nit"
-                  placeholder="NIT, VAT, RFC, etc."
-                  value={customerNit}
-                  onChange={(e) => {
-                    setCustomerNit(e.target.value)
-                    setPickedCustomerId('__none__')
-                  }}
-                  disabled={isFinalConsumer}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="cf"
-                  checked={isFinalConsumer}
-                  onChange={(e) => {
-                    setIsFinalConsumer(e.target.checked)
-                    if (e.target.checked) setCustomerNit('')
-                  }}
-                  className="rounded"
-                />
-                <Label htmlFor="cf">Consumidor final (CF)</Label>
-              </div>
-              <div>
-                <Label>Canal de venta</Label>
-                <Select
-                  value={salesChannel}
-                  onValueChange={(v) => {
-                    if (v === 'WHOLESALE' || v === 'ONLINE' || v === 'POS') setSalesChannel(v)
-                  }}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POS">Mostrador (POS)</SelectItem>
-                    <SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem>
-                    <SelectItem value="ONLINE">En línea</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Define lista, mayoreo o promoción según precios del producto y reglas del cliente.
-                </p>
-              </div>
-              <div>
+              <div className="space-y-2">
                 <Label>Método de pago *</Label>
-                <Select
-                  value={paymentMethod ? String(paymentMethod.id) : ''}
-                  onValueChange={(val) => {
-                    const found = paymentMethods.find((pm) => String(pm.id) === val)
-                    setPaymentMethod(found ?? null)
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods.map((pm) => (
-                      <SelectItem key={pm.id} value={String(pm.id)}>
-                        {pm.name}
-                      </SelectItem>
+                {visiblePaymentMethods.length === 0 ? (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                    No hay métodos de pago disponibles para esta empresa.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {visiblePaymentMethods.map((method) => (
+                      <Button
+                        key={method.id}
+                        type="button"
+                        variant={paymentMethod?.id === method.id ? 'default' : 'outline'}
+                        className="h-10 justify-start px-3"
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        {method.name}
+                      </Button>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </div>
+                )}
               </div>
               {isCreditSale && (
+                <Alert className="py-3">
+                  <UserRound className="h-4 w-4" />
+                  <AlertTitle>Venta al crédito</AlertTitle>
+                  <AlertDescription>
+                    Selecciona un cliente registrado y confirma su vencimiento.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
                 <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="amount">Monto recibido</Label>
+                    {displayTotal > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
+                      >
+                        Monto exacto
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="amount"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    min={displayTotal}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    step="0.01"
+                    className="h-12 text-lg font-semibold"
+                  />
+                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
+                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
+                  )}
+                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
+                    <p className="text-sm text-destructive">
+                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <Collapsible
+                open={showCustomerDetails || isCreditSale}
+                onOpenChange={setShowCustomerDetails}
+                className="rounded-lg border"
+              >
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" className="h-auto w-full justify-between p-3">
+                    <span className="flex min-w-0 items-center gap-2 text-left">
+                      <UserRound className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">Cliente y factura</span>
+                        <span className="block truncate text-xs font-normal text-muted-foreground">
+                          {isFinalConsumer ? 'Consumidor final' : customer || 'Sin nombre'}
+                          {customerNit ? ` · ${customerNit}` : ''}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${(showCustomerDetails || isCreditSale) ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 border-t p-3">
+                  {canPickSavedCustomer && (
+                    <SavedCustomerMany2One
+                      valueId={pickedCustomerId}
+                      linkedDisplayName={customer}
+                      onPick={(row) => {
+                        setPickedCustomerId(String(row.id))
+                        setCustomer(row.name)
+                        setCustomerNit(row.taxId ?? '')
+                        setIsFinalConsumer(false)
+                      }}
+                      onClear={() => setPickedCustomerId('__none__')}
+                      canCreateContact={canCreateClientContact}
+                    />
+                  )}
+                  <div>
+                    <Label htmlFor="customer">Nombre o razón social</Label>
+                    <Input
+                      id="customer"
+                      placeholder="Consumidor final"
+                      value={customer}
+                      onChange={(e) => {
+                        setCustomer(e.target.value)
+                        setPickedCustomerId('__none__')
+                        if (salesShowFiscalFields && e.target.value.trim() !== 'Consumidor final') {
+                          setIsFinalConsumer(false)
+                        }
+                      }}
+                    />
+                  </div>
+                  {salesShowFiscalFields && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="cf"
+                          checked={isFinalConsumer}
+                          onChange={(e) => {
+                            setIsFinalConsumer(e.target.checked)
+                            if (e.target.checked) {
+                              setCustomer('Consumidor final')
+                              setCustomerNit('')
+                              setPickedCustomerId('__none__')
+                            }
+                          }}
+                          className="rounded"
+                        />
+                        <Label htmlFor="cf">Consumidor final (CF)</Label>
+                      </div>
+                      {!isFinalConsumer && (
+                        <div>
+                          <Label htmlFor="nit">ID fiscal</Label>
+                          <Input
+                            id="nit"
+                            placeholder="NIT, VAT, RFC, etc."
+                            value={customerNit}
+                            onChange={(e) => {
+                              setCustomerNit(e.target.value)
+                              setPickedCustomerId('__none__')
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {isCreditSale && (
+                    <div className="space-y-2 border-t pt-3">
                   {!customerContactIdForPricing ? (
                     <p className="text-xs text-destructive">
                       Una venta al crédito necesita un cliente del maestro: seleccionalo arriba.
@@ -1596,31 +1711,41 @@ export default function NewSalePage() {
                       )}
                     </>
                   )}
-                </div>
-              )}
-              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
-                <div>
-                  <Label htmlFor="amount">Monto recibido</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    placeholder="0.00"
-                    min={displayTotal}
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    step="0.01"
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
-                    <p className="text-sm text-primary mt-1">
-                      Vuelto: {fmt(changeAmount)}
-                    </p>
+                    </div>
                   )}
-                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
-                    <p className="text-sm text-destructive mt-1">
-                      El monto debe ser mayor o igual al total a pagar ({fmt(displayTotal)}).
+                </CollapsibleContent>
+              </Collapsible>
+
+              {salesShowChannels && (
+                <Collapsible open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <SlidersHorizontal className="h-4 w-4" /> Más opciones
+                      </span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    <Label>Canal de venta</Label>
+                    <Select
+                      value={salesChannel}
+                      onValueChange={(v) => {
+                        if (v === 'WHOLESALE' || v === 'ONLINE' || v === 'POS') setSalesChannel(v)
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="POS">Mostrador (POS)</SelectItem>
+                        <SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem>
+                        <SelectItem value="ONLINE">En línea</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      El canal puede cambiar precios y promociones aplicables.
                     </p>
-                  )}
-                </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
             </CardContent>
           </Card>
@@ -1728,7 +1853,7 @@ export default function NewSalePage() {
               variant="secondary"
               className="flex-1 border-dashed"
               onClick={handleSaveForLater}
-              disabled={isProcessing || (!cart.cartItems.length && !customer.trim())}
+              disabled={isProcessing || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}
             >
               <PauseCircle className="w-4 h-4 mr-2" />
               Guardar y continuar después
@@ -1759,7 +1884,7 @@ export default function NewSalePage() {
               ) : (
                 <>
                   <Receipt className="w-4 h-4 mr-2" />
-                  Registrar venta
+                  {isCreditSale ? 'Registrar fiado' : 'Cobrar'}
                 </>
               )}
             </Button>
@@ -1774,11 +1899,24 @@ export default function NewSalePage() {
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
+                    ref={productSearchRef}
                     placeholder="Buscar por nombre o código de barras..."
                     value={productSearch}
                     onChange={(e) => {
                       setProductSearch(e.target.value)
                       setProductPage(1)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      const term = productSearch.trim().toLowerCase()
+                      if (!term) return
+                      const exact = availableProducts.find(
+                        (product) => (product.barcode ?? '').trim().toLowerCase() === term
+                      )
+                      if (!exact) return
+                      event.preventDefault()
+                      void addProduct(exact)
+                      setProductSearch('')
                     }}
                     className="pl-9"
                   />

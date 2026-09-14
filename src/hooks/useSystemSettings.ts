@@ -8,6 +8,7 @@
 
 import { useContext } from 'react'
 import { SystemSettingsContext } from '@/context/SystemSettingsContext'
+import type { ExperienceProfile } from '@/config/experienceProfiles'
 
 const DEFAULT_TIMEZONE = 'America/Guatemala'
 const DEFAULT_COMPANY_NAME = 'Auna'
@@ -46,6 +47,10 @@ export interface UseSystemSettingsReturn {
   vatRegime: 'general' | 'pequeno'
   /** Tasa de IVA general en % */
   ivaRate: number
+  defaultExperienceProfile: ExperienceProfile
+  salesAllowCredit: boolean
+  salesShowFiscalFields: boolean
+  salesShowChannels: boolean
   loading: boolean
   /** Recarga la configuración pública (útil tras guardar en Configuración). */
   refetch: () => void
@@ -66,6 +71,10 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       cashClosureMaxDiffPct: DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT,
       vatRegime: 'general',
       ivaRate: 12,
+      defaultExperienceProfile: 'CASHIER',
+      salesAllowCredit: true,
+      salesShowFiscalFields: true,
+      salesShowChannels: true,
       loading: false,
       refetch: () => {}
     }
@@ -81,6 +90,10 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     cashClosureMaxDiffPct: ctx.cashClosureMaxDiffPct,
     vatRegime: ctx.vatRegime,
     ivaRate: ctx.ivaRate,
+    defaultExperienceProfile: ctx.defaultExperienceProfile,
+    salesAllowCredit: ctx.salesAllowCredit,
+    salesShowFiscalFields: ctx.salesShowFiscalFields,
+    salesShowChannels: ctx.salesShowChannels,
     loading: ctx.loading,
     refetch: ctx.refetch
   }

@@ -5,6 +5,7 @@
  */
 
 import { apiFetch, getApiBaseUrl } from './api'
+import type { ExperienceProfile } from '@/config/experienceProfiles'
 
 export interface SystemSettings {
   currency_code?: string
@@ -29,6 +30,10 @@ export interface SystemSettings {
   vat_affiliation?: string
   iva_rate?: string
   pequeno_rate?: string
+  default_experience_profile?: ExperienceProfile
+  sales_allow_credit?: string
+  sales_show_fiscal_fields?: string
+  sales_show_channels?: string
 }
 
 export interface DenominationItem {
@@ -54,6 +59,10 @@ export async function getPublicSettings(): Promise<{
   cash_closure_max_diff_pct: string
   vat_affiliation: string
   iva_rate: string
+  default_experience_profile: ExperienceProfile
+  sales_allow_credit: string
+  sales_show_fiscal_fields: string
+  sales_show_channels: string
 }> {
   return apiFetch('/settings/public')
 }
