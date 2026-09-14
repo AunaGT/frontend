@@ -29,7 +29,7 @@ import { postPricingPreview, fetchProductsAvailability } from "@/services/produc
 import { createQuote } from "@/services/quoteService";
 import { useTenant } from "@/context/useTenant";
 import { adaptApiSupplier, fetchSupplierById } from "@/services/supplierService";
-import { SavedCustomerMany2One } from "@/components/sales/components/SavedCustomerMany2One";
+import { SavedCustomerMany2One } from "@/modules/sales";
 import type { Product } from "@/types/product";
 import type { Supplier } from "@/types";
 import {

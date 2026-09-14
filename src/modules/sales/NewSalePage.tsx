@@ -91,7 +91,7 @@ import {
 import { OpenCashRegisterPrompt } from './OpenCashRegisterPrompt'
 import { CashRegisterPicker } from './CashRegisterPicker'
 import { closeCashSession, fetchCashSessionCurrent } from '@/services/cashSessionsService'
-import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/components/cash-closure/hooks/useMineClosureGate'
+import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/modules/cash-closure'
 import type { CashRegisterSessionDto, CashSessionCurrentResult } from '@/services/cashSessionsService'
 import type { CartProduct } from './types'
 

@@ -53,7 +53,7 @@ import { useCategories } from "@/hooks/useCategories";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { useSupplier } from "@/hooks/useSupplier";
 import { useUpdateSupplier } from "@/hooks/useUpdateSupplier";
-import { SupplierImportDialog } from "@/components/suppliers/SupplierImportDialog";
+import { SupplierImportDialog } from "../components/SupplierImportDialog";
 import { Pagination } from "@/components/shared/Pagination";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { usePersistedListUiState, useResetPageOnFilterChange } from "@/hooks/usePersistedListUiState";

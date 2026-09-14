@@ -15,20 +15,27 @@ import { alertsModule } from "@/modules/alerts/manifest";
 import { analyticsModule } from "@/modules/analytics/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
 import { returnsModule } from "@/modules/returns/manifest";
-import ProductManagement from "@/components/ProductManagement";
-import SalesManagement from "@/components/SalesManagement";
+import { inventoryModule } from "@/modules/inventory/manifest";
+import { salesModule } from "@/modules/sales/manifest";
+import { contactsModule } from "@/modules/contacts/manifest";
+import { reportsModule } from "@/modules/reports/manifest";
+import { usersModule } from "@/modules/users/manifest";
+import { catalogsModule } from "@/modules/catalogs/manifest";
+import { cashClosureModule } from "@/modules/cash-closure/manifest";
 
 const Dashboard = dashboardModule.pages.Management;
 const AlertsManagement = alertsModule.pages.Management;
 const Analytics = analyticsModule.pages.Management;
 const PromotionsManagement = promotionsModule.pages.Management;
 const ReturnsManagement = returnsModule.pages.Management;
-import SuppliersManagement from "@/components/SuppliersManagement";
-import ReportsManagement from "@/components/ReportsManagement";
-import ScannerManagement from "@/components/ScannerManagement";
-import UserManagement from "@/components/UserManagement";
-import { CatalogsManagement } from "@/components/CatalogsManagement";
-import CashClosureManagement from "@/components/CashClosureManagement";
+const ProductManagement = inventoryModule.pages.Management;
+const ScannerManagement = inventoryModule.pages.Scanner;
+const SalesManagement = salesModule.pages.Management;
+const SuppliersManagement = contactsModule.pages.Management;
+const ReportsManagement = reportsModule.pages.Management;
+const UserManagement = usersModule.pages.Management;
+const CatalogsManagement = catalogsModule.pages.Management;
+const CashClosureManagement = cashClosureModule.pages.Management;
 
 const Index = () => {
   const [activeSection, setActiveSectionState] = useState("dashboard");

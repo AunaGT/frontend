@@ -20,11 +20,11 @@ src/modules/<module>/
   tests/
 ```
 
-Las 23 capacidades registradas tienen manifiesto y catálogo común en
-`src/modules/catalog.ts`. Durante la transición varias páginas continúan en
-`components/`, pero ningún consumidor nuevo debe importarlas directamente:
-debe usar el manifiesto. La secuencia restante está en
-`docs/MODULARIZATION_HANDOFF.md`.
+Las 23 capacidades registradas tienen manifiesto, catálogo común y páginas
+físicamente ubicadas bajo `src/modules/<module>`. `npm run test:modules`
+comprueba esta frontera. Los componentes transversales permanecen en
+`components/ui` o `components/shared`; los consumidores de negocio deben usar
+el manifiesto o el `index.ts` público del módulo.
 
 ## Reglas
 

@@ -26,7 +26,7 @@ import TenantProvider from "@/context/TenantProvider";
 // Layout
 import { MainLayout } from "@/components/layout";
 
-import MyProfilePage from "@/components/users/MyProfilePage";
+import MyProfilePage from "@/modules/users/MyProfilePage";
 import {
   accountingModule,
   alertsModule,

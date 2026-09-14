@@ -6,7 +6,7 @@ export const accountingModule = {
   paths: { list: '/contabilidad', import: '/contabilidad/importar' },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/accounting/AccountingManagement')),
-    Import: lazy(() => import('@/pages/AccountingImportPage')),
+    Management: lazy(() => import('./components/AccountingManagement')),
+    Import: lazy(() => import('./pages/AccountingImportPage')),
   },
 } as const

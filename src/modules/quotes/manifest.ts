@@ -11,9 +11,9 @@ export const quotesModule = {
   },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/quotes/QuotesManagement')),
-    Create: lazy(() => import('@/components/quotes/NewQuotePage')),
-    Detail: lazy(() => import('@/components/quotes/QuoteDetailPage')),
-    Public: lazy(() => import('@/pages/PublicQuotePage')),
+    Management: lazy(() => import('./QuotesManagement')),
+    Create: lazy(() => import('./NewQuotePage')),
+    Detail: lazy(() => import('./QuoteDetailPage')),
+    Public: lazy(() => import('./PublicQuotePage')),
   },
 } as const

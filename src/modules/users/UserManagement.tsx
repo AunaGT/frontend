@@ -33,7 +33,7 @@ import {
   List,
   FileUp,
 } from "lucide-react";
-import UserImportDialog from "./users/UserImportDialog";
+import UserImportDialog from "./UserImportDialog";
 import { useAuth } from "@/context/useAuth";
 import { useTenant } from "@/context/useTenant";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";

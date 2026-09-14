@@ -15,9 +15,9 @@ export const contactsModule = {
   },
   routePrefixes: ['/proveedores'] as const,
   pages: {
-    Management: lazy(() => import('@/components/SuppliersManagement')),
-    Create: lazy(() => import('@/components/suppliers/SupplierCreatePage')),
-    Import: lazy(() => import('@/pages/SupplierImportPage')),
-    Detail: lazy(() => import('@/components/suppliers/SupplierDetailPage')),
+    Management: lazy(() => import('./pages/SuppliersManagement')),
+    Create: lazy(() => import('./components/SupplierCreatePage')),
+    Import: lazy(() => import('./pages/SupplierImportPage')),
+    Detail: lazy(() => import('./components/SupplierDetailPage')),
   },
 } as const

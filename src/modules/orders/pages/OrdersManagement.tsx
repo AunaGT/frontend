@@ -37,7 +37,7 @@ import { fetchCommittedStockReport } from "@/services/commercialDocumentsReportS
 import {
   commercialDocSearchHint,
   isCommercialDocSearchReady,
-} from "@/components/quotes/commercialDocumentSearchUtils";
+} from "@/modules/quotes";
 
 function statusBadgeVariant(status: OrderStatus): "default" | "secondary" | "outline" {
   if (status === "CONFIRMED") return "outline";

@@ -23,33 +23,29 @@ el catálogo modular.
 - Árbol de rutas y permisos actuales: `src/App.tsx`.
 - Reglas generales: `docs/MODULE_ARCHITECTURE.md`.
 
-## Qué falta
+## Estado de la reorganización física
 
-`dashboard`, `alerts`, `analytics`, `branches`, `config`, `promotions`, `hr`,
-`payroll`, `returns`, `transfers`, `receivables`, `inventory-count` y
-`merchandise` ya poseen páginas propias dentro de `src/modules`. En los casos
-exclusivos también se movieron hooks y API. Cartera y Mercadería exponen
-`index.ts` públicos para Ventas, la barra superior y Contactos; ningún
-consumidor externo importa sus rutas internas.
+Las 23 capacidades ya cargan sus páginas lazy desde `src/modules/<code>`.
+Contabilidad, Cierre de caja, Catálogos, Contactos, Inventario, Pedidos,
+Cotizaciones, Reportes, Ventas y Usuarios completaron la última fase de traslado.
+`npm run test:modules` comprueba que ningún manifiesto vuelva a depender de
+`src/components` o `src/pages`.
 
-La activación, carga lazy y navegación ya tienen frontera modular. Aún falta
-mover la propiedad física de páginas, componentes, hooks y llamadas API que
-siguen en carpetas legacy:
+Los elementos transversales permanecen deliberadamente en `components/ui`,
+`components/shared`, `hooks` y `services`. Las dependencias específicas entre
+dominios deben entrar por un `index.ts` público, como ya ocurre con Cartera,
+Mercadería, Cotizaciones, Ventas y Cierre de caja.
 
-1. Usar `alerts`, `dashboard` o `hr` como patrones ya terminados.
-2. Crear `src/modules/<code>/{pages,components,hooks,api,tests}` solo según sea
-   necesario; evitar carpetas vacías.
-3. Mover archivos sin cambiar sus exports y actualizar únicamente el
-   `manifest.ts`. Ningún consumidor externo debe volver a importar la ruta
-   física del componente.
-4. Cuando el patrón sea estable, mover el JSX de rutas y sus permisos desde
-   `App.tsx` a una interfaz pública `routes.tsx` por módulo. El shell debe seguir
-   siendo el único compositor.
-5. Continuar con Catálogos, Usuarios, Contactos y Cierre de caja; dejar para el
-   final Ventas, Inventario, Cotizaciones, Pedidos, Reportes y Contabilidad.
-6. Añadir Vitest/Testing Library o la herramienta elegida por el equipo para
-   probar catálogo, bloqueo por módulo, permisos y cambio de empresa. Hoy la
-   verificación automatizada disponible es la compilación de producción.
+La siguiente fase es profundizar, no volver a mover pantallas:
+
+1. Crear `api/`, `domain/`, `components/`, `hooks/` y `tests/` solo cuando el
+   contenido sea exclusivo del módulo.
+2. Extraer servicios globales gradualmente y publicar únicamente las funciones
+   requeridas por otros dominios desde `index.ts`.
+3. Mover el JSX de rutas y permisos desde `App.tsx` hacia contratos de rutas por
+   módulo cuando el equipo decida desacoplar también la composición del shell.
+4. Añadir Vitest/Testing Library para bloqueo por módulo, permisos, cambio de
+   empresa y flujos críticos; hoy existen prueba estructural, build y lint.
 
 ## Receta para otro colaborador o IA
 
@@ -66,7 +62,7 @@ siguen en carpetas legacy:
    repositorio de regresiones propias.
 7. Confirmar con `git status --short` que `.env` y `env` quedan fuera.
 
-Prompt sugerido: “Extrae físicamente el frontend del módulo `<code>` siguiendo
+Prompt sugerido: “Profundiza el frontend del módulo `<code>` siguiendo
 `docs/MODULE_ARCHITECTURE.md` y `docs/MODULARIZATION_HANDOFF.md`. Mantén rutas,
 permisos y UX, publica todo desde su manifiesto/índice, no importes internals de
 otros módulos y valida con build y pruebas.”
@@ -79,4 +75,5 @@ otros módulos y valida con build y pruebas.”
 - Permisos siguen siendo independientes de la activación comercial.
 - No aparecen imports nuevos a internals de otro módulo.
 - `npm run build` queda verde.
+- `npm run test:modules` queda verde.
 - `env` permanece ignorado y fuera del commit.

@@ -9,11 +9,11 @@
  */
 
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from './ui/table'
+} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -29,7 +29,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from './ui/dialog'
+} from '@/components/ui/dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +39,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from './ui/alert-dialog'
-import { Badge } from './ui/badge'
-import { useToast } from '../hooks/use-toast'
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { useToast } from '@/hooks/use-toast'
 import {
   usePaymentTerms,
   useCreatePaymentTerm,
@@ -49,7 +49,7 @@ import {
   useDeletePaymentTerm,
   useRestorePaymentTerm,
   PaymentTerm,
-} from '../hooks/usePaymentTerms'
+} from '@/hooks/usePaymentTerms'
 import {
   useProductCategories,
   useCreateProductCategory,
@@ -57,16 +57,16 @@ import {
   useDeleteProductCategory,
   useRestoreProductCategory,
   ProductCategory,
-} from '../hooks/useProductCategories'
+} from '@/hooks/useProductCategories'
 import { Pencil, Trash2, Plus, RotateCcw, Loader2, FileUp, ImageIcon } from 'lucide-react'
-import { CatalogImportDialog } from './catalogs/CatalogImportDialog'
-import { PaymentMethodsTab } from './catalogs/PaymentMethodsTab'
-import { CashRegistersTab } from './catalogs/CashRegistersTab'
-import { Pagination } from './shared/Pagination'
-import { useAuthPermissions } from '../hooks/useAuthPermissions'
-import { usePersistedListUiState, useResetPageOnFilterChange } from '../hooks/usePersistedListUiState'
-import { ImageUploadDropzone } from './ui/image-upload-dropzone'
-import { getApiBaseUrl } from '../services/api'
+import { CatalogImportDialog } from '../components/CatalogImportDialog'
+import { PaymentMethodsTab } from '../components/PaymentMethodsTab'
+import { CashRegistersTab } from '../components/CashRegistersTab'
+import { Pagination } from '@/components/shared/Pagination'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
+import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
+import { getApiBaseUrl } from '@/services/api'
 
 /** Filas de catálogo: API actual devuelve `_count.supplier_payment_terms`; respuestas antiguas `suppliers`. */
 function paymentTermSupplierUsageCount(term: {

@@ -40,7 +40,7 @@ import {
 import {
   commercialDocSearchHint,
   isCommercialDocSearchReady,
-} from "@/components/quotes/commercialDocumentSearchUtils";
+} from "./commercialDocumentSearchUtils";
 
 function statusBadgeVariant(status: QuoteStatus): "default" | "secondary" | "outline" | "destructive" {
   if (status === "ACCEPTED") return "default";

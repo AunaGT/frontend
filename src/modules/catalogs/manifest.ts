@@ -12,8 +12,8 @@ export const catalogsModule = {
   },
   routePrefixes: ['/catalogos'] as const,
   pages: {
-    Management: lazy(() => import('@/components/CatalogsManagement')
+    Management: lazy(() => import('./pages/CatalogsManagement')
       .then((module) => ({ default: module.CatalogsManagement }))),
-    Import: lazy(() => import('@/pages/CatalogImportPage')),
+    Import: lazy(() => import('./pages/CatalogImportPage')),
   },
 } as const

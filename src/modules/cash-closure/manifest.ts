@@ -10,9 +10,9 @@ export const cashClosureModule = {
   },
   routePrefixes: [] as const,
   pages: {
-    Management: lazy(() => import('@/components/CashClosureManagement')),
-    Create: lazy(() => import('@/components/cash-closure/CashClosureCreatePage')),
-    Detail: lazy(() => import('@/components/cash-closure/ClosureDetailPage')
+    Management: lazy(() => import('./CashClosureManagement')),
+    Create: lazy(() => import('./CashClosureCreatePage')),
+    Detail: lazy(() => import('./ClosureDetailPage')
       .then((module) => ({ default: module.ClosureDetailPage }))),
   },
 } as const
