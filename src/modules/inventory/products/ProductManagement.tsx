@@ -56,6 +56,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { useNavigate } from 'react-router-dom'
 import { formatMoney } from '@/utils'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 /** Dónde está lo que hay de un producto. Se consulta al abrir, no antes. */
 const StockBreakdownRow = ({ productId }: { productId: string }) => {
@@ -100,12 +101,14 @@ const ProductManagement = () => {
     const queryClient = useQueryClient()
     const { branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
+    const { showAdvancedByDefault } = useExperienceProfile()
     const { locale, currencyCode } = useSystemSettings()
     const fmt = (n: number) => formatMoney(n, locale, currencyCode)
 
     // Filter state
     const [searchTerm, setSearchTerm] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('all')
+    const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(showAdvancedByDefault)
 
     const {
         page: currentPage,
@@ -151,6 +154,20 @@ const ProductManagement = () => {
     const [expandedId, setExpandedId] = useState<string | null>(null)
     // Con una sucursal elegida: solo lo que esa sucursal maneja, o todo el catálogo.
     const [inBranchOnly, setInBranchOnly] = useState(true)
+    const activeAdvancedFilters = [
+        categoryFilter !== 'all',
+        scopeBranch !== 'all',
+        scopeWarehouse !== 'all',
+        scopeLocation !== 'all',
+    ].filter(Boolean).length
+
+    const resetAdvancedFilters = () => {
+        setCategoryFilter('all')
+        setScopeBranch('all')
+        setScopeWarehouse('all')
+        setScopeLocation('all')
+        setInBranchOnly(true)
+    }
 
     // Data hooks
     const { data: productsData, isLoading, isError } = useProducts({
@@ -482,7 +499,25 @@ const ProductManagement = () => {
                                 className="pl-10"
                             />
                         </div>
-                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                        <Button
+                            type="button"
+                            variant={advancedFiltersOpen || activeAdvancedFilters > 0 ? 'secondary' : 'outline'}
+                            onClick={() => setAdvancedFiltersOpen((open) => !open)}
+                            className="justify-between md:w-auto"
+                            aria-expanded={advancedFiltersOpen}
+                        >
+                            <span className="flex items-center">
+                                <Filter className="mr-2 h-4 w-4" />
+                                Filtros
+                                {activeAdvancedFilters > 0 && (
+                                    <Badge variant="secondary" className="ml-2 h-5 min-w-5 justify-center px-1.5">
+                                        {activeAdvancedFilters}
+                                    </Badge>
+                                )}
+                            </span>
+                            <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
+                        </Button>
+                        {advancedFiltersOpen && <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                             <SelectTrigger className="w-48">
                                 <Filter className="w-4 h-4 mr-2" />
                                 <SelectValue placeholder="Categoría" />
@@ -494,8 +529,8 @@ const ProductManagement = () => {
                                     </SelectItem>
                                 ))}
                             </SelectContent>
-                        </Select>
-                        <Select
+                        </Select>}
+                        {advancedFiltersOpen && <Select
                             value={scopeBranch}
                             onValueChange={(v) => { setScopeBranch(v); setScopeWarehouse('all'); setScopeLocation('all') }}
                         >
@@ -509,8 +544,8 @@ const ProductManagement = () => {
                                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                                 ))}
                             </SelectContent>
-                        </Select>
-                        {scopeWarehouses.length > 1 && (
+                        </Select>}
+                        {advancedFiltersOpen && scopeWarehouses.length > 1 && (
                             <Select
                                 value={scopeWarehouse}
                                 onValueChange={(v) => { setScopeWarehouse(v); setScopeLocation('all') }}
@@ -528,7 +563,7 @@ const ProductManagement = () => {
                                 </SelectContent>
                             </Select>
                         )}
-                        {scopeLocations.length > 1 && (
+                        {advancedFiltersOpen && scopeLocations.length > 1 && (
                             <Select value={scopeLocation} onValueChange={setScopeLocation}>
                                 <SelectTrigger className="w-48">
                                     <SelectValue placeholder="Ubicación" />
@@ -543,7 +578,7 @@ const ProductManagement = () => {
                                 </SelectContent>
                             </Select>
                         )}
-                        {scopeBranch !== 'all' && (
+                        {advancedFiltersOpen && scopeBranch !== 'all' && (
                             <div className="flex items-center gap-2 whitespace-nowrap">
                                 <Switch
                                     id="in-branch-only"
@@ -555,7 +590,18 @@ const ProductManagement = () => {
                                 </Label>
                             </div>
                         )}
+                        {advancedFiltersOpen && activeAdvancedFilters > 0 && (
+                            <Button type="button" variant="ghost" onClick={resetAdvancedFilters}>
+                                <RotateCcw className="mr-2 h-4 w-4" />
+                                Limpiar
+                            </Button>
+                        )}
                     </div>
+                    {!advancedFiltersOpen && activeAdvancedFilters > 0 && (
+                        <p className="mt-3 text-xs text-muted-foreground">
+                            Filtrado por {scopeLabel}{categoryFilter !== 'all' ? ` · ${categoryFilter}` : ''}.
+                        </p>
+                    )}
                 </CardContent>
             </Card>
 

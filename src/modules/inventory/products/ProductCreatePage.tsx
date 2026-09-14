@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Package, QrCode, Image as ImageIcon, Check, ChevronsUpDown } from 'lucide-react'
+import { ArrowLeft, Package, QrCode, Image as ImageIcon, Check, ChevronsUpDown, ChevronDown, Settings2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useProductForm } from './hooks'
@@ -32,6 +32,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Switch } from '@/components/ui/switch'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 import {
   Select,
   SelectContent,
@@ -63,10 +64,12 @@ export default function ProductCreatePage() {
   const createProductMutation = useCreateProduct()
   const { data: categoriesData } = useCategories()
   const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
+  const { showAdvancedByDefault } = useExperienceProfile()
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false)
   const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   const createdIdRef = useRef('')
   const goToCreatedProduct = () => navigate(createdIdRef.current ? `/inventario/${createdIdRef.current}` : '/inventario')
@@ -213,13 +216,29 @@ export default function ProductCreatePage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Información del producto</CardTitle>
+        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Datos esenciales</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Nombre, categoría, precio y proveedor son suficientes para comenzar.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+            className="w-full gap-2 sm:w-auto"
+          >
+            <Settings2 className="h-4 w-4" />
+            {advancedOpen ? 'Ocultar opciones' : 'Más opciones'}
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             {/* Imagen - 40% */}
-            <div className="lg:col-span-2">
+            <div className={advancedOpen ? 'lg:col-span-2' : 'hidden'}>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Imagen del producto</p>
               <div className="rounded-md overflow-hidden border border-border bg-muted flex flex-col items-center justify-center p-4 gap-4 min-h-[220px]">
                 {formData.imageUrl ? (
@@ -249,7 +268,7 @@ export default function ProductCreatePage() {
             </div>
 
             {/* Datos - 60% */}
-            <div className="lg:col-span-3 space-y-6">
+            <div className={`${advancedOpen ? 'lg:col-span-3' : 'lg:col-span-5'} space-y-6`}>
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Datos del producto</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -298,24 +317,28 @@ export default function ProductCreatePage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  <div>
-                    <Label className="text-muted-foreground">Marca</Label>
-                    <Input
-                      placeholder="Buchanans"
-                      value={formData.brand}
-                      onChange={(e) => onFormChange('brand', e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Tamaño</Label>
-                    <Input
-                      placeholder="750ml"
-                      value={formData.size}
-                      onChange={(e) => onFormChange('size', e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>
+                  {advancedOpen && (
+                    <>
+                      <div>
+                        <Label className="text-muted-foreground">Marca</Label>
+                        <Input
+                          placeholder="Buchanans"
+                          value={formData.brand}
+                          onChange={(e) => onFormChange('brand', e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground">Tamaño</Label>
+                        <Input
+                          placeholder="750ml"
+                          value={formData.size}
+                          onChange={(e) => onFormChange('size', e.target.value)}
+                          className="mt-1"
+                        />
+                      </div>
+                    </>
+                  )}
                   <div>
                     <Label className="text-muted-foreground">Precio de Venta *</Label>
                     <div className="relative mt-1">
@@ -330,7 +353,7 @@ export default function ProductCreatePage() {
                       />
                     </div>
                   </div>
-                  <div>
+                  {advancedOpen && <div>
                     <Label className="text-muted-foreground">Precio mayoreo (opcional)</Label>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
@@ -343,8 +366,8 @@ export default function ProductCreatePage() {
                         step="0.01"
                       />
                     </div>
-                  </div>
-                  <div>
+                  </div>}
+                  {advancedOpen && <div>
                     <Label className="text-muted-foreground">Precio promoción (opcional)</Label>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
@@ -357,8 +380,8 @@ export default function ProductCreatePage() {
                         step="0.01"
                       />
                     </div>
-                  </div>
-                  <div>
+                  </div>}
+                  {advancedOpen && <div>
                     <Label className="text-muted-foreground">Promoción válida hasta</Label>
                     <Input
                       type="datetime-local"
@@ -366,8 +389,8 @@ export default function ProductCreatePage() {
                       onChange={(e) => onFormChange('promotionValidUntil', e.target.value)}
                       className="mt-1"
                     />
-                  </div>
-                  <div>
+                  </div>}
+                  {advancedOpen && <div>
                     <Label className="text-muted-foreground">Costo</Label>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
@@ -380,8 +403,8 @@ export default function ProductCreatePage() {
                         step="0.01"
                       />
                     </div>
-                  </div>
-                  <div>
+                  </div>}
+                  {advancedOpen && <div>
                     <Label className="text-muted-foreground">Tipo de producto</Label>
                     <Select
                       value={formData.productKind}
@@ -397,9 +420,9 @@ export default function ProductCreatePage() {
                         <SelectItem value="KIT">Kit / combo</SelectItem>
                       </SelectContent>
                     </Select>
-                  </div>
+                  </div>}
 
-                  {isKit ? (
+                  {advancedOpen && isKit ? (
                     <div className="rounded-md border p-4 bg-muted/30">
                       <ProductKitComponentsEditor
                         value={formData.kitComponents}
@@ -494,7 +517,7 @@ export default function ProductCreatePage() {
                   </div>
                 </div>
 
-                <div className="mt-4">
+                {advancedOpen && <div className="mt-4">
                   <Label className="text-muted-foreground">Descripción</Label>
                   <Textarea
                     placeholder="Descripción del producto..."
@@ -503,8 +526,8 @@ export default function ProductCreatePage() {
                     rows={3}
                     className="mt-1 resize-none"
                   />
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
+                </div>}
+                {advancedOpen && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
                   <div className="space-y-0.5">
                     <Label htmlFor="create-available-sale">Disponible para la venta</Label>
                     <p className="text-xs text-muted-foreground max-w-xl">
@@ -516,8 +539,8 @@ export default function ProductCreatePage() {
                     checked={formData.availableForSale}
                     onCheckedChange={(v) => onFormChange('availableForSale', v)}
                   />
-                </div>
-                <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
+                </div>}
+                {advancedOpen && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
                   <div className="space-y-0.5">
                     <Label htmlFor="create-tracks-expiry">Controla caducidad</Label>
                     <p className="text-xs text-muted-foreground max-w-xl">
@@ -529,7 +552,7 @@ export default function ProductCreatePage() {
                     checked={formData.tracksExpiry}
                     onCheckedChange={(v) => onFormChange('tracksExpiry', v)}
                   />
-                </div>
+                </div>}
 
               </div>
 

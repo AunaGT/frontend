@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Edit, QrCode, Check, ChevronsUpDown, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, QrCode, Check, ChevronDown, ChevronsUpDown, Settings2, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -42,6 +42,7 @@ import { useTenant } from '@/context/useTenant'
 import { ProductKitSection } from './ProductKitSection'
 import { ProductLotsSection } from './ProductLotsSection'
 import { ProductLocationsSection } from './ProductLocationsSection'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 type CategoryItem = { id: number | string; name: string }
 
@@ -63,6 +64,7 @@ export default function ProductDetailPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
+  const { showAdvancedByDefault } = useExperienceProfile()
   const canEdit = hasPermission('products.edit')
   const canDelete = hasPermission('products.delete')
   const canViewCost = hasPermission('products.create')
@@ -90,6 +92,7 @@ export default function ProductDetailPage() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   useEffect(() => {
     const load = async () => {
@@ -413,8 +416,21 @@ export default function ProductDetailPage() {
       </AlertDialog>
 
       <Card className={isEditing && canEdit ? 'ring-2 ring-liquor-amber/30' : ''}>
-        <CardHeader>
-          <CardTitle>Información del producto</CardTitle>
+        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Información del producto</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">Datos principales para vender y controlar existencias.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+          >
+            <Settings2 className="mr-2 h-4 w-4" />
+            {advancedOpen ? 'Ocultar detalles' : 'Ver más detalles'}
+            <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           {isEditing && canEdit && (
@@ -474,7 +490,7 @@ export default function ProductDetailPage() {
           )}
 
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-2">
+            <div className={advancedOpen ? 'lg:col-span-2' : 'hidden'}>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Imagen</p>
               <div className="rounded-md overflow-hidden border border-border bg-muted flex flex-col items-center justify-center p-4 gap-4 min-h-[220px]">
                 {editImageUrl || product.imageUrl ? (
@@ -498,7 +514,7 @@ export default function ProductDetailPage() {
               </div>
             </div>
 
-            <div className="lg:col-span-3 space-y-6">
+            <div className={`${advancedOpen ? 'lg:col-span-3' : 'lg:col-span-5'} space-y-6`}>
               <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Datos del producto</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -507,19 +523,19 @@ export default function ProductDetailPage() {
                       <Label className="text-muted-foreground">Nombre</Label>
                       {isEditing && canEdit ? <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.name}</p>}
                     </div>
-                    <div>
+                    {advancedOpen && <div>
                       <Label className="text-muted-foreground">Marca</Label>
                       {isEditing && canEdit ? <Input value={editBrand} onChange={(e) => setEditBrand(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.brand}</p>}
-                    </div>
-                    <div>
+                    </div>}
+                    {advancedOpen && <div>
                       <Label className="text-muted-foreground">Tamaño</Label>
                       {isEditing && canEdit ? <Input value={editSize} onChange={(e) => setEditSize(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.size}</p>}
-                    </div>
+                    </div>}
                     <div>
                       <Label className="text-muted-foreground">Precio de venta</Label>
                       {isEditing && canEdit ? <Input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{fmt(product.price)}</p>}
                     </div>
-                    <div>
+                    {advancedOpen && <div>
                       <Label className="text-muted-foreground">Precio mayoreo</Label>
                       {isEditing && canEdit ? (
                         <Input type="number" value={editPriceWholesale} onChange={(e) => setEditPriceWholesale(e.target.value)} className="mt-1" placeholder="Opcional" />
@@ -528,8 +544,8 @@ export default function ProductDetailPage() {
                           {product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : '—'}
                         </p>
                       )}
-                    </div>
-                    <div>
+                    </div>}
+                    {advancedOpen && <div>
                       <Label className="text-muted-foreground">Precio promoción</Label>
                       {isEditing && canEdit ? (
                         <Input type="number" value={editPricePromotion} onChange={(e) => setEditPricePromotion(e.target.value)} className="mt-1" placeholder="Opcional" />
@@ -538,8 +554,8 @@ export default function ProductDetailPage() {
                           {product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : '—'}
                         </p>
                       )}
-                    </div>
-                    <div>
+                    </div>}
+                    {advancedOpen && <div>
                       <Label className="text-muted-foreground">Promoción hasta</Label>
                       {isEditing && canEdit ? (
                         <Input type="datetime-local" value={editPromotionUntil} onChange={(e) => setEditPromotionUntil(e.target.value)} className="mt-1" />
@@ -550,8 +566,8 @@ export default function ProductDetailPage() {
                             : '—'}
                         </p>
                       )}
-                    </div>
-                    {canViewCost && (
+                    </div>}
+                    {advancedOpen && canViewCost && (
                       <div>
                         <Label className="text-muted-foreground">Costo</Label>
                         {isEditing && canEdit ? <Input type="number" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{fmt(product.cost)}</p>}
@@ -604,7 +620,7 @@ export default function ProductDetailPage() {
                       <Label className="text-muted-foreground">Estado</Label>
                       <div className="mt-1">{getStatusBadge(product)}</div>
                     </div>
-                    <div className="md:col-span-2">
+                    {advancedOpen && <div className="md:col-span-2">
                       <Label htmlFor="edit-available-sale" className="text-muted-foreground">
                         Disponible para la venta (POS)
                       </Label>
@@ -624,8 +640,8 @@ export default function ProductDetailPage() {
                           {product.availableForSale !== false ? 'Sí, aparece en ventas' : 'No (solo inventario)'}
                         </p>
                       )}
-                    </div>
-                    <div className="md:col-span-2">
+                    </div>}
+                    {advancedOpen && <div className="md:col-span-2">
                       <Label htmlFor="edit-tracks-expiry" className="text-muted-foreground">
                         Controla caducidad (lotes)
                       </Label>
@@ -645,7 +661,7 @@ export default function ProductDetailPage() {
                           {product.tracksExpiry === true ? 'Sí, exige fecha de caducidad al ingresar' : 'No'}
                         </p>
                       )}
-                    </div>
+                    </div>}
                     <div>
                       <Label className="text-muted-foreground">Proveedor</Label>
                       {isEditing && canEdit ? (
@@ -692,7 +708,7 @@ export default function ProductDetailPage() {
                 </div>
               </div>
 
-              {canViewCost && (
+              {advancedOpen && canViewCost && (
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                     <div>
@@ -707,22 +723,22 @@ export default function ProductDetailPage() {
                 </div>
               )}
 
-              <Separator />
+              {advancedOpen && <Separator />}
 
-              <div>
+              {advancedOpen && <div>
                 <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Descripción</p>
                 {isEditing && canEdit ? (
                   <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Descripción del producto..." rows={4} className="resize-none" />
                 ) : (
                   <p className="text-muted-foreground">{product.description || 'Sin descripción'}</p>
                 )}
-              </div>
+              </div>}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {product && id && (
+      {advancedOpen && product && id && (
         <ProductKitSection
           product={product}
           productId={id}
@@ -731,9 +747,9 @@ export default function ProductDetailPage() {
         />
       )}
 
-      {product && id && <ProductLocationsSection productId={id} />}
+      {advancedOpen && product && id && <ProductLocationsSection productId={id} />}
 
-      {product && id && product.kind !== 'KIT' && (
+      {advancedOpen && product && id && product.kind !== 'KIT' && (
         <ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
       )}
     </div>

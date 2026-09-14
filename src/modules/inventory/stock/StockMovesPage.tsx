@@ -15,7 +15,7 @@
  */
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, Loader2, MoveRight, Scale, X } from 'lucide-react'
+import { ArrowRight, ChevronDown, History, Loader2, MoveRight, PackageSearch, Scale, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 import { useTenant } from '@/context/useTenant'
 import { fetchProducts } from '@/services/productService'
 import { fetchWarehouses } from '@/services/warehouseService'
@@ -43,11 +44,13 @@ import {
 } from '@/services/stockMoveService'
 
 type Draft = { product_id: string; name: string; qty: number }
+type InventoryTask = 'move' | 'adjust' | 'replenish'
+type AdjustmentKind = 'LOSS' | 'SURPLUS'
 
 const formatDate = (iso: string) =>
     new Date(iso).toLocaleString('es-GT', { dateStyle: 'short', timeStyle: 'short' })
 
-/** Buscador + renglones con cantidad. En ajustes la cantidad lleva signo. */
+/** Buscador + renglones con cantidad. */
 const LinesEditor = ({
     id,
     draft,
@@ -118,7 +121,7 @@ const LinesEditor = ({
 
             {draft.length > 0 && (
                 <div className='space-y-2'>
-                    <Label>{signed ? 'Diferencias (− merma, + sobrante)' : 'Productos a mover'}</Label>
+                    <Label>{signed ? 'Diferencias' : 'Productos y cantidades'}</Label>
                     {draft.map((d) => (
                         <div key={d.product_id} className='flex items-center gap-2'>
                             <span className='flex-1 truncate text-sm'>{d.name}</span>
@@ -155,6 +158,7 @@ export const StockMovesPage = () => {
     const queryClient = useQueryClient()
     const { branch } = useTenant()
     const { hasPermission } = useAuthPermissions()
+    const { showAdvancedByDefault } = useExperienceProfile()
     const canMove = hasPermission('stock_moves.create')
 
     const [fromId, setFromId] = useState('')
@@ -163,6 +167,9 @@ export const StockMovesPage = () => {
     const [draft, setDraft] = useState<Draft[]>([])
 
     const canAdjust = hasPermission('stock_moves.adjust')
+    const [activeTask, setActiveTask] = useState<InventoryTask>(canMove ? 'move' : 'adjust')
+    const [adjustmentKind, setAdjustmentKind] = useState<AdjustmentKind>('LOSS')
+    const [historyOpen, setHistoryOpen] = useState(showAdvancedByDefault)
     const [adjLocationId, setAdjLocationId] = useState('')
     const [adjNotes, setAdjNotes] = useState('')
     const [adjDraft, setAdjDraft] = useState<Draft[]>([])
@@ -229,16 +236,24 @@ export const StockMovesPage = () => {
             toast({ title: 'Elige la ubicación a ajustar', variant: 'destructive' })
             return
         }
-        const lines = adjDraft.filter((d) => d.qty !== 0).map((d) => ({ product_id: d.product_id, qty: d.qty }))
+        if (!adjNotes.trim()) {
+            toast({ title: 'Escribe el motivo del ajuste', variant: 'destructive' })
+            return
+        }
+        const sign = adjustmentKind === 'LOSS' ? -1 : 1
+        const lines = adjDraft
+            .filter((d) => Math.abs(d.qty) > 0)
+            .map((d) => ({ product_id: d.product_id, qty: Math.abs(d.qty) * sign }))
         if (lines.length === 0) {
             toast({ title: 'Agrega al menos una diferencia', variant: 'destructive' })
             return
         }
-        adjustMutation.mutate({ location_id: adjLocationId, lines, notes: adjNotes.trim() || undefined })
+        adjustMutation.mutate({ location_id: adjLocationId, lines, notes: adjNotes.trim() })
     }
 
     /** Carga la sugerencia en el formulario de arriba; confirmar sigue siendo del usuario. */
     const preloadMove = (row: (typeof replenishment)[number]) => {
+        setActiveTask('move')
         setFromId(row.from_location_id || '')
         setToId(row.location_id)
         setDraft((d) =>
@@ -270,15 +285,59 @@ export const StockMovesPage = () => {
     return (
         <div className='space-y-6 p-4 sm:p-6'>
             <div>
-                <h1 className='text-2xl font-semibold'>Movimientos internos</h1>
+                <h1 className='text-2xl font-semibold'>Existencias</h1>
                 <p className='text-sm text-muted-foreground'>
                     {branch
-                        ? `Mercancía dentro de ${branch.name}. Mover de una ubicación a otra no cambia el stock de la sucursal.`
-                        : 'Elige una sucursal concreta arriba para mover mercancía.'}
+                        ? `Elige una tarea para trabajar el inventario de ${branch.name}.`
+                        : 'Elige una sucursal concreta arriba para trabajar sus existencias.'}
                 </p>
             </div>
 
-            {canMove && branch && (
+            {branch && (canMove || canAdjust) && (
+                <Card>
+                    <CardHeader className='pb-3'>
+                        <CardTitle className='text-base'>¿Qué necesitas hacer?</CardTitle>
+                        <CardDescription>Mostramos un solo flujo a la vez para reducir errores.</CardDescription>
+                    </CardHeader>
+                    <CardContent className='grid gap-3 sm:grid-cols-3'>
+                        {canMove && (
+                            <Button
+                                type='button'
+                                variant={activeTask === 'move' ? 'default' : 'outline'}
+                                className='h-auto justify-start px-4 py-3 text-left'
+                                onClick={() => setActiveTask('move')}
+                            >
+                                <MoveRight className='mr-3 h-5 w-5 shrink-0' />
+                                <span><span className='block'>Mover mercancía</span><span className='block text-xs font-normal opacity-75'>Entre ubicaciones</span></span>
+                            </Button>
+                        )}
+                        {canAdjust && (
+                            <Button
+                                type='button'
+                                variant={activeTask === 'adjust' ? 'default' : 'outline'}
+                                className='h-auto justify-start px-4 py-3 text-left'
+                                onClick={() => setActiveTask('adjust')}
+                            >
+                                <Scale className='mr-3 h-5 w-5 shrink-0' />
+                                <span><span className='block'>Corregir existencia</span><span className='block text-xs font-normal opacity-75'>Merma o sobrante</span></span>
+                            </Button>
+                        )}
+                        {canMove && replenishment.length > 0 && (
+                            <Button
+                                type='button'
+                                variant={activeTask === 'replenish' ? 'default' : 'outline'}
+                                className='h-auto justify-start px-4 py-3 text-left'
+                                onClick={() => setActiveTask('replenish')}
+                            >
+                                <PackageSearch className='mr-3 h-5 w-5 shrink-0' />
+                                <span><span className='block'>Reponer anaquel</span><span className='block text-xs font-normal opacity-75'>{replenishment.length} sugerencia(s)</span></span>
+                            </Button>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {canMove && branch && activeTask === 'move' && (
                 <Card>
                     <CardHeader className='pb-3'>
                         <CardTitle className='text-base'>Mover mercancía</CardTitle>
@@ -341,15 +400,34 @@ export const StockMovesPage = () => {
                 </Card>
             )}
 
-            {canAdjust && branch && (
+            {canAdjust && branch && activeTask === 'adjust' && (
                 <Card>
                     <CardHeader className='pb-3'>
                         <CardTitle className='text-base'>Ajustar existencias</CardTitle>
                         <CardDescription>
-                            Crea o destruye mercancía sin documento: merma en negativo, sobrante encontrado en positivo.
+                            Indica qué ocurrió y escribe cantidades positivas. El sistema aplicará el signo correcto.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className='space-y-4'>
+                        <div className='space-y-2'>
+                            <Label>Tipo de ajuste</Label>
+                            <div className='grid grid-cols-2 gap-2'>
+                                <Button
+                                    type='button'
+                                    variant={adjustmentKind === 'LOSS' ? 'destructive' : 'outline'}
+                                    onClick={() => setAdjustmentKind('LOSS')}
+                                >
+                                    Merma / pérdida
+                                </Button>
+                                <Button
+                                    type='button'
+                                    variant={adjustmentKind === 'SURPLUS' ? 'default' : 'outline'}
+                                    onClick={() => setAdjustmentKind('SURPLUS')}
+                                >
+                                    Sobrante encontrado
+                                </Button>
+                            </div>
+                        </div>
                         <div className='space-y-2'>
                             <Label>Ubicación</Label>
                             <Select value={adjLocationId} onValueChange={setAdjLocationId}>
@@ -362,15 +440,15 @@ export const StockMovesPage = () => {
                             </Select>
                         </div>
 
-                        <LinesEditor id='adjust-search' draft={adjDraft} setDraft={setAdjDraft} signed />
+                        <LinesEditor id='adjust-search' draft={adjDraft} setDraft={setAdjDraft} />
 
                         <div className='space-y-2'>
-                            <Label htmlFor='adjust-notes'>Motivo</Label>
+                            <Label htmlFor='adjust-notes'>Motivo *</Label>
                             <Input
                                 id='adjust-notes'
                                 value={adjNotes}
                                 onChange={(e) => setAdjNotes(e.target.value)}
-                                placeholder='Botella quebrada'
+                                placeholder={adjustmentKind === 'LOSS' ? 'Ej. producto vencido o botella quebrada' : 'Ej. mercancía encontrada al contar'}
                             />
                         </div>
 
@@ -382,7 +460,7 @@ export const StockMovesPage = () => {
                 </Card>
             )}
 
-            {branch && replenishment.length > 0 && (
+            {branch && replenishment.length > 0 && activeTask === 'replenish' && (
                 <Card>
                     <CardHeader className='pb-3'>
                         <CardTitle className='text-base'>Reposición sugerida</CardTitle>
@@ -445,11 +523,24 @@ export const StockMovesPage = () => {
             )}
 
             <Card>
-                <CardHeader className='pb-3'>
-                    <CardTitle className='text-base'>Últimos movimientos</CardTitle>
-                    <CardDescription>Todo lo que entró o salió de una ubicación, con su saldo después.</CardDescription>
+                <CardHeader className='gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between'>
+                    <div>
+                        <CardTitle className='text-base'>Últimos movimientos</CardTitle>
+                        <CardDescription>Auditoría de entradas y salidas, con el saldo resultante.</CardDescription>
+                    </div>
+                    <Button
+                        type='button'
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => setHistoryOpen((open) => !open)}
+                        aria-expanded={historyOpen}
+                    >
+                        <History className='mr-2 h-4 w-4' />
+                        {historyOpen ? 'Ocultar historial' : 'Ver historial'}
+                        <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`} />
+                    </Button>
                 </CardHeader>
-                <CardContent>
+                {historyOpen && <CardContent>
                     {isLoading ? (
                         <div className='flex items-center gap-2 text-sm text-muted-foreground'>
                             <Loader2 className='h-4 w-4 animate-spin' /> Cargando…
@@ -494,7 +585,7 @@ export const StockMovesPage = () => {
                             </table>
                         </div>
                     )}
-                </CardContent>
+                </CardContent>}
             </Card>
         </div>
     )
