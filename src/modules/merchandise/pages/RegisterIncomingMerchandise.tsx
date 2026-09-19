@@ -27,7 +27,7 @@ import {
   CommandList,
 } from '@/components/ui/command'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { ArrowLeft, Plus, Trash2, Package, Check, ChevronsUpDown } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Plus, Trash2, Package, Check, ChevronsUpDown, Settings2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { SUPPLIERS_DROPDOWN_PARAMS } from '@/services/supplierService'
@@ -44,6 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 interface IncomingItem {
   product_id: string
@@ -59,6 +60,7 @@ interface IncomingItem {
 export const RegisterIncomingMerchandise = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { showAdvancedByDefault } = useExperienceProfile()
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
   const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false)
   const [openProductPopoverIndex, setOpenProductPopoverIndex] = useState<number | null>(null)
@@ -71,6 +73,7 @@ export const RegisterIncomingMerchandise = () => {
   const [paymentReference, setPaymentReference] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [locationId, setLocationId] = useState('default')
+  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   // Ubicaciones de la sucursal: dónde se guarda lo que llega.
   const { data: warehouses = [] } = useQuery({ queryKey: ['warehouses'], queryFn: () => fetchWarehouses() })
@@ -106,7 +109,22 @@ export const RegisterIncomingMerchandise = () => {
     () => (supplierRaw ? adaptApiSupplier(supplierRaw) : null),
     [supplierRaw]
   )
-  const paymentTermsOptions = supplierDetail?.paymentTermsList ?? []
+  const paymentTermsOptions = useMemo(
+    () => supplierDetail?.paymentTermsList ?? [],
+    [supplierDetail]
+  )
+
+  const selectSupplier = (supplierId: string) => {
+    if (supplierId !== selectedSupplierId) {
+      setItems([])
+      setPaymentStatus('PENDING')
+      setPaidAtLocal('')
+      setPaymentReference('')
+      setDueDate('')
+    }
+    setSelectedSupplierId(supplierId)
+    setSupplierPopoverOpen(false)
+  }
 
   useEffect(() => {
     if (!selectedSupplierId) {
@@ -119,7 +137,7 @@ export const RegisterIncomingMerchandise = () => {
     }
     const def = paymentTermsOptions.find((x) => x.isDefault) || paymentTermsOptions[0]
     setPaymentTermId(String(def.id))
-  }, [selectedSupplierId, supplierDetail])
+  }, [selectedSupplierId, paymentTermsOptions])
 
   useEffect(() => {
     if (paymentStatus === 'PAID' && !paidAtLocal) {
@@ -181,12 +199,11 @@ export const RegisterIncomingMerchandise = () => {
       return
     }
 
-    // Add first available product that's not already in items
-    const availableProduct = supplierProducts.find(
+    const hasAvailableProduct = supplierProducts.some(
       p => !items.some(item => item.product_id === p.id)
     )
 
-    if (!availableProduct) {
+    if (!hasAvailableProduct) {
       toast({
         title: 'Todos los productos agregados',
         description: 'Ya ha agregado todos los productos disponibles de este proveedor',
@@ -198,11 +215,11 @@ export const RegisterIncomingMerchandise = () => {
     setItems([
       ...items,
       {
-        product_id: availableProduct.id,
-        product_name: availableProduct.name,
+        product_id: '',
+        product_name: '',
         quantity: '',
-        unit_cost: availableProduct.cost?.toString() || '0',
-        tracks_expiry: availableProduct.tracksExpiry === true,
+        unit_cost: '',
+        tracks_expiry: false,
         lot_code: '',
         expiry_date: '',
       },
@@ -276,16 +293,6 @@ export const RegisterIncomingMerchandise = () => {
       return
     }
 
-    if (paymentTermsOptions.length === 0) {
-      toast({
-        title: 'Proveedor sin términos de pago',
-        description:
-          'Configura al menos un término de pago en el contacto del proveedor antes de registrar mercancía',
-        variant: 'destructive',
-      })
-      return
-    }
-
     // Validate all items
     for (const item of items) {
       if (!item.product_id) {
@@ -342,10 +349,12 @@ export const RegisterIncomingMerchandise = () => {
         })),
         notes: notes.trim() || undefined,
         location_id: locationId === 'default' ? undefined : locationId,
-        payment_term_id: Number(paymentTermId),
         payment_status: paymentStatus,
         payment_reference: paymentReference.trim() || undefined,
         due_date: dueDate ? new Date(dueDate + 'T12:00:00').toISOString() : undefined,
+      }
+      if (paymentTermId) {
+        payload.payment_term_id = Number(paymentTermId)
       }
       if (paymentStatus === 'PAID' && paidAtIso) {
         payload.paid_at = paidAtIso
@@ -425,8 +434,24 @@ export const RegisterIncomingMerchandise = () => {
 
       {/* Form */}
       <Card>
-        <CardHeader>
-          <CardTitle>Información del Ingreso</CardTitle>
+        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle>Datos del ingreso</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Selecciona proveedor, productos y cantidades. Lo contable se completa automáticamente.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+            className="w-full gap-2 sm:w-auto"
+          >
+            <Settings2 className="h-4 w-4" />
+            {advancedOpen ? 'Ocultar opciones' : 'Más opciones'}
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Supplier Selection */}
@@ -456,8 +481,7 @@ export const RegisterIncomingMerchandise = () => {
                             key={supplier.id}
                             value={supplier.name}
                             onSelect={() => {
-                              setSelectedSupplierId(supplier.id)
-                              setSupplierPopoverOpen(false)
+                              selectSupplier(supplier.id)
                             }}
                           >
                             <Check className={`mr-2 h-4 w-4 ${supplier.id === selectedSupplierId ? 'opacity-100' : 'opacity-0'}`} />
@@ -477,87 +501,99 @@ export const RegisterIncomingMerchandise = () => {
             )}
           </div>
 
-          {/* Condiciones de pago (cuenta por pagar) */}
+          {/* El estado sí es una decisión cotidiana; los detalles contables son progresivos. */}
           {selectedSupplierId && (
-            <div className="space-y-4 rounded-lg border border-border p-4 bg-muted/30">
-              <p className="text-sm font-medium text-foreground">Condiciones de pago</p>
-              {supplierDetailLoading ? (
-                <p className="text-sm text-muted-foreground">Cargando términos del proveedor…</p>
-              ) : paymentTermsOptions.length === 0 ? (
-                <p className="text-sm text-destructive">
-                  Este proveedor no tiene términos de pago asignados. Configúralos en Contactos antes de
-                  registrar.
+            <div className="space-y-3 rounded-lg border border-border p-4 bg-muted/30">
+              <div>
+                <Label>¿La compra ya fue pagada?</Label>
+                <p className="text-xs text-muted-foreground">
+                  Esto evita crear una cuenta pendiente por accidente.
                 </p>
-              ) : (
-                <>
-                  <div>
-                    <Label htmlFor="payment-term">Término de pago *</Label>
-                    <Select value={paymentTermId} onValueChange={setPaymentTermId}>
-                      <SelectTrigger id="payment-term" className="mt-1">
-                        <SelectValue placeholder="Seleccionar" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {paymentTermsOptions.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)}>
-                            {t.name}
-                            {t.isDefault ? ' (predeterminado)' : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="payment-status">Estado del pago</Label>
-                      <Select
-                        value={paymentStatus}
-                        onValueChange={(v) => setPaymentStatus(v as 'PENDING' | 'PAID')}
-                      >
-                        <SelectTrigger id="payment-status" className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PENDING">Pendiente de pago</SelectItem>
-                          <SelectItem value="PAID">Ya pagado</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {paymentStatus === 'PAID' && (
-                      <div>
-                        <Label htmlFor="paid-at">Fecha / hora del pago</Label>
-                        <Input
-                          id="paid-at"
-                          type="datetime-local"
-                          className="mt-1"
-                          value={paidAtLocal}
-                          onChange={(e) => setPaidAtLocal(e.target.value)}
-                        />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  type="button"
+                  variant={paymentStatus === 'PENDING' ? 'default' : 'outline'}
+                  onClick={() => setPaymentStatus('PENDING')}
+                >
+                  Queda pendiente
+                </Button>
+                <Button
+                  type="button"
+                  variant={paymentStatus === 'PAID' ? 'default' : 'outline'}
+                  onClick={() => setPaymentStatus('PAID')}
+                >
+                  Ya fue pagada
+                </Button>
+              </div>
+
+              {advancedOpen && (
+                <div className="space-y-4 border-t border-border pt-4">
+                  <p className="text-sm font-medium text-foreground">Documento y condiciones de pago</p>
+                  {supplierDetailLoading ? (
+                    <p className="text-sm text-muted-foreground">Cargando términos del proveedor…</p>
+                  ) : (
+                    <>
+                      {paymentTermsOptions.length > 0 ? (
+                        <div>
+                          <Label htmlFor="payment-term">Término de pago *</Label>
+                          <Select value={paymentTermId} onValueChange={setPaymentTermId}>
+                            <SelectTrigger id="payment-term" className="mt-1">
+                              <SelectValue placeholder="Seleccionar" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {paymentTermsOptions.map((t) => (
+                                <SelectItem key={t.id} value={String(t.id)}>
+                                  {t.name}{t.isDefault ? ' (predeterminado)' : ''}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-muted-foreground">
+                          Este proveedor no tiene términos configurados. El ingreso se puede registrar sin término de pago.
+                        </p>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {paymentStatus === 'PAID' && (
+                          <div>
+                            <Label htmlFor="paid-at">Fecha / hora del pago</Label>
+                            <Input
+                              id="paid-at"
+                              type="datetime-local"
+                              className="mt-1"
+                              value={paidAtLocal}
+                              onChange={(e) => setPaidAtLocal(e.target.value)}
+                            />
+                          </div>
+                        )}
+                        {paymentStatus === 'PENDING' && (
+                          <div>
+                            <Label htmlFor="due-date">Vencimiento</Label>
+                            <Input
+                              id="due-date"
+                              type="date"
+                              className="mt-1"
+                              value={dueDate}
+                              onChange={(e) => setDueDate(e.target.value)}
+                            />
+                          </div>
+                        )}
+                        <div>
+                          <Label htmlFor="payment-ref">Factura o referencia</Label>
+                          <Input
+                            id="payment-ref"
+                            placeholder="Opcional"
+                            className="mt-1"
+                            value={paymentReference}
+                            onChange={(e) => setPaymentReference(e.target.value)}
+                          />
+                        </div>
                       </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="due-date">Vencimiento (opcional)</Label>
-                      <Input
-                        id="due-date"
-                        type="date"
-                        className="mt-1"
-                        value={dueDate}
-                        onChange={(e) => setDueDate(e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="payment-ref">Referencia (factura, transferencia…)</Label>
-                      <Input
-                        id="payment-ref"
-                        placeholder="Opcional"
-                        className="mt-1"
-                        value={paymentReference}
-                        onChange={(e) => setPaymentReference(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -672,7 +708,7 @@ export const RegisterIncomingMerchandise = () => {
                             </Button>
                           </div>
                         </div>
-                        {item.product_id && (
+                        {item.product_id && (item.tracks_expiry || advancedOpen) && (
                           <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                               <Label>Nº de lote (opcional)</Label>
@@ -723,7 +759,7 @@ export const RegisterIncomingMerchandise = () => {
           </div>
 
           {/* Dónde se guarda lo que llega */}
-          {receiveLocations.length > 1 && (
+          {advancedOpen && receiveLocations.length > 1 && (
             <div>
               <Label htmlFor="receive-location">¿Dónde se guarda?</Label>
               <Select value={locationId} onValueChange={setLocationId}>
@@ -747,7 +783,7 @@ export const RegisterIncomingMerchandise = () => {
           )}
 
           {/* Notes */}
-          <div>
+          {advancedOpen && <div>
             <Label htmlFor="notes">Notas (opcional)</Label>
             <Textarea
               id="notes"
@@ -756,7 +792,7 @@ export const RegisterIncomingMerchandise = () => {
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
             />
-          </div>
+          </div>}
 
           {/* Total */}
           {items.length > 0 && (
@@ -786,7 +822,7 @@ export const RegisterIncomingMerchandise = () => {
                 items.length === 0 ||
                 !selectedSupplierId ||
                 supplierDetailLoading ||
-                (paymentTermsOptions.length === 0 && !!selectedSupplierId)
+                (paymentTermsOptions.length > 0 && !paymentTermId)
               }
               className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
             >

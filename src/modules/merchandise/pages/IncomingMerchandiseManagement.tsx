@@ -26,6 +26,7 @@ import {
   Download,
   Plus,
   Filter,
+  ChevronDown,
   X,
 } from 'lucide-react'
 import {
@@ -45,6 +46,7 @@ import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import type { IncomingMerchandise, MerchandisePaymentStatus } from '../api/incomingMerchandiseService'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 function PaymentStatusBadge({ status }: { status?: MerchandisePaymentStatus }) {
   const s = status ?? 'PENDING'
@@ -61,6 +63,7 @@ const IncomingMerchandiseManagement = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
+  const { showAdvancedByDefault } = useExperienceProfile()
   const { currencyCode, locale, timezone } = useSystemSettings()
 
   const [searchTerm, setSearchTerm] = useState('')
@@ -75,8 +78,14 @@ const IncomingMerchandiseManagement = () => {
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isFilterOpen, setIsFilterOpen] = useState(showAdvancedByDefault)
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | MerchandisePaymentStatus>('all')
+  const activeAdvancedFilters = [
+    selectedSupplierId !== 'all',
+    Boolean(startDate),
+    Boolean(endDate),
+    paymentStatusFilter !== 'all',
+  ].filter(Boolean).length
 
   const canView = hasPermission('merchandise.view')
   const canRegister = hasPermission('products.register_incoming')
@@ -224,9 +233,18 @@ const IncomingMerchandiseManagement = () => {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Filtros</CardTitle>
+        <CardHeader className="space-y-3 pb-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="search"
+                placeholder="Buscar proveedor o registro..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
             <div className="flex items-center gap-2">
               {(searchTerm ||
                 selectedSupplierId !== 'all' ||
@@ -238,29 +256,32 @@ const IncomingMerchandiseManagement = () => {
                   Limpiar
                 </Button>
               )}
-              <Button variant="outline" size="sm" onClick={() => setIsFilterOpen(!isFilterOpen)}>
+              <Button
+                variant={isFilterOpen || activeAdvancedFilters > 0 ? 'secondary' : 'outline'}
+                size="sm"
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                aria-expanded={isFilterOpen}
+              >
                 <Filter className="w-4 h-4 mr-1" />
-                {isFilterOpen ? 'Ocultar' : 'Filtros'}
+                Filtros
+                {activeAdvancedFilters > 0 && (
+                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 justify-center px-1.5">
+                    {activeAdvancedFilters}
+                  </Badge>
+                )}
+                <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
               </Button>
             </div>
           </div>
+          {!isFilterOpen && activeAdvancedFilters > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Hay {activeAdvancedFilters} filtro{activeAdvancedFilters === 1 ? '' : 's'} avanzado{activeAdvancedFilters === 1 ? '' : 's'} activo{activeAdvancedFilters === 1 ? '' : 's'}.
+            </p>
+          )}
         </CardHeader>
         {isFilterOpen && (
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="search">Búsqueda</Label>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Buscar..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="supplier">Proveedor</Label>
                 <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
