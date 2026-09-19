@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, Calculator, Save, User } from 'lucide-react'
+import { ArrowLeft, Calculator, ChevronDown, Save, Settings2, User } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -33,6 +33,7 @@ import {
 } from './components'
 import { isCashPaymentMethodName } from './types'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 export const CASH_CLOSURE_CREATE_PATH = '/cierre-caja/nuevo'
 
@@ -41,6 +42,7 @@ export function CashClosureCreatePage() {
   const { toast } = useToast()
   const { user } = useAuth()
   const { hasPermission } = useAuthPermissions()
+  const { showAdvancedByDefault } = useExperienceProfile()
   const { currencyCode, locale, cashClosureMaxDiffPct, timezone } = useSystemSettings()
 
   const form = useCashClosureForm()
@@ -73,6 +75,9 @@ export function CashClosureCreatePage() {
   })
 
   const [showConfirmSaveDialog, setShowConfirmSaveDialog] = useState(false)
+  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
+  const [showDifferenceReason, setShowDifferenceReason] = useState(false)
+  const [countedPaymentMethodIds, setCountedPaymentMethodIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     if (effectiveScope !== 'day') return
@@ -137,6 +142,8 @@ export function CashClosureCreatePage() {
     const data = await api.calculateTheoretical(form.startDate, form.endDate, cashierId, cashRegisterSessionId)
     if (data) {
       form.initializeFromTheoretical(data)
+      setCountedPaymentMethodIds(new Set())
+      setShowDifferenceReason(false)
     }
   }
 
@@ -199,6 +206,27 @@ export function CashClosureCreatePage() {
       return
     }
     const theoreticalTotal = api.theoreticalData.theoretical.net_total
+    const missingCount = form.paymentBreakdown.filter(
+      (item) => !countedPaymentMethodIds.has(item.payment_method_id)
+    ).length
+    if (missingCount > 0) {
+      toast({
+        title: 'Completa el conteo',
+        description: `Verifica el monto de ${missingCount} método${missingCount === 1 ? '' : 's'} de pago. Escribe 0 cuando corresponda.`,
+        variant: 'destructive',
+      })
+      return
+    }
+    const difference = form.getTotalDifference(theoreticalTotal)
+    if (Math.abs(difference) >= 0.005 && !form.notes.trim()) {
+      setShowDifferenceReason(true)
+      toast({
+        title: 'Explica la diferencia',
+        description: 'Escribe el motivo del faltante o sobrante antes de guardar.',
+        variant: 'destructive',
+      })
+      return
+    }
     const differencePct = form.getDifferencePercentage(theoreticalTotal)
     const isLargeDifference = theoreticalTotal > 0 && Math.abs(differencePct) > cashClosureMaxDiffPct
     if (isLargeDifference) {
@@ -212,9 +240,47 @@ export function CashClosureCreatePage() {
   const openingFloat = cashSession?.opening_float ?? 0
   const hasCashPayment =
     openingFloat > 0 || form.paymentBreakdown.some((p) => isCashPaymentMethodName(p.payment_method_name))
+  const closureDifference = api.theoreticalData
+    ? form.getTotalDifference(api.theoreticalData.theoretical.net_total)
+    : 0
+  const hasDifference = Math.abs(closureDifference) >= 0.005
 
   const fmtSessionDt = (iso: string | null | undefined) =>
     iso ? new Date(iso).toLocaleString(locale || 'es-GT', { dateStyle: 'short', timeStyle: 'short' }) : '—'
+
+  const handleDenominationUpdate = (index: number, quantity: number) => {
+    form.updateDenomination(index, quantity)
+    const countedCash = form.denominations.reduce((sum, denomination, denominationIndex) => {
+      const nextQuantity = denominationIndex === index ? quantity : denomination.quantity
+      return sum + Number(denomination.denomination) * nextQuantity
+    }, 0)
+    const cashIndex = form.paymentBreakdown.findIndex((item) =>
+      isCashPaymentMethodName(item.payment_method_name)
+    )
+    if (cashIndex >= 0) {
+      form.updateActualAmount(cashIndex, 'actual_amount', countedCash)
+      setCountedPaymentMethodIds((current) => {
+        const next = new Set(current)
+        next.add(form.paymentBreakdown[cashIndex].payment_method_id)
+        return next
+      })
+    }
+  }
+
+  const handlePaymentAmountUpdate = (
+    index: number,
+    field: 'actual_amount' | 'actual_count' | 'notes',
+    value: string | number
+  ) => {
+    form.updateActualAmount(index, field, value)
+    if (field === 'actual_amount') {
+      setCountedPaymentMethodIds((current) => {
+        const next = new Set(current)
+        next.add(form.paymentBreakdown[index].payment_method_id)
+        return next
+      })
+    }
+  }
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
@@ -227,18 +293,32 @@ export function CashClosureCreatePage() {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Registrar cierre de caja</h2>
           <p className="text-sm text-muted-foreground">
-            Pasos: 1. Período → 2. Calcular → 3. Contado → 4. Guardar
+            Revisa el turno, cuenta lo recibido y confirma la diferencia.
           </p>
         </div>
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Nuevo cierre</CardTitle>
+        <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-lg">Nuevo cierre</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">El conteo directo es suficiente para cerrar.</p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAdvancedOpen((open) => !open)}
+            aria-expanded={advancedOpen}
+            className="w-full gap-2 sm:w-auto"
+          >
+            <Settings2 className="h-4 w-4" />
+            {advancedOpen ? 'Ocultar herramientas' : 'Herramientas avanzadas'}
+            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-foreground">Paso 1 — Período</h4>
+            <h4 className="text-sm font-medium text-foreground">1 — Revisar turno</h4>
             <div className="bg-muted/50 border rounded-lg p-4">
               {effectiveScope === 'mine' ? (
                 mineClosureGate.loading ? (
@@ -337,7 +417,7 @@ export function CashClosureCreatePage() {
               )}
             </div>
 
-            {showClosureTypeSelector && (
+            {advancedOpen && showClosureTypeSelector && (
               <div className="space-y-2">
                 <Label>Tipo de cierre</Label>
                 <Select value={closureScope} onValueChange={(v: 'day' | 'mine') => setClosureScope(v)}>
@@ -416,19 +496,20 @@ export function CashClosureCreatePage() {
 
           {api.theoreticalData && (
             <>
-              <TheoreticalSummary data={api.theoreticalData} />
+              {advancedOpen && <TheoreticalSummary data={api.theoreticalData} />}
 
               <div className="space-y-3 pt-4 border-t">
-                <h4 className="text-sm font-medium text-foreground">Paso 3 — Montos contados</h4>
+                <h4 className="text-sm font-medium text-foreground">2 — Contar y verificar</h4>
                 <PaymentMethodsForm
                   paymentBreakdown={form.paymentBreakdown}
                   cashSession={cashSession}
-                  onUpdateAmount={form.updateActualAmount}
+                  showAdvancedDetails={advancedOpen}
+                  onUpdateAmount={handlePaymentAmountUpdate}
                 />
-                {hasCashPayment && (
+                {advancedOpen && hasCashPayment && (
                   <DenominationsCounter
                     denominations={form.denominations}
-                    onUpdateQuantity={form.updateDenomination}
+                    onUpdateQuantity={handleDenominationUpdate}
                     cashTotal={form.getCashTotal()}
                     openingFloat={openingFloat}
                     expectedCashInDrawer={cashSession?.expected_cash_in_drawer}
@@ -445,7 +526,7 @@ export function CashClosureCreatePage() {
                 locale={locale}
               />
 
-              <div className="border rounded-lg p-4 bg-muted/50">
+              {advancedOpen && <div className="border rounded-lg p-4 bg-muted/50">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>
@@ -453,19 +534,27 @@ export function CashClosureCreatePage() {
                     <p className="font-medium">{form.cashierName}</p>
                   </div>
                 </div>
-              </div>
+              </div>}
 
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notas (opcional)</Label>
+              {(advancedOpen || showDifferenceReason) && <div className="space-y-2">
+                <Label htmlFor="notes">
+                  {hasDifference ? 'Motivo de la diferencia *' : 'Notas (opcional)'}
+                </Label>
                 <Textarea
                   id="notes"
                   value={form.notes}
                   onChange={(e) => form.setNotes(e.target.value)}
-                  placeholder="Observaciones del cierre..."
+                  placeholder={hasDifference ? 'Explica el faltante o sobrante...' : 'Observaciones del cierre...'}
                   rows={3}
                 />
-              </div>
+                {hasDifference && (
+                  <p className="text-xs text-muted-foreground">
+                    Todo faltante o sobrante debe quedar documentado.
+                  </p>
+                )}
+              </div>}
 
+              <h4 className="text-sm font-medium text-foreground">3 — Confirmar cierre</h4>
               <Button
                 onClick={() => void handleSaveClosure()}
                 disabled={

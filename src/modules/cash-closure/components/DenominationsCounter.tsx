@@ -36,7 +36,10 @@ export const DenominationsCounter = ({
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="font-semibold">Conteo de Efectivo</h3>
+                <h3 className="font-semibold">Arqueo por denominaciones</h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                    Opcional. El total calculado actualiza automáticamente el efectivo contado.
+                </p>
                 {openingFloat > 0 && (
                     <p className="text-xs text-muted-foreground mt-1">
                         Incluya el fondo inicial ({formatCurrency(openingFloat, currencyCode, locale)}) y las ventas en

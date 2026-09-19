@@ -22,10 +22,16 @@ import { formatCurrency, isCashPaymentMethodName, toNumber } from '../types'
 interface PaymentMethodsFormProps {
     paymentBreakdown: PaymentMethodBreakdown[]
     cashSession?: TheoreticalData['cash_session']
+    showAdvancedDetails?: boolean
     onUpdateAmount: (index: number, field: 'actual_amount' | 'actual_count' | 'notes', value: string | number) => void
 }
 
-export const PaymentMethodsForm = ({ paymentBreakdown, cashSession, onUpdateAmount }: PaymentMethodsFormProps) => {
+export const PaymentMethodsForm = ({
+    paymentBreakdown,
+    cashSession,
+    showAdvancedDetails = false,
+    onUpdateAmount,
+}: PaymentMethodsFormProps) => {
     const { currencyCode, locale } = useSystemSettings()
     return (
         <div className="space-y-4">
@@ -70,11 +76,13 @@ export const PaymentMethodsForm = ({ paymentBreakdown, cashSession, onUpdateAmou
                                                 {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)})
                                             </p>
                                         )}
-                                        <p className="text-sm text-muted-foreground">{item.theoretical_count} transacciones</p>
+                                        {showAdvancedDetails && (
+                                            <p className="text-sm text-muted-foreground">{item.theoretical_count} transacciones</p>
+                                        )}
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor={`actual-${index}`}>
-                                            {isCash ? 'Efectivo total en caja' : 'Monto contado'}
+                                            {isCash ? 'Efectivo contado en caja' : 'Monto verificado'}
                                         </Label>
                                         <Input
                                             id={`actual-${index}`}
@@ -93,7 +101,7 @@ export const PaymentMethodsForm = ({ paymentBreakdown, cashSession, onUpdateAmou
                                     </div>
                                 </div>
 
-                                <div className="space-y-2">
+                                {showAdvancedDetails && <div className="space-y-2">
                                     <Label htmlFor={`notes-${index}`}>Notas</Label>
                                     <Input
                                         id={`notes-${index}`}
@@ -101,7 +109,7 @@ export const PaymentMethodsForm = ({ paymentBreakdown, cashSession, onUpdateAmou
                                         onChange={(e) => onUpdateAmount(index, 'notes', e.target.value)}
                                         placeholder="Observaciones (opcional)"
                                     />
-                                </div>
+                                </div>}
                             </div>
                         </CardContent>
                     </Card>

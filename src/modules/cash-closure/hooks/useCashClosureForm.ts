@@ -79,11 +79,6 @@ export const useCashClosureForm = (): UseCashClosureFormReturn => {
         return () => { cancelled = true }
     }, [])
 
-    // Initialize dates for today
-    useEffect(() => {
-        initializeTodayDates()
-    }, [])
-
     const initializeTodayDates = useCallback(() => {
         const now = new Date()
         const year = now.getFullYear()
@@ -93,6 +88,11 @@ export const useCashClosureForm = (): UseCashClosureFormReturn => {
         setStartDate(`${year}-${month}-${day}T00:00:00`)
         setEndDate(`${year}-${month}-${day}T23:59:59`)
     }, [])
+
+    // Initialize dates for today
+    useEffect(() => {
+        initializeTodayDates()
+    }, [initializeTodayDates])
 
     // Calculations
     const getCashTotal = useCallback(() => {
