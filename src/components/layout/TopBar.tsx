@@ -14,7 +14,8 @@
  */
 import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Wallet } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Moon, Sun, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -60,6 +61,7 @@ export const TopBar = () => {
     const navigate = useNavigate()
     const { user: roleUser } = getUserRole()
     const { user: authUser, logout } = useAuth()
+    const { resolvedTheme, setTheme } = useTheme()
     const { companyName, companyLogoUrl } = useSystemSettings()
     const { hasPermission } = useAuthPermissions()
     const canViewAlerts = hasPermission('alerts.view') || hasPermission('alerts.manage')
@@ -137,6 +139,21 @@ export const TopBar = () => {
                 {/* Zona derecha: sucursal + alertas + cuenta */}
                 <div className='flex items-center gap-1 sm:gap-2 shrink-0'>
                     <TenantSwitcher />
+
+                    <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='h-10 w-10 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                        aria-label={resolvedTheme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}
+                    >
+                        {resolvedTheme === 'dark' ? (
+                            <Sun className='h-5 w-5' aria-hidden />
+                        ) : (
+                            <Moon className='h-5 w-5' aria-hidden />
+                        )}
+                    </Button>
 
                     {/* Alertas */}
                     {canViewAlerts && (
