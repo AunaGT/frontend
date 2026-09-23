@@ -133,12 +133,20 @@ export interface TransfersResponse {
 export const fetchTransfers = (params?: {
   direction?: "in" | "out" | "all";
   status?: TransferStatus;
+  search?: string;
+  fromBranchId?: string;
+  toBranchId?: string;
   page?: number;
+  pageSize?: number;
 }) => {
   const q = new URLSearchParams();
   if (params?.direction) q.set("direction", params.direction);
   if (params?.status) q.set("status", params.status);
+  if (params?.search) q.set("search", params.search);
+  if (params?.fromBranchId) q.set("from_branch_id", params.fromBranchId);
+  if (params?.toBranchId) q.set("to_branch_id", params.toBranchId);
   if (params?.page) q.set("page", String(params.page));
+  if (params?.pageSize) q.set("pageSize", String(params.pageSize));
   const qs = q.toString();
   return apiFetch<TransfersResponse>(`/api/transfers${qs ? `?${qs}` : ""}`, { method: "GET" });
 };
