@@ -1,3 +1,4 @@
+
 # Guía para implementar el rediseño visual
 
 ## Fuente de verdad

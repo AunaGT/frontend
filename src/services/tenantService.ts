@@ -103,7 +103,7 @@ export interface TransferLine {
   product_id: string;
   qty_sent: number;
   qty_received: number | null;
-  product?: { id: string; name: string; barcode?: string | null };
+  product?: { id: string; name: string; barcode?: string | null; image_url?: string | null };
 }
 
 export interface Transfer {

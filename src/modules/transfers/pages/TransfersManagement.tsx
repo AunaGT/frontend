@@ -7,10 +7,13 @@ import {
     Check,
     ChevronLeft,
     ChevronRight,
+    Download,
     Eye,
+    FileText,
     Filter,
     LayoutGrid,
     Loader2,
+    MoreHorizontal,
     Package,
     PackageCheck,
     Plus,
@@ -51,7 +54,14 @@ import {
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useTenant } from '@/context/useTenant'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
     cancelTransfer,
     createTransfer,
@@ -62,18 +72,19 @@ import {
 } from '@/services/tenantService'
 import { fetchProducts } from '@/services/productService'
 import { fetchWarehouses } from '@/services/warehouseService'
-import { initialTransferView, visibleTransferViews, type TransferView } from '../transferViewModel'
+import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
+import { initialTransferView, transferPaginationItems, visibleTransferViews, type TransferView } from '../transferViewModel'
 
 const STATUS_LABEL: Record<TransferStatus, string> = {
     EN_TRANSITO: 'En tránsito',
-    RECIBIDA: 'Recibida',
+    RECIBIDA: 'Completada',
     CANCELADA: 'Cancelada',
 }
 
 const STATUS_STYLE: Record<TransferStatus, string> = {
-    EN_TRANSITO: 'bg-blue-500/15 text-blue-600 dark:bg-blue-500/20 dark:text-blue-300',
-    RECIBIDA: 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
-    CANCELADA: 'bg-red-500/15 text-red-600 dark:bg-red-500/20 dark:text-red-300',
+    EN_TRANSITO: 'bg-sky-500/15 text-sky-700 dark:bg-sky-500/25 dark:text-sky-300',
+    RECIBIDA: 'bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/25 dark:text-emerald-300',
+    CANCELADA: 'bg-red-500/15 text-red-700 dark:bg-red-500/25 dark:text-red-300',
 }
 
 type Draft = { product_id: string; name: string; qty: number }
@@ -98,6 +109,40 @@ function StatusBadge({ status }: { status: TransferStatus }) {
     )
 }
 
+function ProductThumb({ transfer }: { transfer: Transfer }) {
+    const imageUrl = transfer.lines[0]?.product?.image_url
+    return (
+        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-brand-orange/15 text-brand-orange">
+            <Package className="h-5 w-5" />
+            {imageUrl ? <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} /> : null}
+        </span>
+    )
+}
+
+function TransferPagination({ current, totalPages, totalItems, pageSize, count, onChange }: {
+    current: number
+    totalPages: number
+    totalItems: number
+    pageSize: number
+    count: number
+    onChange: (page: number) => void
+}) {
+    const start = totalItems ? (current - 1) * pageSize + 1 : 0
+    const end = start + count - 1
+    return (
+        <footer className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+            <span>Mostrando {start} a {end} de {totalItems} traslados</span>
+            <nav className="flex items-center gap-2" aria-label="Paginación de traslados">
+                <Button size="icon" variant="outline" className="h-10 w-10 rounded-lg" disabled={current <= 1} onClick={() => onChange(current - 1)} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" /></Button>
+                {transferPaginationItems(current, totalPages).map((item, index) => item === 'ellipsis'
+                    ? <span key={`ellipsis-${index}`} className="flex h-10 w-8 items-center justify-center">…</span>
+                    : <Button key={item} size="icon" variant="outline" className={`h-10 w-10 rounded-lg ${item === current ? 'border-brand-orange bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} aria-current={item === current ? 'page' : undefined} onClick={() => onChange(item)}>{item}</Button>)}
+                <Button size="icon" variant="outline" className="h-10 w-10 rounded-lg" disabled={current >= totalPages} onClick={() => onChange(current + 1)} aria-label="Página siguiente"><ChevronRight className="h-4 w-4" /></Button>
+            </nav>
+        </footer>
+    )
+}
+
 function EmptyState({ filtered, onCreate }: { filtered: boolean; onCreate?: () => void }) {
     return (
         <div className="rounded-2xl border border-dashed border-border bg-card/60 px-6 py-16 text-center dark:bg-[#101f34]/70">
@@ -111,6 +156,7 @@ function EmptyState({ filtered, onCreate }: { filtered: boolean; onCreate?: () =
 
 export const TransfersManagement = () => {
     const { toast } = useToast()
+    const { companyName, companyLogoUrl, locale } = useSystemSettings()
     const queryClient = useQueryClient()
     const { branch, branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
@@ -135,6 +181,7 @@ export const TransfersManagement = () => {
     const [productSearch, setProductSearch] = useState('')
     const [receivedQty, setReceivedQty] = useState<Record<string, string>>({})
     const [receiveLocation, setReceiveLocation] = useState('default')
+    const [exportingId, setExportingId] = useState<string | null>(null)
 
     const transferQuery = useQuery({
         queryKey: ['transfers', status, origin, destination, deferredSearch, page, branch?.id],
@@ -220,9 +267,26 @@ export const TransfersManagement = () => {
         receiveMutation.mutate({ id: receiving.id, lines, locationId: receiveLocation === 'default' ? undefined : receiveLocation })
     }
 
+    const downloadTransfer = async (transfer: Transfer) => {
+        try {
+            setExportingId(transfer.id)
+            const [{ generateTransferPDF }, logoDataUrl] = await Promise.all([
+                import('../documents/generateTransferPDF'),
+                resolvePdfLogoDataUrl(companyLogoUrl),
+            ])
+            generateTransferPDF(transfer, { companyName, logoDataUrl, locale })
+        } catch (error) {
+            toast({ title: 'No se pudo generar el comprobante', description: error instanceof Error ? error.message : undefined, variant: 'destructive' })
+        } finally {
+            setExportingId(null)
+        }
+    }
+
     const transfers = transferQuery.data?.items ?? []
     const totalItems = transferQuery.data?.totalItems ?? 0
     const totalPages = transferQuery.data?.totalPages ?? 1
+    const currentPage = transferQuery.data?.page ?? page
+    const pageSize = transferQuery.data?.pageSize ?? 10
 
     return (
         <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
@@ -265,8 +329,8 @@ export const TransfersManagement = () => {
                     <EmptyState filtered={hasFilters} onCreate={canCreate && branch ? () => setCreateOpen(true) : undefined} />
                 ) : (
                     <>
-                        {visibleViews.table ? <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]">
-                            <table className="w-full min-w-[1050px] text-sm">
+                        {visibleViews.table ? <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]">
+                            <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-sm">
                                 <thead className="bg-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-white/5"><tr><th className="px-5 py-4">Folio</th><th className="px-5 py-4">Fecha</th><th className="px-5 py-4">Origen</th><th className="w-8 px-1 py-4" aria-label="Dirección" /><th className="px-5 py-4">Destino</th><th className="px-5 py-4">Productos</th><th className="px-5 py-4">Estado</th><th className="px-5 py-4 text-right">Acciones</th></tr></thead>
                                 <tbody className="divide-y divide-border/70">
                                     {transfers.map((transfer) => {
@@ -277,13 +341,23 @@ export const TransfersManagement = () => {
                                             <td className="px-5 py-4 font-medium">{transfer.fromBranch?.name ?? '—'}</td>
                                             <td className="px-1 py-4"><ArrowRight className="h-4 w-4 text-muted-foreground" /></td>
                                             <td className="px-5 py-4 font-medium">{transfer.toBranch?.name ?? '—'}</td>
-                                            <td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-orange/15 text-brand-orange"><Package className="h-4 w-4" /></span><span><strong className="font-medium">{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} unidades</small></span></div></td>
+                                            <td className="px-5 py-4"><div className="flex items-center gap-3"><ProductThumb transfer={transfer} /><span><strong className="font-medium">{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} unidades</small></span></div></td>
                                             <td className="px-5 py-4"><StatusBadge status={transfer.status} /></td>
-                                            <td className="px-5 py-4"><div className="flex justify-end gap-2"><Button size="icon" variant="outline" className="rounded-lg" aria-label={`Ver ${transfer.reference}`} onClick={() => setSelected(transfer)}><Eye className="h-4 w-4" /></Button>{transfer.status === 'EN_TRANSITO' && incoming && canReceive ? <Button size="sm" className="rounded-lg bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => openReceive(transfer)}>Recibir</Button> : null}{transfer.status === 'EN_TRANSITO' && !incoming && canCancel ? <Button size="icon" variant="outline" className="rounded-lg text-red-500 hover:text-red-600" aria-label={`Cancelar ${transfer.reference}`} onClick={() => setCancelling(transfer)}><X className="h-4 w-4" /></Button> : null}</div></td>
+                                            <td className="px-5 py-4"><div className="flex justify-end gap-2">
+                                                <Button size="icon" variant="outline" className="rounded-lg" aria-label={`Ver ${transfer.reference}`} onClick={() => setSelected(transfer)}><Eye className="h-4 w-4" /></Button>
+                                                <Button size="icon" variant="outline" className="rounded-lg" aria-label={`Descargar comprobante ${transfer.reference}`} disabled={exportingId === transfer.id} onClick={() => void downloadTransfer(transfer)}>{exportingId === transfer.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}</Button>
+                                                <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="outline" className="rounded-lg" aria-label={`Más acciones para ${transfer.reference}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => setSelected(transfer)}><Eye className="mr-2 h-4 w-4" />Ver detalle</DropdownMenuItem>
+                                                    <DropdownMenuItem onClick={() => void downloadTransfer(transfer)}><Download className="mr-2 h-4 w-4" />Descargar PDF</DropdownMenuItem>
+                                                    {transfer.status === 'EN_TRANSITO' && incoming && canReceive ? <DropdownMenuItem onClick={() => openReceive(transfer)}><PackageCheck className="mr-2 h-4 w-4" />Recibir traslado</DropdownMenuItem> : null}
+                                                    {transfer.status === 'EN_TRANSITO' && !incoming && canCancel ? <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={() => setCancelling(transfer)}><X className="mr-2 h-4 w-4" />Cancelar traslado</DropdownMenuItem> : null}
+                                                </DropdownMenuContent></DropdownMenu>
+                                            </div></td>
                                         </tr>
                                     })}
                                 </tbody>
-                            </table>
+                            </table></div>
+                            <TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} />
                         </div> : null}
 
                         {visibleViews.cards ? <div className="grid gap-4 lg:grid-cols-2">
@@ -296,10 +370,7 @@ export const TransfersManagement = () => {
                             ))}
                         </div> : null}
 
-                        <footer className="flex flex-col gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm dark:bg-[#101f34] sm:flex-row sm:items-center sm:justify-between">
-                            <span>Mostrando {transfers.length} de {totalItems} traslados</span>
-                            <div className="flex items-center gap-2"><Button size="icon" variant="outline" className="rounded-lg" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-20 text-center font-medium text-foreground">{page} de {totalPages}</span><Button size="icon" variant="outline" className="rounded-lg" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)}><ChevronRight className="h-4 w-4" /></Button></div>
-                        </footer>
+                        {visibleViews.cards ? <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]"><TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} /></div> : null}
                     </>
                 )}
             </div>
