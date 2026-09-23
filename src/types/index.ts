@@ -16,10 +16,7 @@ export * from "./supplier";
 export * from "./alert";
 export * from "./auth";
 
-import type { ComponentType, SVGProps } from "react";
 import type { ModuleIconComponent } from "@/components/icons/CustomIcons";
-
-export type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 // Tipos específicos para componentes principales
 export interface DashboardProps {
@@ -45,16 +42,6 @@ export interface GeneratedReport {
   date: string;
   size: string;
   status: string;
-}
-
-// Tipos para análisis/estadísticas del dashboard
-export interface DashboardStat {
-  title: string;
-  value: string;
-  change: string;
-  trending: "up" | "down";
-  icon: IconComponent;
-  color: string;
 }
 
 export interface RecentProduct {

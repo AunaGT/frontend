@@ -9,7 +9,7 @@ const moduleNames = fs.readdirSync(modulesRoot, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(modulesRoot, entry.name, 'manifest.ts')))
   .map((entry) => entry.name)
 
-assert.equal(moduleNames.length, 23, 'Deben existir exactamente 23 manifiestos de módulos')
+assert.equal(moduleNames.length, 22, 'Deben existir exactamente 22 manifiestos de módulos')
 
 for (const moduleName of moduleNames) {
   const manifestPath = path.join(modulesRoot, moduleName, 'manifest.ts')

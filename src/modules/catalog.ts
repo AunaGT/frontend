@@ -6,7 +6,6 @@ import { cashClosureModule } from './cash-closure/manifest'
 import { catalogsModule } from './catalogs/manifest'
 import { configModule } from './config/manifest'
 import { contactsModule } from './contacts/manifest'
-import { dashboardModule } from './dashboard/manifest'
 import { hrModule } from './hr/manifest'
 import { inventoryCountModule } from './inventory-count/manifest'
 import { inventoryModule } from './inventory/manifest'
@@ -23,7 +22,6 @@ import { transfersModule } from './transfers/manifest'
 import { usersModule } from './users/manifest'
 
 export const MODULE_MANIFESTS = [
-  dashboardModule,
   inventoryModule,
   catalogsModule,
   contactsModule,
@@ -94,7 +92,6 @@ export {
   catalogsModule,
   configModule,
   contactsModule,
-  dashboardModule,
   hrModule,
   inventoryCountModule,
   inventoryModule,

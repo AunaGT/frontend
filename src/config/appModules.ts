@@ -13,7 +13,6 @@
  * Defines all available modules with their routes, icons, and colors
  */
 import {
-    DashboardIcon,
     VentasIcon,
     CotizacionesIcon,
     PedidosIcon,
@@ -49,7 +48,6 @@ import {
     catalogsModule,
     configModule,
     contactsModule,
-    dashboardModule,
     hrModule,
     inventoryCountModule,
     inventoryModule,
@@ -92,16 +90,6 @@ export interface AppModule {
 }
 
 export const appModules: AppModule[] = [
-    {
-        id: dashboardModule.code,
-        label: 'Dashboard',
-        path: dashboardModule.paths.list,
-        icon: DashboardIcon,
-        color: 'bg-sky-100/90',
-        iconColor: 'text-sky-800',
-        // Solo visible si el usuario tiene permisos de analíticas
-        permissions: ['analytics.view']
-    },
     {
         id: salesModule.code,
         label: 'Ventas',
@@ -212,7 +200,8 @@ export const appModules: AppModule[] = [
         icon: AnalyticsIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-800',
-        permissions: ['analytics.view']
+        permissions: ['analytics.view'],
+        routePrefixes: [...analyticsModule.routePrefixes]
     },
     {
         id: accountingModule.code,

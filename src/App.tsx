@@ -36,7 +36,6 @@ import {
   catalogsModule,
   configModule,
   contactsModule,
-  dashboardModule,
   hrModule,
   inventoryCountModule,
   inventoryModule,
@@ -55,7 +54,6 @@ import {
 
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
-const Dashboard = dashboardModule.pages.Management;
 const OrdersManagement = ordersModule.pages.Management;
 const OrderDetailPage = ordersModule.pages.Detail;
 const InventoryCountListPage = inventoryCountModule.pages.Management;
@@ -151,15 +149,8 @@ const App = () => (
                 {/* Mi perfil - sin permisos: todo usuario puede verse a sí mismo */}
                 <Route path="/mi-perfil" element={<MyProfilePage />} />
 
-                {/* Dashboard - requiere ver analíticas */}
-                <Route
-                  path={dashboardModule.paths.list}
-                  element={
-                    <PermissionRoute any={["analytics.view"]}>
-                      <Dashboard />
-                    </PermissionRoute>
-                  }
-                />
+                {/* Alias temporal: Análisis es la única pantalla canónica. */}
+                <Route path="/dashboard" element={<Navigate to={analyticsModule.paths.list} replace />} />
 
                 {/* Sales */}
                 <Route

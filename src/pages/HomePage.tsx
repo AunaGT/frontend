@@ -29,7 +29,6 @@ import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
 
 const MODULE_DESCRIPTIONS: Record<string, string> = {
-    dashboard: 'Indicadores y desempeño',
     sales: 'Ventas, cobros y facturación',
     quotes: 'Propuestas y seguimiento',
     orders: 'Pedidos y entregas',

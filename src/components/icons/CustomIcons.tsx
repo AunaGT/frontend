@@ -51,8 +51,6 @@ function createModuleIcon(
 
 const base = '/icons/modules'
 
-// Papirus apps: org.gnome.baobab.svg (resumen / proporciones)
-export const DashboardIcon = createModuleIcon(`${base}/dashboard.svg`, 'DashboardIcon')
 // Ícono propio estilo Papirus: carrito lateral (ventas)
 export const VentasIcon = createModuleIcon(`${base}/ventas.svg`, 'VentasIcon')
 // Papirus mimetypes: x-office-document.svg (documento comercial / propuesta)

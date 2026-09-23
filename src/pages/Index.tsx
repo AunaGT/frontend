@@ -10,7 +10,6 @@
 
 import { useState } from "react";
 import Header from "@/components/Header";
-import { dashboardModule } from "@/modules/dashboard/manifest";
 import { alertsModule } from "@/modules/alerts/manifest";
 import { analyticsModule } from "@/modules/analytics/manifest";
 import { promotionsModule } from "@/modules/promotions/manifest";
@@ -23,7 +22,6 @@ import { usersModule } from "@/modules/users/manifest";
 import { catalogsModule } from "@/modules/catalogs/manifest";
 import { cashClosureModule } from "@/modules/cash-closure/manifest";
 
-const Dashboard = dashboardModule.pages.Management;
 const AlertsManagement = alertsModule.pages.Management;
 const Analytics = analyticsModule.pages.Management;
 const PromotionsManagement = promotionsModule.pages.Management;
@@ -38,7 +36,7 @@ const CatalogsManagement = catalogsModule.pages.Management;
 const CashClosureManagement = cashClosureModule.pages.Management;
 
 const Index = () => {
-  const [activeSection, setActiveSectionState] = useState("dashboard");
+  const [activeSection, setActiveSectionState] = useState("analytics");
 
   // determine role from localStorage
   let storedUser = null;
@@ -59,8 +57,6 @@ const Index = () => {
 
   const renderContent = () => {
     switch (activeSection) {
-      case "dashboard":
-        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Dashboard onSectionChange={setActiveSection} />;
       case "products":
       case "inventory":
         return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <ProductManagement />;
@@ -85,7 +81,7 @@ const Index = () => {
       case "promotions":
         return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <PromotionsManagement />;
       default:
-        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Dashboard />;
+        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Analytics />;
     }
   };
 
