@@ -32,8 +32,10 @@ export type Order = {
     id: string;
     name: string;
     tax_id?: string | null;
+    contact?: string | null;
     email?: string | null;
     phone?: string | null;
+    address?: string | null;
   } | null;
   sales_channel: string;
   subtotal?: number | string | null;
@@ -93,6 +95,7 @@ export type OrdersListResponse = {
   totalItems: number;
   nextPage: number | null;
   prevPage: number | null;
+  summary?: Partial<Record<OrderStatus, number>>;
 };
 
 export type ConvertOrderToSalePayload = {
@@ -102,6 +105,47 @@ export type ConvertOrderToSalePayload = {
   lines?: Array<{ line_id: string; qty: number }>;
   /** Caja seleccionada en el POS; valida el turno contra ella */
   cash_register_id?: string;
+};
+
+export type PublicOrder = {
+  reference?: string | null;
+  status: OrderStatus;
+  created_at: string;
+  updated_at: string;
+  confirmed_at?: string | null;
+  valid_until?: string | null;
+  customer?: string | null;
+  customer_nit?: string | null;
+  is_final_consumer: boolean;
+  customer_contact?: {
+    name?: string | null;
+    contact?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    address?: string | null;
+  } | null;
+  sales_channel?: string | null;
+  branch?: { name: string; code: string } | null;
+  subtotal?: number | string | null;
+  discount_total?: number | string | null;
+  total: number | string;
+  notes?: string | null;
+  company_name: string;
+  company_logo_url?: string;
+  lines: Array<{
+    product_name?: string | null;
+    barcode?: string | null;
+    qty: number;
+    qty_fulfilled: number;
+    unit_price: number | string;
+    line_total: number | string;
+  }>;
+  sales: Array<{
+    reference?: string | null;
+    total?: number | string;
+    date?: string | null;
+    status?: string | null;
+  }>;
 };
 
 export function pendingOrderLineQty(line: QuoteLine): number {
@@ -133,18 +177,52 @@ export async function fetchOrders(params?: {
   pageSize?: number;
   status?: string;
   search?: string;
+  customerContactId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  preparationStatus?: string;
+  deliveryStatus?: string;
+  sort?: "created_desc" | "created_asc" | "total_desc" | "total_asc";
 }): Promise<OrdersListResponse> {
   const q = new URLSearchParams();
   if (params?.page != null) q.set("page", String(params.page));
   if (params?.pageSize != null) q.set("pageSize", String(params.pageSize));
   if (params?.status) q.set("status", params.status);
   if (params?.search) q.set("search", params.search);
+  if (params?.customerContactId) q.set("customer_contact_id", params.customerContactId);
+  if (params?.dateFrom) q.set("date_from", params.dateFrom);
+  if (params?.dateTo) q.set("date_to", params.dateTo);
+  if (params?.preparationStatus) q.set("preparation_status", params.preparationStatus);
+  if (params?.deliveryStatus) q.set("delivery_status", params.deliveryStatus);
+  if (params?.sort) q.set("sort", params.sort);
   const qs = q.toString();
   return apiFetch<OrdersListResponse>(`/api/orders${qs ? `?${qs}` : ""}`, { method: "GET" });
 }
 
 export async function fetchOrderById(idOrRef: string): Promise<Order> {
   return apiFetch<Order>(`/api/orders/${encodeURIComponent(idOrRef)}`, { method: "GET" });
+}
+
+export async function fetchPublicOrder(token: string): Promise<PublicOrder> {
+  const base = import.meta.env.VITE_API_URL ?? "";
+  const path = `/orders/public/${encodeURIComponent(token)}`;
+  const url = base.endsWith("/") ? `${base.slice(0, -1)}${path}` : `${base}${path}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    let message = "Pedido no disponible";
+    try {
+      const body = await response.json() as { message?: string };
+      if (body.message) message = body.message;
+    } catch {
+      // La vista pública presenta un mensaje neutro si el backend no devuelve JSON.
+    }
+    throw new Error(message);
+  }
+  return response.json() as Promise<PublicOrder>;
+}
+
+export async function fetchOrderShareLink(id: string): Promise<{ public_token: string; public_url: string }> {
+  return apiFetch(`/api/orders/${encodeURIComponent(id)}/share-link`, { method: "GET" });
 }
 
 export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
