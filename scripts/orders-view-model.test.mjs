@@ -56,8 +56,10 @@ test('calcula pagos del pedido desde ventas al contado y abonos', async () => {
   assert.deepEqual(orderPaymentSummary(500, [
     { sale: { adjusted_total: 200, payment_status: 'PAID', paymentEntries: [] } },
     { sale: { adjusted_total: 250, payment_status: 'PARTIAL', paymentEntries: [{ amount: 75 }] } },
-  ]), { paid: 275, balance: 225, percentage: 55 })
+  ]), { invoiced: 450, unbilled: 50, paid: 275, balance: 175, percentage: 61 })
   assert.deepEqual(orderPaymentSummary(100, [
     { sale: { payment_status: 'PARTIAL', paymentEntries: [{ amount: -5 }] } },
-  ]), { paid: 0, balance: 100, percentage: 0 })
+  ]), { invoiced: 0, unbilled: 100, paid: 0, balance: 0, percentage: 0 })
+  assert.deepEqual(orderPaymentSummary(1000, []), { invoiced: 0, unbilled: 1000, paid: 0, balance: 0, percentage: 0 })
+  assert.equal(orderPaymentSummary(100, [{ sale: { adjusted_total: 100, payment_status: 'PAID', status: { name: 'Cancelada' } } }]).balance, 0)
 })

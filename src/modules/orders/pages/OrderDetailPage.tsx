@@ -77,8 +77,10 @@ import {
   num,
   pendingOrderLineQty,
   updateOrderAdminDetails,
+  reverseOrderDelivery,
 } from "@/services/orderService";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
+import { OrderOperations } from "../components/OrderOperations";
 import { generateOrderPDF } from "../documents/generateOrderPDF";
 import { buildOrderMailto, orderPaymentSummary, orderProgressStep, orderVisualState, paginateOrderLines } from "../ordersViewModel";
 
@@ -105,6 +107,7 @@ export default function OrderDetailPage() {
   const [cashRegisterId, setCashRegisterId] = useState<string>("");
   const [shareAction, setShareAction] = useState<"copy" | "share" | "email" | null>(null);
   const [linePage, setLinePage] = useState(1);
+  const [deliveryToReverse, setDeliveryToReverse] = useState<string | null>(null);
   const [linePageSize, setLinePageSize] = useState(10);
   const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
   const [adminDraft, setAdminDraft] = useState({
@@ -124,7 +127,7 @@ export default function OrderDetailPage() {
 
   const hasSales = (order?.documentSales?.length ?? 0) > 0;
   const canRegisterSale =
-    order && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
+    order && order.fulfillment_mode !== 'SEPARATE' && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
 
   // Este botón vende directo desde el pedido, sin pasar por el selector de
   // caja de "Abrir en POS" — necesita saber solas cuáles cajas puede usar
@@ -272,6 +275,12 @@ export default function OrderDetailPage() {
     onError: (e: Error) => toast({ title: "Error al vender", description: e.message, variant: "destructive" }),
   });
 
+  const reverseDeliveryMutation = useMutation({
+    mutationFn: () => reverseOrderDelivery(order!.id, deliveryToReverse!),
+    onSuccess: () => { invalidate(); setDeliveryToReverse(null); toast({ title: 'Entrega revertida', description: 'Las existencias y cantidades pendientes fueron restauradas.' }); },
+    onError: (error: Error) => toast({ title: 'No se pudo revertir la entrega', description: error.message, variant: 'destructive' }),
+  });
+
   if (isLoading) return <p className="p-6 text-muted-foreground">Cargando pedido…</p>;
   if (isError || !order) return <p className="p-6 text-destructive">Pedido no encontrado.</p>;
 
@@ -389,6 +398,7 @@ export default function OrderDetailPage() {
 
         <section className="flex flex-wrap items-end gap-2 rounded-2xl border border-border/70 bg-card p-3 shadow-sm dark:bg-[#101f34] print:hidden">
           {canManage ? <div className="min-w-[210px] space-y-1"><Label htmlFor="order-status">Estado del pedido</Label><Select value={order.status} onValueChange={changeStatus} disabled={confirmMutation.isPending || cancelMutation.isPending || statusOptions.length === 1}><SelectTrigger id="order-status" className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status === "DRAFT" ? "Borrador" : status === "CONFIRMED" ? "Confirmado" : status === "CANCELLED" ? "Cancelado" : status}</SelectItem>)}</SelectContent></Select></div> : null}
+          {order.fulfillment_mode === 'SEPARATE' && <OrderOperations order={order} />}
           {canRegisterSale && canManage && canSell ? <>
             <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/ventas/nueva?pedido=${encodeURIComponent(order.reference ?? order.id)}`)}><ShoppingCart className="mr-2 h-4 w-4" />Abrir en POS</Button>
             <Button className="rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={openSaleDialog} disabled={noUsableCashRegister} title={noUsableCashRegister ? "No tenés un turno de caja abierto. Abrí caja desde Abrir en POS primero." : undefined}><Receipt className="mr-2 h-4 w-4" />Registrar venta</Button>
@@ -462,12 +472,35 @@ export default function OrderDetailPage() {
 
           <aside className="space-y-4">
             <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Despacho y entrega</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent className="space-y-3 text-sm"><InfoRow label="Transportista" value={order.delivery_carrier || "—"} /><InfoRow label="Guía de envío" value={order.delivery_tracking_number || "—"} /><InfoRow label="Salida" value={order.delivery_dispatched_at ? formatDateTime(order.delivery_dispatched_at, undefined, locale) : "—"} /><InfoRow label="Entrega estimada" value={order.delivery_estimated_at ? formatDateTime(order.delivery_estimated_at, undefined, locale) : "—"} /><InfoRow label="Dirección" value={order.delivery_address || order.customerContact?.address || "—"} /><InfoRow label="Estado" value={deliveryLabel} /></CardContent></Card>
-            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><DollarSign className="h-5 w-5 text-emerald-500" />Pagos</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><InfoRow label="Total del pedido" value={fmt(total)} /><InfoRow label="Pagado" value={fmt(paymentSummary.paid)} /><div className="flex items-center justify-between text-base font-bold"><span>Saldo pendiente</span><span>{fmt(paymentSummary.balance)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-500 transition-[width]" style={{ width: `${paymentSummary.percentage}%` }} /></div><p className="text-right text-xs text-muted-foreground">{paymentSummary.percentage}% pagado</p>{order.documentSales?.length ? <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">{order.documentSales.map((link) => link.sale?.id ? <Button key={link.id} variant="outline" size="sm" className="rounded-lg" onClick={() => navigate(`/ventas/${link.sale!.id}/factura`)}>{link.sale.reference ?? link.sale.id.slice(0, 8)}</Button> : null)}</div> : <p className="text-muted-foreground">Todavía no hay ventas ni pagos vinculados.</p>}</CardContent></Card>
+            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><DollarSign className="h-5 w-5 text-emerald-500" />Facturación y cartera</CardTitle></CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <InfoRow label="Total del pedido" value={fmt(total)} />
+                <InfoRow label="Ventas vigentes (neto)" value={fmt(paymentSummary.invoiced)} />
+                <InfoRow label="Pagado / aplicado" value={fmt(paymentSummary.paid)} />
+                <div className="flex items-center justify-between text-base font-bold"><span>Saldo por cobrar</span><span>{fmt(paymentSummary.balance)}</span></div>
+                <p className="text-xs text-muted-foreground">El saldo corresponde únicamente a ventas emitidas. Los importes del pedido todavía sin facturar no son deuda.</p>
+                <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${paymentSummary.percentage}%` }} /></div>
+                <p className="text-right text-xs text-muted-foreground">{paymentSummary.percentage}% aplicado a ventas vigentes</p>
+                {order.documentSales?.length ? <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">{order.documentSales.map(link => link.sale?.id ? <Button key={link.id} variant="outline" size="sm" className="rounded-lg" onClick={() => navigate(`/ventas/${link.sale!.id}/factura`)}>{link.sale.reference ?? link.sale.id.slice(0, 8)}</Button> : null)}</div> : <p className="text-muted-foreground">Sin ventas emitidas. No hay saldo por cobrar.</p>}
+              </CardContent>
+            </Card>
+            {order.fulfillment_mode === 'SEPARATE' && <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+              <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Entregas registradas</CardTitle></CardHeader>
+              <CardContent className="max-h-72 space-y-3 overflow-y-auto text-sm">{order.deliveries?.length ? order.deliveries.map((delivery, index) => <div key={delivery.id} className="rounded-xl border border-border/70 p-3">
+                <p className="font-medium">Entrega {order.deliveries!.length - index}{delivery.reversed_at ? ' · Revertida' : ''}</p><p className="text-xs text-muted-foreground">{formatDateTime(delivery.created_at, undefined, locale)}</p>
+                {delivery.lines.map(line => <p key={line.document_line_id}>{order.lines.find(item => item.id === line.document_line_id)?.product?.name || 'Producto'}: {line.qty}</p>)}
+                {canManage && !delivery.reversed_at && delivery.lines.every(line => line.qty_invoiced === 0) && <Button variant="outline" size="sm" className="mt-2" onClick={() => setDeliveryToReverse(delivery.id)}>Revertir entrega</Button>}
+              </div>) : <p className="text-muted-foreground">Todavía no se han registrado entregas.</p>}</CardContent>
+            </Card>}
             <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Link2 className="h-5 w-5 text-brand-orange" />Seguimiento del cliente</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Comparte una vista de solo lectura con el estado y las partidas del pedido.</p><Button variant="outline" className="w-full rounded-xl" disabled={shareAction !== null} onClick={() => void handlePublicAction("copy")}><ClipboardCopy className="mr-2 h-4 w-4" />Copiar enlace público</Button></CardContent></Card>
             <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-lg">Notas</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent><p className="whitespace-pre-wrap text-sm text-muted-foreground">{order.notes || "Sin notas para este pedido."}</p></CardContent></Card>
           </aside>
         </div>
 
+      <Dialog open={deliveryToReverse !== null} onOpenChange={open => { if (!open && !reverseDeliveryMutation.isPending) setDeliveryToReverse(null); }}>
+        <DialogContent><DialogHeader><DialogTitle>Revertir entrega</DialogTitle><DialogDescription>Confirma que los productos permanecen en bodega o ya fueron recibidos de vuelta. Se restaurará el inventario y quedarán pendientes de entregar en el pedido.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={reverseDeliveryMutation.isPending} onClick={() => setDeliveryToReverse(null)}>Cancelar</Button><Button disabled={reverseDeliveryMutation.isPending} onClick={() => reverseDeliveryMutation.mutate()}>Confirmar reversión</Button></DialogFooter></DialogContent>
+      </Dialog>
       <Dialog open={adminDetailsOpen} onOpenChange={setAdminDetailsOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Despacho y notas del pedido</DialogTitle><DialogDescription>Actualiza la información operativa visible para administración.</DialogDescription></DialogHeader>

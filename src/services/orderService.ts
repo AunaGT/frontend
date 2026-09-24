@@ -16,6 +16,8 @@ export type OrderStatus =
   | "EXPIRED";
 
 export type Order = {
+  fulfillment_mode?: 'LEGACY' | 'SEPARATE';
+  deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number; qty_invoiced: number }> }>;
   id: string;
   reference?: string | null;
   branch_id?: string;
@@ -70,7 +72,7 @@ export type Order = {
   createdBy?: { id: string; name: string; email?: string };
   created_at: string;
   updated_at: string;
-  lines: QuoteLine[];
+  lines: Array<QuoteLine & { qty_invoiced?: number }>;
   stock_reservations?: Array<{
     id: string;
     product_id: string;
@@ -287,4 +289,16 @@ export async function convertOrderToSale(
     method: "POST",
     body: JSON.stringify(payload),
   });
+}
+
+export function deliverOrder(id: string, payload: { request_key: string; lines: Array<{ line_id: string; qty: number }> }) {
+  return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export function reverseOrderDelivery(id: string, deliveryId: string) {
+  return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/reverse`, { method: 'POST', body: '{}' });
+}
+
+export function invoiceOrder(id: string, payload: ConvertOrderToSalePayload & { request_key: string; due_date?: string }) {
+  return apiFetch<{ order: Order; sale: { id: string; reference?: string } }>(`/api/orders/${encodeURIComponent(id)}/invoices`, { method: 'POST', body: JSON.stringify(payload) });
 }

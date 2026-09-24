@@ -38,15 +38,17 @@ export const paginateOrderLines = <T>(items: T[], requestedPage: number, request
 
 export const orderPaymentSummary = (
   orderTotal: number,
-  links: Array<{ sale?: { adjusted_total?: number | string; payment_status?: string; paymentEntries?: Array<{ amount: number | string }> } }>,
+  links: Array<{ sale?: { adjusted_total?: number | string; status?: { name: string }; payment_status?: string; paymentEntries?: Array<{ amount: number | string }> } }>,
 ) => {
-  const total = Math.max(0, Number(orderTotal) || 0)
-  const paid = Math.max(0, Math.min(total, links.reduce((sum, { sale }) => {
-    if (!sale) return sum
-    if (sale.payment_status === 'PAID') return sum + (Number(sale.adjusted_total) || 0)
-    return sum + (sale.paymentEntries || []).reduce((entrySum, entry) => entrySum + (Number(entry.amount) || 0), 0)
-  }, 0)))
-  return { paid, balance: Math.max(0, total - paid), percentage: total ? Math.round((paid / total) * 100) : 0 }
+  const active = links.flatMap(({ sale }) => sale && (!sale.status || sale.status.name === 'Completada') ? [sale] : [])
+  const invoiced = active.reduce((sum, sale) => sum + Math.max(0, Number(sale.adjusted_total) || 0), 0)
+  const paid = active.reduce((sum, sale) => {
+    const total = Math.max(0, Number(sale.adjusted_total) || 0)
+    return sum + (sale.payment_status === 'PAID' ? total : Math.max(0, Math.min(total,
+      (sale.paymentEntries || []).reduce((value, entry) => value + (Number(entry.amount) || 0), 0))))
+  }, 0)
+  return { invoiced, unbilled: Math.max(0, orderTotal - invoiced), paid,
+    balance: Math.max(0, invoiced - paid), percentage: invoiced ? Math.round((paid / invoiced) * 100) : 0 }
 }
 
 export const buildOrderMailto = (publicUrl: string, reference?: string | null, customerEmail?: string | null) => {

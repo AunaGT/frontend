@@ -1015,6 +1015,10 @@ export default function NewSalePage() {
         })
         return
       }
+      if (order.fulfillment_mode === 'SEPARATE') {
+        toast({ title: 'Pedido con entregas independientes', description: 'Registra las entregas y factura sus cantidades desde el detalle del pedido.' })
+        return
+      }
       const prices: Record<string, number> = {}
       const lines: { productId: string; qty: number }[] = []
       const map = new Map<string, string>()
