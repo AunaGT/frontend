@@ -35,3 +35,29 @@ test('crea paginación compacta', async () => {
   assert.deepEqual(orderPaginationItems(6, 12), [1, 'ellipsis', 4, 5, 6, 7, 8, 'ellipsis', 12])
   assert.deepEqual(orderPaginationItems(12, 12), [1, 'ellipsis', 8, 9, 10, 11, 12])
 })
+
+test('pagina partidas sin perder el total real', async () => {
+  const { paginateOrderLines } = await import(moduleUrl)
+  const lines = Array.from({ length: 23 }, (_, index) => ({ id: `line-${index + 1}` }))
+
+  assert.deepEqual(paginateOrderLines(lines, 2, 10), {
+    items: lines.slice(10, 20),
+    page: 2,
+    pageSize: 10,
+    totalItems: 23,
+    totalPages: 3,
+  })
+  assert.equal(paginateOrderLines(lines, 99, 10).page, 3)
+})
+
+test('calcula pagos del pedido desde ventas al contado y abonos', async () => {
+  const { orderPaymentSummary } = await import(moduleUrl)
+
+  assert.deepEqual(orderPaymentSummary(500, [
+    { sale: { adjusted_total: 200, payment_status: 'PAID', paymentEntries: [] } },
+    { sale: { adjusted_total: 250, payment_status: 'PARTIAL', paymentEntries: [{ amount: 75 }] } },
+  ]), { paid: 275, balance: 225, percentage: 55 })
+  assert.deepEqual(orderPaymentSummary(100, [
+    { sale: { payment_status: 'PARTIAL', paymentEntries: [{ amount: -5 }] } },
+  ]), { paid: 0, balance: 100, percentage: 0 })
+})

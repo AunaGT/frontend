@@ -42,12 +42,20 @@ export type Order = {
   discount_total?: number | string | null;
   total: number | string;
   notes?: string | null;
+  delivery_carrier?: string | null;
+  delivery_tracking_number?: string | null;
+  delivery_address?: string | null;
+  delivery_dispatched_at?: string | null;
+  delivery_estimated_at?: string | null;
   documentSales?: Array<{
     id: string;
     sale?: {
       id: string;
       reference?: string | null;
       total?: number | string;
+      adjusted_total?: number | string;
+      payment_status?: "PENDING" | "PARTIAL" | "PAID";
+      paymentEntries?: Array<{ amount: number | string }>;
       date?: string;
       status?: { name: string };
     };
@@ -105,6 +113,15 @@ export type ConvertOrderToSalePayload = {
   lines?: Array<{ line_id: string; qty: number }>;
   /** Caja seleccionada en el POS; valida el turno contra ella */
   cash_register_id?: string;
+};
+
+export type OrderAdminDetailsPayload = {
+  delivery_carrier?: string | null;
+  delivery_tracking_number?: string | null;
+  delivery_address?: string | null;
+  delivery_dispatched_at?: string | null;
+  delivery_estimated_at?: string | null;
+  notes?: string | null;
 };
 
 export type PublicOrder = {
@@ -235,6 +252,13 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
 export async function updateOrder(id: string, payload: CreateOrderPayload): Promise<Order> {
   return apiFetch<Order>(`/api/orders/${encodeURIComponent(id)}`, {
     method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateOrderAdminDetails(id: string, payload: OrderAdminDetailsPayload): Promise<Order> {
+  return apiFetch<Order>(`/api/orders/${encodeURIComponent(id)}/admin-details`, {
+    method: "PATCH",
     body: JSON.stringify(payload),
   });
 }
