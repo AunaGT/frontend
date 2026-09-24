@@ -240,6 +240,7 @@ export default function OrderDetailPage() {
   const totalFulfilled = order.lines.reduce((sum, line) => sum + Number(line.qty_fulfilled || 0), 0);
   const progressStep = orderProgressStep(order.status);
   const progress = ["Creado", "Confirmado", "Preparación", "Entrega", "Completado"];
+  const progressShort = ["Creado", "Conf.", "Prepar.", "Entrega", "Completo"];
 
   const getPublicUrl = async () => {
     const { public_url } = await fetchOrderShareLink(order.id);
@@ -349,7 +350,7 @@ export default function OrderDetailPage() {
                   return <div key={label} className="relative text-center">
                     {index > 0 ? <span className={`absolute right-1/2 top-5 h-0.5 w-full ${complete || current ? "bg-emerald-500" : "bg-border"}`} /> : null}
                     <span className={`relative mx-auto flex h-10 w-10 items-center justify-center rounded-full border-2 ${complete ? "border-emerald-500 bg-emerald-500 text-white" : current ? "border-brand-orange bg-brand-orange text-white shadow-lg shadow-orange-500/30" : "border-border bg-card text-muted-foreground"}`}>{complete ? <Check className="h-5 w-5" /> : index === 3 ? <Warehouse className="h-5 w-5" /> : index === 4 ? <PackageCheck className="h-5 w-5" /> : <Clock3 className="h-5 w-5" />}</span>
-                    <span className="mt-2 block text-[10px] font-medium sm:text-xs">{label}</span>
+                    <span className="mt-2 block px-0.5 text-[10px] font-medium leading-tight sm:text-xs"><span className="sm:hidden">{progressShort[index]}</span><span className="hidden sm:inline">{label}</span></span>
                   </div>;
                 })}
               </div>

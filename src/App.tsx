@@ -56,6 +56,7 @@ import {
 // perfil sí permanecen en el bundle inicial.
 const OrdersManagement = ordersModule.pages.Management;
 const OrderDetailPage = ordersModule.pages.Detail;
+const PublicOrderPage = ordersModule.pages.Public;
 const InventoryCountListPage = inventoryCountModule.pages.Management;
 const InventoryCountNewPage = inventoryCountModule.pages.Create;
 const InventoryCountSessionPage = inventoryCountModule.pages.Session;
@@ -136,6 +137,7 @@ const App = () => (
             </Route>
 
             <Route path={quotesModule.paths.public} element={<PublicQuotePage />} />
+            <Route path={ordersModule.paths.public} element={<PublicOrderPage />} />
 
             {/* Global 404 route (sin layout) */}
             <Route path="/404" element={<NotFound />} />
