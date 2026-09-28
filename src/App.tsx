@@ -22,6 +22,7 @@ import Login from "@/pages/Login";
 import HomePage from "./pages/HomePage";
 import AuthProvider from "@/context/AuthProvider";
 import TenantProvider from "@/context/TenantProvider";
+import { BrandLoading } from "@/components/branding/BrandLoading";
 
 // Layout
 import { MainLayout } from "@/components/layout";
@@ -129,7 +130,7 @@ const App = () => (
       <AuthProvider>
        <TenantProvider>
         <BrowserRouter>
-          <Suspense fallback={<div className="flex min-h-[240px] items-center justify-center text-sm text-muted-foreground">Cargando módulo…</div>}>
+          <Suspense fallback={<BrandLoading fullScreen message="Preparando tu espacio…" />}>
           <Routes>
             {/* Public routes (only when NOT authenticated) */}
             <Route element={<PublicRoute />}>

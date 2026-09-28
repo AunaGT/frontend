@@ -10,7 +10,7 @@
 
 import type { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { BrandLoading } from "@/components/branding/BrandLoading";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 
 interface PermissionRouteProps {
@@ -30,11 +30,7 @@ const PermissionRoute = ({ any, children }: PermissionRouteProps) => {
   // Mientras se está cargando el estado de auth, mostrar loader.
   // permissionsReady ahora es simplemente !isLoading, así que si isLoading es false, permissionsReady es true.
   if (isLoading || !permissionsReady) {
-    return (
-      <div className="flex items-center justify-center min-h-[200px]">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    );
+    return <BrandLoading message="Verificando tus permisos…" />;
   }
 
   // Admin tiene acceso total
@@ -54,4 +50,3 @@ const PermissionRoute = ({ any, children }: PermissionRouteProps) => {
 };
 
 export default PermissionRoute;
-

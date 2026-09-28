@@ -15,7 +15,6 @@ import {
     BellRing,
     CalendarDays,
     ChevronRight,
-    Plus,
     Search,
     X,
 } from 'lucide-react'
@@ -27,6 +26,7 @@ import type { AuthUser } from '@/context/AuthContext'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
+import { AunaBrand } from '@/components/branding/AunaBrand'
 
 const MONTHS = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -297,7 +297,10 @@ export const HomePage = () => {
 
                 <footer className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-5 text-xs text-muted-foreground sm:flex-row">
                     <span>© {now.getFullYear()} {companyName}. Todos los derechos reservados.</span>
-                    <span className="flex items-center gap-1.5"><Plus className="h-3.5 w-3.5 text-brand-orange" /> Plataforma Auna ERP</span>
+                    <span className="flex items-center gap-2.5">
+                        <AunaBrand logoClassName="w-16 sm:w-16" />
+                        <span className="text-xs font-medium">Plataforma ERP</span>
+                    </span>
                 </footer>
             </div>
         </div>

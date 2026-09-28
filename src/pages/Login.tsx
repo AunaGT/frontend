@@ -14,10 +14,11 @@ import { Button } from "@/components/ui/button";
 import { IconInput } from "@/components/ui/icon-input";
 import { AuthLayout } from "@/components/layout/AuthLayout";
 import { AunaBrand } from "@/components/branding/AunaBrand";
-import { ArrowRight, Eye, EyeOff, LoaderCircle, Lock, Mail } from "lucide-react";
+import { ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { getCompanyNamePublic } from "@/services/settingsService";
 import { applyDocumentBranding } from "@/utils/documentBranding";
 import { CompanyLogo } from "@/components/branding/CompanyLogo";
+import { BrandLoading } from "@/components/branding/BrandLoading";
 
 const Login = () => {
   const { mutateAsync, isPending, error } = useLogin();
@@ -46,6 +47,8 @@ const Login = () => {
     e.preventDefault();
     await mutateAsync({ email: email.trim(), password: password.trim() });
   };
+
+  if (isPending) return <BrandLoading fullScreen message="Ingresando a tu espacio…" />;
 
   return (
     <AuthLayout>
@@ -122,17 +125,8 @@ const Login = () => {
             className="h-12 w-full rounded-xl bg-brand-orange text-white shadow-[0_12px_24px_-12px_rgba(249,115,22,0.85)] hover:bg-brand-orange-strong focus-visible:ring-brand-orange"
             disabled={isPending}
           >
-            {isPending ? (
-              <>
-                <LoaderCircle className="animate-spin" aria-hidden="true" />
-                Ingresando...
-              </>
-            ) : (
-              <>
-                Ingresar
-                <ArrowRight aria-hidden="true" />
-              </>
-            )}
+            Ingresar
+            <ArrowRight aria-hidden="true" />
           </Button>
         </form>
       </div>

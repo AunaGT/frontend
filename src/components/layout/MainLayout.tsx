@@ -18,6 +18,8 @@ import { DocumentBranding } from '@/components/branding/DocumentBranding'
 import { SystemSettingsProvider } from '@/context/SystemSettingsContext'
 import { ModuleProvider } from '@/context/ModuleProvider'
 import { ModuleAccessBoundary } from '@/routes/ModuleAccessBoundary'
+import { BrandLoading } from '@/components/branding/BrandLoading'
+import { Suspense } from 'react'
 
 export const MainLayout = () => {
     return (
@@ -27,7 +29,9 @@ export const MainLayout = () => {
                 <div className='min-h-screen bg-background flex flex-col'>
                     <TopBar />
                     <main className='flex-1 overflow-auto'>
-                        <ModuleAccessBoundary />
+                        <Suspense fallback={<BrandLoading message="Cargando módulo…" />}>
+                            <ModuleAccessBoundary />
+                        </Suspense>
                     </main>
                 </div>
             </SystemSettingsProvider>

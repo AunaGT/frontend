@@ -1,8 +1,9 @@
-import { Loader2, LockKeyhole } from 'lucide-react'
+import { LockKeyhole } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { findModuleForPath } from '@/config/appModules'
 import { useModules } from '@/context/useModules'
+import { BrandLoading } from '@/components/branding/BrandLoading'
 
 /** Bloquea páginas de módulos no contratados; los permisos se validan después. */
 export const ModuleAccessBoundary = () => {
@@ -11,11 +12,7 @@ export const ModuleAccessBoundary = () => {
   const module = findModuleForPath(location.pathname)
 
   if (module && isLoading) {
-    return (
-      <div className="flex min-h-[240px] items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-primary" />
-      </div>
-    )
+    return <BrandLoading message={`Preparando ${module.label}…`} />
   }
 
   if (module && !isEnabled(module.id)) {
