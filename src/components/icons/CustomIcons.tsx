@@ -1,8 +1,8 @@
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
- * Iconos de módulos: tema Papirus en color (32×32 apps/places/emblems/mimetypes;
- * devoluciones 24×24 action), copiados en /public/icons/modules.
+ * Iconos de módulo de Auna. Los SVG viven en /public/icons/modules/auna para
+ * conservar el isotipo nítido y una paleta común en todas las vistas.
  */
 import { forwardRef, RefAttributes, ForwardRefExoticComponent, type CSSProperties } from 'react'
 
@@ -49,7 +49,7 @@ function createModuleIcon(
     return Icon
 }
 
-const base = '/icons/modules'
+const base = '/icons/modules/auna'
 
 // Ícono propio estilo Papirus: carrito lateral (ventas)
 export const VentasIcon = createModuleIcon(`${base}/ventas.svg`, 'VentasIcon')
@@ -76,7 +76,7 @@ export const ReporteFinancieroIcon = createModuleIcon(`${base}/reporte-financier
 // Papirus apps: gnome-warning.svg
 export const AlertasIcon = createModuleIcon(`${base}/alertas.svg`, 'AlertasIcon')
 // Papirus apps: org.gnome.SimpleScan.svg
-export const ScannerIcon = createModuleIcon(`${base}/scanner.svg`, 'ScannerIcon')
+export const ScannerIcon = createModuleIcon('/icons/modules/scanner.svg', 'ScannerIcon')
 // Papirus app.drey.EarTag + % rojo (etiqueta de oferta / descuento)
 export const PromocionesIcon = createModuleIcon(`${base}/promociones.svg`, 'PromocionesIcon')
 // Papirus apps: gnome-documents.svg

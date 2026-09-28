@@ -51,15 +51,8 @@ const AppCard = ({
                 isActive && 'border-primary/40 ring-2 ring-primary/30 shadow-md'
             )}
         >
-            <div className='relative'>
-                <div
-                    className={cn(
-                        'flex h-12 w-12 items-center justify-center rounded-xl',
-                        module.color
-                    )}
-                >
-                    <Icon className={cn('h-7 w-7', module.iconColor)} />
-                </div>
+            <div className='relative h-12 w-12'>
+                <Icon className='h-full w-full' />
                 {!!badgeCount && badgeCount > 0 && (
                     <span className='absolute -top-1 -right-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground shadow-sm ring-2 ring-card'>
                         {badgeCount > 9 ? '9+' : badgeCount}

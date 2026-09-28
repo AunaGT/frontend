@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1008" height="900" viewBox="0 0 1008 900">
+<defs><linearGradient id="page" x2="0" y2="1"><stop stop-color="#F8FAFC"/><stop offset="1" stop-color="#EEF2F7"/></linearGradient></defs><rect width="1008" height="900" fill="url(#page)"/><path d="M0 0h1008v8H0z" fill="#F97316"/>
+<text x="28" y="49" fill="#172033" font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="800" letter-spacing="2.7">AUNA · IDENTIDAD DE PRODUCTO</text><text x="28" y="86" fill="#172033" font-family="Inter,system-ui,sans-serif" font-size="28" font-weight="750">Módulos del ERP</text><text x="28" y="112" fill="#667085" font-family="Inter,system-ui,sans-serif" font-size="13">Iconos ilustrados · Azul marino y naranja · Colección completa</text>
+<g font-family="Inter,system-ui,sans-serif" font-size="12" font-weight="650" text-anchor="middle" fill="#172033">
+<g transform="translate(20 142)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="ventas.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Ventas</text></g>
+<g transform="translate(212 142)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="cotizaciones.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Cotizaciones</text></g>
+<g transform="translate(404 142)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="pedidos.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Pedidos</text></g>
+<g transform="translate(596 142)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="inventario.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Inventario</text></g>
+<g transform="translate(788 142)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="inventariado.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Inventariado</text></g>
+<g transform="translate(20 292)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="devoluciones.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Devoluciones</text></g>
+<g transform="translate(212 292)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="cierre-caja.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Cierre de caja</text></g>
+<g transform="translate(404 292)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="proveedores.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Contactos</text></g>
+<g transform="translate(596 292)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="cartera.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Cartera</text></g>
+<g transform="translate(788 292)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="mercancia.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Mercancía</text></g>
+<g transform="translate(20 442)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="analytics.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Análisis</text></g>
+<g transform="translate(212 442)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="reporte-financiero.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Contabilidad</text></g>
+<g transform="translate(404 442)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="reportes.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Reportes</text></g>
+<g transform="translate(596 442)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="alertas.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Alertas</text></g>
+<g transform="translate(788 442)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="promociones.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Promociones</text></g>
+<g transform="translate(20 592)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="catalogos.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Catálogos</text></g>
+<g transform="translate(212 592)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="usuarios.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Usuarios</text></g>
+<g transform="translate(404 592)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="configuracion.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Configuración</text></g>
+<g transform="translate(596 592)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="traslados.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Traslados</text></g>
+<g transform="translate(788 592)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="sucursales.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Sucursales</text></g>
+<g transform="translate(20 742)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="rrhh.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">RRHH</text></g>
+<g transform="translate(212 742)"><rect width="180" height="138" rx="15" fill="#fff"/><image href="nomina.svg" x="50" y="7" width="80" height="80"/><text x="90" y="116">Nómina</text></g>
+</g></svg>

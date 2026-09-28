@@ -107,7 +107,7 @@
 .config-module-identity strong, .config-module-identity small { display: block; }
 .config-module-identity strong { font-size: 14px; }
 .config-module-identity small { color: hsl(var(--muted-foreground)); font-size: 11px; margin-top: 2px; }
-.config-module-icon { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 9px; }
+.config-module-icon { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 10px; overflow: hidden; }
 .config-module-description { width: 28%; color: hsl(var(--muted-foreground)) !important; }
 .config-module-warning { display: block; color: #e9aa17; margin-top: 4px; }
 .config-module-status { display: inline-flex; align-items: center; gap: 7px; font-weight: 650; white-space: nowrap; }
