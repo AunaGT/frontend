@@ -1,0 +1,528 @@
+/* ==========================================================================
+   AUNA Design System — Módulo de Usuarios, Roles y Perfil
+   Soporte completo para vistas principales y heredadas (Dark & Light)
+   ========================================================================== */
+
+.users-page, .users-overlay {
+  --background: 216 50% 98%;
+  --foreground: 220 62% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 62% 18%;
+  --muted: 216 40% 96%;
+  --muted-foreground: 219 25% 45%;
+  --border: 215 45% 88%;
+  --input: 215 40% 82%;
+  --primary: var(--brand-orange, 24 95% 53%);
+  --primary-foreground: 0 0% 100%;
+  --accent: 215 45% 95%;
+  --accent-foreground: 220 62% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 62% 18%;
+  color: hsl(var(--foreground));
+}
+
+.dark .users-page, .dark .users-overlay {
+  --background: 217 58% 9%;       /* #0B132B deep navy */
+  --foreground: 215 65% 96%;
+  --card: 215 46% 12%;            /* #111C38 card surface */
+  --card-foreground: 215 65% 96%;
+  --muted: 215 38% 18%;
+  --muted-foreground: 215 30% 70%; /* #8A9BB8 */
+  --border: 213 34% 25%;           /* #1D2D54 */
+  --input: 213 34% 30%;
+  --accent: 215 38% 19%;
+  --accent-foreground: 215 65% 96%;
+  --popover: 215 46% 12%;
+  --popover-foreground: 215 65% 96%;
+}
+
+/* Layout base de la página */
+.users-page {
+  min-height: calc(100vh - 64px);
+  padding: 28px clamp(16px, 2.2vw, 36px);
+  background: radial-gradient(ellipse at top right, hsl(var(--brand-orange, 24 95% 53%) / 0.035), transparent 42%), hsl(var(--background));
+}
+
+.users-page > * + * {
+  margin-top: 22px;
+}
+
+/* Encabezados */
+.users-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.users-heading h1 {
+  font-size: clamp(24px, 2.5vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: hsl(var(--foreground));
+}
+
+.users-heading p, .users-muted {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Paneles / Tarjetas heredados y compatibles */
+.users-panel, .auna-panel {
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  background: linear-gradient(120deg, hsl(var(--card)), hsl(var(--card) / 0.86));
+  overflow: hidden;
+  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.08);
+}
+
+.dark .users-panel, .dark .auna-panel {
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+}
+
+.users-panel-heading, .auna-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid hsl(var(--border));
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.users-panel-body, .auna-panel-body {
+  padding: 20px;
+}
+
+/* Filtros en barra superior (usado en /usuarios) */
+.users-filters {
+  display: grid;
+  grid-template-columns: minmax(230px, 2.5fr) repeat(3, minmax(145px, 1fr)) auto;
+  gap: 12px;
+  align-items: center;
+}
+.users-filters--roles { grid-template-columns: minmax(230px, 2.5fr) repeat(2, minmax(145px, 1fr)) auto; }
+
+.users-search {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  height: 48px;
+  padding-left: 16px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  background: hsl(var(--card));
+  color: hsl(var(--muted-foreground));
+}
+
+.users-search input {
+  border: 0;
+  background: transparent;
+  height: 100%;
+  padding-left: 0;
+}
+
+.users-search:focus-within {
+  border-color: hsl(var(--brand-orange, 24 95% 53%));
+}
+
+.users-filters input,
+.users-filters select,
+.users-select,
+.auna-input {
+  min-width: 0;
+  height: 42px;
+  border: 1px solid hsl(var(--input));
+  border-radius: 8px;
+  padding: 0 12px;
+  background: hsl(var(--card));
+  color: inherit;
+  width: 100%;
+  font-size: 13px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.users-filters input:focus,
+.users-filters select:focus,
+.users-select:focus,
+.auna-input:focus {
+  outline: none;
+  border-color: hsl(var(--brand-orange, 24 95% 53%));
+  box-shadow: 0 0 0 1px hsl(var(--brand-orange, 24 95% 53%));
+}
+
+.users-search input:focus { box-shadow: none; }
+.users-filters > select, .users-filters > button { height: 48px; }
+
+/* Tablas estándar y AUNA */
+.users-table, .auna-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.users-table th, .auna-table th {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  padding: 14px 18px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.users-table td, .auna-table td {
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  padding: 12px 18px;
+}
+
+.users-table td { height: 66px; }
+.users-email { color: hsl(var(--foreground) / .88); }
+
+.users-role-chip, .users-company-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 9px;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.users-role-chip[data-kind="admin"] {
+  color: #f97316;
+  border-color: #f9731655;
+  background: #f9731618;
+}
+
+.users-role-chip[data-kind="manager"] {
+  color: #2083ec;
+  border-color: #2083ec44;
+  background: #2083ec19;
+}
+
+.users-company-chip { border-radius: 999px; margin-right: 4px; }
+
+.users-module-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #07976524;
+  color: #087c52;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.dark .users-module-chip { color: #67eab8; background: #07976555; }
+
+.users-preference-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  width: 176px;
+  max-width: 45%;
+  padding: 0 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 6px;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.users-table tbody tr:hover, .auna-table tbody tr:hover {
+  background: hsl(var(--muted) / 0.5);
+}
+
+/* Footer de paginación */
+.users-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-top: 1px solid hsl(var(--border));
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+/* Chips y Badges */
+.users-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  background: hsl(var(--muted));
+  padding: 5px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.users-state {
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.users-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.users-state[data-status=ACTIVE],
+.users-state[data-status=ACTIVO],
+.users-state[data-status=Activo],
+.pill-badge-active {
+  color: #087c52;
+  background: #0dbb7714;
+  border-color: #0dbb7740;
+}
+
+.dark .users-state[data-status=ACTIVE],
+.dark .users-state[data-status=ACTIVO],
+.dark .users-state[data-status=Activo],
+.dark .pill-badge-active {
+  color: #43dfa7;
+  background: rgba(67, 223, 167, 0.12);
+  border-color: rgba(67, 223, 167, 0.3);
+}
+
+.users-state[data-status=INACTIVE],
+.users-state[data-status=INACTIVO],
+.users-state[data-status=Inactivo],
+.pill-badge-inactive {
+  color: #926300;
+  background: #edb61f14;
+  border-color: #edb61f40;
+}
+
+.dark .users-state[data-status=INACTIVE],
+.dark .users-state[data-status=INACTIVO],
+.dark .users-state[data-status=Inactivo],
+.dark .pill-badge-inactive {
+  color: #f1c759;
+  background: rgba(241, 199, 89, 0.12);
+  border-color: rgba(241, 199, 89, 0.3);
+}
+
+.users-state[data-status=BLOCKED],
+.users-state[data-status=BLOQUEADO],
+.users-state[data-status=Bloqueado],
+.pill-badge-blocked {
+  color: #c5363c;
+  background: #f0444414;
+  border-color: #f0444440;
+}
+
+.dark .users-state[data-status=BLOCKED],
+.dark .users-state[data-status=BLOQUEADO],
+.dark .users-state[data-status=Bloqueado],
+.dark .pill-badge-blocked {
+  color: #ff8181;
+  background: rgba(255, 129, 129, 0.12);
+  border-color: rgba(255, 129, 129, 0.3);
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill-badge-read {
+  background-color: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  font-weight: 600;
+}
+
+.pill-badge-write {
+  background-color: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+  font-weight: 600;
+}
+
+.pill-badge-none {
+  background-color: rgba(100, 116, 139, 0.15);
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.badge-country {
+  background-color: rgba(100, 116, 139, 0.25);
+  color: hsl(var(--foreground));
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Iconos circulares y acentos */
+.auna-icon-bubble {
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background-color: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Pestañas con línea naranja activa */
+.auna-tabs-nav {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  border-bottom: 1px solid hsl(var(--border));
+  padding-bottom: 2px;
+}
+
+.auna-tab-btn {
+  padding: 8px 4px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: hsl(var(--muted-foreground));
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  background: none;
+  cursor: pointer;
+}
+
+.auna-tab-btn:hover {
+  color: hsl(var(--foreground));
+}
+
+.auna-tab-btn[data-state=active], .auna-tab-btn.active {
+  color: #f97316;
+  border-bottom-color: #f97316;
+  font-weight: 600;
+}
+
+/* Botones principales AUNA */
+.btn-auna-primary {
+  background-color: #f97316;
+  color: #ffffff;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  transition: background-color 0.15s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.btn-auna-primary:hover:not(:disabled) {
+  background-color: #ea580c;
+}
+
+.btn-auna-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-auna-outline {
+  border: 1px solid #f97316;
+  color: #f97316;
+  background-color: transparent;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 6px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.btn-auna-outline:hover:not(:disabled) {
+  background-color: rgba(249, 115, 22, 0.1);
+}
+
+.btn-auna-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Grids auxiliares */
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.users-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.users-page :focus-visible, .users-overlay :focus-visible {
+  outline: 2px solid hsl(var(--brand-orange, 24 95% 53%));
+  outline-offset: 3px;
+}
+
+.users-page button:disabled {
+  opacity: 0.5;
+}
+
+/* Watermark */
+.auna-watermark {
+  font-style: italic;
+  font-size: 12px;
+  color: hsl(var(--muted-foreground));
+  text-align: right;
+  opacity: 0.85;
+}
+
+.auna-watermark-curve {
+  height: 18px;
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Media Queries Responsivos */
+@media (max-width: 1050px) {
+  .users-table th, .users-table td {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 760px) {
+  .users-grid, .users-fields {
+    grid-template-columns: 1fr;
+  }
+  .users-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .users-filters > :first-child {
+    grid-column: 1 / -1;
+  }
+  .users-heading {
+    align-items: flex-start;
+  }
+}

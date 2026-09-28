@@ -52,7 +52,7 @@ interface Props {
 
 export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChanged }: Props) => {
     const { toast } = useToast()
-    const { companies, company } = useTenant()
+    const { company } = useTenant()
     const { user: currentUser, refreshUser } = useAuth()
 
     const [companyIds, setCompanyIds] = useState<string[]>(userCompanies.map((c) => c.id))
@@ -161,7 +161,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
             </CardHeader>
             <CardContent className="space-y-5">
                 <div className="space-y-2">
-                    {companies.map((c) => (
+                    {company && [company].map((c) => (
                         <div key={c.id} className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
                             <span className="flex items-center gap-2 text-sm">
                                 {c.name}
@@ -174,6 +174,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
                             />
                         </div>
                     ))}
+                    <p className="text-xs text-muted-foreground">Para administrar otra empresa, selecciónala primero en el encabezado.</p>
                 </div>
 
                 <div className="space-y-2 border-t pt-4">

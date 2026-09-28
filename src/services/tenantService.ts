@@ -12,7 +12,7 @@ import { apiFetch } from "./api";
 import type { Branch, Company } from "@/context/AuthContext";
 import type { ExperienceProfile } from "@/config/experienceProfiles";
 
-export const fetchCompanies = () => apiFetch<Company[]>("/api/companies", { method: "GET" });
+export const fetchCompanies = (all = false) => apiFetch<Company[]>(`/api/companies${all ? '?all=1' : ''}`, { method: "GET" });
 
 export interface CreateCompanyPayload {
   name: string;
@@ -50,12 +50,15 @@ export const createBranch = (payload: CreateBranchPayload) =>
 
 export const updateBranch = (
   id: string,
-  payload: Partial<CreateBranchPayload> & { active?: boolean; is_default?: boolean }
+  payload: Partial<CreateBranchPayload> & { active?: boolean; is_default?: boolean; operational_status?: 'OPERATING' | 'MAINTENANCE'; manager_user_id?: string | null }
 ) =>
   apiFetch<Branch>(`/api/branches/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+
+export const fetchBranchManagers = (id: string) =>
+  apiFetch<{ id: string; name: string }[]>(`/api/branches/${encodeURIComponent(id)}/managers`, { method: "GET" });
 
 export const fetchUserBranches = (userId: string) =>
   apiFetch<{ branches: Branch[]; default_branch_id: string | null }>(

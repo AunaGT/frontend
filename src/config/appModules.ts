@@ -66,6 +66,20 @@ import {
 
 type IconComponent = ForwardRefExoticComponent<ModuleIconProps & RefAttributes<HTMLSpanElement>>
 
+export const MODULE_DESCRIPTIONS: Record<string, string> = {
+    sales: 'Ventas, cobros y facturación', quotes: 'Propuestas y seguimiento',
+    orders: 'Pedidos y entregas', inventory: 'Productos, stock y almacenes',
+    'inventory-count': 'Conteos y diferencias', returns: 'Devoluciones y ajustes',
+    'cash-closure': 'Sesiones y cierres de caja', contacts: 'Clientes y proveedores',
+    receivables: 'Saldos y cuentas por cobrar', merchandise: 'Ingresos de mercadería',
+    analytics: 'Análisis e indicadores', accounting: 'Cuentas y movimientos',
+    reports: 'Reportes y exportaciones', alerts: 'Pendientes que requieren atención',
+    promotions: 'Ofertas y descuentos', catalogs: 'Catálogos del sistema',
+    transfers: 'Traslados entre almacenes', branches: 'Empresas y sucursales',
+    hr: 'Empleados y asistencia', payroll: 'Nómina y recibos',
+    users: 'Usuarios, roles y permisos', config: 'Preferencias y módulos',
+}
+
 /** Etiqueta y rutas del módulo de listas compartidas (categorías, términos de pago, etc.). */
 export const MASTER_DATA_MODULE_LABEL = catalogsModule.label
 export const MASTER_DATA_MODULE_PATH = catalogsModule.paths.list

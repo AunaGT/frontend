@@ -1,358 +1,456 @@
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * This source code is licensed under a Proprietary License.
- * Unauthorized copying, modification, distribution, or use of this file,
- * via any medium, is strictly prohibited without express written permission.
- *
- * For licensing inquiries: GitHub @dpatzan2
+ * Licensed under Proprietary License. For licensing: GitHub @dpatzan2
  */
 
-/**
- * Vista para crear un nuevo usuario. Mismo estilo que detalle (página dedicada).
- * Campos: foto, nombre, email, contraseña, rol (con búsqueda).
- */
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+/** Alta de usuario: mantiene la composición de la referencia sin simular permisos ni empresas adicionales. */
+import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  User as UserIcon, Lock, Building2, Users, Shield, Eye, EyeOff,
+  Search, Check, UserPlus, Info, Loader2,
+} from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { ArrowLeft, UserPlus, Check, ChevronsUpDown, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useCreateUser } from '@/hooks/useCreateUser'
-import { getRoles, uploadUserPhoto, type Role } from '@/services/userService'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
-import { cn } from '@/lib/utils'
+import { getRoles, getRoleWithPermissions, type Role } from '@/services/userService'
 import { useTenant } from '@/context/useTenant'
-import { assignUserBranches } from '@/services/tenantService'
+import { AunaPanel, CountryBadge } from './UsersUI'
 
 export default function UserCreatePage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const createUserMutation = useCreateUser()
+  const { companies, company } = useTenant()
 
-  const [name, setName] = useState('')
+  // ─── 1. Información del usuario ───
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [roleId, setRoleId] = useState('')
-  const [roles, setRoles] = useState<Role[]>([])
-  const [rolesLoading, setRolesLoading] = useState(true)
-  const [rolePopoverOpen, setRolePopoverOpen] = useState(false)
-  const { branches, branch } = useTenant()
-  // El backend ya lo mete en la sucursal activa; esto permite darle más de una
-  // de entrada, en vez de tener que entrar a su ficha después.
-  const [branchIds, setBranchIds] = useState<string[]>(branch?.id ? [branch.id] : [])
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
-  const photoPreviewRef = useRef<string | null>(null)
+  const [phone, setPhone] = useState('')
+  const [position, setPosition] = useState('')
+  const [department, setDepartment] = useState('')
 
+  // ─── 2. Acceso y seguridad ───
+  const [isActive, setIsActive] = useState(true)
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+
+  // ─── 3. Empresas de acceso ───
+  const [companySearch, setCompanySearch] = useState('')
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([])
+
+  // ─── 4. Roles ───
+  const [roleSearch, setRoleSearch] = useState('')
+  const [roles, setRoles] = useState<Role[]>([])
+  const [selectedRoles, setSelectedRoles] = useState<number[]>([])
+
+  const isLoading = createUserMutation.isPending
+
+  const effectiveCompanies = companies.filter(c => c.id === company?.id)
+  const selectedRole = useQuery({ queryKey: ['user-create-role', company?.id, selectedRoles[0]], queryFn: () => getRoleWithPermissions(selectedRoles[0]), enabled: !!selectedRoles[0] })
+  useEffect(() => { setSelectedCompanies(company ? [company.id] : []) }, [company?.id])
   useEffect(() => {
     let cancelled = false
-    const load = async () => {
-      setRolesLoading(true)
-      try {
-        const data = await getRoles()
-        if (!cancelled) setRoles(data)
-      } catch {
-        if (!cancelled) setRoles([])
-      } finally {
-        if (!cancelled) setRolesLoading(false)
-      }
-    }
-    load()
+    getRoles().then(data => { if (!cancelled) setRoles(data) }).catch(e => {
+      if (!cancelled) toast({ title: 'No se pudieron cargar los roles', description: e.message, variant: 'destructive' })
+    })
     return () => { cancelled = true }
-  }, [])
+  }, [company?.id, toast])
 
-  // Preview de foto seleccionada y limpieza al desmontar
-  useEffect(() => {
-    if (!photoFile) {
-      if (photoPreviewRef.current) {
-        URL.revokeObjectURL(photoPreviewRef.current)
-        photoPreviewRef.current = null
-      }
-      setPhotoPreview(null)
-      return
-    }
-    if (!photoFile.type.startsWith('image/')) {
-      setPhotoPreview(null)
-      return
-    }
-    const url = URL.createObjectURL(photoFile)
-    if (photoPreviewRef.current) URL.revokeObjectURL(photoPreviewRef.current)
-    photoPreviewRef.current = url
-    setPhotoPreview(url)
-    return () => {
-      if (photoPreviewRef.current) {
-        URL.revokeObjectURL(photoPreviewRef.current)
-        photoPreviewRef.current = null
-      }
-    }
-  }, [photoFile])
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'
+    const bytes = crypto.getRandomValues(new Uint8Array(14))
+    let pwd = ''
+    for (const b of bytes) pwd += chars[b % chars.length]
+    setPassword(pwd)
+    setShowPassword(true)
+  }
 
-  const roleLabel = roleId ? (roles.find((r) => String(r.id) === roleId)?.name ?? roleId) : ''
+  const toggleRole = (roleId: number) => setSelectedRoles([roleId])
+  const toggleSelectAllRoles = () => setSelectedRoles([])
 
   const handleSubmit = async () => {
-    if (!name?.trim()) {
-      toast({ title: 'Campo requerido', description: 'El nombre es obligatorio', variant: 'destructive' })
+    if (!firstName.trim()) {
+      toast({ title: 'El nombre es obligatorio', variant: 'destructive' })
       return
     }
-    if (!email?.trim()) {
-      toast({ title: 'Campo requerido', description: 'El email es obligatorio', variant: 'destructive' })
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: 'Correo electrónico inválido', variant: 'destructive' })
       return
     }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
-      toast({ title: 'Email inválido', description: 'Por favor ingrese un email válido', variant: 'destructive' })
+    if (!password || password.length < 10) {
+      toast({ title: 'La contraseña temporal debe tener al menos 10 caracteres', variant: 'destructive' })
       return
     }
-    if (!password || password.length < 6) {
-      toast({ title: 'Contraseña requerida', description: 'La contraseña debe tener al menos 6 caracteres', variant: 'destructive' })
-      return
-    }
-    if (!roleId) {
-      toast({ title: 'Campo requerido', description: 'Debe seleccionar un rol', variant: 'destructive' })
+    if (selectedRoles.length === 0) {
+      toast({ title: 'Debes asignar al menos un rol', variant: 'destructive' })
       return
     }
 
     try {
-      const result = await createUserMutation.mutateAsync({
-        name: name.trim(),
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim()
+      const primaryRoleId = selectedRoles[0]
+
+      const newUser = await createUserMutation.mutateAsync({
+        name: fullName,
         email: email.trim(),
         password,
-        role_id: Number(roleId),
+        role_id: primaryRoleId,
+        access_status: isActive ? 'ACTIVE' : 'INACTIVE',
       })
-      const userId = result?.user?.id
-      if (userId && branchIds.length > 0) {
-        try {
-          await assignUserBranches({
-            user_id: userId,
-            branch_ids: branchIds,
-            default_branch_id: branchIds.includes(branch?.id ?? '') ? branch?.id : branchIds[0],
-          })
-        } catch {
-          toast({ title: 'Usuario creado', description: 'No se pudieron asignar las sucursales; hazlo desde su ficha' })
-        }
-      }
-      if (photoFile && userId) {
-        if (!photoFile.type.startsWith('image/')) {
-          toast({ title: 'Solo se permiten imágenes', variant: 'destructive' })
-        } else if (photoFile.size > 5 * 1024 * 1024) {
-          toast({ title: 'La imagen no debe exceder 5MB', variant: 'destructive' })
-        } else {
-          setIsUploadingPhoto(true)
-          try {
-            await uploadUserPhoto(userId, photoFile)
-            toast({ title: 'Usuario creado', description: 'El usuario y su foto se guardaron correctamente' })
-          } catch {
-            toast({ title: 'Usuario creado', description: 'La foto no pudo subirse; el usuario fue creado correctamente' })
-          } finally {
-            setIsUploadingPhoto(false)
-          }
-        }
-      } else {
-        toast({ title: 'Usuario creado', description: 'El usuario ha sido creado exitosamente' })
-      }
-      if (userId) navigate(`/usuarios/${userId}`)
-      else navigate('/usuarios')
-    } catch (err: unknown) {
-      const message = (err && typeof err === 'object' && 'message' in err) ? String((err as { message?: string }).message) || 'No se pudo crear el usuario' : 'No se pudo crear el usuario'
-      toast({ title: 'Error', description: message, variant: 'destructive' })
+
+      const userId = newUser.user.id
+      toast({ title: 'Usuario creado exitosamente' })
+      navigate(`/usuarios/${userId}`)
+    } catch (e) {
+      toast({ title: 'Error al crear usuario', description: (e as Error).message, variant: 'destructive' })
     }
   }
 
-  const isLoading = createUserMutation.isPending || isUploadingPhoto
+  const filteredCompanies = effectiveCompanies.filter((c) =>
+    c.name.toLowerCase().includes(companySearch.toLowerCase())
+  )
+
+  const filteredRoles = roles.filter((r) =>
+    r.name.toLowerCase().includes(roleSearch.toLowerCase()) ||
+    r.description?.toLowerCase().includes(roleSearch.toLowerCase())
+  )
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/usuarios')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Nuevo Usuario</h1>
-            <p className="text-sm text-muted-foreground">Crear un nuevo usuario en el sistema</p>
-          </div>
-        </div>
+    <main className="users-page">
+      {/* Breadcrumb */}
+      <Link to="/usuarios" className="text-xs users-muted hover:text-foreground transition-colors inline-flex items-center gap-1 mb-2">
+        <span>←</span> Usuarios
+      </Link>
+
+      {/* Encabezado */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Crear usuario y roles</h1>
+        <p className="users-muted text-sm mt-0.5">
+          Registra un nuevo usuario, define su acceso, asigna empresas, roles y permisos.
+        </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Información del usuario</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Foto - 40% */}
-            <div className="lg:col-span-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Foto</p>
-              <div className="rounded-md overflow-hidden border border-border bg-muted flex flex-col items-center justify-center p-4 gap-4 min-h-[220px]">
-                {photoPreview ? (
-                  <img src={photoPreview} alt="Vista previa" className="w-full max-h-64 object-contain rounded-lg" />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-muted-foreground py-8">
-                    <ImageIcon className="w-12 h-12 mb-2" />
-                    <span className="text-sm">Sin imagen</span>
-                  </div>
-                )}
-                <ImageUploadDropzone
-                  onFileSelect={(file) => setPhotoFile(file)}
-                  onReject={(msg) => toast({ title: 'Archivo no válido', description: msg, variant: 'destructive' })}
-                  disabled={isLoading}
-                  isUploading={isUploadingPhoto}
-                  selectionLabel={photoFile?.name ?? null}
-                  onClearSelection={() => setPhotoFile(null)}
-                  helperText="Opcional. Máx 5MB."
-                />
-                {isUploadingPhoto && (
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Subiendo foto...
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Datos - 60% */}
-            <div className="lg:col-span-3 space-y-6">
-              <div className="pb-2 border-b border-border">
-                <p className="text-sm text-muted-foreground">
-                  Esto crea una <strong className="text-foreground">cuenta de acceso</strong>. Si además
-                  entra en planilla, creá su ficha en RRHH y vinculá ahí esta cuenta: el teléfono, la
-                  dirección y la fecha de ingreso viven en la ficha, que es de donde los lee la nómina.
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <Label htmlFor="name">Nombre completo *</Label>
-              <Input
-                id="name"
-                placeholder="Ej: Juan Pérez"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="usuario@ejemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label htmlFor="password">Contraseña *</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>Rol *</Label>
-              <Popover open={rolePopoverOpen} onOpenChange={setRolePopoverOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" className="w-full justify-between mt-1">
-                    {rolesLoading ? 'Cargando...' : (roleLabel || 'Seleccionar rol')}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Buscar rol..." />
-                    <CommandEmpty>No se encontraron roles.</CommandEmpty>
-                    <CommandList>
-                      <CommandGroup>
-                        <ScrollArea className="h-48">
-                          {roles.map((role) => (
-                            <CommandItem
-                              key={role.id}
-                              value={role.name}
-                              onSelect={() => {
-                                setRoleId(String(role.id))
-                                setRolePopoverOpen(false)
-                              }}
-                            >
-                              <Check className={cn('mr-2 h-4 w-4', String(role.id) === roleId ? 'opacity-100' : 'opacity-0')} />
-                              {role.name}
-                            </CommandItem>
-                          ))}
-                        </ScrollArea>
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            {branches.length > 1 && (
+      <div className="space-y-6">
+        {/* ══════════ FILA 1: Información del usuario + Acceso y seguridad ══════════ */}
+        <div className="grid gap-6 lg:grid-cols-2 items-stretch">
+          {/* Información del usuario */}
+          <AunaPanel title="Información del usuario" icon={UserIcon}>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Sucursales</Label>
-                <div className="mt-1 space-y-1 rounded-md border p-3">
-                  {branches.map((b) => (
-                    <div key={b.id} className="flex items-center gap-3 py-1">
-                      <Checkbox
-                        id={`new-user-branch-${b.id}`}
-                        checked={branchIds.includes(b.id)}
-                        onCheckedChange={(v) =>
-                          setBranchIds((prev) =>
-                            v ? [...prev, b.id] : prev.filter((x) => x !== b.id)
-                          )
-                        }
-                      />
-                      <Label htmlFor={`new-user-branch-${b.id}`} className="font-normal">
-                        {b.name}
-                      </Label>
-                    </div>
-                  ))}
-                  <p className="pt-1 text-xs text-muted-foreground">
-                    Dónde trabaja. Se puede cambiar después desde su ficha.
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Nombre <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  placeholder="Juan"
+                  className="auna-input text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Apellidos <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  placeholder="Pérez García"
+                  className="auna-input text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Correo electrónico <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="juan.perez@auna.com"
+                  className="auna-input text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Teléfono
+                </label>
+                <Input
+                  disabled title="Se administra en RRHH" value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Se administra en RRHH"
+                  className="auna-input text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Puesto
+                </label>
+                <Input
+                  disabled title="Se administra en RRHH" value={position}
+                  onChange={(e) => setPosition(e.target.value)}
+                  placeholder="Se administra en RRHH"
+                  className="auna-input text-xs"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Departamento
+                </label>
+                <Select disabled value={department} onValueChange={setDepartment}>
+                  <SelectTrigger className="auna-input text-xs">
+                    <SelectValue placeholder="Operaciones" />
+                  </SelectTrigger>
+                  <SelectContent className="users-overlay text-xs">
+                    <SelectItem value="Operaciones">Operaciones</SelectItem>
+                    <SelectItem value="Administración">Administración</SelectItem>
+                    <SelectItem value="Finanzas">Finanzas</SelectItem>
+                    <SelectItem value="Recursos Humanos">Recursos Humanos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </AunaPanel>
+
+          {/* Acceso y seguridad */}
+          <AunaPanel title="Acceso y seguridad" icon={Lock}>
+            <div className="space-y-4">
+              {/* Estado del usuario y Tipo de acceso */}
+              <div className="grid grid-cols-2 gap-4 items-start">
+                <div>
+                  <label className="text-xs font-medium users-muted block mb-1.5">
+                    Estado del usuario
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={isActive}
+                      onCheckedChange={setIsActive}
+                      className="data-[state=checked]:bg-orange-500"
+                    />
+                    <span className="text-xs font-bold text-foreground">
+                      {isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] users-muted mt-1 leading-tight">
+                    {isActive ? 'El usuario podrá iniciar sesión en el ERP.' : 'El acceso a esta empresa quedará inactivo.'}
                   </p>
                 </div>
-              </div>
-            )}
+
+                <div>
+                  <label className="text-xs font-medium users-muted block mb-1">
+                    Tipo de acceso
+                  </label>
+                  <div className="auna-input flex items-center text-xs users-muted">Definido por el rol</div>
+                </div>
               </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => navigate('/usuarios')} disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-              onClick={handleSubmit}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  Creando...
-                </>
-              ) : (
-                <>
-                  <UserPlus className="w-4 h-4 mr-2" />
-                  Crear Usuario
-                </>
-              )}
-            </Button>
-          </div>
-          </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+              {/* Contraseña temporal */}
+              <div>
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Contraseña temporal <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1">
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="auna-input pr-8 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={generateRandomPassword}
+                    className="btn-auna-outline text-xs whitespace-nowrap py-2"
+                  >
+                    <UserPlus size={13} />
+                    <span>Generar contraseña</span>
+                  </button>
+                </div>
+                <p className="text-[11px] users-muted flex items-center gap-1.5 mt-1">
+                  <Info size={12} className="text-blue-400 shrink-0" />
+                  <span>Entrega la contraseña por un canal seguro; no se enviará por correo.</span>
+                </p>
+              </div>
+
+              {/* Checkboxes de seguridad */}
+              <div className="space-y-2 pt-1 text-xs">
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <Checkbox
+                    checked={false} disabled
+                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                  />
+                  <span className="text-foreground">Cambio obligatorio al ingresar (pendiente de integración)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <Checkbox
+                    checked={false} disabled
+                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                  />
+                  <span className="users-muted">Autenticación de dos factores (no disponible)</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer">
+                  <Checkbox
+                    checked={false} disabled
+                    className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                  />
+                  <span className="users-muted">Caducidad de contraseña (no disponible)</span>
+                </label>
+              </div>
+            </div>
+          </AunaPanel>
+        </div>
+
+        {/* ══════════ FILA 2: Empresas de acceso + Roles ══════════ */}
+        <div className="grid gap-6 lg:grid-cols-2 items-stretch">
+          {/* Empresas de acceso */}
+          <AunaPanel
+            title="Empresas de acceso"
+            subtitle="La cuenta se crea en la empresa activa. Administra otros accesos desde su ficha."
+            icon={Building2}
+            actions={
+              <button
+                type="button"
+                disabled
+                className="text-xs text-orange-500 hover:underline font-medium"
+              >
+                Empresa activa
+              </button>
+            }
+          >
+            {/* Buscador */}
+            <div className="relative mb-3">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 users-muted pointer-events-none" />
+              <input
+                type="text"
+                value={companySearch}
+                onChange={(e) => setCompanySearch(e.target.value)}
+                placeholder="Buscar empresas..."
+                className="auna-input pl-8 h-8 text-xs"
+              />
+            </div>
+
+            {/* Lista con checkboxes y badge de país */}
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {filteredCompanies.map((c) => {
+                const isSelected = selectedCompanies.includes(c.id)
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/30 cursor-pointer transition-colors"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Checkbox
+                        checked={isSelected}
+                        disabled
+                        className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 shrink-0"
+                      />
+                      <span className="text-xs font-medium text-foreground truncate">{c.name}</span>
+                    </div>
+                    <CountryBadge code={c.code} />
+                  </div>
+                )
+              })}
+            </div>
+          </AunaPanel>
+
+          {/* Roles */}
+          <AunaPanel
+            title="Roles"
+            subtitle="Selecciona el rol efectivo para la empresa activa."
+            icon={Users}
+            actions={
+              <button
+                type="button"
+                onClick={toggleSelectAllRoles}
+                className="text-xs text-orange-500 hover:underline font-medium"
+              >
+                Limpiar selección
+              </button>
+            }
+          >
+            {/* Buscador */}
+            <div className="relative mb-3">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 users-muted pointer-events-none" />
+              <input
+                type="text"
+                value={roleSearch}
+                onChange={(e) => setRoleSearch(e.target.value)}
+                placeholder="Buscar roles..."
+                className="auna-input pl-8 h-8 text-xs"
+              />
+            </div>
+
+            {/* Lista con checkboxes y descripción a la derecha */}
+            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {filteredRoles.map((r) => {
+                const isSelected = selectedRoles.includes(r.id)
+                return (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/30 cursor-pointer transition-colors text-xs"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleRole(r.id)}
+                        className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500 shrink-0"
+                      />
+                      <span className="font-semibold text-foreground">{r.name}</span>
+                    </div>
+                    <span className="users-muted text-[11px] truncate max-w-[200px]">
+                      {r.description || 'Acceso general'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </AunaPanel>
+        </div>
+
+        <AunaPanel title="Permisos del rol" subtitle="Los permisos se heredan del rol; la activación comercial de módulos es independiente." icon={Shield}>
+          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <p className="users-muted text-sm">Cargando permisos…</p> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
+          <Link className="text-orange-500 text-sm inline-block mt-3" to="/usuarios/roles-permisos">Consultar roles y permisos</Link>
+        </AunaPanel>
+
+        {/* ══════════ BARRA INFERIOR DE ACCIONES ══════════ */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <button
+            type="button"
+            onClick={() => navigate('/usuarios')}
+            disabled={isLoading}
+            className="px-4 py-2 rounded-lg border border-border bg-[hsl(var(--card))] hover:bg-muted text-foreground text-xs font-medium transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSubmit()}
+            disabled={isLoading}
+            className="btn-auna-primary"
+          >
+            {isLoading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
+            <span>Crear usuario</span>
+          </button>
+        </div>
+      </div>
+    </main>
   )
 }

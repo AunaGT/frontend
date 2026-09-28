@@ -26,8 +26,9 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { getSettings, updateSettings, uploadCompanyLogo, removeCompanyLogo, type SystemSettings, type DenominationItem } from '@/services/settingsService'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
-import { Loader2, Save, Trash2 } from 'lucide-react'
+import { Banknote, Building2, FileText, Loader2, Save, Settings2, Trash2, UsersRound } from 'lucide-react'
 import { ModulesSettings } from './ModulesSettings'
+import './config.css'
 import {
   EXPERIENCE_PROFILES,
   EXPERIENCE_PROFILE_DESCRIPTIONS,
@@ -72,6 +73,7 @@ export default function ConfigManagement() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState('general')
   const [settings, setSettings] = useState<SystemSettings>({})
   const [form, setForm] = useState({
     company_name: '',
@@ -356,33 +358,30 @@ export default function ConfigManagement() {
   }
 
   return (
-    <div className="px-4 sm:px-8 lg:px-14 py-4 sm:py-6 w-full">
-      <div className="mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold">Configuración</h1>
-        <p className="text-sm text-muted-foreground">
-          Todo lo de esta pantalla es de{' '}
-          <strong>{company?.name ?? 'la empresa activa'}</strong>: moneda, zona horaria, datos
-          fiscales y denominaciones. Otra empresa tiene los suyos; cambiala en el selector de arriba.
-        </p>
+    <div className="config-page">
+      <div className="config-page-heading">
+        <p className="config-eyebrow">CONFIGURACIÓN · {company?.name ?? 'Empresa activa'}</p>
+        <h1>{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
+        <p>{activeTab === 'modules' ? 'Gestiona la activación comercial y las dependencias de esta empresa.' : `Personaliza el funcionamiento de ${company?.name ?? 'tu empresa'} según sus necesidades.`}</p>
       </div>
 
-      <Tabs defaultValue="general" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="experience">Experiencia de venta</TabsTrigger>
-          <TabsTrigger value="fiscal">Datos fiscales</TabsTrigger>
-          <TabsTrigger value="denominations">Cierre de caja (denominaciones)</TabsTrigger>
-          <TabsTrigger value="modules">Módulos</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="config-tabs-root">
+        <TabsList className="config-tabs">
+          <TabsTrigger value="general"><Building2 className="h-4 w-4" /> Preferencias de empresa</TabsTrigger>
+          <TabsTrigger value="experience"><Settings2 className="h-4 w-4" /> Experiencia de venta</TabsTrigger>
+          <TabsTrigger value="fiscal"><FileText className="h-4 w-4" /> Datos fiscales</TabsTrigger>
+          <TabsTrigger value="denominations"><Banknote className="h-4 w-4" /> Cierre de caja</TabsTrigger>
+          <TabsTrigger value="modules"><UsersRound className="h-4 w-4" /> Módulos</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="general" className="space-y-4">
-          <Card>
+        <TabsContent value="general" className="config-tab-content">
+          <Card className="config-panel">
             <CardHeader>
-              <CardTitle>Datos generales</CardTitle>
-              <CardDescription>Nombre, logo y parámetros regionales del negocio.</CardDescription>
+              <CardTitle>Información de la empresa</CardTitle>
+              <CardDescription>Datos generales que se mostrarán en documentos y comunicaciones.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-[auto_1fr] sm:items-start">
+            <CardContent className="config-company-grid">
+              <div className="config-logo-field grid gap-4 sm:grid-cols-[auto_1fr] sm:items-start">
                 <div className="flex flex-col items-center gap-2">
                   <CompanyLogo src={logoUrl} size="lg" fallback={form.company_name?.slice(0, 1) || 'A'} />
                   {logoUrl && canManage && (
@@ -419,7 +418,7 @@ export default function ConfigManagement() {
                   </div>
                 </div>
               </div>
-              <div className="grid gap-2">
+              <div className="config-name-field grid gap-2">
                 <Label htmlFor="company_name">Nombre de la empresa</Label>
                 <Input
                   id="company_name"
@@ -429,7 +428,7 @@ export default function ConfigManagement() {
                   disabled={!canManage}
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="config-currency-field grid gap-2">
                 <Label>Moneda</Label>
                 <Select
                   value={form.currency_code || undefined}
@@ -461,6 +460,12 @@ export default function ConfigManagement() {
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+          <div className="config-panel-row">
+          <Card className="config-panel">
+            <CardHeader><CardTitle>Zona horaria e idioma</CardTitle><CardDescription>Formato regional para toda la empresa.</CardDescription></CardHeader>
+            <CardContent className="config-fields-grid">
               <div className="grid gap-2">
                 <Label>Zona horaria</Label>
                 <Select
@@ -504,7 +509,7 @@ export default function ConfigManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 config-full-width">
                 <Label>Locale (números y fechas)</Label>
                 <Select
                   value={form.locale || 'es-GT'}
@@ -533,6 +538,11 @@ export default function ConfigManagement() {
                   Ejemplo de cómo se verá en el sistema: montos como <strong>{localePreview.num}</strong> y fechas como <strong>{localePreview.date}</strong> (ventas, inventario, cierre de caja, etc.).
                 </p>
               </div>
+            </CardContent>
+          </Card>
+          <Card className="config-panel">
+            <CardHeader><CardTitle>Documentos y operación</CardTitle><CardDescription>Vigencias y tolerancia para ventas y caja.</CardDescription></CardHeader>
+            <CardContent className="config-fields-grid">
               <div className="grid gap-2">
                 <Label htmlFor="cash_closure_max_diff_pct">Diferencia máxima en cierre de caja (%)</Label>
                 <Input
@@ -547,7 +557,7 @@ export default function ConfigManagement() {
                 />
                 <p className="text-xs text-muted-foreground">Si la diferencia supera este %, se pedirá confirmación al guardar.</p>
               </div>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="config-full-width grid sm:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="quote_validity_days">Vigencia cotizaciones (días)</Label>
                   <Input
@@ -597,18 +607,19 @@ export default function ConfigManagement() {
                   </p>
                 </div>
               </div>
-              {canManage && (
-                <Button onClick={handleSaveGeneral} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Guardar
-                </Button>
-              )}
             </CardContent>
           </Card>
+          </div>
+          {canManage && (
+            <div className="config-actions"><Button onClick={handleSaveGeneral} disabled={saving}>
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Guardar cambios
+            </Button></div>
+          )}
         </TabsContent>
 
-        <TabsContent value="experience" className="space-y-4">
-          <Card>
+        <TabsContent value="experience" className="config-tab-content">
+          <Card className="config-panel config-panel-narrow">
             <CardHeader>
               <CardTitle>Experiencia progresiva</CardTitle>
               <CardDescription>
@@ -616,7 +627,7 @@ export default function ConfigManagement() {
                 controlando qué funciones existen y quién puede usarlas.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-6">
+            <CardContent className="config-experience-content">
               <div className="space-y-2">
                 <Label>Perfil predeterminado</Label>
                 <Select
@@ -641,7 +652,7 @@ export default function ConfigManagement() {
                 </p>
               </div>
 
-              <div className="space-y-3 rounded-lg border p-4">
+              <div className="config-switch-list">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <Label htmlFor="sales-credit">Permitir ventas al crédito</Label>
@@ -696,15 +707,15 @@ export default function ConfigManagement() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="fiscal" className="space-y-4">
-          <Card>
+        <TabsContent value="fiscal" className="config-tab-content">
+          <Card className="config-panel config-panel-narrow">
             <CardHeader>
               <CardTitle>Datos fiscales</CardTitle>
               <CardDescription>
                 NIT, dirección y afiliación IVA del emisor. Se usarán en facturación electrónica (FEL).
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="config-fiscal-grid">
               <div className="grid gap-2">
                 <Label htmlFor="company_nit">NIT del emisor</Label>
                 <Input
@@ -797,23 +808,23 @@ export default function ConfigManagement() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="denominations" className="space-y-4">
-          <Card>
+        <TabsContent value="denominations" className="config-tab-content">
+          <Card className="config-panel config-panel-narrow">
             <CardHeader>
               <CardTitle>Denominaciones para cierre de caja</CardTitle>
               <CardDescription>
                 Billetes y monedas que se muestran en el conteo de efectivo al hacer un cierre.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
+            <CardContent className="config-denominations-content">
+              <div className="config-denominations-list">
                 {denominations.map((d, i) => (
-                  <div key={i} className="flex flex-wrap items-center gap-2">
+                  <div key={i} className="config-denomination-row">
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
-                      className="w-24"
+                      className="w-32"
                       value={d.denomination || ''}
                       onChange={(e) => updateDenomination(i, 'denomination', e.target.value)}
                       disabled={!canManage}
@@ -853,7 +864,7 @@ export default function ConfigManagement() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="modules" className="space-y-4">
+        <TabsContent value="modules" className="config-tab-content">
           <ModulesSettings canManage={canManage} />
         </TabsContent>
       </Tabs>

@@ -1,355 +1,613 @@
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * This source code is licensed under a Proprietary License.
- * Unauthorized copying, modification, distribution, or use of this file,
- * via any medium, is strictly prohibited without express written permission.
- *
- * For licensing inquiries: GitHub @dpatzan2
+ * Licensed under Proprietary License. For licensing: GitHub @dpatzan2
  */
 
 /**
- * Mi perfil: lo que el usuario puede ver de sí mismo sin permisos de administración.
- * Es solo lectura; editar sigue siendo cosa de /usuarios/:id (users.edit) y de RRHH.
+ * Mi perfil — Diseño idéntico a las maquetas de AUNA:
+ * Fila 1: Tarjeta Usuario (Avatar + Cámara + Estado) | Tarjeta Datos personales (Grid 2 col + Editar)
+ * Fila 2: Tarjeta Seguridad (Contraseña, 2FA, Métodos de recuperación) | Tarjeta Sesiones activas (Cerrar todas + Dispositivos)
+ * Fila 3: Tarjeta Preferencias (Tema, Idioma, Zona horaria, Formatos) | Tarjeta Información (Soporte + Watermark AUNA)
  */
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useRef } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  Mail, Phone, MapPin, Calendar, Briefcase, Building2, Store, Monitor,
-  IdCard, Banknote, Eye, EyeOff, ShieldCheck, Pencil, UserRound,
+  User as UserIcon, Shield, Laptop, Smartphone, Tablet, KeyRound,
+  Lock, Mail, Globe, Clock, Calendar, Hash, Info,
+  Pencil, MoreHorizontal, Camera, LogOut, Check,
+  Sun, Moon, Loader2,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useTheme } from 'next-themes'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useAuth } from '@/context/useAuth'
-import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useToast } from '@/hooks/use-toast'
 import { ApiError } from '@/services/api'
+import { fetchMyEmployee, type Employee } from '@/services/hrService'
 import {
-  fetchMyEmployee,
-  EMPLOYEE_STATUS_LABELS,
-  PAYMENT_METHOD_LABELS,
-  type Employee,
-  type EmployeeStatus,
-} from '@/services/hrService'
-
-const money = (v: string | number) =>
-  new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(v) || 0)
-
-const longDate = (v?: string | null) =>
-  v ? format(new Date(v), "d 'de' MMMM 'de' yyyy", { locale: es }) : '—'
-
-const CONTRACT_LABELS: Record<string, string> = {
-  INDEFINIDO: 'Indefinido',
-  PLAZO_FIJO: 'Plazo fijo',
-  POR_OBRA: 'Por obra',
-}
-
-const FREQUENCY_LABELS: Record<string, string> = {
-  MENSUAL: 'Mensual',
-  QUINCENAL: 'Quincenal',
-}
-
-const STATUS_STYLES: Record<EmployeeStatus, string> = {
-  ACTIVO: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
-  SUSPENDIDO: 'bg-amber-500/10 text-amber-600 border-amber-500/20',
-  BAJA: 'bg-destructive/10 text-destructive border-destructive/20',
-}
-
-function initials(name?: string | null) {
-  if (!name?.trim()) return '??'
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length >= 2) return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
-  return name.slice(0, 2).toUpperCase()
-}
-
-/** «3 años, 2 meses» desde la fecha de ingreso. */
-function seniority(hireDate: string) {
-  const from = new Date(hireDate)
-  const now = new Date()
-  let months = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth())
-  if (now.getDate() < from.getDate()) months -= 1
-  if (months < 0) return 'Recién ingresado'
-  const years = Math.floor(months / 12)
-  const rest = months % 12
-  const parts: string[] = []
-  if (years) parts.push(`${years} ${years === 1 ? 'año' : 'años'}`)
-  if (rest) parts.push(`${rest} ${rest === 1 ? 'mes' : 'meses'}`)
-  return parts.join(', ') || 'Menos de un mes'
-}
-
-/** Etiqueta + valor. `icon` opcional; los vacíos se pintan como «—» en gris. */
-function Field({
-  label,
-  value,
-  icon: Icon,
-  className,
-}: {
-  label: string
-  value?: React.ReactNode
-  icon?: React.ComponentType<{ className?: string }>
-  className?: string
-}) {
-  const empty = value === null || value === undefined || value === '' || value === '—'
-  return (
-    <div className={className}>
-      <p className='flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-        {Icon && <Icon className='h-3.5 w-3.5' />}
-        {label}
-      </p>
-      <p className={`mt-1 text-sm ${empty ? 'text-muted-foreground' : 'font-medium text-foreground'}`}>
-        {empty ? '—' : value}
-      </p>
-    </div>
-  )
-}
+  getMySessions, deleteMySession, deleteAllMySessions, changeMyPassword,
+  updateMe, uploadUserPhoto, type Session,
+} from '@/services/userService'
+import { AunaPanel, StatusPill, AunaWatermark, UserAvatar } from './UsersUI'
 
 export default function MyProfilePage() {
-  const { user } = useAuth()
-  const { hasPermission } = useAuthPermissions()
-  const [showPay, setShowPay] = useState(false)
+  const { user, refreshUser, logout } = useAuth()
+  const { theme, setTheme, resolvedTheme } = useTheme()
+  const cache = useQueryClient()
+  const { toast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { data: employee, isLoading, error } = useQuery<Employee>({
+  // Estados de edición de datos personales
+  const [isEditing, setIsEditing] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+
+  // Diálogo de cambio de contraseña
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [currentPwd, setCurrentPwd] = useState('')
+  const [newPwd, setNewPwd] = useState('')
+  const [confirmPwd, setConfirmPwd] = useState('')
+  const [changingPwd, setChangingPwd] = useState(false)
+
+  // Sesiones activas
+  const [closingSession, setClosingSession] = useState<string | 'all' | null>(null)
+
+  // Consultas
+  const { data: employee } = useQuery<Employee>({
     queryKey: ['my-employee'],
     queryFn: fetchMyEmployee,
-    // Sin ficha de RRHH la respuesta es 404: es un estado válido, no un fallo.
     retry: (count, err) => !(err instanceof ApiError && err.status === 404) && count < 2,
     staleTime: 5 * 60 * 1000,
   })
 
-  const noEsEmpleado = error instanceof ApiError && error.status === 404
-  const errorReal = error && !noEsEmpleado ? (error as Error).message : null
+  const sessionsQuery = useQuery<Session[]>({
+    queryKey: ['my-sessions'],
+    queryFn: getMySessions,
+    retry: (count, err) => !(err instanceof ApiError && (err.status === 404 || err.status === 501)) && count < 2,
+    staleTime: 60 * 1000,
+  })
 
   if (!user) return null
 
-  const nombre = user.name?.trim() || 'Usuario'
-  const sucursales = user.branches ?? []
-  const empresas = user.companies ?? []
+  const displayedSessions = sessionsQuery.data || []
+
+  const handleStartEdit = () => {
+    setEditName(user.name || '')
+    setIsEditing(true)
+  }
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      toast({ title: 'El nombre es requerido', variant: 'destructive' })
+      return
+    }
+    setIsSavingProfile(true)
+    try {
+      await updateMe({ name: editName.trim() })
+      await refreshUser()
+      toast({ title: 'Perfil actualizado correctamente' })
+      setIsEditing(false)
+    } catch (e) {
+      toast({ title: 'Error al actualizar', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
+  const handlePhotoUpload = async (file: File) => {
+    setIsUploadingPhoto(true)
+    try {
+      await uploadUserPhoto(user.id, file, true)
+      await refreshUser()
+      toast({ title: 'Foto de perfil actualizada' })
+    } catch (e) {
+      toast({ title: 'No se pudo subir la foto', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setIsUploadingPhoto(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (!currentPwd) {
+      toast({ title: 'Ingresa tu contraseña actual', variant: 'destructive' })
+      return
+    }
+    if (newPwd.length < 10) {
+      toast({ title: 'La nueva contraseña debe tener al menos 10 caracteres', variant: 'destructive' })
+      return
+    }
+    if (newPwd !== confirmPwd) {
+      toast({ title: 'Las contraseñas no coinciden', variant: 'destructive' })
+      return
+    }
+    setChangingPwd(true)
+    try {
+      await changeMyPassword({ current_password: currentPwd, new_password: newPwd })
+      toast({ title: 'Contraseña actualizada correctamente' })
+      setPasswordDialogOpen(false)
+      setCurrentPwd(''); setNewPwd(''); setConfirmPwd('')
+      logout()
+    } catch (e) {
+      toast({ title: 'Error', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setChangingPwd(false)
+    }
+  }
+
+  const handleCloseSession = async (sessionId: string | 'all') => {
+    if (!window.confirm(sessionId === 'all' ? '¿Cerrar todas tus sesiones? Tendrás que iniciar sesión nuevamente.' : '¿Cerrar esta sesión?')) return
+    setClosingSession(sessionId)
+    try {
+      if (sessionId === 'all') {
+        await deleteAllMySessions()
+        logout()
+      } else {
+        await deleteMySession(sessionId)
+      }
+      await cache.invalidateQueries({ queryKey: ['my-sessions'] })
+      toast({ title: sessionId === 'all' ? 'Todas las sesiones fueron cerradas' : 'Sesión cerrada' })
+    } catch (e) {
+      toast({ title: 'No se pudo cerrar la sesión', description: (e as Error).message, variant: 'destructive' })
+    } finally {
+      setClosingSession(null)
+    }
+  }
+
+  const getDeviceIcon = (deviceStr?: string | null) => {
+    const s = (deviceStr || '').toLowerCase()
+    if (s.includes('iphone') || s.includes('android') || s.includes('mobile')) return Smartphone
+    if (s.includes('ipad') || s.includes('tablet')) return Tablet
+    return Laptop
+  }
+  const deviceLabel = (deviceStr?: string | null) => {
+    const value = deviceStr || ''
+    const platform = /iphone/i.test(value) ? 'iPhone' : /ipad/i.test(value) ? 'iPad' : /android/i.test(value) ? 'Android' : /windows/i.test(value) ? 'Windows' : /macintosh/i.test(value) ? 'Mac' : /linux/i.test(value) ? 'Linux' : 'Dispositivo'
+    const browser = /firefox/i.test(value) ? 'Firefox' : /edg\//i.test(value) ? 'Edge' : /chrome/i.test(value) ? 'Chrome' : /safari/i.test(value) ? 'Safari' : ''
+    return browser ? `${platform} • ${browser}` : platform
+  }
 
   return (
-    <div className='p-4 sm:p-6 space-y-6 animate-fade-in max-w-5xl mx-auto'>
-      {/* Encabezado: identidad de un vistazo */}
-      <Card className='overflow-hidden'>
-        <div className='h-20 bg-gradient-to-r from-primary/15 via-primary/5 to-transparent' />
-        <CardContent className='-mt-10 pb-6'>
-          <div className='flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between'>
-            <div className='flex items-end gap-4 min-w-0'>
-              <Avatar className='h-20 w-20 border-4 border-card shadow-md shrink-0'>
-                {/* La foto de cuenta manda; si no tiene, se usa la de RRHH. */}
-                {user.photo_url || employee?.photo_url ? (
-                  <AvatarImage src={user.photo_url || employee?.photo_url} alt='' />
-                ) : null}
-                <AvatarFallback className='bg-primary/10 text-xl font-semibold text-primary'>
-                  {initials(nombre)}
-                </AvatarFallback>
-              </Avatar>
-              <div className='min-w-0 pb-1'>
-                <h1 className='truncate text-2xl font-bold text-foreground'>{nombre}</h1>
-                <div className='mt-1.5 flex flex-wrap items-center gap-2'>
-                  <Badge variant='secondary' className='gap-1'>
-                    <ShieldCheck className='h-3 w-3' />
-                    {user.role?.name || 'Sin rol'}
-                  </Badge>
-                  {employee && (
-                    <Badge variant='outline' className={STATUS_STYLES[employee.status]}>
-                      {EMPLOYEE_STATUS_LABELS[employee.status]}
-                    </Badge>
-                  )}
-                  {employee?.position && (
-                    <span className='text-sm text-muted-foreground'>{employee.position}</span>
-                  )}
+    <main className="users-page">
+      {/* Input oculto para subir foto */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void handlePhotoUpload(file)
+        }}
+      />
+
+      {/* Encabezado */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Mi perfil</h1>
+        <p className="users-muted text-sm mt-0.5">Administra tu información, seguridad y preferencias</p>
+      </div>
+
+      <div className="space-y-5">
+        {/* ══════════ FILA 1: Tarjeta Usuario + Datos Personales ══════════ */}
+        <div className="grid gap-5 lg:grid-cols-[280px_1fr] items-stretch">
+          {/* Tarjeta Usuario */}
+          <AunaPanel className="flex flex-col items-center justify-center text-center p-6" bodyClassName="p-0 w-full flex flex-col items-center">
+            <div className="relative mb-3.5">
+              <UserAvatar name={user.name} photo={user.photo_url} extraLarge />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingPhoto}
+                title="Cambiar foto de perfil"
+                className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md border-2 border-[hsl(var(--card))] transition-transform hover:scale-105"
+              >
+                {isUploadingPhoto ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+              </button>
+            </div>
+            <h2 className="text-lg font-bold text-foreground">{user.name}</h2>
+            <p className="users-muted text-xs mt-0.5 font-medium">{user.role?.name || 'No registrado'}</p>
+            <p className="users-muted text-xs mt-0.5">{user.email}</p>
+            <div className="mt-3">
+              <StatusPill status={user.access_status} label={user.access_status === 'ACTIVE' ? 'Activo' : user.access_status === 'BLOCKED' ? 'Bloqueado' : user.access_status === 'INACTIVE' ? 'Inactivo' : 'No registrado'} />
+            </div>
+          </AunaPanel>
+
+          {/* Tarjeta Datos Personales */}
+          <AunaPanel
+            title="Datos personales"
+            icon={UserIcon}
+            actions={
+              !isEditing ? (
+                <button type="button" onClick={handleStartEdit} className="btn-auna-outline">
+                  <Pencil size={13} />
+                  <span>Editar</span>
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="text-xs users-muted hover:text-foreground px-2 py-1"
+                    disabled={isSavingProfile}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSaveProfile()}
+                    disabled={isSavingProfile}
+                    className="btn-auna-primary py-1 px-3 text-xs"
+                  >
+                    {isSavingProfile ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                    Guardar
+                  </button>
+                </div>
+              )
+            }
+          >
+            {isEditing ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs users-muted block mb-1">Nombre completo</label>
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="auna-input" />
+                </div>
+                <p className="users-muted text-xs md:col-span-2">El teléfono y los datos laborales se actualizan en RRHH, si tienes una ficha vinculada.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3.5 text-xs">
+                {/* Columna 1 */}
+                <div className="space-y-3">
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Nombre completo</span>
+                    <span className="font-medium text-foreground">{user.name}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Correo electrónico</span>
+                    <span className="font-medium text-foreground">{user.email}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Teléfono</span>
+                    <span className="font-medium text-foreground">{employee?.phone || user.phone || 'No registrado'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Departamento</span>
+                    <span className="font-medium text-foreground">{employee?.department || 'No registrado'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Puesto</span>
+                    <span className="font-medium text-foreground">{employee?.position || 'No registrado'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Ubicación</span>
+                    <span className="font-medium text-foreground">{employee?.address || user.address || 'No registrada'}</span>
+                  </div>
+                </div>
+
+                {/* Columna 2 */}
+                <div className="space-y-3">
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">ID de usuario</span>
+                    <span className="font-medium text-foreground">USU-{user.id.slice(-6).toUpperCase()}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Fecha de ingreso</span>
+                    <span className="font-medium text-foreground">
+                      {employee?.hire_date || user.hire_date ? format(new Date(employee?.hire_date || user.hire_date!), 'd MMM. yyyy', { locale: es }) : 'No registrado'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Idioma</span>
+                    <span className="font-medium text-foreground">Español</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Zona horaria</span>
+                    <span className="font-medium text-foreground">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Estado</span>
+                    <StatusPill status={user.access_status} label={user.access_status === 'ACTIVE' ? 'Activo' : user.access_status === 'BLOCKED' ? 'Bloqueado' : user.access_status === 'INACTIVE' ? 'Inactivo' : 'No registrado'} />
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/40">
+                    <span className="users-muted">Última actualización</span>
+                    <span className="font-medium text-foreground">
+                      {user.updated_at ? format(new Date(user.updated_at), 'd MMM. yyyy HH:mm', { locale: es }) : 'No registrado'}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-
-            {hasPermission('users.edit') && (
-              <Button variant='outline' asChild className='shrink-0'>
-                <Link to={`/usuarios/${user.id}`}>
-                  <Pencil className='mr-2 h-4 w-4' />
-                  Editar mi cuenta
-                </Link>
-              </Button>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </AunaPanel>
+        </div>
 
-      <div className='grid gap-6 lg:grid-cols-2 items-start'>
-        {/* Cuenta */}
-        <Card>
-          <CardHeader className='pb-3'>
-            <CardTitle className='flex items-center gap-2 text-base'>
-              <UserRound className='h-4 w-4 text-muted-foreground' />
-              Cuenta
-            </CardTitle>
-          </CardHeader>
-          <CardContent className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-            <Field label='Correo' value={user.email} icon={Mail} className='sm:col-span-2' />
-            <Field label='Rol' value={user.role?.name} icon={Briefcase} />
-            <Field
-              label='Caja POS'
-              value={user.cash_register?.name ?? 'La predeterminada'}
-              icon={Monitor}
-            />
-            <Field
-              label={empresas.length === 1 ? 'Empresa' : 'Empresas'}
-              value={empresas.map((c) => c.name).join(' · ')}
-              icon={Building2}
-              className='sm:col-span-2'
-            />
-            <Field
-              label={sucursales.length === 1 ? 'Sucursal' : 'Sucursales'}
-              value={sucursales.map((b) => b.name).join(' · ')}
-              icon={Store}
-              className='sm:col-span-2'
-            />
-          </CardContent>
-        </Card>
-
-        {/* Ficha de empleado */}
-        <Card>
-          <CardHeader className='pb-3'>
-            <div className='flex items-center gap-3'>
-              {employee && (
-                <Avatar className='h-11 w-11 shrink-0 border shadow-sm'>
-                  {user.photo_url || employee.photo_url ? (
-                    <AvatarImage src={user.photo_url || employee.photo_url} alt='' />
-                  ) : null}
-                  <AvatarFallback className='bg-primary/10 text-sm font-semibold text-primary'>
-                    {initials(`${employee.first_name} ${employee.last_name}`)}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-              <CardTitle className='flex flex-1 items-center gap-2 text-base'>
-                <IdCard className='h-4 w-4 text-muted-foreground' />
-                Ficha de empleado
-                {employee && (
-                  <span className='ml-auto font-mono text-xs font-normal text-muted-foreground'>
-                    {employee.code}
+        {/* ══════════ FILA 2: Seguridad + Sesiones Activas ══════════ */}
+        <div className="grid gap-5 lg:grid-cols-2 items-stretch">
+          {/* Tarjeta Seguridad */}
+          <AunaPanel title="Seguridad" subtitle="Mantén tu cuenta segura" icon={Lock}>
+            <div className="divide-y divide-border/40">
+              {/* Contraseña */}
+              <div className="flex items-center justify-between py-3.5">
+                <div className="flex items-center gap-3">
+                  <span className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center shrink-0">
+                    <KeyRound size={16} />
                   </span>
-                )}
-              </CardTitle>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Contraseña</h3>
+                    <p className="users-muted text-xs">Cambiarla cierra tus sesiones anteriores.</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPasswordDialogOpen(true)} className="btn-auna-outline">
+                  <KeyRound size={13} />
+                  <span>Cambiar</span>
+                </button>
+              </div>
+
+              {/* Autenticación de dos factores */}
+              <div className="flex items-center justify-between py-3.5 px-1">
+                <div className="flex items-center gap-3">
+                  <span className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+                    <Shield size={16} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Autenticación de dos factores (2FA)</h3>
+                    <p className="users-muted text-xs">Protege tu cuenta con un segundo factor</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="users-muted text-xs">No disponible</span>
+                </div>
+              </div>
+
+              {/* Métodos de recuperación */}
+              <div className="flex items-center justify-between py-3.5 px-1">
+                <div className="flex items-center gap-3">
+                  <span className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Mail size={16} />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-foreground">Métodos de recuperación</h3>
+                    <p className="users-muted text-xs">Recuperación automática no configurada</p>
+                  </div>
+                </div>
+                <span className="users-muted text-xs">No disponible</span>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {isLoading && (
-              <div className='space-y-4'>
-                <Skeleton className='h-4 w-2/3' />
-                <Skeleton className='h-4 w-1/2' />
-                <Skeleton className='h-4 w-3/4' />
-                <Skeleton className='h-4 w-1/3' />
-              </div>
-            )}
+          </AunaPanel>
 
-            {!isLoading && noEsEmpleado && (
-              <div className='py-8 text-center'>
-                <IdCard className='mx-auto h-8 w-8 text-muted-foreground/50' />
-                <p className='mt-3 text-sm font-medium'>No estás en planilla</p>
-                <p className='mt-1 text-sm text-muted-foreground'>
-                  Tu cuenta no tiene ficha de empleado. Si debería tenerla, pedila a RRHH.
-                </p>
-              </div>
-            )}
-
-            {!isLoading && errorReal && (
-              <p className='py-8 text-center text-sm text-destructive'>{errorReal}</p>
-            )}
-
-            {employee && (
-              <div className='space-y-6'>
-                <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                  <Field label='Puesto' value={employee.position} icon={Briefcase} />
-                  <Field label='Departamento' value={employee.department} />
-                  <Field label='Sucursal' value={employee.branch?.name} icon={Store} />
-                  <Field label='Contrato' value={CONTRACT_LABELS[employee.contract_type]} />
-                  <Field
-                    label='Ingreso'
-                    value={longDate(employee.hire_date)}
-                    icon={Calendar}
-                  />
-                  <Field label='Antigüedad' value={seniority(employee.hire_date)} />
-                  {employee.termination_date && (
-                    <Field label='Fecha de baja' value={longDate(employee.termination_date)} />
-                  )}
-                </div>
-
-                <div className='border-t pt-4'>
-                  <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                    <Field label='Teléfono' value={employee.phone} icon={Phone} />
-                    <Field label='Nacimiento' value={longDate(employee.birth_date)} />
-                    <Field
-                      label='Dirección'
-                      value={employee.address}
-                      icon={MapPin}
-                      className='sm:col-span-2'
-                    />
-                    <Field label='DPI' value={employee.dpi} />
-                    <Field label='NIT' value={employee.nit} />
-                    <Field
-                      label='IGSS'
-                      value={employee.igss_number ?? 'No afiliado'}
-                    />
-                  </div>
-                </div>
-
-                <div className='border-t pt-4'>
-                  <div className='mb-3 flex items-center justify-between'>
-                    <p className='flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground'>
-                      <Banknote className='h-3.5 w-3.5' />
-                      Compensación
-                    </p>
-                    {/* Oculto por defecto: el sueldo se ve en pantallas compartidas. */}
-                    <Button
-                      variant='ghost'
-                      size='sm'
-                      className='h-7 gap-1.5 text-xs text-muted-foreground'
-                      onClick={() => setShowPay((v) => !v)}
-                    >
-                      {showPay ? <EyeOff className='h-3.5 w-3.5' /> : <Eye className='h-3.5 w-3.5' />}
-                      {showPay ? 'Ocultar' : 'Mostrar'}
-                    </Button>
-                  </div>
-                  {showPay ? (
-                    <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
-                      <Field label='Salario base' value={money(employee.base_salary)} />
-                      <Field
-                        label='Bonificación incentivo'
-                        value={money(employee.bonificacion_incentivo)}
-                      />
-                      <Field
-                        label='Frecuencia de pago'
-                        value={FREQUENCY_LABELS[employee.pay_frequency]}
-                      />
-                      <Field
-                        label='Forma de pago'
-                        value={PAYMENT_METHOD_LABELS[employee.payment_method]}
-                      />
-                      {employee.payment_method === 'TRANSFERENCIA' && (
-                        <>
-                          <Field label='Banco' value={employee.bank_name} />
-                          <Field label='Cuenta bancaria' value={employee.bank_account} />
-                        </>
+          {/* Tarjeta Sesiones Activas */}
+          <AunaPanel
+            title="Sesiones activas"
+            subtitle="Gestiona los dispositivos con acceso a tu cuenta"
+            icon={Laptop}
+            actions={
+              <button
+                type="button"
+                onClick={() => void handleCloseSession('all')}
+                disabled={closingSession === 'all'}
+                className="btn-auna-outline text-xs"
+              >
+                <LogOut size={13} />
+                <span>Cerrar todas</span>
+              </button>
+            }
+          >
+            <div className="divide-y divide-border/40">
+              {sessionsQuery.isLoading && <p role="status" className="users-muted py-4">Cargando sesiones…</p>}
+              {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <button onClick={() => void sessionsQuery.refetch()}>Reintentar</button></p>}
+              {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <p className="users-muted py-4">No hay sesiones registradas.</p>}
+              {displayedSessions.map((session) => {
+                const DeviceIcon = getDeviceIcon(session.device)
+                return (
+                  <div key={session.id} className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center shrink-0 users-muted">
+                        <DeviceIcon size={16} />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-foreground truncate" title={session.device || undefined}>{deviceLabel(session.device)}</p>
+                        <p className="users-muted text-[11px] truncate">{session.ip || 'Ubicación no registrada'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      {session.is_current ? (
+                        <StatusPill status="ACTIVE" label="Sesión actual" />
+                      ) : (
+                        <span className="text-[11px] users-muted">
+                          {session.last_used_at
+                            ? format(new Date(session.last_used_at), 'd MMM. yyyy HH:mm', { locale: es })
+                            : 'No registrado'}
+                        </span>
+                      )}
+                      {!session.is_current && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button type="button" className="p-1 rounded hover:bg-muted users-muted hover:text-foreground">
+                              <MoreHorizontal size={14} />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="users-overlay text-xs">
+                            <DropdownMenuItem
+                              className="text-destructive cursor-pointer"
+                              onClick={() => void handleCloseSession(session.id)}
+                            >
+                              <LogOut size={12} className="mr-2" /> Cerrar sesión
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
-                  ) : (
-                    <p className='text-sm text-muted-foreground'>
-                      Salario y cuenta bancaria ocultos.
-                    </p>
-                  )}
-                </div>
+                  </div>
+                )
+              })}
+            </div>
+          </AunaPanel>
+        </div>
 
-                <p className='text-xs text-muted-foreground'>
-                  Estos datos los mantiene RRHH. Si algo está mal, avisales.
-                </p>
+        {/* ══════════ FILA 3: Preferencias + Información y Watermark ══════════ */}
+        <div className="grid gap-5 lg:grid-cols-2 items-stretch">
+          {/* Tarjeta Preferencias */}
+          <AunaPanel title="Preferencias" subtitle="Personaliza tu experiencia en AUNA" icon={Globe}>
+            <div className="space-y-3.5 text-xs">
+              {/* Tema de interfaz */}
+              <div className="flex items-center justify-between py-2 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <Laptop size={15} className="users-muted shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Tema de interfaz</p>
+                    <p className="users-muted text-[11px]">Elige el modo de visualización</p>
+                  </div>
+                </div>
+                <Select value={resolvedTheme || theme || 'dark'} onValueChange={setTheme}>
+                  <SelectTrigger className="w-44 h-8 auna-input text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="users-overlay text-xs">
+                    <SelectItem value="dark">
+                      <span className="flex items-center gap-2">
+                        <Moon size={13} /> Oscuro
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="light">
+                      <span className="flex items-center gap-2">
+                        <Sun size={13} /> Claro
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="system">
+                      <span className="flex items-center gap-2">
+                        <Laptop size={13} /> Sistema
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {/* Idioma */}
+              <div className="flex items-center justify-between py-2 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <Globe size={15} className="users-muted shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Idioma</p>
+                    <p className="users-muted text-[11px]">Idioma de la plataforma</p>
+                  </div>
+                </div>
+                <span className="users-preference-value">Español · fijo</span>
+              </div>
+
+              {/* Zona horaria */}
+              <div className="flex items-center justify-between py-2 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <Clock size={15} className="users-muted shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Zona horaria</p>
+                    <p className="users-muted text-[11px]">Para reportes y registros</p>
+                  </div>
+                </div>
+                <span className="users-preference-value">{Intl.DateTimeFormat().resolvedOptions().timeZone}</span>
+              </div>
+
+              {/* Formato de fecha */}
+              <div className="flex items-center justify-between py-2 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                  <Calendar size={15} className="users-muted shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Formato de fecha</p>
+                    <p className="users-muted text-[11px]">Cómo se muestran las fechas</p>
+                  </div>
+                </div>
+                <span className="users-preference-value">Formato del sistema</span>
+              </div>
+
+              {/* Formato de número */}
+              <div className="flex items-center justify-between py-2">
+                <div className="flex items-center gap-3">
+                  <Hash size={15} className="users-muted shrink-0" />
+                  <div>
+                    <p className="font-semibold text-foreground">Formato de número</p>
+                    <p className="users-muted text-[11px]">Separador de miles y decimales</p>
+                  </div>
+                </div>
+                <span className="users-preference-value">Formato del sistema</span>
+              </div>
+            </div>
+          </AunaPanel>
+
+          {/* Tarjeta Información */}
+          <AunaPanel title="Información" icon={Info} className="flex flex-col justify-between">
+            <div>
+              <p className="text-xs users-muted leading-relaxed mb-4">
+                Si necesitas actualizar información crítica o tienes problemas con tu cuenta, contacta al equipo de TI.
+              </p>
+              <p className="users-muted text-xs">Contacta al administrador de tu empresa por el canal de soporte establecido.</p>
+            </div>
+            <AunaWatermark />
+          </AunaPanel>
+        </div>
       </div>
-    </div>
+
+      {/* Diálogo para Cambiar Contraseña */}
+      <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
+        <DialogContent className="users-overlay sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cambiar contraseña</DialogTitle>
+            <DialogDescription>
+              Introduce tu contraseña actual y la nueva contraseña para actualizarla.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3.5 py-2">
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1">Contraseña actual</label>
+              <Input
+                type="password"
+                value={currentPwd}
+                onChange={(e) => setCurrentPwd(e.target.value)}
+                placeholder="••••••••••••"
+                className="auna-input"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1">Nueva contraseña</label>
+              <Input
+                type="password"
+                value={newPwd}
+                onChange={(e) => setNewPwd(e.target.value)}
+                placeholder="Mínimo 10 caracteres"
+                className="auna-input"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-foreground block mb-1">Confirmar nueva contraseña</label>
+              <Input
+                type="password"
+                value={confirmPwd}
+                onChange={(e) => setConfirmPwd(e.target.value)}
+                placeholder="Repetir nueva contraseña"
+                className="auna-input"
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <button
+              type="button"
+              onClick={() => setPasswordDialogOpen(false)}
+              className="text-xs users-muted hover:text-foreground px-3 py-1.5"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={changingPwd || !currentPwd || !newPwd || !confirmPwd}
+              onClick={() => void handleChangePassword()}
+              className="btn-auna-primary"
+            >
+              {changingPwd ? <Loader2 size={13} className="animate-spin" /> : null}
+              Actualizar contraseña
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </main>
   )
 }

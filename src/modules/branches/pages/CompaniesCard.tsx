@@ -1,187 +1,45 @@
-/**
- * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * This source code is licensed under a Proprietary License.
- * Unauthorized copying, modification, distribution, or use of this file,
- * via any medium, is strictly prohibited without express written permission.
- *
- * For licensing inquiries: GitHub @dpatzan2
- */
-
-/**
- * Empresas del usuario. Crear una empresa la deja lista para operar: nace con
- * su sucursal principal y con quien la creó ya adentro, y aparece de inmediato
- * en el selector de arriba. Cada empresa es una entidad separada — catálogo,
- * precios, contabilidad y numeración propios.
- */
 import { useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
-import { Building2, Check, Loader2, Plus } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Building2, ChevronDown, Ellipsis, Loader2, Pencil, Plus, Search, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useTenant } from '@/context/useTenant'
 import { useAuth } from '@/context/useAuth'
-import { createCompany, type CreateCompanyPayload } from '@/services/tenantService'
+import type { Branch, Company } from '@/context/AuthContext'
+import { createCompany, fetchCompanies, updateCompany, type CreateCompanyPayload } from '@/services/tenantService'
 
-const emptyForm: CreateCompanyPayload = {
-    name: '',
-    code: '',
-    tax_id: '',
-    branch_name: 'Principal',
-    branch_code: 'PRIN',
+const emptyForm: CreateCompanyPayload = { name: '', code: '', tax_id: '', branch_name: 'Principal', branch_code: 'PRIN' }
+
+export function CompaniesCard({ canManage, activeBranches, onAddBranch }: { canManage: boolean; activeBranches: Branch[]; onAddBranch: () => void }) {
+  const { toast } = useToast()
+  const client = useQueryClient()
+  const { companies, company, setCompany } = useTenant()
+  const { refreshUser } = useAuth()
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState(company?.id || '')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [form, setForm] = useState<CreateCompanyPayload>(emptyForm)
+  const [editing, setEditing] = useState<Company | null>(null)
+  const [editForm, setEditForm] = useState({ name: '', tax_id: '', address: '', phone: '', active: true })
+  const adminQuery = useQuery({ queryKey: ['companies', 'admin'], queryFn: () => fetchCompanies(true), enabled: canManage })
+  const rows = canManage ? adminQuery.data || [] : companies
+  const filtered = rows.filter((row) => `${row.name} ${row.code} ${row.tax_id || ''} ${row.branches?.map((branch) => branch.name).join(' ') || ''}`.toLocaleLowerCase('es').includes(search.trim().toLocaleLowerCase('es')))
+  const refresh = async () => { await refreshUser(); void client.invalidateQueries({ queryKey: ['companies', 'admin'] }) }
+  const fail = (error: Error) => toast({ title: 'No se pudo guardar', description: error.message, variant: 'destructive' })
+  const createMutation = useMutation({ mutationFn: createCompany, onSuccess: async () => { setCreateOpen(false); setForm(emptyForm); await refresh(); toast({ title: 'Empresa creada' }) }, onError: fail })
+  const updateMutation = useMutation({ mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateCompany>[1] }) => updateCompany(id, payload), onSuccess: async () => { setEditing(null); await refresh(); toast({ title: 'Empresa actualizada' }) }, onError: fail })
+  const beginEdit = (row: Company) => { setEditing(row); setEditForm({ name: row.name, tax_id: row.tax_id || '', address: row.address || '', phone: row.phone || '', active: row.active !== false }) }
+  const create = () => { if (!form.name.trim() || !form.code.trim()) return; createMutation.mutate({ ...form, name: form.name.trim(), code: form.code.trim().toUpperCase(), branch_code: (form.branch_code || 'PRIN').trim().toUpperCase() }) }
+  const save = () => { if (!editing || !editForm.name.trim()) return; updateMutation.mutate({ id: editing.id, payload: { ...editForm, name: editForm.name.trim() } }) }
+
+  return <section className="branches-companies">
+    <div className="branches-section-head"><div><h2>Empresas y sucursales</h2><p>Gestiona las empresas a las que tienes acceso y sus sedes.</p></div>{canManage && <Button className="branches-primary" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Nueva empresa</Button>}</div>
+    <label className="branches-search branches-company-search"><Search className="h-4 w-4" /><Input aria-label="Buscar empresas" placeholder="Buscar empresas o sucursales..." value={search} onChange={(event) => setSearch(event.target.value)} /></label>
+    {adminQuery.isLoading && canManage ? <div className="branches-empty"><Loader2 className="h-5 w-5 animate-spin" /> Cargando empresas…</div> : adminQuery.isError && canManage ? <div className="branches-empty">No se pudieron cargar las empresas. <Button variant="outline" onClick={() => void adminQuery.refetch()}>Reintentar</Button></div> : !filtered.length ? <div className="branches-empty">No hay empresas que coincidan con la búsqueda.</div> : <div className="branches-company-list">{filtered.map((row) => { const open = expanded === row.id; const branchRows = row.branches || (row.id === company?.id ? activeBranches : []); return <article key={row.id} className="branches-company"><div className="branches-company-top"><span className="branches-company-icon"><Building2 /></span><div className="branches-company-title"><strong>{row.name}</strong><small>{row.tax_id ? `NIT ${row.tax_id}` : `Código ${row.code}`}</small></div><span className={`branches-badge branches-badge--${row.active === false ? 'inactive' : 'operating'}`}><i />{row.active === false ? 'Inactiva' : 'Activa'}</span><span className="branches-count"><Star className="h-4 w-4" />{branchRows.length} {branchRows.length === 1 ? 'sucursal' : 'sucursales'}</span><button className="branches-expand" type="button" aria-expanded={open} aria-label={`${open ? 'Contraer' : 'Expandir'} ${row.name}`} onClick={() => setExpanded(open ? '' : row.id)}><ChevronDown className="h-4 w-4" /></button></div>{open && <div className="branches-company-body"><h3>Sucursales</h3>{branchRows.length ? branchRows.map((branch) => <div key={branch.id} className="branches-company-branch"><Building2 className="h-5 w-5" /><div><strong>{branch.name}</strong><small>{branch.address || 'Dirección no registrada'}</small></div>{branch.is_default && <span className="branches-default"><Star className="h-3 w-3" /> Por defecto</span>}<span className={`branches-badge branches-badge--${branch.active === false ? 'inactive' : branch.operational_status === 'MAINTENANCE' ? 'maintenance' : 'operating'}`}><i />{branch.active === false ? 'Inactiva' : branch.operational_status === 'MAINTENANCE' ? 'Mantenimiento' : 'Activa'}</span><span>{branch.manager?.name || 'Sin responsable'}</span><span>{branch.phone || 'Sin teléfono'}</span></div>) : <p className="branches-muted">No hay sucursales visibles en esta empresa.</p>}<div className="branches-company-actions">{row.id === company?.id && canManage && <Button variant="outline" onClick={onAddBranch}><Plus className="h-4 w-4" /> Agregar sucursal</Button>}{row.id !== company?.id && row.active !== false && <Button variant="outline" onClick={() => setCompany(row.id)}>Seleccionar empresa</Button>}{canManage && row.id === company?.id && <Button variant="outline" onClick={() => beginEdit(row)}><Pencil className="h-4 w-4" /> Editar empresa</Button>}</div></div>}</article> })}</div>}
+
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>Nueva empresa</DialogTitle><DialogDescription>Se crea con su sucursal principal y quedas asignado a ella. El código no se podrá cambiar.</DialogDescription></DialogHeader><div className="branches-form branches-form-two"><label>Nombre *<Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Código *<Input maxLength={20} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value.toUpperCase() })} /></label><label>NIT<Input value={form.tax_id || ''} onChange={(event) => setForm({ ...form, tax_id: event.target.value })} /></label><label>Sucursal principal<Input value={form.branch_name || ''} onChange={(event) => setForm({ ...form, branch_name: event.target.value })} /></label><label>Código de sucursal<Input maxLength={10} value={form.branch_code || ''} onChange={(event) => setForm({ ...form, branch_code: event.target.value.toUpperCase() })} /></label></div><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button className="branches-primary" onClick={create} disabled={createMutation.isPending || !form.name.trim() || !form.code.trim()}>Crear empresa</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null) }}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>Editar empresa</DialogTitle><DialogDescription>El código {editing?.code} se mantiene para conservar la numeración documental.</DialogDescription></DialogHeader><div className="branches-form"><label>Nombre *<Input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} /></label><label>NIT<Input value={editForm.tax_id} onChange={(event) => setEditForm({ ...editForm, tax_id: event.target.value })} /></label><label>Dirección<Input value={editForm.address} onChange={(event) => setEditForm({ ...editForm, address: event.target.value })} /></label><label>Teléfono<Input value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} /></label><label>Estado<select value={editForm.active ? 'active' : 'inactive'} onChange={(event) => setEditForm({ ...editForm, active: event.target.value === 'active' })}><option value="active">Activa</option><option value="inactive">Inactiva</option></select></label></div><DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button><Button className="branches-primary" onClick={save} disabled={updateMutation.isPending || !editForm.name.trim()}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>
+  </section>
 }
-
-export const CompaniesCard = ({ canManage }: { canManage: boolean }) => {
-    const { toast } = useToast()
-    const { companies, company, setCompany } = useTenant()
-    const { refreshUser } = useAuth()
-    const [dialogOpen, setDialogOpen] = useState(false)
-    const [form, setForm] = useState<CreateCompanyPayload>(emptyForm)
-
-    const createMutation = useMutation({
-        mutationFn: createCompany,
-        onSuccess: async (created) => {
-            toast({ title: 'Empresa creada', description: `${created.name} (${created.code})` })
-            setDialogOpen(false)
-            setForm(emptyForm)
-            // Sin esto la empresa nueva no aparece en el selector hasta refrescar.
-            await refreshUser()
-        },
-        onError: (e: Error) => {
-            toast({ title: 'No se pudo crear', description: e.message, variant: 'destructive' })
-        },
-    })
-
-    const submit = () => {
-        if (!form.name.trim() || !form.code.trim()) {
-            toast({ title: 'Faltan datos', description: 'Nombre y código son obligatorios', variant: 'destructive' })
-            return
-        }
-        createMutation.mutate({
-            ...form,
-            code: form.code.trim().toUpperCase(),
-            branch_code: (form.branch_code || 'PRIN').trim().toUpperCase(),
-        })
-    }
-
-    return (
-        <>
-            <Card>
-                <CardHeader className='pb-3'>
-                    <div className='flex flex-wrap items-center justify-between gap-3'>
-                        <div>
-                            <CardTitle className='flex items-center gap-2 text-base'>
-                                <Building2 className='h-4 w-4' /> Empresas
-                            </CardTitle>
-                            <CardDescription>
-                                Cada empresa maneja su propio catálogo, precios, contabilidad y sucursales.
-                            </CardDescription>
-                        </div>
-                        {canManage && (
-                            <Button size='sm' variant='outline' onClick={() => setDialogOpen(true)}>
-                                <Plus className='mr-2 h-4 w-4' /> Nueva empresa
-                            </Button>
-                        )}
-                    </div>
-                </CardHeader>
-                <CardContent>
-                    <div className='flex flex-wrap gap-2'>
-                        {companies.map((c) => (
-                            <Button
-                                key={c.id}
-                                type='button'
-                                variant={c.id === company?.id ? 'default' : 'outline'}
-                                size='sm'
-                                className='gap-2'
-                                onClick={() => setCompany(c.id)}
-                            >
-                                {c.id === company?.id && <Check className='h-3.5 w-3.5' />}
-                                {c.name}
-                                <Badge variant='secondary' className='font-mono text-[10px]'>{c.code}</Badge>
-                            </Button>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Nueva empresa</DialogTitle>
-                        <DialogDescription>
-                            Se crea con su sucursal principal y quedás asignado a ella. El código va en
-                            las referencias de sus documentos y no se puede cambiar después.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className='grid gap-4 sm:grid-cols-2'>
-                        <div className='space-y-2 sm:col-span-2'>
-                            <Label htmlFor='company-name'>Nombre</Label>
-                            <Input
-                                id='company-name'
-                                value={form.name}
-                                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                placeholder='Distribuidora GT, S.A.'
-                            />
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='company-code'>Código</Label>
-                            <Input
-                                id='company-code'
-                                value={form.code}
-                                onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
-                                placeholder='DGT'
-                                maxLength={20}
-                            />
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='company-tax'>NIT</Label>
-                            <Input
-                                id='company-tax'
-                                value={form.tax_id ?? ''}
-                                onChange={(e) => setForm({ ...form, tax_id: e.target.value })}
-                            />
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='company-branch'>Sucursal principal</Label>
-                            <Input
-                                id='company-branch'
-                                value={form.branch_name ?? ''}
-                                onChange={(e) => setForm({ ...form, branch_name: e.target.value })}
-                            />
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='company-branch-code'>Código de sucursal</Label>
-                            <Input
-                                id='company-branch-code'
-                                value={form.branch_code ?? ''}
-                                onChange={(e) => setForm({ ...form, branch_code: e.target.value.toUpperCase() })}
-                                maxLength={10}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant='outline' onClick={() => setDialogOpen(false)}>Cancelar</Button>
-                        <Button onClick={submit} disabled={createMutation.isPending}>
-                            {createMutation.isPending && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-                            Crear empresa
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </>
-    )
-}
-
-export default CompaniesCard

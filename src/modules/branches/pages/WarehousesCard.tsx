@@ -1,399 +1,73 @@
-/**
- * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * This source code is licensed under a Proprietary License.
- * Unauthorized copying, modification, distribution, or use of this file,
- * via any medium, is strictly prohibited without express written permission.
- *
- * For licensing inquiries: GitHub @dpatzan2
- */
-
-/**
- * Almacenes de la sucursal ACTIVA (bodega, sala de ventas, vitrina…) y las
- * ubicaciones dentro de cada uno. La prioridad de despacho decide de dónde sale
- * la mercancía al vender: menor número, primero.
- */
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, MapPin, Plus, Store, Trash2, Warehouse as WarehouseIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, MapPin, Package, Pencil, Plus, Search, Store, Trash2, Warehouse as WarehouseIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog'
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { useTenant } from '@/context/useTenant'
-import {
-    createLocation,
-    createWarehouse,
-    deleteLocation,
-    deleteWarehouse,
-    fetchWarehouses,
-    setSalesLocation,
-    updateLocation,
-    updateWarehouse,
-    WAREHOUSE_KIND_LABELS,
-    type Warehouse,
-    type WarehouseKind,
-    type WarehousePayload,
-} from '@/services/warehouseService'
+import type { Branch } from '@/context/AuthContext'
+import { createLocation, createWarehouse, deleteLocation, deleteWarehouse, fetchWarehouses, setSalesLocation, updateLocation, updateWarehouse, WAREHOUSE_KIND_LABELS, type Warehouse, type WarehouseKind, type WarehousePayload, type StockLocation } from '@/services/warehouseService'
+import { filterWarehouses, isWarehouseOperational } from './branchOverview.mjs'
 
-const emptyWarehouse: WarehousePayload = { name: '', kind: 'BODEGA', dispatch_priority: 100 }
+const emptyForm: WarehousePayload = { name: '', kind: 'BODEGA', dispatch_priority: 100 }
+type DeleteTarget = { type: 'warehouse'; row: Warehouse } | { type: 'location'; row: StockLocation }
 
-/** Vista previa del código que genera el backend a partir del nombre. */
-const autoCode = (name: string, max: number) =>
-    name
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toUpperCase()
-        .replace(/[^A-Z0-9]/g, '')
-        .slice(0, max)
+export function WarehousesCard({ canManage, branches }: { canManage: boolean; branches: Branch[] }) {
+  const { toast } = useToast()
+  const client = useQueryClient()
+  const { branch } = useTenant()
+  const [search, setSearch] = useState('')
+  const [branchId, setBranchId] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [form, setForm] = useState<WarehousePayload>(emptyForm)
+  const [editing, setEditing] = useState<Warehouse | null>(null)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [locationForm, setLocationForm] = useState({ name: '', dispatch_priority: 100 })
+  const [locationOpen, setLocationOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
 
-export const WarehousesCard = ({ canManage }: { canManage: boolean }) => {
-    const { toast } = useToast()
-    const queryClient = useQueryClient()
-    const { branch } = useTenant()
+  const query = useQuery({ queryKey: ['warehouses', 'all', branch?.company_id], queryFn: () => fetchWarehouses('all') })
+  const warehouses = query.data || []
+  const filtered = useMemo(() => filterWarehouses(warehouses, { search, branchId, status }) as Warehouse[], [warehouses, search, branchId, status])
+  const pageSize = 10
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+  const detail = warehouses.find((row) => row.id === detailId)
+  const stockUnits = warehouses.reduce((sum, row) => sum + (row.stock_units || 0), 0)
+  const invalidate = () => void client.invalidateQueries({ queryKey: ['warehouses'] })
+  const fail = (error: Error) => toast({ title: 'No se pudo guardar', description: error.message, variant: 'destructive' })
+  const createMutation = useMutation({ mutationFn: createWarehouse, onSuccess: () => { setCreateOpen(false); setForm(emptyForm); invalidate(); toast({ title: 'Almacén creado' }) }, onError: fail })
+  const updateMutation = useMutation({ mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateWarehouse>[1] }) => updateWarehouse(id, payload), onSuccess: () => { setEditing(null); invalidate(); toast({ title: 'Almacén actualizado' }) }, onError: fail })
+  const deleteWarehouseMutation = useMutation({ mutationFn: deleteWarehouse, onSuccess: () => { setDetailId(null); setDeleteTarget(null); invalidate(); toast({ title: 'Almacén eliminado' }) }, onError: fail })
+  const createLocationMutation = useMutation({ mutationFn: ({ warehouseId, name, dispatch_priority }: { warehouseId: string; name: string; dispatch_priority: number }) => createLocation(warehouseId, { name, dispatch_priority }), onSuccess: () => { setLocationOpen(false); setLocationForm({ name: '', dispatch_priority: 100 }); invalidate(); toast({ title: 'Ubicación creada' }) }, onError: fail })
+  const updateLocationMutation = useMutation({ mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateLocation>[1] }) => updateLocation(id, payload), onSuccess: invalidate, onError: fail })
+  const salesMutation = useMutation({ mutationFn: setSalesLocation, onSuccess: invalidate, onError: fail })
+  const deleteLocationMutation = useMutation({ mutationFn: deleteLocation, onSuccess: () => { setDeleteTarget(null); invalidate(); toast({ title: 'Ubicación eliminada' }) }, onError: fail })
+  const busy = createMutation.isPending || updateMutation.isPending || deleteWarehouseMutation.isPending || updateLocationMutation.isPending || deleteLocationMutation.isPending
+  const canEdit = (row: Warehouse) => canManage && row.branch_id === branch?.id
+  const beginEdit = (row: Warehouse) => { setEditing(row); setForm({ name: row.name, kind: row.kind, dispatch_priority: row.dispatch_priority, notes: row.notes || '' }) }
+  const save = () => { if (!editing || !form.name.trim()) return; updateMutation.mutate({ id: editing.id, payload: { name: form.name.trim(), kind: form.kind, dispatch_priority: form.dispatch_priority, notes: form.notes || '' } }) }
 
-    const [warehouseDialog, setWarehouseDialog] = useState(false)
-    const [form, setForm] = useState<WarehousePayload>(emptyWarehouse)
-    const [locationFor, setLocationFor] = useState<Warehouse | null>(null)
-    const [locationForm, setLocationForm] = useState({ name: '', dispatch_priority: 100 })
+  return <section className="branches-warehouses">
+    <div className="branches-section-head"><div><h2>Almacenes</h2><p>Espacios, ubicaciones y existencias reales de tus sucursales.</p></div>{canManage && branch && <Button className="branches-primary" onClick={() => { setForm(emptyForm); setCreateOpen(true) }}><Plus className="h-4 w-4" /> Nuevo almacén</Button>}</div>
+    <section className="branches-warehouse-stats" aria-label="Resumen de almacenes"><div className="branches-stat"><WarehouseIcon /><strong>{warehouses.length}</strong><span>Almacenes<small>Totales</small></span></div><div className="branches-stat"><MapPin /><strong>{warehouses.reduce((sum, row) => sum + row.locations.length, 0)}</strong><span>Ubicaciones<small>Registradas</small></span></div><div className="branches-stat"><Package /><strong>{stockUnits.toLocaleString('es-GT')}</strong><span>Unidades<small>En existencias</small></span></div><div className="branches-stat"><Store /><strong>{warehouses.filter(isWarehouseOperational).length}</strong><span>Operativos<small>Almacenes activos</small></span></div></section>
+    <section className="branches-warehouse-toolbar" aria-label="Filtros de almacenes"><label className="branches-search"><Search className="h-4 w-4" /><Input aria-label="Buscar almacenes" placeholder="Buscar almacén, sucursal o ubicación..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></label><select aria-label="Filtrar por sucursal" value={branchId} onChange={(event) => { setBranchId(event.target.value); setPage(1) }}><option value="all">Todas las sucursales</option>{branches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><select aria-label="Filtrar por estado" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option value="all">Todos los estados</option><option value="active">Operativos</option><option value="inactive">Inactivos</option></select><Button variant="outline" onClick={() => { setSearch(''); setBranchId('all'); setStatus('all'); setPage(1) }}>Limpiar</Button></section>
+    <div className="branches-warehouse-table"><table><thead><tr><th>Nombre del almacén</th><th>Sucursal</th><th>Ubicaciones</th><th>Tipo</th><th>Existencias</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><strong>{row.name}</strong><small>{row.code}</small></td><td>{row.branch?.name || branches.find((item) => item.id === row.branch_id)?.name || '—'}</td><td>{row.locations.length}</td><td>{WAREHOUSE_KIND_LABELS[row.kind]}</td><td>{(row.stock_units || 0).toLocaleString('es-GT')} unidades</td><td><span className={`branches-badge branches-badge--${isWarehouseOperational(row) ? 'operating' : 'inactive'}`}><i />{isWarehouseOperational(row) ? 'Operativo' : row.branch?.active === false ? 'Sucursal inactiva' : 'Inactivo'}</span></td><td><div className="branches-row-actions"><Button variant="outline" size="sm" onClick={() => setDetailId(row.id)}>Ver</Button>{canEdit(row) && <Button variant="outline" size="icon" title={`Editar ${row.name}`} aria-label={`Editar ${row.name}`} onClick={() => beginEdit(row)}><Pencil className="h-4 w-4" /></Button>}</div></td></tr>)}</tbody></table>{query.isLoading ? <div className="branches-empty"><Loader2 className="h-5 w-5 animate-spin" /> Cargando almacenes…</div> : query.isError ? <div className="branches-empty">No se pudieron cargar los almacenes. <Button variant="outline" onClick={() => void query.refetch()}>Reintentar</Button></div> : !visible.length && <div className="branches-empty">No hay almacenes que coincidan con los filtros.</div>}</div>
+    <footer className="branches-pagination"><span>Mostrando {visible.length ? (currentPage - 1) * pageSize + 1 : 0} a {Math.min(currentPage * pageSize, filtered.length)} de {filtered.length} almacenes</span><div><button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" /></button>{Array.from({ length: totalPages }, (_, index) => <button type="button" key={index} data-active={index + 1 === currentPage} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button type="button" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)} aria-label="Página siguiente"><ChevronRight className="h-4 w-4" /></button></div></footer>
 
-    const { data: warehouses = [], isLoading } = useQuery({
-        queryKey: ['warehouses', branch?.id],
-        queryFn: () => fetchWarehouses(),
-        enabled: Boolean(branch),
-    })
-
-    const invalidate = () => queryClient.invalidateQueries({ queryKey: ['warehouses'] })
-    const fail = (e: Error) => toast({ title: 'No se pudo guardar', description: e.message, variant: 'destructive' })
-
-    const createWarehouseMutation = useMutation({
-        mutationFn: createWarehouse,
-        onSuccess: (w) => {
-            toast({ title: 'Almacén creado', description: `${w.name} (${w.code})` })
-            setWarehouseDialog(false)
-            setForm(emptyWarehouse)
-            void invalidate()
-        },
-        onError: fail,
-    })
-
-    const updateWarehouseMutation = useMutation({
-        mutationFn: ({ id, ...payload }: { id: string } & Parameters<typeof updateWarehouse>[1]) =>
-            updateWarehouse(id, payload),
-        onSuccess: () => void invalidate(),
-        onError: fail,
-    })
-
-    const deleteWarehouseMutation = useMutation({
-        mutationFn: deleteWarehouse,
-        onSuccess: () => void invalidate(),
-        onError: fail,
-    })
-
-    const createLocationMutation = useMutation({
-        mutationFn: ({ warehouseId, ...payload }: { warehouseId: string; code?: string; name: string; dispatch_priority?: number }) =>
-            createLocation(warehouseId, payload),
-        onSuccess: () => {
-            setLocationFor(null)
-            setLocationForm({ name: '', dispatch_priority: 100 })
-            void invalidate()
-        },
-        onError: fail,
-    })
-
-    const updateLocationMutation = useMutation({
-        mutationFn: ({ id, ...payload }: { id: string } & Parameters<typeof updateLocation>[1]) =>
-            updateLocation(id, payload),
-        onSuccess: () => void invalidate(),
-        onError: fail,
-    })
-
-    const deleteLocationMutation = useMutation({
-        mutationFn: deleteLocation,
-        onSuccess: () => void invalidate(),
-        onError: fail,
-    })
-
-    const salesLocationMutation = useMutation({
-        mutationFn: setSalesLocation,
-        onSuccess: () => void invalidate(),
-        onError: fail,
-    })
-
-    const busy =
-        createWarehouseMutation.isPending ||
-        updateWarehouseMutation.isPending ||
-        deleteWarehouseMutation.isPending ||
-        updateLocationMutation.isPending ||
-        deleteLocationMutation.isPending
-
-    return (
-        <Card>
-            <CardHeader className='pb-3'>
-                <div className='flex flex-wrap items-center justify-between gap-3'>
-                    <div>
-                        <CardTitle className='flex items-center gap-2 text-base'>
-                            <WarehouseIcon className='h-4 w-4 text-muted-foreground' />
-                            Almacenes
-                        </CardTitle>
-                        <CardDescription>
-                            {branch
-                                ? `Espacios dentro de ${branch.name}. Las ventas salen de la ubicación marcada como punto de venta; si no hay ninguna, del almacén de menor prioridad.`
-                                : 'Elige una sucursal concreta arriba para administrar sus almacenes.'}
-                        </CardDescription>
-                    </div>
-                    {canManage && branch && (
-                        <Button size='sm' onClick={() => setWarehouseDialog(true)}>
-                            <Plus className='mr-2 h-4 w-4' /> Nuevo almacén
-                        </Button>
-                    )}
-                </div>
-            </CardHeader>
-            <CardContent className='space-y-4'>
-                {!branch ? null : isLoading ? (
-                    <div className='flex items-center gap-2 text-sm text-muted-foreground'>
-                        <Loader2 className='h-4 w-4 animate-spin' /> Cargando…
-                    </div>
-                ) : warehouses.length === 0 ? (
-                    <p className='text-sm text-muted-foreground'>
-                        Esta sucursal aún no tiene almacenes; se creará uno «Principal» en cuanto entre mercancía.
-                    </p>
-                ) : (
-                    warehouses.map((w) => (
-                        <div key={w.id} className={`rounded-lg border p-3 ${w.active ? '' : 'opacity-60'}`}>
-                            <div className='flex flex-wrap items-center justify-between gap-2'>
-                                <div className='flex flex-wrap items-center gap-2'>
-                                    <span className='font-medium'>{w.name}</span>
-                                    <Badge variant='outline'>{w.code}</Badge>
-                                    <Badge variant='secondary'>{WAREHOUSE_KIND_LABELS[w.kind]}</Badge>
-                                    {w.is_default && <Badge>Predeterminado</Badge>}
-                                    {w.is_receiving && <Badge variant='secondary'>Recepción</Badge>}
-                                    <span className='text-xs text-muted-foreground'>Prioridad {w.dispatch_priority}</span>
-                                </div>
-                                {canManage && (
-                                    <div className='flex items-center gap-2'>
-                                        {!w.is_default && (
-                                            <Button
-                                                size='sm'
-                                                variant='outline'
-                                                disabled={busy}
-                                                onClick={() => updateWarehouseMutation.mutate({ id: w.id, is_default: true })}
-                                            >
-                                                Predeterminar
-                                            </Button>
-                                        )}
-                                        <Button size='sm' variant='outline' disabled={busy} onClick={() => setLocationFor(w)}>
-                                            <Plus className='mr-1 h-3 w-3' /> Ubicación
-                                        </Button>
-                                        <Switch
-                                            checked={w.active}
-                                            disabled={busy}
-                                            onCheckedChange={(active) => updateWarehouseMutation.mutate({ id: w.id, active })}
-                                        />
-                                        <Button
-                                            size='sm'
-                                            variant='ghost'
-                                            disabled={busy || w.is_default}
-                                            onClick={() => deleteWarehouseMutation.mutate(w.id)}
-                                        >
-                                            <Trash2 className='h-4 w-4' />
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className='mt-3 space-y-1'>
-                                {w.locations.map((l) => (
-                                    <div
-                                        key={l.id}
-                                        className={`flex flex-wrap items-center justify-between gap-2 rounded border px-2 py-1 text-sm ${l.active ? '' : 'opacity-60'}`}
-                                    >
-                                        <span className='flex items-center gap-2'>
-                                            <MapPin className='h-3 w-3 text-muted-foreground' />
-                                            <span className='font-mono'>{l.code}</span>
-                                            {l.name && <span className='text-muted-foreground'>{l.name}</span>}
-                                            {l.is_default && <Badge variant='outline'>Predeterminada</Badge>}
-                                            {l.is_sales && <Badge>Punto de venta</Badge>}
-                                            {!l.pickable && <Badge variant='destructive'>No despacha</Badge>}
-                                        </span>
-                                        {canManage && (
-                                            <span className='flex items-center gap-2'>
-                                                <Button
-                                                    size='sm'
-                                                    variant={l.is_sales ? 'secondary' : 'ghost'}
-                                                    disabled={busy}
-                                                    title='Las ventas de esta sucursal salen de aquí'
-                                                    onClick={() => salesLocationMutation.mutate(l.id)}
-                                                >
-                                                    <Store className='h-4 w-4' />
-                                                </Button>
-                                                <Label className='text-xs text-muted-foreground'>Despacha</Label>
-                                                <Switch
-                                                    checked={l.pickable}
-                                                    disabled={busy}
-                                                    onCheckedChange={(pickable) =>
-                                                        updateLocationMutation.mutate({ id: l.id, pickable })
-                                                    }
-                                                />
-                                                <Button
-                                                    size='sm'
-                                                    variant='ghost'
-                                                    disabled={busy || l.is_default}
-                                                    onClick={() => deleteLocationMutation.mutate(l.id)}
-                                                >
-                                                    <Trash2 className='h-4 w-4' />
-                                                </Button>
-                                            </span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    ))
-                )}
-            </CardContent>
-
-            <Dialog open={warehouseDialog} onOpenChange={setWarehouseDialog}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Nuevo almacén</DialogTitle>
-                        <DialogDescription>
-                            Se crea en {branch?.name ?? 'la sucursal activa'} con una ubicación «GENERAL».
-                            La prioridad decide de dónde sale la mercancía al vender: menor número, primero.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className='space-y-4'>
-                        <div className='space-y-2'>
-                            <Label htmlFor='wh-name'>Nombre</Label>
-                            <Input
-                                id='wh-name'
-                                value={form.name}
-                                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                                placeholder='Sala de ventas'
-                            />
-                        </div>
-                        {form.name.trim() && (
-                            <p className='text-xs text-muted-foreground'>
-                                Código: <span className='font-mono'>{autoCode(form.name, 20)}</span> (se genera solo)
-                            </p>
-                        )}
-                        <div className='space-y-2'>
-                            <Label>Tipo</Label>
-                            <Select
-                                value={form.kind}
-                                onValueChange={(kind) => setForm((f) => ({ ...f, kind: kind as WarehouseKind }))}
-                            >
-                                <SelectTrigger><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                    {Object.entries(WAREHOUSE_KIND_LABELS).map(([value, label]) => (
-                                        <SelectItem key={value} value={value}>{label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='wh-priority'>Prioridad de despacho</Label>
-                            <Input
-                                id='wh-priority'
-                                type='number'
-                                value={form.dispatch_priority}
-                                onChange={(e) => setForm((f) => ({ ...f, dispatch_priority: Number(e.target.value) }))}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant='outline' onClick={() => setWarehouseDialog(false)}>Cancelar</Button>
-                        <Button
-                            disabled={createWarehouseMutation.isPending}
-                            onClick={() => {
-                                if (!form.name.trim()) {
-                                    toast({ title: 'Falta el nombre', variant: 'destructive' })
-                                    return
-                                }
-                                createWarehouseMutation.mutate({ ...form, name: form.name.trim() })
-                            }}
-                        >
-                            {createWarehouseMutation.isPending ? 'Creando…' : 'Crear almacén'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={Boolean(locationFor)} onOpenChange={(open) => !open && setLocationFor(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Nueva ubicación</DialogTitle>
-                        <DialogDescription>
-                            Dentro de {locationFor?.name}. Ponle el nombre con el que la llaman en la
-                            bodega; el código sale de ahí.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className='space-y-4'>
-                        <div className='space-y-2'>
-                            <Label htmlFor='loc-name'>Nombre</Label>
-                            <Input
-                                id='loc-name'
-                                value={locationForm.name}
-                                onChange={(e) => setLocationForm((f) => ({ ...f, name: e.target.value }))}
-                                placeholder='Pasillo A estante 1'
-                            />
-                            {locationForm.name.trim() && (
-                                <p className='text-xs text-muted-foreground'>
-                                    Código: <span className='font-mono'>{autoCode(locationForm.name, 30)}</span>
-                                </p>
-                            )}
-                        </div>
-                        <div className='space-y-2'>
-                            <Label htmlFor='loc-priority'>Prioridad de despacho</Label>
-                            <Input
-                                id='loc-priority'
-                                type='number'
-                                value={locationForm.dispatch_priority}
-                                onChange={(e) => setLocationForm((f) => ({ ...f, dispatch_priority: Number(e.target.value) }))}
-                            />
-                        </div>
-                    </div>
-                    <DialogFooter>
-                        <Button variant='outline' onClick={() => setLocationFor(null)}>Cancelar</Button>
-                        <Button
-                            disabled={createLocationMutation.isPending}
-                            onClick={() => {
-                                if (!locationForm.name.trim() || !locationFor) {
-                                    toast({ title: 'Falta el nombre', variant: 'destructive' })
-                                    return
-                                }
-                                createLocationMutation.mutate({
-                                    warehouseId: locationFor.id,
-                                    name: locationForm.name.trim(),
-                                    dispatch_priority: locationForm.dispatch_priority,
-                                })
-                            }}
-                        >
-                            {createLocationMutation.isPending ? 'Creando…' : 'Crear ubicación'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-        </Card>
-    )
+    <Dialog open={createOpen} onOpenChange={setCreateOpen}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>Nuevo almacén</DialogTitle><DialogDescription>Se creará en {branch?.name}. Se añade automáticamente la ubicación GENERAL.</DialogDescription></DialogHeader><WarehouseFields form={form} setForm={setForm} /><DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cancelar</Button><Button className="branches-primary" disabled={!form.name.trim() || createMutation.isPending} onClick={() => createMutation.mutate({ ...form, name: form.name.trim() })}>Crear almacén</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) setEditing(null) }}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>Editar almacén</DialogTitle><DialogDescription>{editing?.code} · {editing?.branch?.name}</DialogDescription></DialogHeader><WarehouseFields form={form} setForm={setForm} /><div className="branches-form-actions">{editing && <><Button variant="outline" disabled={busy} onClick={() => updateMutation.mutate({ id: editing.id, payload: { active: !editing.active } })}>{editing.active ? 'Desactivar' : 'Reactivar'}</Button>{!editing.is_default && <Button variant="outline" disabled={busy} onClick={() => updateMutation.mutate({ id: editing.id, payload: { is_default: true } })}>Predeterminar</Button>}{!editing.is_receiving && <Button variant="outline" disabled={busy} onClick={() => updateMutation.mutate({ id: editing.id, payload: { is_receiving: true } })}>Marcar recepción</Button>}<Button variant="destructive" disabled={busy || editing.is_default} onClick={() => setDeleteTarget({ type: 'warehouse', row: editing })}><Trash2 className="mr-1 h-4 w-4" /> Eliminar</Button></>}</div><DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button><Button className="branches-primary" disabled={busy || !form.name.trim()} onClick={save}>Guardar cambios</Button></DialogFooter></DialogContent></Dialog>
+    <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetailId(null) }}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>{detail?.name}</DialogTitle><DialogDescription>{detail?.branch?.name} · {detail?.code} · {(detail?.stock_units || 0).toLocaleString('es-GT')} unidades</DialogDescription></DialogHeader>{detail && <><div className="branches-detail"><p><span>Tipo</span><strong>{WAREHOUSE_KIND_LABELS[detail.kind]}</strong></p><p><span>Prioridad</span><strong>{detail.dispatch_priority}</strong></p><p><span>Predeterminado</span><strong>{detail.is_default ? 'Sí' : 'No'}</strong></p><p><span>Recepción</span><strong>{detail.is_receiving ? 'Sí' : 'No'}</strong></p></div><h3>Ubicaciones ({detail.locations.length})</h3><div className="branches-locations">{detail.locations.map((location) => <div key={location.id} className="branches-location"><div><MapPin className="h-4 w-4" /><strong>{location.name || location.code}</strong><span>{location.code}</span>{location.is_default && <small>Predeterminada</small>}{location.is_sales && <small>Punto de venta</small>}</div>{canEdit(detail) && <div><Button variant="outline" size="sm" disabled={busy} onClick={() => salesMutation.mutate(location.id)}>{location.is_sales ? 'Quitar POS' : 'Usar en POS'}</Button><Button variant="outline" size="sm" disabled={busy} onClick={() => updateLocationMutation.mutate({ id: location.id, payload: { pickable: !location.pickable } })}>{location.pickable ? 'No despachar' : 'Permitir despacho'}</Button>{!location.is_default && <Button variant="outline" size="icon" title="Eliminar ubicación" aria-label={`Eliminar ubicación ${location.name || location.code}`} disabled={busy} onClick={() => setDeleteTarget({ type: 'location', row: location })}><Trash2 className="h-4 w-4" /></Button>}</div>}</div>)}</div></>}{detail && canEdit(detail) && <DialogFooter><Button variant="outline" onClick={() => setLocationOpen(true)}><Plus className="mr-1 h-4 w-4" /> Nueva ubicación</Button><Button className="branches-primary" onClick={() => { beginEdit(detail); setDetailId(null) }}>Editar almacén</Button></DialogFooter>}</DialogContent></Dialog>
+    <Dialog open={locationOpen} onOpenChange={setLocationOpen}><DialogContent className="branches-dialog"><DialogHeader><DialogTitle>Nueva ubicación</DialogTitle><DialogDescription>Dentro de {detail?.name}. El código se genera del nombre.</DialogDescription></DialogHeader><div className="branches-form"><label>Nombre *<Input value={locationForm.name} onChange={(event) => setLocationForm({ ...locationForm, name: event.target.value })} /></label><label>Prioridad de despacho<Input type="number" value={locationForm.dispatch_priority} onChange={(event) => setLocationForm({ ...locationForm, dispatch_priority: Number(event.target.value) })} /></label></div><DialogFooter><Button variant="outline" onClick={() => setLocationOpen(false)}>Cancelar</Button><Button className="branches-primary" disabled={!locationForm.name.trim() || createLocationMutation.isPending} onClick={() => detail && createLocationMutation.mutate({ warehouseId: detail.id, name: locationForm.name.trim(), dispatch_priority: locationForm.dispatch_priority })}>Crear ubicación</Button></DialogFooter></DialogContent></Dialog>
+    <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}><AlertDialogContent className="branches-dialog"><AlertDialogHeader><AlertDialogTitle>¿Eliminar {deleteTarget?.type === 'warehouse' ? 'almacén' : 'ubicación'}?</AlertDialogTitle><AlertDialogDescription>Solo se permite si no contiene existencias ni movimientos que lo referencien. Esta acción no se puede deshacer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground" disabled={busy} onClick={(event) => { event.preventDefault(); if (deleteTarget?.type === 'warehouse') deleteWarehouseMutation.mutate(deleteTarget.row.id); if (deleteTarget?.type === 'location') deleteLocationMutation.mutate(deleteTarget.row.id) }}>Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </section>
 }
 
-export default WarehousesCard
+function WarehouseFields({ form, setForm }: { form: WarehousePayload; setForm: (form: WarehousePayload) => void }) {
+  return <div className="branches-form"><label>Nombre *<Input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label>Tipo<select value={form.kind || 'BODEGA'} onChange={(event) => setForm({ ...form, kind: event.target.value as WarehouseKind })}>{Object.entries(WAREHOUSE_KIND_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label><label>Prioridad de despacho<Input type="number" value={form.dispatch_priority || 100} onChange={(event) => setForm({ ...form, dispatch_priority: Number(event.target.value) })} /></label><label>Notas<Input value={form.notes || ''} onChange={(event) => setForm({ ...form, notes: event.target.value })} /></label></div>
+}

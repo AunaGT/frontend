@@ -22,36 +22,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { getVisibleModules, type AppModule, getUserRole } from '@/config/appModules'
+import { getVisibleModules, type AppModule, getUserRole, MODULE_DESCRIPTIONS } from '@/config/appModules'
 import type { AuthUser } from '@/context/AuthContext'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
-
-const MODULE_DESCRIPTIONS: Record<string, string> = {
-    sales: 'Ventas, cobros y facturación',
-    quotes: 'Propuestas y seguimiento',
-    orders: 'Pedidos y entregas',
-    inventory: 'Productos, stock y almacenes',
-    'inventory-count': 'Conteos y diferencias',
-    returns: 'Devoluciones y ajustes',
-    'cash-closure': 'Sesiones y cierres de caja',
-    contacts: 'Clientes y proveedores',
-    receivables: 'Saldos y cuentas por cobrar',
-    merchandise: 'Ingresos de mercadería',
-    analytics: 'Análisis e indicadores',
-    accounting: 'Cuentas y movimientos',
-    reports: 'Reportes y exportaciones',
-    alerts: 'Pendientes que requieren atención',
-    promotions: 'Ofertas y descuentos',
-    catalogs: 'Catálogos del sistema',
-    transfers: 'Traslados entre almacenes',
-    branches: 'Empresas y sucursales',
-    hr: 'Empleados y asistencia',
-    payroll: 'Nómina y recibos',
-    users: 'Usuarios, roles y permisos',
-    config: 'Preferencias y módulos',
-}
 
 const MONTHS = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
