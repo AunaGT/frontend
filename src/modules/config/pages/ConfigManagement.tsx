@@ -359,11 +359,11 @@ export default function ConfigManagement() {
 
   return (
     <div className="config-page">
-      <div className="config-page-heading">
-        <p className="config-eyebrow">CONFIGURACIÓN · {company?.name ?? 'Empresa activa'}</p>
+      <header className="config-page-heading auna-module-heading"><div>
+        <p className="config-eyebrow auna-module-eyebrow">CONFIGURACIÓN · {company?.name ?? 'Empresa activa'}</p>
         <h1>{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
-        <p>{activeTab === 'modules' ? 'Gestiona la activación comercial y las dependencias de esta empresa.' : `Personaliza el funcionamiento de ${company?.name ?? 'tu empresa'} según sus necesidades.`}</p>
-      </div>
+        <p className="auna-module-description">{activeTab === 'modules' ? 'Gestiona la activación comercial y las dependencias de esta empresa.' : `Personaliza el funcionamiento de ${company?.name ?? 'tu empresa'} según sus necesidades.`}</p>
+      </div></header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="config-tabs-root">
         <TabsList className="config-tabs">

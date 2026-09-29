@@ -321,6 +321,7 @@ export const removeProductFromBranch = async (id: string): Promise<{ ok?: boolea
 // options.ids: optional list of product IDs to export only those (if empty or omitted, exports all).
 // options.includeSummary: if false, omits the summary block (productos registrados, unidades, valor inventario). Default true.
 export interface ProductExportOptions {
+  fileName?: string;
   /** Columnas elegidas en el diálogo; sin ellas sale la ficha completa. */
   fields?: string[];
   /** Selección explícita de productos: manda sobre los filtros de pantalla. */
@@ -356,7 +357,7 @@ export const exportProducts = async (options?: ProductExportOptions): Promise<vo
   const qs = params.toString();
   await downloadFile(
     `/products/report.pdf${qs ? `?${qs}` : ""}`,
-    options?.format === "csv" ? "inventario.csv" : "inventario.pdf",
+    options?.fileName || (options?.format === "csv" ? "inventario.csv" : "inventario.pdf"),
   );
 };
 

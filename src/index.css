@@ -13,6 +13,8 @@ Todos los colores DEBEN ser HSL.
     --brand-orange: 24 94% 53%;
     --brand-orange-strong: 20 90% 46%;
     --brand-surface: 216 33% 97%;
+    --auna-table-surface: 0 0% 100%;
+    --auna-table-header: 216 35% 96%;
 
     --background: 45 15% 97%;
     --foreground: 25 15% 15%;
@@ -86,6 +88,8 @@ Todos los colores DEBEN ser HSL.
     --brand-orange: 24 94% 55%;
     --brand-orange-strong: 20 92% 49%;
     --brand-surface: 218 34% 13%;
+    --auna-table-surface: 216 45% 14%;
+    --auna-table-header: 215 35% 18%;
 
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -133,6 +137,116 @@ Todos los colores DEBEN ser HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Encabezados y tablas opt-in: solo vistas ya migradas al diseño Auna. */
+header.auna-module-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+header.auna-module-heading > div:first-child { min-width: 0; }
+header.auna-module-heading .auna-module-eyebrow {
+  margin: 0 0 4px;
+  color: hsl(var(--brand-orange));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+header.auna-module-heading h1 {
+  margin: 0;
+  color: hsl(var(--brand-navy));
+  font-size: clamp(28px, 2.5vw, 38px);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+}
+.dark header.auna-module-heading h1 { color: hsl(var(--foreground)); }
+header.auna-module-heading p.auna-module-description {
+  margin-top: 6px;
+  color: hsl(var(--muted-foreground));
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auna-data-table-shell {
+  overflow: hidden;
+  border: 1px solid hsl(var(--border) / .7);
+  border-radius: 1rem;
+  background: hsl(var(--auna-table-surface));
+  box-shadow: 0 2px 10px -4px hsl(var(--brand-navy) / .12);
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table,
+table.auna-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  color: hsl(var(--foreground));
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table thead > tr > th,
+table.auna-data-table thead > tr > th {
+  height: auto;
+  padding: 16px 20px;
+  border-bottom: 1px solid hsl(var(--border) / .7);
+  background: hsl(var(--auna-table-header));
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr,
+table.auna-data-table tbody > tr {
+  border-bottom: 1px solid hsl(var(--border) / .7);
+  transition: background-color .15s ease;
+}
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:last-child,
+table.auna-data-table tbody > tr:last-child { border-bottom: 0; }
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:is(:hover, :focus-within),
+table.auna-data-table tbody > tr:is(:hover, :focus-within) { background: hsl(var(--muted) / .35); }
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr > td,
+table.auna-data-table tbody > tr > td {
+  padding: 16px 20px;
+  border-top: 0;
+  vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.4;
+}
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr > td button[aria-label],
+table.auna-data-table tbody > tr > td button[aria-label] { border-radius: 8px; }
+
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid hsl(var(--border) / .7);
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) :is(nav, .alerts-pagination, .config-pages) { display: flex; align-items: center; gap: 8px; }
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) button { min-width: 36px; min-height: 36px; border-radius: 8px; }
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) button:is([aria-current="page"], [data-active="true"], .is-current) {
+  border-color: hsl(var(--brand-orange));
+  background: hsl(var(--brand-orange));
+  color: white;
+}
+
+@media (max-width: 700px) {
+  .alerts-page table.alerts-table thead { display: none; }
+  .alerts-page table.alerts-table tbody > tr > td { padding: 0; border: 0; font-size: 12px; }
 }
 
 @keyframes auna-loading-breathe {

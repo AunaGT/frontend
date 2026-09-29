@@ -138,11 +138,11 @@ const Analytics = () => {
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
       <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <header className="auna-module-heading">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-orange">Analítica</p>
-            <h1 className="mt-1 text-3xl font-bold tracking-tight text-brand-navy dark:text-white sm:text-4xl">Dashboard analítico</h1>
-            <p className="mt-1 text-sm text-muted-foreground sm:text-base">Visión completa de tu negocio con información real.</p>
+            <p className="auna-module-eyebrow">Analítica</p>
+            <h1>Dashboard analítico</h1>
+            <p className="auna-module-description">Visión completa de tu negocio con información real.</p>
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(value === 'all' ? 'all' : Number(value))}>

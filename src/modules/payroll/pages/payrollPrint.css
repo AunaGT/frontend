@@ -1,0 +1,17 @@
+@media print {
+  body.payroll-printing * { visibility: hidden !important; }
+  body.payroll-printing .payroll-receipt,
+  body.payroll-printing .payroll-receipt * { visibility: visible !important; }
+  body.payroll-printing .payroll-receipt {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+    transform: none !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  body.payroll-printing .payroll-receipt button { display: none !important; }
+}

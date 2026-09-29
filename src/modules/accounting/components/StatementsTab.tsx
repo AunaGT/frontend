@@ -281,11 +281,12 @@ export const StatementsTab = () => {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Exportar estados financieros"
+        fileName="estados-financieros"
         summary={`Estado de resultados ${rangoTexto(from, to).toLowerCase()} y balance general al ${asOf || 'día de hoy'}. Salen los dos en el mismo archivo.`}
         formats={['xlsx']}
-        onExport={() => {
+        onExport={({ fileName }) => {
           if (pnl && bs) {
-            exportStatements(pnl, bs, { from: from || undefined, to: to || undefined, asOf: asOf || undefined })
+            exportStatements(pnl, bs, { from: from || undefined, to: to || undefined, asOf: asOf || undefined }, fileName)
           }
           setExportOpen(false)
         }}

@@ -35,6 +35,7 @@ import {
     Loader2,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 
 interface CatalogImportDialogProps {
     open: boolean
@@ -270,7 +271,7 @@ export function CatalogImportDialog({ open, onOpenChange, type }: CatalogImportD
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="auna-import-dialog">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5" />
@@ -280,6 +281,7 @@ export function CatalogImportDialog({ open, onOpenChange, type }: CatalogImportD
                         {description}
                     </DialogDescription>
                 </DialogHeader>
+                <ImportWizardSteps current={1} />
                 {renderContent()}
             </DialogContent>
         </Dialog>

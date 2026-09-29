@@ -185,10 +185,11 @@ export const TaxesTab = () => {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Exportar reporte de impuestos"
+        fileName={`impuestos-${year}`}
         summary={`Año ${year}, mes por mes.`}
         formats={['xlsx']}
-        onExport={() => {
-          if (data) exportTaxes(data)
+        onExport={({ fileName }) => {
+          if (data) exportTaxes(data, fileName)
           setExportOpen(false)
         }}
       />

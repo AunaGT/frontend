@@ -17,6 +17,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, ChevronRight, Download, Loader2, Search, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportDialog } from '@/components/shared/ExportDialog'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +59,7 @@ const descargarCsv = (nombre: string, filas: (string | number)[][]) => {
 export const ReceivablesManagement = () => {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [exportKind, setExportKind] = useState<'saldos' | 'antiguedad' | null>(null)
   const { currencyCode, locale } = useSystemSettings()
 
   const money = useMemo(() => {
@@ -79,21 +81,18 @@ export const ReceivablesManagement = () => {
 
   const abrir = (customerId: string) => navigate(`/cartera/${customerId}`)
 
-  const exportarSaldos = () =>
-    descargarCsv('cartera.csv', [
-      ['Cliente', 'Saldo', 'Vencido', 'Saldo a favor', 'Saldo neto', 'Facturas', 'Vence', 'Límite'],
-      ...filas.map((r) => [
-        r.customer_name, r.saldo, r.vencido, r.credito_disponible, r.saldo_neto,
-        r.facturas, r.vence_primero ? r.vence_primero.slice(0, 10) : '',
-        r.credit_limit == null ? 'Sin límite' : r.credit_limit,
-      ]),
-    ])
-
-  const exportarAntiguedad = () =>
-    descargarCsv('antiguedad-saldos.csv', [
-      ['Cliente', ...AGING_BUCKETS.map((b) => b.label), 'Total'],
-      ...filasAging.map((r) => [r.customer_name, ...AGING_BUCKETS.map((b) => r[b.key]), r.total]),
-    ])
+  const balanceColumns = ['Cliente', 'Saldo', 'Vencido', 'Saldo a favor', 'Saldo neto', 'Facturas', 'Vence', 'Límite'].map((label, index) => ({ id: String(index), label }))
+  const agingColumns = ['Cliente', ...AGING_BUCKETS.map((bucket) => bucket.label), 'Total'].map((label, index) => ({ id: String(index), label }))
+  const exportar = (columns: string[], fileName?: string) => {
+    const agingMode = exportKind === 'antiguedad'
+    const definitions = agingMode ? agingColumns : balanceColumns
+    const selected = definitions.filter((column) => columns.includes(column.id))
+    const data = agingMode
+      ? filasAging.map((row) => [row.customer_name, ...AGING_BUCKETS.map((bucket) => row[bucket.key]), row.total])
+      : filas.map((row) => [row.customer_name, row.saldo, row.vencido, row.credito_disponible, row.saldo_neto, row.facturas, row.vence_primero ? row.vence_primero.slice(0, 10) : '', row.credit_limit == null ? 'Sin límite' : row.credit_limit])
+    descargarCsv(fileName || (agingMode ? 'antiguedad-saldos.csv' : 'cartera.csv'), [selected.map((column) => column.label), ...data.map((row) => selected.map((column) => row[Number(column.id)]))])
+    setExportKind(null)
+  }
 
   return (
     <div className='container mx-auto space-y-4 p-4 sm:p-6'>
@@ -157,7 +156,7 @@ export const ReceivablesManagement = () => {
 
         <TabsContent value='saldos' className='mt-3 space-y-2'>
           <div className='flex justify-end'>
-            <Button variant='outline' size='sm' onClick={exportarSaldos} disabled={filas.length === 0}>
+            <Button variant='outline' size='sm' onClick={() => setExportKind('saldos')} disabled={filas.length === 0}>
               <Download className='mr-1.5 h-4 w-4' />
               Exportar CSV
             </Button>
@@ -242,7 +241,7 @@ export const ReceivablesManagement = () => {
             <Button
               variant='outline'
               size='sm'
-              onClick={exportarAntiguedad}
+              onClick={() => setExportKind('antiguedad')}
               disabled={filasAging.length === 0}
             >
               <Download className='mr-1.5 h-4 w-4' />
@@ -313,6 +312,7 @@ export const ReceivablesManagement = () => {
           </div>
         </TabsContent>
       </Tabs>
+      <ExportDialog open={exportKind !== null} onOpenChange={(open) => { if (!open) setExportKind(null) }} title={exportKind === 'antiguedad' ? 'Exportar antigüedad de saldos' : 'Exportar cartera'} summary={`Se exportan ${exportKind === 'antiguedad' ? filasAging.length : filas.length} clientes${search ? ' con la búsqueda aplicada' : ''}.`} columns={exportKind === 'antiguedad' ? agingColumns : balanceColumns} formats={['csv']} fileName={exportKind === 'antiguedad' ? 'antiguedad-saldos' : 'cartera'} onExport={({ columns, fileName }) => exportar(columns ?? [], fileName)} />
     </div>
   )
 }

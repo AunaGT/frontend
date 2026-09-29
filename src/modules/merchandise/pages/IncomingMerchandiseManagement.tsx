@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ExportDialog } from '@/components/shared/ExportDialog'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -79,6 +80,8 @@ const IncomingMerchandiseManagement = () => {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [isFilterOpen, setIsFilterOpen] = useState(showAdvancedByDefault)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | MerchandisePaymentStatus>('all')
   const activeAdvancedFilters = [
     selectedSupplierId !== 'all',
@@ -122,7 +125,8 @@ const IncomingMerchandiseManagement = () => {
     navigate(`/mercancia/${id}`)
   }
 
-  const handleGenerateReport = async () => {
+  const handleGenerateReport = async (fileName?: string) => {
+    setExporting(true)
     try {
       const blob = await generateMerchandiseReport({
         supplier_id: selectedSupplierId !== 'all' ? selectedSupplierId : undefined,
@@ -134,11 +138,12 @@ const IncomingMerchandiseManagement = () => {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `reporte-mercancia-${new Date().toISOString().split('T')[0]}.pdf`
+      a.download = fileName || `reporte-mercancia-${new Date().toISOString().split('T')[0]}.pdf`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
+      setExportOpen(false)
 
       toast({
         title: 'Reporte generado',
@@ -151,6 +156,8 @@ const IncomingMerchandiseManagement = () => {
         description: message,
         variant: 'destructive',
       })
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -214,7 +221,7 @@ const IncomingMerchandiseManagement = () => {
         </div>
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible">
           {canReports && (
-            <Button variant="outline" onClick={handleGenerateReport} size="sm" className="shrink-0">
+            <Button variant="outline" onClick={() => setExportOpen(true)} size="sm" className="shrink-0">
               <Download className="w-4 h-4 sm:mr-2" />
               <span className="hidden sm:inline">Reporte</span>
             </Button>
@@ -552,6 +559,7 @@ const IncomingMerchandiseManagement = () => {
           </div>
         </CardContent>
       </Card>
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar reporte de mercancía" summary="El PDF contiene los registros con los filtros de proveedor, fecha y pago aplicados." formats={['pdf']} fileName="reporte-mercancia" pending={exporting} onExport={({ fileName }) => void handleGenerateReport(fileName)} />
     </div>
   )
 }

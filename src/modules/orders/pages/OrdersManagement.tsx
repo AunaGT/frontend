@@ -18,6 +18,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ExportDialog } from '@/components/shared/ExportDialog'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -45,6 +46,11 @@ type Filters = {
 }
 
 const EMPTY_FILTERS: Filters = { search: '', customerId: 'all', dateFrom: '', dateTo: '', preparation: 'all', delivery: 'all' }
+const ORDER_EXPORT_COLUMNS = [
+  { id: 'reference', label: 'Pedido' }, { id: 'customer', label: 'Cliente' },
+  { id: 'date', label: 'Fecha' }, { id: 'total', label: 'Total' },
+  { id: 'preparation', label: 'Preparación' }, { id: 'delivery', label: 'Entrega' },
+]
 
 function Pagination({ current, totalPages, totalItems, pageSize, count, onChange }: {
   current: number
@@ -56,7 +62,7 @@ function Pagination({ current, totalPages, totalItems, pageSize, count, onChange
 }) {
   const start = totalItems ? (current - 1) * pageSize + 1 : 0
   const end = start + count - 1
-  return <footer className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+  return <footer className="auna-data-table-pagination">
     <span>Mostrando {start} a {end} de {totalItems} pedidos</span>
     <nav className="flex items-center gap-2" aria-label="Paginación de pedidos">
       <Button size="icon" variant="outline" className="h-10 w-10 rounded-lg" disabled={current <= 1} onClick={() => onChange(current - 1)} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" /></Button>
@@ -83,6 +89,7 @@ export default function OrdersManagement() {
   const [page, setPage] = useState(1)
   const [createOpen, setCreateOpen] = useState(false)
   const [exportingId, setExportingId] = useState<string | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
   const pageSize = 10
 
   const customersQuery = useQuery({
@@ -118,14 +125,16 @@ export default function OrdersManagement() {
 
   const applyFilters = () => { setFilters(draftFilters); setPage(1) }
   const clearFilters = () => { setDraftFilters(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setPage(1) }
-  const downloadCsv = () => {
-    const rows = [['Pedido', 'Cliente', 'Fecha', 'Total', 'Preparación', 'Entrega'], ...orders.map((order) => {
+  const downloadCsv = (columns: string[], fileName = 'pedidos.csv') => {
+    const rows = [ORDER_EXPORT_COLUMNS.filter(column => columns.includes(column.id)).map(column => column.label), ...orders.map((order) => {
       const visual = orderVisualState(order.status)
-      return [order.reference ?? order.id, order.customer || order.customerContact?.name || '', formatDate(order.created_at), String(order.total), visual.preparation, visual.delivery]
+      const values: Record<string, string> = { reference: order.reference ?? order.id, customer: order.customer || order.customerContact?.name || '', date: formatDate(order.created_at), total: String(order.total), preparation: visual.preparation, delivery: visual.delivery }
+      return ORDER_EXPORT_COLUMNS.filter(column => columns.includes(column.id)).map(column => values[column.id] ?? '')
     })]
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n')
     const url = URL.createObjectURL(new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' }))
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'pedidos.csv'; anchor.click(); URL.revokeObjectURL(url)
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = fileName; anchor.click(); URL.revokeObjectURL(url)
+    setExportOpen(false)
   }
   const downloadPdf = async (order: Order) => {
     try {
@@ -145,8 +154,8 @@ export default function OrdersManagement() {
 
   return <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
     <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-orange">Ventas</p><h1 className="mt-1 text-3xl font-bold tracking-tight text-brand-navy dark:text-white sm:text-4xl">Pedidos</h1><p className="mt-1 text-sm text-muted-foreground sm:text-base">Gestiona y da seguimiento a todos tus pedidos.</p></div>
+      <header className="auna-module-heading">
+        <div><p className="auna-module-eyebrow">Ventas</p><h1>Pedidos</h1><p className="auna-module-description">Gestiona y da seguimiento a todos tus pedidos.</p></div>
         {canCreate ? <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-5 w-5" />Nuevo pedido</Button> : null}
       </header>
 
@@ -168,8 +177,8 @@ export default function OrdersManagement() {
       </section>
       {commercialDocSearchHint(draftFilters.search) ? <p className="text-xs text-muted-foreground">{commercialDocSearchHint(draftFilters.search)}</p> : null}
 
-      <section className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]">
-        <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-xl font-bold">Pedidos ({totalItems})</h2><div className="flex items-center gap-2"><span className="hidden text-sm text-muted-foreground sm:inline">Ordenar por</span><Select value={sort} onValueChange={(value) => { setSort(value as typeof sort); setPage(1) }}><SelectTrigger className="h-11 w-[220px] rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="created_desc">Fecha (más reciente)</SelectItem><SelectItem value="created_asc">Fecha (más antigua)</SelectItem><SelectItem value="total_desc">Total (mayor)</SelectItem><SelectItem value="total_asc">Total (menor)</SelectItem></SelectContent></Select><Button variant="outline" className="h-11 rounded-xl" onClick={downloadCsv} disabled={!orders.length}><Download className="mr-2 h-4 w-4" />Exportar</Button></div></div>
+      <section className="auna-data-table-shell">
+        <div className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="text-xl font-bold">Pedidos ({totalItems})</h2><div className="flex items-center gap-2"><span className="hidden text-sm text-muted-foreground sm:inline">Ordenar por</span><Select value={sort} onValueChange={(value) => { setSort(value as typeof sort); setPage(1) }}><SelectTrigger className="h-11 w-[220px] rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="created_desc">Fecha (más reciente)</SelectItem><SelectItem value="created_asc">Fecha (más antigua)</SelectItem><SelectItem value="total_desc">Total (mayor)</SelectItem><SelectItem value="total_asc">Total (menor)</SelectItem></SelectContent></Select><Button variant="outline" className="h-11 rounded-xl" onClick={() => setExportOpen(true)} disabled={!orders.length}><Download className="mr-2 h-4 w-4" />Exportar</Button></div></div>
 
         {ordersQuery.isLoading ? <div className="space-y-3 p-5">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-16 rounded-xl" />)}</div>
           : ordersQuery.isError ? <div className="p-12 text-center"><p className="font-semibold text-destructive">No se pudieron cargar los pedidos.</p><Button className="mt-4" onClick={() => ordersQuery.refetch()}>Reintentar</Button></div>
@@ -181,6 +190,7 @@ export default function OrdersManagement() {
               </>}
       </section>
     </div>
+    <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar pedidos" summary={`Se exportan los ${orders.length} pedidos de la página ${currentPage}; los filtros activos ya están aplicados.`} columns={ORDER_EXPORT_COLUMNS} formats={['csv']} fileName="pedidos" onExport={({ columns, fileName }) => downloadCsv(columns ?? ORDER_EXPORT_COLUMNS.map(column => column.id), fileName)} />
     <OrderCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(order) => { void queryClient.invalidateQueries({ queryKey: ['orders'] }); navigate(`/pedidos/${order.id}`) }} />
   </div>
 }

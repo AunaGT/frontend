@@ -50,6 +50,12 @@ import {
     RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
+import { ImportFileStep } from '@/components/shared/ImportFileStep'
+import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportStream } from '@/components/shared/useImportStream'
+import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
+import { validateImportFile } from '@/components/shared/importFile.mjs'
 const SYSTEM_FIELDS = [
     {
         id: 'party_type',
@@ -110,6 +116,7 @@ export default function SupplierImportPage() {
     const [importProgress, setImportProgress] = useState(0)
     const [errorMessage, setErrorMessage] = useState('')
     const [importResult, setImportResult] = useState<{ created: number; skipped?: number } | null>(null)
+    const importStream = useImportStream()
 
     // Testing/Validation state
     const [isTesting, setIsTesting] = useState(false)
@@ -125,36 +132,6 @@ export default function SupplierImportPage() {
     const [createPaymentTerms, setCreatePaymentTerms] = useState<string[]>([])
     const [skipRowIndexes, setSkipRowIndexes] = useState<number[]>([])
     const [resolutionHints, setResolutionHints] = useState<ResolutionHint[]>([])
-
-    // Check for file in sessionStorage on mount
-    useEffect(() => {
-        const storedFileName = sessionStorage.getItem('import:fileName')
-        const storedFileData = sessionStorage.getItem('import:fileData')
-
-        if (storedFileName && storedFileData) {
-            try {
-                const binaryString = atob(storedFileData)
-                const bytes = new Uint8Array(binaryString.length)
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i)
-                }
-
-                const wb = XLSX.read(bytes.buffer, { type: 'array' })
-                setWorkbook(wb)
-                setSheetNames(wb.SheetNames)
-                setSelectedSheet(wb.SheetNames[0])
-                setFile({ name: storedFileName } as File)
-
-                sessionStorage.removeItem('import:fileName')
-                sessionStorage.removeItem('import:fileData')
-            } catch (err) {
-                console.error('Error loading file from sessionStorage:', err)
-                navigate('/contactos')
-            }
-        } else {
-            navigate('/contactos')
-        }
-    }, [navigate])
 
     // Parse selected sheet
     useEffect(() => {
@@ -230,16 +207,18 @@ export default function SupplierImportPage() {
         })
     }
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0]
+    const handleFileChange = async (input: File | React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = input instanceof File ? input : input.target.files?.[0]
         if (!selectedFile) return
-
-        const reader = new FileReader()
-        reader.onload = (event) => {
-            try {
-                const data = event.target?.result
-                const wb = XLSX.read(data, { type: 'array' })
+        const problem = validateImportFile(selectedFile)
+        if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
+        try {
+                const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array' })
+                if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
                 setWorkbook(wb)
+                setStep('mapping')
+                setImportResult(null)
+                setErrorMessage('')
                 setSheetNames(wb.SheetNames)
                 setSelectedSheet(wb.SheetNames[0])
                 setFile(selectedFile)
@@ -249,11 +228,11 @@ export default function SupplierImportPage() {
                 setCreatePaymentTerms([])
                 setSkipRowIndexes([])
                 setResolutionHints([])
-            } catch (err) {
-                toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo' })
-            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo leer el archivo'
+            toast({ variant: 'destructive', title: 'Error', description: message })
+            return message
         }
-        reader.readAsArrayBuffer(selectedFile)
     }
 
     const executeValidate = async (overrides?: {
@@ -310,6 +289,12 @@ export default function SupplierImportPage() {
                 try {
                     const errorJson = JSON.parse(errorText)
                     errorMessage = errorJson.message || errorMessage
+                    const rowErrors = readImportErrors(errorJson)
+                    if (rowErrors.length) {
+                        setValidationErrors(rowErrors.map(row => ({ ...row, fieldErrors: {} })))
+                        setValidRowCount(0)
+                        setHasTestedOnce(true)
+                    }
                 } catch {
                     errorMessage = errorText || `Error ${response.status}: ${response.statusText}`
                 }
@@ -386,6 +371,7 @@ export default function SupplierImportPage() {
                 errors: [errorMessage],
                 fieldErrors: { _general: [errorMessage] }
             }])
+            setHasTestedOnce(true)
             setValidRowCount(0)
             setResolutionHints([])
             setStep('mapping')
@@ -454,7 +440,7 @@ export default function SupplierImportPage() {
         if (!workbook || !selectedSheet) return
 
         setStep('importing')
-        setImportProgress(10)
+        setErrorMessage('')
 
         try {
             const sheet = workbook.Sheets[selectedSheet]
@@ -463,10 +449,8 @@ export default function SupplierImportPage() {
                 defval: ''
             })
 
-            const total = data.length || 1
-
             const mappedData: Record<string, unknown>[] = []
-            data.forEach((row, index) => {
+            data.forEach((row) => {
                 const mapped: Record<string, unknown> = {}
                 columnMappings.forEach(mapping => {
                     if (mapping.systemField) {
@@ -474,19 +458,8 @@ export default function SupplierImportPage() {
                     }
                 })
                 mappedData.push(mapped)
-
-                // 10% -> 60% según filas mapeadas
-                if (index % 10 === 0) {
-                    const progress = 10 + Math.round(((index + 1) / total) * 50)
-                    setImportProgress(progress)
-                }
             })
-
-            const token = localStorage.getItem('auth:token')
-            const response = await fetch(`${getApiBaseUrl()}/suppliers/bulk-import-mapped`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            const result = await importStream.start<{ created: number; skipped?: number }>(`${getApiBaseUrl()}/suppliers/bulk-import-mapped-stream`, {
                     suppliers: mappedData,
                     importOptions: {
                         paymentTermsWhenEmpty,
@@ -494,31 +467,15 @@ export default function SupplierImportPage() {
                         createPaymentTerms,
                         skipRowIndexes,
                     },
-                })
-            })
-
-            setImportProgress(80)
-            
-            if (!response.ok) {
-                const errorText = await response.text()
-                let errorMessage = 'Error en importación'
-                try {
-                    const errorJson = JSON.parse(errorText)
-                    errorMessage = errorJson.message || errorMessage
-                } catch {
-                    errorMessage = errorText || `Error ${response.status}: ${response.statusText}`
                 }
-                throw new Error(errorMessage)
-            }
-
-            const result = await response.json()
-
-            setImportProgress(100)
+            )
             setImportResult(result)
             setStep('success')
             toast({ title: '¡Importación exitosa!', description: `Se importaron ${result.created} contactos` })
         } catch (err) {
-            setErrorMessage(err instanceof Error ? err.message : 'Error en importación')
+            const rowErrors = readImportErrors(err)
+            if (rowErrors.length) { setValidationErrors(rowErrors.map(row => ({ ...row, fieldErrors: {} }))); setValidRowCount(0); setHasTestedOnce(true) }
+            setErrorMessage(err instanceof Error && err.name === 'AbortError' ? 'Importación cancelada. Verifica los datos antes de reintentar; alguna fila pudo haberse guardado.' : err instanceof Error ? err.message : 'Error en importación')
             setStep('error')
         }
     }
@@ -604,9 +561,29 @@ export default function SupplierImportPage() {
     }
 
     // Render success state
+    return <ImportWorkbench
+        title="Importar contactos" description="Carga y valida proveedores y clientes antes de guardarlos para la empresa activa."
+        back="/contactos" backLabel="Contactos" templatePath="/suppliers/template" templateName="plantilla_contactos.xlsx"
+        file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
+        onSheetChange={sheet => { setSelectedSheet(sheet); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}
+        useFirstRowAsHeader={useFirstRowAsHeader} onHeaderChange={checked => { setUseFirstRowAsHeader(checked); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}
+        fields={SYSTEM_FIELDS} mappings={columnMappings}
+        onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}
+        rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
+        firstErrorIndex={2} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={skipRowIndexes}
+        onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
+        progress={importStream.progress} onCancel={importStream.cancel}
+        result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
+        options={<div className="auna-import-options"><label className="auna-import-field">Términos de pago vacíos<select value={paymentTermsWhenEmpty} onChange={event => { setPaymentTermsWhenEmpty(event.target.value as 'default' | 'require'); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}><option value="default">Usar término por defecto</option><option value="require">Exigir valor en cada fila</option></select></label></div>}
+        resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
+    />
+
+    if (!workbook) return <ImportFileStep title="Importar contactos" description="Carga y valida proveedores y clientes antes de guardarlos para la empresa activa." templatePath="/suppliers/template" templateName="plantilla_contactos.xlsx" backLabel="Contactos" onBack={() => navigate('/contactos')} onFile={file => void handleFileChange(file)} />
+
     if (step === 'success' && importResult) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={4} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
@@ -628,7 +605,8 @@ export default function SupplierImportPage() {
     // Render error state
     if (step === 'error') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
@@ -647,7 +625,8 @@ export default function SupplierImportPage() {
     // Render importing state
     if (step === 'importing' || step === 'validating') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
@@ -662,10 +641,10 @@ export default function SupplierImportPage() {
 
     // Render mapping UI
     return (
-        <div className="min-h-screen bg-background">
+        <div className="auna-import-page">
             {/* Header */}
             <div className="border-b bg-card">
-                <div className="container mx-auto px-4 py-3">
+                <div className="auna-import-container">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <Button variant="ghost" size="icon" onClick={() => navigate('/contactos')}>
@@ -717,10 +696,11 @@ export default function SupplierImportPage() {
                 </div>
             </div>
 
-            <div className="container mx-auto px-4 py-6">
-                <div className="grid grid-cols-12 gap-6">
+            <ImportWizardSteps current={hasTestedOnce ? 3 : 2} fileName={file?.name} />
+            <div className="auna-import-container auna-import-main">
+                <div className="auna-import-grid">
                     {/* Left Sidebar */}
-                    <div className="col-span-3">
+                    <div className="auna-import-source">
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-medium">Datos a importar</CardTitle>
@@ -826,7 +806,7 @@ export default function SupplierImportPage() {
                     </div>
 
                     {/* Main Content - Column Mapping */}
-                    <div className="col-span-9">
+                    <div className="auna-import-mapping">
                         <Card>
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">

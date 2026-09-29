@@ -53,7 +53,6 @@ import { useCategories } from "@/hooks/useCategories";
 import { usePaymentTerms } from "@/hooks/usePaymentTerms";
 import { useSupplier } from "@/hooks/useSupplier";
 import { useUpdateSupplier } from "@/hooks/useUpdateSupplier";
-import { SupplierImportDialog } from "../components/SupplierImportDialog";
 import { Pagination } from "@/components/shared/Pagination";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { usePersistedListUiState, useResetPageOnFilterChange } from "@/hooks/usePersistedListUiState";
@@ -86,7 +85,6 @@ const SuppliersManagement = () => {
   } = usePersistedListUiState("contactos/lista", { defaultPageSize: 20, defaultView: "cards" });
   const [partyFilter, setPartyFilter] = useState<"all" | "SUPPLIER" | "CUSTOMER">("all");
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
-  const [isImportOpen, setIsImportOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
 
   const { toast } = useToast();
@@ -258,12 +256,11 @@ const SuppliersManagement = () => {
             <>
               <Button
                 variant="outline"
-                onClick={() => setIsImportOpen(true)}
+                onClick={() => navigate('/contactos/importar')}
               >
                 <FileUp className="w-4 h-4 mr-2" />
                 Importar
               </Button>
-              <SupplierImportDialog open={isImportOpen} onOpenChange={setIsImportOpen} />
             </>
           )}
           {canCreate && (

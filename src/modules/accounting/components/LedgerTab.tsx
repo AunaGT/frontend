@@ -141,10 +141,11 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Exportar libro mayor"
+        fileName={`libro-mayor-${data?.account?.code || 'cuenta'}`}
         summary={`${data?.account ? `${data.account.code} — ${data.account.name}` : 'Cuenta sin elegir'}. ${rangoTexto(from, to)} (${data?.movements.length ?? 0} movimiento(s)).`}
         formats={['xlsx']}
-        onExport={() => {
-          if (data) exportLedger(data, { from: from || undefined, to: to || undefined })
+        onExport={({ fileName }) => {
+          if (data) exportLedger(data, { from: from || undefined, to: to || undefined }, fileName)
           setExportOpen(false)
         }}
       />

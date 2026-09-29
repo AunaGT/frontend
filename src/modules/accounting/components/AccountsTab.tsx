@@ -9,6 +9,7 @@
  */
 
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -28,7 +29,6 @@ import {
   type Account, type AccountType,
 } from '@/services/accountingService'
 import { TYPE_LABELS } from './format'
-import { AccountingImportDialog } from './AccountingImportDialog'
 
 const ACCOUNT_TYPES = Object.keys(TYPE_LABELS) as AccountType[]
 
@@ -48,9 +48,9 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
   canManage: boolean
   onChanged: () => void
 }) => {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [isNewOpen, setIsNewOpen] = useState(false)
-  const [isImportOpen, setIsImportOpen] = useState(false)
   const [editing, setEditing] = useState<Account | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -129,7 +129,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
           </div>
           {canManage && (
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)}>
+              <Button variant="outline" size="sm" onClick={() => navigate('/contabilidad/importar?type=accounts')}>
                 <Upload className="h-4 w-4 mr-2" />Importar
               </Button>
               <Button size="sm" onClick={() => setIsNewOpen(true)} className="bg-liquor-amber hover:bg-liquor-amber/90 text-white">
@@ -270,7 +270,6 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
       </Dialog>
 
       {/* Importar catálogo desde Excel */}
-      <AccountingImportDialog open={isImportOpen} onOpenChange={setIsImportOpen} type="accounts" />
     </Card>
   )
 }

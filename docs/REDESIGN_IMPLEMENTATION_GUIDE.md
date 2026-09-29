@@ -7,6 +7,12 @@ Las imágenes aprobadas en `../auna-erp-redesign` son la fuente de verdad visual
 
 La implementación debe representar las funciones reales del ERP. No se agregan indicadores, acciones ni datos simulados solo porque aparezcan atractivos en una composición.
 
+## Patrón visual compartido (solo vistas rediseñadas)
+
+- Encabezado: `header.auna-module-heading`, con categoría `auna-module-eyebrow`, un `h1`, descripción `auna-module-description` y las acciones existentes a la derecha. La categoría usa el naranja Auna; el título y la descripción conservan contraste en claro y oscuro. Las subvistas mantienen su navegación de regreso o migas de pan.
+- Tablas: `auna-data-table-shell` para el panel y `auna-data-table` para la tabla cuando no exista ya un contenedor de módulo rediseñado. Encabezados de 12 px en mayúsculas, celdas de 14 px y 16 × 20 px, divisores suaves, hover/foco y controles de paginación con estado activo naranja. Se preservan columnas, acciones y adaptación móvil particulares de cada módulo.
+- El estilo se aplica por clases o por los contenedores ya rediseñados de Usuarios, Alertas, Configuración y Sucursales. No se modifica `components/ui/table.tsx` ni se estilizan globalmente las tablas legacy.
+
 ## Límites de arquitectura
 
 - Activación comercial, permisos y configuración siguen siendo responsabilidades separadas.

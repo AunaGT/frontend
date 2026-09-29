@@ -129,12 +129,13 @@ export default function UserCreatePage() {
       </Link>
 
       {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Crear usuario y roles</h1>
-        <p className="users-muted text-sm mt-0.5">
+      <header className="auna-module-heading mb-6"><div>
+        <p className="auna-module-eyebrow">Administración</p>
+        <h1>Crear usuario y roles</h1>
+        <p className="auna-module-description">
           Registra un nuevo usuario, define su acceso, asigna empresas, roles y permisos.
         </p>
-      </div>
+      </div></header>
 
       <div className="space-y-6">
         {/* ══════════ FILA 1: Información del usuario + Acceso y seguridad ══════════ */}

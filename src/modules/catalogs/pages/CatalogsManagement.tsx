@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -59,7 +60,6 @@ import {
   ProductCategory,
 } from '@/hooks/useProductCategories'
 import { Pencil, Trash2, Plus, RotateCcw, Loader2, FileUp, ImageIcon } from 'lucide-react'
-import { CatalogImportDialog } from '../components/CatalogImportDialog'
 import { PaymentMethodsTab } from '../components/PaymentMethodsTab'
 import { CashRegistersTab } from '../components/CashRegistersTab'
 import { Pagination } from '@/components/shared/Pagination'
@@ -67,6 +67,7 @@ import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { getApiBaseUrl } from '@/services/api'
+import { MASTER_DATA_IMPORT_PATH } from '@/config/appModules'
 
 /** Filas de catálogo: API actual devuelve `_count.supplier_payment_terms`; respuestas antiguas `suppliers`. */
 function paymentTermSupplierUsageCount(term: {
@@ -90,6 +91,7 @@ type ProductCategoryDialogState = {
 }
 
 export function CatalogsManagement() {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('payment-methods')
   const [showDeleted, setShowDeleted] = useState(false)
 
@@ -107,9 +109,6 @@ export function CatalogsManagement() {
     item?: ProductCategory
   }>({ open: false, mode: 'create' })
 
-  // Import Dialog State
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
-  const [importType, setImportType] = useState<'categories' | 'payment-terms'>('categories')
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
@@ -149,8 +148,7 @@ export function CatalogsManagement() {
             dialog={paymentTermDialog}
             setDialog={setPaymentTermDialog}
             onImportClick={() => {
-              setImportType('payment-terms')
-              setIsImportDialogOpen(true)
+              navigate(`${MASTER_DATA_IMPORT_PATH}?type=payment-terms`)
             }}
           />
         </TabsContent>
@@ -162,8 +160,7 @@ export function CatalogsManagement() {
             dialog={categoryDialog}
             setDialog={setCategoryDialog}
             onImportClick={() => {
-              setImportType('categories')
-              setIsImportDialogOpen(true)
+              navigate(`${MASTER_DATA_IMPORT_PATH}?type=categories`)
             }}
           />
         </TabsContent>
@@ -185,12 +182,6 @@ export function CatalogsManagement() {
         setDialog={setCategoryDialog}
       />
 
-      {/* Import Dialog */}
-      <CatalogImportDialog
-        open={isImportDialogOpen}
-        onOpenChange={setIsImportDialogOpen}
-        type={importType}
-      />
     </div>
   )
 }
@@ -1136,4 +1127,3 @@ function ProductCategoryDialog({
     </Dialog>
   )
 }
-

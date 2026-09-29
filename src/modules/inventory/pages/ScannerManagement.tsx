@@ -22,7 +22,6 @@ import {
   CheckCircle,
   AlertCircle,
   History,
-  Download,
   Upload
 } from "lucide-react";
 
@@ -191,12 +190,6 @@ const ScannerManagement = () => {
         <div>
           <h2 className="text-2xl font-bold text-foreground">Scanner de Códigos</h2>
           <p className="text-muted-foreground">Escanea códigos de barras y QR para gestión rápida</p>
-        </div>
-        <div className="flex space-x-2">
-          <Button variant="outline">
-            <Download className="w-4 h-4 mr-2" />
-            Exportar Historial
-          </Button>
         </div>
       </div>
 

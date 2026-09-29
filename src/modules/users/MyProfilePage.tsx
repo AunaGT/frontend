@@ -186,10 +186,11 @@ export default function MyProfilePage() {
       />
 
       {/* Encabezado */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Mi perfil</h1>
-        <p className="users-muted text-sm mt-0.5">Administra tu información, seguridad y preferencias</p>
-      </div>
+      <header className="auna-module-heading mb-6"><div>
+        <p className="auna-module-eyebrow">Administración</p>
+        <h1>Mi perfil</h1>
+        <p className="auna-module-description">Administra tu información, seguridad y preferencias</p>
+      </div></header>
 
       <div className="space-y-5">
         {/* ══════════ FILA 1: Tarjeta Usuario + Datos Personales ══════════ */}

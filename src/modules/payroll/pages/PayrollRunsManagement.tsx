@@ -12,7 +12,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2, Search, Eye, ChevronLeft, ChevronRight, Wallet, Users, CircleMinus, CreditCard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -28,15 +28,16 @@ import {
   PAYROLL_STATUS_LABELS, PAYROLL_TYPE_LABELS,
   type PayrollRunPayload, type PayrollStatus, type PayrollType,
 } from '../api/payrollService'
+import { filterRuns, pageItems } from './payrollView.mjs'
 
 const money = (v: string | number) =>
   new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(v))
 
-const STATUS_VARIANT: Record<PayrollStatus, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-  BORRADOR: 'outline',
-  CONFIRMADA: 'default',
-  PAGADA: 'secondary',
-  ANULADA: 'destructive',
+const STATUS_CLASS: Record<PayrollStatus, string> = {
+  BORRADOR: 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300',
+  CONFIRMADA: 'border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300',
+  PAGADA: 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+  ANULADA: 'border-red-500/30 bg-red-500/15 text-red-700 dark:text-red-300',
 }
 
 // en-CA da 'yyyy-mm-dd' en zona local: con toISOString(), después de las 18:00
@@ -51,21 +52,24 @@ export const PayrollRunsManagement = () => {
   const canCreate = hasPermission('payroll.create')
 
   const [year, setYear] = useState(String(new Date().getFullYear()))
+  const [month, setMonth] = useState('')
+  const [status, setStatus] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<PayrollRunPayload>({ type: 'ORDINARIA', pay_date: today() })
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ['payroll-runs', year],
     queryFn: () => fetchPayrollRuns({ year }),
   })
 
   const runs = data?.items ?? []
-  const activas = runs.filter((r) => r.status !== 'ANULADA')
-  const kpi = {
-    costo: activas.reduce((s, r) => s + Number(r.total_earnings) + Number(r.total_employer_cost), 0),
-    neto: activas.reduce((s, r) => s + Number(r.total_net), 0),
-    corridas: activas.length,
-  }
+  const visibleRuns = filterRuns(runs, { month, status, search })
+  const totalPages = Math.max(1, Math.ceil(visibleRuns.length / 10))
+  const currentPage = Math.min(page, totalPages)
+  const latest = runs.find((run) => run.status !== 'ANULADA')
+  const update = (setter: (value: string) => void) => (value: string) => { setter(value); setPage(1) }
 
   const create = useMutation({
     mutationFn: createPayrollRun,
@@ -79,56 +83,73 @@ export const PayrollRunsManagement = () => {
   })
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Nómina</h1>
-        <div className="flex items-center gap-2">
-          <Input type="number" value={year} onChange={(e) => setYear(e.target.value)} className="w-28" />
-          {canCreate && <Button onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nueva planilla</Button>}
-        </div>
+    <div className="mx-auto max-w-[1520px] space-y-5 p-4 md:p-6">
+      <header className="auna-module-heading">
+        <div><p className="auna-module-eyebrow">Personas</p><h1>Corridas de nómina</h1><p className="auna-module-description">Gestiona y consulta las corridas de nómina por período.</p></div>
+        {canCreate && <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nueva corrida</Button>}
+      </header>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Última corrida activa">
+        {[
+          { label: 'Empleados · última corrida', value: latest?._count?.payslips ?? 0, icon: Users },
+          { label: 'Total bruto', value: money(latest?.total_earnings ?? 0), icon: Wallet },
+          { label: 'Deducciones', value: money(latest?.total_deductions ?? 0), icon: CircleMinus },
+          { label: 'Total neto', value: money(latest?.total_net ?? 0), icon: CreditCard },
+        ].map(({ label, value, icon: Icon }) => <Card key={label} className="border-border/70 bg-card/90"><CardContent className="flex items-center gap-4 p-5"><span className="rounded-xl bg-orange-500/15 p-3 text-orange-500"><Icon className="h-5 w-5" /></span><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-xl font-bold tabular-nums">{value}</p></div></CardContent></Card>)}
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Costo total del año</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{money(kpi.costo)}</CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Neto pagado</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{money(kpi.neto)}</CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm font-normal text-muted-foreground">Corridas</CardTitle></CardHeader><CardContent className="text-2xl font-semibold">{kpi.corridas}</CardContent></Card>
-      </div>
+      <Card className="border-border/70 bg-card/90"><CardContent className="grid gap-3 p-4 md:grid-cols-[120px_150px_170px_minmax(210px,1fr)_auto] md:items-end">
+        <label className="space-y-1 text-xs text-muted-foreground">Año<Input aria-label="Año" type="number" min="2000" max="2100" value={year} onChange={(e) => { setYear(e.target.value); setPage(1) }} /></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Mes<select aria-label="Mes" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={month} onChange={(e) => update(setMonth)(e.target.value)}><option value="">Todos</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{new Intl.DateTimeFormat('es-GT', { month: 'long' }).format(new Date(2026, i, 1))}</option>)}</select></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Estado<select aria-label="Estado" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={status} onChange={(e) => update(setStatus)(e.target.value)}><option value="">Todos</option>{(Object.keys(PAYROLL_STATUS_LABELS) as PayrollStatus[]).map((item) => <option key={item} value={item}>{PAYROLL_STATUS_LABELS[item]}</option>)}</select></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" /><Input aria-label="Buscar corridas" className="pl-9" placeholder="Buscar por período, descripción o código..." value={search} onChange={(e) => update(setSearch)(e.target.value)} /></div></label>
+        <Button variant="outline" onClick={() => { setMonth(''); setStatus(''); setSearch(''); setPage(1) }}>Limpiar</Button>
+      </CardContent></Card>
 
-      <Card>
-        <CardContent className="pt-6">
+      <Card className="auna-data-table-shell">
+        <CardContent className="p-0">
           {isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : isError ? (
+            <div role="alert" className="space-y-3 p-6 text-center"><p>No se pudieron cargar las corridas. {error instanceof Error ? error.message : ''}</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
           ) : (
-            <Table>
+            <div className="overflow-x-auto">
+            <Table className="auna-data-table min-w-[980px]">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Código</TableHead>
-                  <TableHead>Nombre</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Pago</TableHead>
+                  <TableHead>Período</TableHead>
+                  <TableHead>Descripción</TableHead>
                   <TableHead className="text-right">Empleados</TableHead>
+                  <TableHead className="text-right">Bruto</TableHead>
+                  <TableHead className="text-right">Deducciones</TableHead>
                   <TableHead className="text-right">Neto</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Fecha de pago</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {runs.map((run) => (
-                  <TableRow key={run.id} className="cursor-pointer" onClick={() => navigate(`/nomina/${run.id}`)}>
-                    <TableCell className="font-mono text-xs">{run.code}</TableCell>
-                    <TableCell>{run.name}</TableCell>
-                    <TableCell>{PAYROLL_TYPE_LABELS[run.type]}</TableCell>
-                    <TableCell>{run.pay_date.slice(0, 10)}</TableCell>
+                {pageItems(visibleRuns, currentPage, 10).map((run) => (
+                  <TableRow key={run.id}>
+                    <TableCell className="whitespace-nowrap text-sm">{run.period_start.slice(0, 10)}<span className="block text-muted-foreground">a {run.period_end.slice(0, 10)}</span></TableCell>
+                    <TableCell><span className="font-medium">{run.name}</span><span className="block text-xs text-muted-foreground">{run.code} · {PAYROLL_TYPE_LABELS[run.type]}</span></TableCell>
                     <TableCell className="text-right">{run._count?.payslips ?? '—'}</TableCell>
-                    <TableCell className="text-right">{money(run.total_net)}</TableCell>
-                    <TableCell><Badge variant={STATUS_VARIANT[run.status]}>{PAYROLL_STATUS_LABELS[run.status]}</Badge></TableCell>
+                    <TableCell className="text-right tabular-nums">{money(run.total_earnings)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{money(run.total_deductions)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{money(run.total_net)}</TableCell>
+                    <TableCell><Badge variant="outline" className={STATUS_CLASS[run.status]}>{PAYROLL_STATUS_LABELS[run.status]}</Badge></TableCell>
+                    <TableCell className="whitespace-nowrap">{run.pay_date.slice(0, 10)}</TableCell>
+                    <TableCell className="text-right"><Button size="icon" variant="outline" aria-label={`Ver corrida ${run.code}`} onClick={() => navigate(`/nomina/${run.id}`)}><Eye className="h-4 w-4" /></Button></TableCell>
                   </TableRow>
                 ))}
-                {runs.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin planillas en {year}</TableCell></TableRow>
+                {visibleRuns.length === 0 && (
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No hay corridas para estos filtros.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
+            </div>
           )}
+          <div className="auna-data-table-pagination"><span>Mostrando {visibleRuns.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, visibleRuns.length)} de {visibleRuns.length} corridas</span><nav aria-label="Paginación de corridas"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div>
         </CardContent>
       </Card>
 

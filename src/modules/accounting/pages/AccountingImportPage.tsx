@@ -15,7 +15,7 @@
  */
 import { useState, useEffect, useMemo } from 'react'
 import { getApiBaseUrl } from '@/services/api'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,12 @@ import {
   FileSpreadsheet, Upload, ArrowLeft, CheckCircle2, AlertCircle, Loader2, RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
+import { ImportFileStep } from '@/components/shared/ImportFileStep'
+import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportStream } from '@/components/shared/useImportStream'
+import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
+import { validateImportFile } from '@/components/shared/importFile.mjs'
 import { cn } from '@/lib/utils'
 
 const ACCOUNTING_PATH = '/contabilidad'
@@ -79,9 +85,11 @@ interface ValidationError {
 
 export default function AccountingImportPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
 
-  const importType = sessionStorage.getItem('import:accountingType') as 'accounts' | 'journal' | null
+  const requestedType = searchParams.get('type')
+  const importType = requestedType === 'journal' ? 'journal' : 'accounts'
   const fields = importType === 'journal' ? JOURNAL_FIELDS : ACCOUNT_FIELDS
   const itemName = importType === 'journal' ? 'filas de asientos' : 'cuentas'
   const title = importType === 'journal' ? 'Asientos contables' : 'Catálogo de cuentas'
@@ -99,35 +107,12 @@ export default function AccountingImportPage() {
   const [importProgress, setImportProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [importResult, setImportResult] = useState<{ created: number; skipped?: number; message?: string } | null>(null)
+  const importStream = useImportStream()
 
   const [isTesting, setIsTesting] = useState(false)
   const [hasTestedOnce, setHasTestedOnce] = useState(false)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [validRowCount, setValidRowCount] = useState(0)
-
-  // Cargar archivo desde sessionStorage (lo deja AccountingImportDialog)
-  useEffect(() => {
-    const storedFileName = sessionStorage.getItem('import:fileName')
-    const storedFileData = sessionStorage.getItem('import:fileData')
-    if (storedFileName && storedFileData && importType) {
-      try {
-        const binaryString = atob(storedFileData)
-        const bytes = new Uint8Array(binaryString.length)
-        for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i)
-        const wb = XLSX.read(bytes.buffer, { type: 'array' })
-        setWorkbook(wb)
-        setSheetNames(wb.SheetNames)
-        setSelectedSheet(wb.SheetNames[0])
-        setFile({ name: storedFileName } as File)
-        sessionStorage.removeItem('import:fileName')
-        sessionStorage.removeItem('import:fileData')
-      } catch {
-        navigate(ACCOUNTING_PATH)
-      }
-    } else {
-      navigate(ACCOUNTING_PATH)
-    }
-  }, [navigate, importType])
 
   // Parsear hoja seleccionada y automapear columnas por palabras clave
   useEffect(() => {
@@ -165,24 +150,28 @@ export default function AccountingImportPage() {
       .map((m) => (m.excelColumn === excelColumn ? { ...m, systemField } : m)))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0]
+  const handleFileChange = async (input: File | React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = input instanceof File ? input : input.target.files?.[0]
     if (!selectedFile) return
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      try {
-        const wb = XLSX.read(event.target?.result, { type: 'array' })
+    const problem = validateImportFile(selectedFile)
+    if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
+    try {
+        const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array' })
+        if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
         setWorkbook(wb)
+        setStep('mapping')
+        setImportResult(null)
+        setErrorMessage('')
         setSheetNames(wb.SheetNames)
         setSelectedSheet(wb.SheetNames[0])
         setFile(selectedFile)
         setHasTestedOnce(false)
         setValidationErrors([])
-      } catch {
-        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo' })
-      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'No se pudo leer el archivo'
+      toast({ variant: 'destructive', title: 'Error', description: message })
+      return message
     }
-    reader.readAsArrayBuffer(selectedFile)
   }
 
   const mappedItems = (): Record<string, unknown>[] => {
@@ -214,6 +203,8 @@ export default function AccountingImportPage() {
 
   const handleTest = async () => {
     setIsTesting(true)
+    setStep('mapping')
+    setErrorMessage('')
     try {
       const items = mappedItems()
       const { ok, result } = await postJson('/validate-import', items)
@@ -227,7 +218,11 @@ export default function AccountingImportPage() {
       }
       setHasTestedOnce(true)
     } catch (err) {
-      toast({ title: 'Error de validación', description: err instanceof Error ? err.message : 'Error al validar', variant: 'destructive' })
+      const message = err instanceof Error ? err.message : 'Error al validar'
+      setValidationErrors([{ rowIndex: -1, errors: [message] }])
+      setValidRowCount(0)
+      setHasTestedOnce(true)
+      toast({ title: 'Error de validación', description: message, variant: 'destructive' })
     } finally {
       setIsTesting(false)
     }
@@ -235,17 +230,16 @@ export default function AccountingImportPage() {
 
   const handleImport = async () => {
     setStep('importing')
-    setImportProgress(30)
+    setErrorMessage('')
     try {
       const items = mappedItems()
-      setImportProgress(60)
-      const { ok, result } = await postJson('/bulk-import', items)
-      if (!ok) throw new Error(result.message || 'Error en importación')
-      setImportProgress(100)
+      const result = await importStream.start<{ created: number; skipped?: number; message?: string }>(`${baseEndpoint}/bulk-import-stream`, { items })
       setImportResult(result)
       setStep('success')
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Error en importación')
+      const rowErrors = readImportErrors(err)
+      if (rowErrors.length) { setValidationErrors(rowErrors); setValidRowCount(0); setHasTestedOnce(true) }
+      setErrorMessage(err instanceof Error && err.name === 'AbortError' ? 'Importación cancelada. Verifica los datos antes de reintentar; los asientos guardados previamente podrían permanecer.' : err instanceof Error ? err.message : 'Error en importación')
       setStep('error')
     }
   }
@@ -267,9 +261,29 @@ export default function AccountingImportPage() {
     return out
   }
 
+  return <ImportWorkbench
+    title={importType === 'journal' ? 'Importar asientos contables' : 'Importar catálogo de cuentas'} description="Carga el archivo, asocia las columnas y valida antes de registrar datos contables."
+    back={ACCOUNTING_PATH} backLabel="Contabilidad"
+    templatePath={importType === 'journal' ? '/accounting/journal/template' : '/accounting/accounts/template'}
+    templateName={importType === 'journal' ? 'plantilla_asientos.xlsx' : 'plantilla_cuentas.xlsx'}
+    file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
+    onSheetChange={sheet => { setSelectedSheet(sheet); setHasTestedOnce(false); setValidationErrors([]) }}
+    useFirstRowAsHeader={useFirstRowAsHeader} onHeaderChange={checked => { setUseFirstRowAsHeader(checked); setHasTestedOnce(false); setValidationErrors([]) }}
+    fields={fields} mappings={columnMappings}
+    onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]) }}
+    rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
+    firstErrorIndex={0} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors}
+    onValidate={() => void handleTest()} onImport={() => void handleImport()} busy={isTesting || step === 'importing'}
+    progress={importStream.progress} onCancel={importStream.cancel}
+    result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
+  />
+
+  if (!workbook) return <ImportFileStep title={importType === 'journal' ? 'Importar asientos contables' : 'Importar catálogo de cuentas'} description="Carga el archivo, asocia las columnas y valida antes de registrar datos contables." templatePath={importType === 'journal' ? '/accounting/journal/template' : '/accounting/accounts/template'} templateName={importType === 'journal' ? 'plantilla_asientos.xlsx' : 'plantilla_cuentas.xlsx'} backLabel="Contabilidad" onBack={() => navigate(ACCOUNTING_PATH)} onFile={file => void handleFileChange(file)} />
+
   if (step === 'success' && importResult) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="auna-import-page auna-import-result">
+        <ImportWizardSteps current={4} fileName={file?.name} />
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
@@ -291,7 +305,8 @@ export default function AccountingImportPage() {
 
   if (step === 'error') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="auna-import-page auna-import-result">
+        <ImportWizardSteps current={3} fileName={file?.name} />
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
@@ -309,7 +324,8 @@ export default function AccountingImportPage() {
 
   if (step === 'importing') {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="auna-import-page auna-import-result">
+        <ImportWizardSteps current={3} fileName={file?.name} />
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
@@ -323,9 +339,9 @@ export default function AccountingImportPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="auna-import-page">
       <div className="border-b bg-card">
-        <div className="container mx-auto px-4 py-3">
+        <div className="auna-import-container">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" onClick={() => navigate(ACCOUNTING_PATH)}>
@@ -356,9 +372,10 @@ export default function AccountingImportPage() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-12 gap-6">
-          <div className="col-span-3">
+      <ImportWizardSteps current={hasTestedOnce ? 3 : 2} fileName={file?.name} />
+      <div className="auna-import-container auna-import-main">
+        <div className="auna-import-grid">
+          <div className="auna-import-source">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-medium">Datos a importar</CardTitle>
@@ -410,7 +427,7 @@ export default function AccountingImportPage() {
             </Card>
           </div>
 
-          <div className="col-span-9">
+          <div className="auna-import-mapping">
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">

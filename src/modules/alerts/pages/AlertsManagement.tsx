@@ -180,8 +180,8 @@ export default function AlertsManagement() {
   }
 
   return <main className="alerts-page">
-    <header className="alerts-heading">
-      <div><p className="alerts-eyebrow">ALERTAS</p><h1>Centro de alertas</h1><p>Visualiza, gestiona y da seguimiento a las alertas de tu operación.</p></div>
+    <header className="alerts-heading auna-module-heading">
+      <div><p className="alerts-eyebrow auna-module-eyebrow">ALERTAS</p><h1>Centro de alertas</h1><p className="auna-module-description">Visualiza, gestiona y da seguimiento a las alertas de tu operación.</p></div>
       {canManage && <Button className="alerts-primary" onClick={() => setNewAlertOpen(true)}><Plus className="h-4 w-4" /> Nueva alerta</Button>}
     </header>
 

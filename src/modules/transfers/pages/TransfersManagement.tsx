@@ -130,7 +130,7 @@ function TransferPagination({ current, totalPages, totalItems, pageSize, count, 
     const start = totalItems ? (current - 1) * pageSize + 1 : 0
     const end = start + count - 1
     return (
-        <footer className="flex flex-col gap-3 border-t border-border/70 px-5 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <footer className="auna-data-table-pagination">
             <span>Mostrando {start} a {end} de {totalItems} traslados</span>
             <nav className="flex items-center gap-2" aria-label="Paginación de traslados">
                 <Button size="icon" variant="outline" className="h-10 w-10 rounded-lg" disabled={current <= 1} onClick={() => onChange(current - 1)} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" /></Button>
@@ -291,11 +291,11 @@ export const TransfersManagement = () => {
     return (
         <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
             <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-                <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <header className="auna-module-heading">
                     <div>
-                        <p className="text-xs font-bold uppercase tracking-[0.22em] text-brand-orange">Inventario</p>
-                        <h1 className="mt-1 text-3xl font-bold tracking-tight text-brand-navy dark:text-white sm:text-4xl">Traslados</h1>
-                        <p className="mt-1 text-sm text-muted-foreground sm:text-base">Gestiona movimientos de productos entre sucursales y almacenes.</p>
+                        <p className="auna-module-eyebrow">Inventario</p>
+                        <h1>Traslados</h1>
+                        <p className="auna-module-description">Gestiona movimientos de productos entre sucursales y almacenes.</p>
                     </div>
                     <div className="flex items-center gap-2 self-stretch sm:self-auto">
                         <div className="flex h-12 rounded-xl border border-border/70 bg-card p-1 shadow-sm dark:bg-[#101f34]" aria-label="Tipo de vista">
@@ -329,7 +329,7 @@ export const TransfersManagement = () => {
                     <EmptyState filtered={hasFilters} onCreate={canCreate && branch ? () => setCreateOpen(true) : undefined} />
                 ) : (
                     <>
-                        {visibleViews.table ? <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]">
+                        {visibleViews.table ? <div className="auna-data-table-shell">
                             <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-sm">
                                 <thead className="bg-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-white/5"><tr><th className="px-5 py-4">Folio</th><th className="px-5 py-4">Fecha</th><th className="px-5 py-4">Origen</th><th className="w-8 px-1 py-4" aria-label="Dirección" /><th className="px-5 py-4">Destino</th><th className="px-5 py-4">Productos</th><th className="px-5 py-4">Estado</th><th className="px-5 py-4 text-right">Acciones</th></tr></thead>
                                 <tbody className="divide-y divide-border/70">

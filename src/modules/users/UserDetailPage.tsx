@@ -254,10 +254,11 @@ export default function UserDetailPage() {
       </Link>
 
       {/* Encabezado Principal */}
-      <div className="users-heading mb-6">
+      <header className="users-heading auna-module-heading mb-6">
         <div>
+          <p className="auna-module-eyebrow">Administración</p>
           <h1>Detalle de usuario y roles</h1>
-          <p className="users-muted text-sm mt-0.5">
+          <p className="auna-module-description">
             Consulta y administra la información del usuario, sus roles, permisos y actividad en la plataforma.
           </p>
         </div>
@@ -311,7 +312,7 @@ export default function UserDetailPage() {
             </DropdownMenu>
           )}
         </div>
-      </div>
+      </header>
 
       {/* ══════════ TARJETA DE IDENTIDAD ══════════ */}
       <AunaPanel className="mb-6">

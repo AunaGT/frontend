@@ -63,9 +63,10 @@
   color: hsl(var(--foreground));
 }
 
-.users-heading p, .users-muted {
+.users-heading p:not(.auna-module-eyebrow), .users-muted {
   color: hsl(var(--muted-foreground));
 }
+.users-heading.auna-module-heading h1 { font-size: clamp(28px, 2.5vw, 38px); }
 
 /* Paneles / Tarjetas heredados y compatibles */
 .users-panel, .auna-panel {

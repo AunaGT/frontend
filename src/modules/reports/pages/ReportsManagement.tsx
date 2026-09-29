@@ -270,7 +270,7 @@ const ReportsManagement = () => {
     setFiltersOpen(true)
   }
 
-  const generateReport = async (format: 'pdf' | 'csv') => {
+  const generateReport = async (format: 'pdf' | 'csv', fileName?: string) => {
     if (!pendingReport) return
     setIsGenerating(true)
     try {
@@ -282,7 +282,7 @@ const ReportsManagement = () => {
       if (showWarehousePicker && warehouseId !== 'all') params.set('warehouse_id', warehouseId)
       await downloadFile(
         `/reports/${pendingReport.id}?${params.toString()}`,
-        `${pendingReport.id}-${period}.${format}`,
+        fileName || `${pendingReport.id}-${period}.${format}`,
         selectedBranch ? { 'X-Branch-Id': selectedBranch } : undefined,
       )
       toast({ title: 'Reporte listo', description: `${pendingReport.name} descargado.` })
@@ -309,9 +309,10 @@ const ReportsManagement = () => {
         }}
         title={`Descargar ${pendingReport?.name || 'reporte'}`}
         summary={exportSummary}
+        fileName={`${pendingReport?.id || 'reporte'}-${period}`}
         pending={isGenerating}
-        onExport={({ format }) => {
-          if (format !== 'xlsx') void generateReport(format)
+        onExport={({ format, fileName }) => {
+          if (format !== 'xlsx') void generateReport(format, fileName)
         }}
       >
         <div className="space-y-3">

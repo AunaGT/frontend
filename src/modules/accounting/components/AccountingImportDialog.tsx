@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 
 export const ACCOUNTING_IMPORT_PATH = '/contabilidad/importar'
 
@@ -107,13 +108,14 @@ export function AccountingImportDialog({ open, onOpenChange, type }: AccountingI
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="auna-import-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />{title}
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
+        <ImportWizardSteps current={1} />
 
         {parsing ? (
           <div className="flex flex-col items-center justify-center py-12">

@@ -44,7 +44,7 @@ const rangeLabel = (from?: string, to?: string) =>
 
 const stamp = () => new Date().toISOString().slice(0, 10)
 
-export function exportJournal(entries: JournalEntry[], filters: { from?: string; to?: string; source?: string; branch_id?: string }) {
+export function exportJournal(entries: JournalEntry[], filters: { from?: string; to?: string; source?: string; branch_id?: string }, fileName = `libro-diario-${stamp()}.xlsx`) {
   const rows: Cell[][] = [
     ['Libro Diario'],
     [rangeLabel(filters.from, filters.to) + (filters.source ? ` · Origen: ${SOURCE_LABELS[filters.source as keyof typeof SOURCE_LABELS] ?? filters.source}` : '')],
@@ -73,12 +73,12 @@ export function exportJournal(entries: JournalEntry[], filters: { from?: string;
   }
   rows.push([])
   rows.push([null, null, null, null, null, 'Totales', num(totalDebit), num(totalCredit)])
-  download(`libro-diario-${stamp()}.xlsx`, [
+  download(fileName, [
     { name: 'Diario', rows, colWidths: [12, 12, 40, 16, 10, 38, 14, 14] },
   ])
 }
 
-export function exportLedger(data: LedgerResponse, filters: { from?: string; to?: string }) {
+export function exportLedger(data: LedgerResponse, filters: { from?: string; to?: string }, fileName = `libro-mayor-${data.account.code}-${stamp()}.xlsx`) {
   const rows: Cell[][] = [
     [`Libro Mayor — ${data.account.code} ${data.account.name}`],
     [rangeLabel(filters.from, filters.to)],
@@ -96,12 +96,12 @@ export function exportLedger(data: LedgerResponse, filters: { from?: string; to?
   }
   rows.push([])
   rows.push([null, null, 'Totales', num(data.totals.debit), num(data.totals.credit), num(data.finalBalance)])
-  download(`libro-mayor-${data.account.code}-${stamp()}.xlsx`, [
+  download(fileName, [
     { name: 'Mayor', rows, colWidths: [12, 12, 44, 14, 14, 14] },
   ])
 }
 
-export function exportTrialBalance(data: TrialBalanceResponse, filters: { from?: string; to?: string }) {
+export function exportTrialBalance(data: TrialBalanceResponse, filters: { from?: string; to?: string }, fileName = `balanza-comprobacion-${stamp()}.xlsx`) {
   const rows: Cell[][] = [
     ['Balanza de Comprobación'],
     [rangeLabel(filters.from, filters.to)],
@@ -119,7 +119,7 @@ export function exportTrialBalance(data: TrialBalanceResponse, filters: { from?:
   }
   rows.push([])
   rows.push([null, 'Totales del período', null, null, num(data.totals.debit), num(data.totals.credit), null])
-  download(`balanza-comprobacion-${stamp()}.xlsx`, [
+  download(fileName, [
     { name: 'Balanza', rows, colWidths: [10, 38, 10, 14, 14, 14, 14] },
   ])
 }
@@ -131,6 +131,7 @@ export function exportStatements(
   pnl: IncomeStatementResponse,
   bs: BalanceSheetResponse,
   filters: { from?: string; to?: string; asOf?: string },
+  fileName = `estados-financieros-${stamp()}.xlsx`,
 ) {
   const pnlRows: Cell[][] = [
     ['Estado de Resultados'],
@@ -170,13 +171,13 @@ export function exportStatements(
     [],
     ['Pasivo + Capital', num(bs.totalLiabilities + bs.totalEquity)],
   ]
-  download(`estados-financieros-${stamp()}.xlsx`, [
+  download(fileName, [
     { name: 'Estado de Resultados', rows: pnlRows, colWidths: [44, 16] },
     { name: 'Balance General', rows: bsRows, colWidths: [44, 16] },
   ])
 }
 
-export function exportTaxes(data: TaxesReportResponse) {
+export function exportTaxes(data: TaxesReportResponse, fileName = `impuestos-${data.year}.xlsx`) {
   const regimeLabel = data.regime === 'PEQUENO'
     ? `Pequeño contribuyente — tarifa ${Math.round(data.pequenoRate * 100)}% sobre ventas brutas`
     : `Régimen general — IVA ${Math.round(data.ivaRate * 100)}%`
@@ -191,7 +192,7 @@ export function exportTaxes(data: TaxesReportResponse) {
   }
   rows.push([])
   rows.push(['Totales', num(data.totals.netSales), num(data.totals.ivaDebit), num(data.totals.ivaCredit), num(data.totals.pequenoTax), num(data.totals.toPay)])
-  download(`impuestos-${data.year}.xlsx`, [
+  download(fileName, [
     { name: 'Impuestos', rows, colWidths: [14, 14, 18, 20, 24, 16] },
   ])
 }

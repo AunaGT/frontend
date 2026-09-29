@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prueba visual de tablas Auna</title><link rel="stylesheet" href="/src/index.css"><link rel="stylesheet" href="/src/modules/users/users.css"><link rel="stylesheet" href="/src/modules/alerts/pages/alerts.css"><link rel="stylesheet" href="/src/modules/config/pages/config.css"><link rel="stylesheet" href="/src/modules/branches/pages/branches.css"></head>
+<body>
+  <main style="display:grid;grid-template-columns:minmax(0,1fr);gap:24px;padding:24px;max-width:1100px;margin:auto">
+    <header class="auna-module-heading"><div><p class="auna-module-eyebrow">Administración</p><h1>Usuarios y roles</h1><p class="auna-module-description">Gestiona el acceso a tu empresa.</p></div><button>Nueva cuenta</button></header>
+    <section class="auna-data-table-shell" aria-label="Tabla clara">
+      <table class="auna-data-table"><thead><tr><th>Período</th><th>Empleado</th><th>Total neto</th><th>Acciones</th></tr></thead><tbody><tr><td>Septiembre 2026</td><td>Ejemplo</td><td>Q 1,250.00</td><td><button aria-label="Ver ejemplo">Ver</button></td></tr></tbody></table>
+      <footer class="auna-data-table-pagination"><span>Mostrando 1 de 1</span><nav aria-label="Paginación"><button aria-label="Página anterior" disabled>‹</button><button aria-current="page">1</button><button aria-label="Página siguiente" disabled>›</button></nav></footer>
+    </section>
+    <section class="users-page"><div class="users-panel"><table class="users-table"><thead><tr><th>Usuario</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activo</td></tr></tbody></table><footer class="users-footer"><span>Mostrando 1 de 1</span><nav aria-label="Paginación"><button aria-current="page">1</button></nav></footer></div></section>
+    <section class="alerts-page"><div class="alerts-table-wrap"><table class="alerts-table"><thead><tr><th>Alerta</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activa</td></tr></tbody></table></div></section>
+    <section class="config-page"><div class="config-module-table-wrap"><table class="config-module-table"><thead><tr><th>Módulo</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activo</td></tr></tbody></table></div></section>
+    <section class="branches-page"><div class="branches-warehouse-table"><table><thead><tr><th>Almacén</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activo</td></tr></tbody></table></div></section>
+    <section class="dark" style="padding:24px;background:#0b132b;color:white">
+      <div class="auna-data-table-shell" aria-label="Tabla oscura">
+        <table class="auna-data-table"><thead><tr><th>Período</th><th>Empleado</th><th>Total neto</th><th>Acciones</th></tr></thead><tbody><tr><td>Septiembre 2026</td><td>Ejemplo</td><td>Q 1,250.00</td><td><button aria-label="Ver ejemplo">Ver</button></td></tr></tbody></table>
+        <footer class="auna-data-table-pagination"><span>Mostrando 1 de 1</span><nav aria-label="Paginación"><button aria-label="Página anterior" disabled>‹</button><button aria-current="page">1</button><button aria-label="Página siguiente" disabled>›</button></nav></footer>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

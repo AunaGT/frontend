@@ -19,7 +19,7 @@
  */
 import { useState, useEffect, useMemo } from 'react'
 import { getApiBaseUrl } from '@/services/api'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { MASTER_DATA_MODULE_PATH } from '@/config/appModules'
 import * as XLSX from 'xlsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -54,6 +54,12 @@ import {
     RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
+import { ImportFileStep } from '@/components/shared/ImportFileStep'
+import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportStream } from '@/components/shared/useImportStream'
+import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
+import { validateImportFile } from '@/components/shared/importFile.mjs'
 import { cn } from '@/lib/utils'
 
 // System fields available for mapping (Catalog fields - only name)
@@ -79,10 +85,12 @@ const HR = () => <div className="border-t my-4" />
 
 export default function CatalogImportPage() {
     const navigate = useNavigate()
+    const [searchParams] = useSearchParams()
     const { toast } = useToast()
 
-    // Get catalog type from sessionStorage
-    const catalogType = sessionStorage.getItem('import:catalogType') as 'categories' | 'payment-terms' | null
+    // El tipo viaja en la URL para que la vista de importación abra directamente.
+    const requestedType = searchParams.get('type')
+    const catalogType = requestedType === 'payment-terms' ? 'payment-terms' : 'categories'
 
     // State
     const [step, setStep] = useState<ImportStep>('mapping')
@@ -95,6 +103,7 @@ export default function CatalogImportPage() {
     const [importProgress, setImportProgress] = useState(0)
     const [errorMessage, setErrorMessage] = useState('')
     const [importResult, setImportResult] = useState<{ created: number; skipped?: number } | null>(null)
+    const importStream = useImportStream()
 
     // Testing/Validation state
     const [isTesting, setIsTesting] = useState(false)
@@ -102,36 +111,6 @@ export default function CatalogImportPage() {
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
     const [validRowCount, setValidRowCount] = useState(0)
     const [totalRowCount, setTotalRowCount] = useState(0)
-
-    // Check for file in sessionStorage on mount
-    useEffect(() => {
-        const storedFileName = sessionStorage.getItem('import:fileName')
-        const storedFileData = sessionStorage.getItem('import:fileData')
-
-        if (storedFileName && storedFileData && catalogType) {
-            try {
-                const binaryString = atob(storedFileData)
-                const bytes = new Uint8Array(binaryString.length)
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i)
-                }
-
-                const wb = XLSX.read(bytes.buffer, { type: 'array' })
-                setWorkbook(wb)
-                setSheetNames(wb.SheetNames)
-                setSelectedSheet(wb.SheetNames[0])
-                setFile({ name: storedFileName } as File)
-
-                sessionStorage.removeItem('import:fileName')
-                sessionStorage.removeItem('import:fileData')
-            } catch (err) {
-                console.error('Error loading file from sessionStorage:', err)
-                navigate(MASTER_DATA_MODULE_PATH)
-            }
-        } else {
-            navigate(MASTER_DATA_MODULE_PATH)
-        }
-    }, [navigate, catalogType])
 
     // Parse selected sheet
     useEffect(() => {
@@ -181,26 +160,28 @@ export default function CatalogImportPage() {
         })
     }
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const selectedFile = e.target.files?.[0]
+    const handleFileChange = async (input: File | React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = input instanceof File ? input : input.target.files?.[0]
         if (!selectedFile) return
-
-        const reader = new FileReader()
-        reader.onload = (event) => {
-            try {
-                const data = event.target?.result
-                const wb = XLSX.read(data, { type: 'array' })
+        const problem = validateImportFile(selectedFile)
+        if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
+        try {
+                const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array' })
+                if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
                 setWorkbook(wb)
+                setStep('mapping')
+                setImportResult(null)
+                setErrorMessage('')
                 setSheetNames(wb.SheetNames)
                 setSelectedSheet(wb.SheetNames[0])
                 setFile(selectedFile)
                 setHasTestedOnce(false)
                 setValidationErrors([])
-            } catch (err) {
-                toast({ variant: 'destructive', title: 'Error', description: 'No se pudo leer el archivo' })
-            }
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo leer el archivo'
+            toast({ variant: 'destructive', title: 'Error', description: message })
+            return message
         }
-        reader.readAsArrayBuffer(selectedFile)
     }
 
     const handleTest = async () => {
@@ -240,6 +221,7 @@ export default function CatalogImportPage() {
             })
 
             const result = await response.json()
+            if (!response.ok) throw new Error(result.message || 'Error al validar datos maestros')
 
             if (result.invalidRows && result.invalidRows.length > 0) {
                 const processed: ValidationError[] = result.invalidRows.map((row: { rowIndex: number; errors: string[] }) => {
@@ -264,7 +246,11 @@ export default function CatalogImportPage() {
             setHasTestedOnce(true)
             setStep('mapping')
         } catch (err) {
-            toast({ title: 'Error de validación', description: err instanceof Error ? err.message : 'Error al validar', variant: 'destructive' })
+            const message = err instanceof Error ? err.message : 'Error al validar'
+            setValidationErrors([{ rowIndex: -1, errors: [message], fieldErrors: { _general: [message] } }])
+            setValidRowCount(0)
+            setHasTestedOnce(true)
+            toast({ title: 'Error de validación', description: message, variant: 'destructive' })
             setStep('mapping')
         } finally {
             setIsTesting(false)
@@ -275,7 +261,7 @@ export default function CatalogImportPage() {
         if (!workbook || !selectedSheet || !catalogType) return
 
         setStep('importing')
-        setImportProgress(10)
+        setErrorMessage('')
 
         try {
             const sheet = workbook.Sheets[selectedSheet]
@@ -284,10 +270,8 @@ export default function CatalogImportPage() {
                 defval: ''
             })
 
-            const total = data.length || 1
-
             const mappedData: Record<string, unknown>[] = []
-            data.forEach((row, index) => {
+            data.forEach((row) => {
                 const mapped: Record<string, unknown> = {}
                 columnMappings.forEach(mapping => {
                     if (mapping.systemField) {
@@ -295,39 +279,20 @@ export default function CatalogImportPage() {
                     }
                 })
                 mappedData.push(mapped)
-
-                // 10% -> 60% según filas mapeadas
-                if (index % 10 === 0) {
-                    const progress = 10 + Math.round(((index + 1) / total) * 50)
-                    setImportProgress(progress)
-                }
             })
 
-            const token = localStorage.getItem('auth:token')
             const endpoint = catalogType === 'categories'
-                ? `${getApiBaseUrl()}/catalogs/product-categories/bulk-import-mapped`
-                : `${getApiBaseUrl()}/catalogs/payment-terms/bulk-import-mapped`
-
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: mappedData })
-            })
-
-            setImportProgress(80)
-            const result = await response.json()
-
-            if (!response.ok) {
-                throw new Error(result.message || 'Error en importación')
-            }
-
-            setImportProgress(100)
+                ? `${getApiBaseUrl()}/catalogs/product-categories/bulk-import-mapped-stream`
+                : `${getApiBaseUrl()}/catalogs/payment-terms/bulk-import-mapped-stream`
+            const result = await importStream.start<{ created: number; skipped?: number }>(endpoint, { items: mappedData })
             setImportResult(result)
             setStep('success')
             const itemName = catalogType === 'categories' ? 'categorías' : 'términos de pago'
             toast({ title: '¡Importación exitosa!', description: `Se importaron ${result.created} ${itemName}` })
         } catch (err) {
-            setErrorMessage(err instanceof Error ? err.message : 'Error en importación')
+            const rowErrors = readImportErrors(err)
+            if (rowErrors.length) { setValidationErrors(rowErrors.map(row => ({ ...row, fieldErrors: {} }))); setValidRowCount(0); setHasTestedOnce(true) }
+            setErrorMessage(err instanceof Error && err.name === 'AbortError' ? 'Importación cancelada. Verifica los datos antes de reintentar; alguna fila pudo haberse guardado.' : err instanceof Error ? err.message : 'Error en importación')
             setStep('error')
         }
     }
@@ -377,9 +342,29 @@ export default function CatalogImportPage() {
     const title = catalogType === 'categories' ? 'Categorías' : 'Términos de Pago'
 
     // Render success state
+    return <ImportWorkbench
+        title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros."
+        back={MASTER_DATA_MODULE_PATH} backLabel="Datos maestros"
+        templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'}
+        templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'}
+        file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
+        onSheetChange={sheet => { setSelectedSheet(sheet); setHasTestedOnce(false); setValidationErrors([]) }}
+        useFirstRowAsHeader={useFirstRowAsHeader} onHeaderChange={checked => { setUseFirstRowAsHeader(checked); setHasTestedOnce(false); setValidationErrors([]) }}
+        fields={SYSTEM_FIELDS} mappings={columnMappings}
+        onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]) }}
+        rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
+        firstErrorIndex={1} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors}
+        onValidate={() => void handleTest()} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
+        progress={importStream.progress} onCancel={importStream.cancel}
+        result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
+    />
+
+    if (!workbook) return <ImportFileStep title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros." templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'} templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'} backLabel="Datos maestros" onBack={() => navigate(MASTER_DATA_MODULE_PATH)} onFile={file => void handleFileChange(file)} />
+
     if (step === 'success' && importResult) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={4} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
@@ -401,7 +386,8 @@ export default function CatalogImportPage() {
     // Render error state
     if (step === 'error') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
@@ -420,7 +406,8 @@ export default function CatalogImportPage() {
     // Render importing state
     if (step === 'importing' || step === 'validating') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
                         <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
@@ -435,10 +422,10 @@ export default function CatalogImportPage() {
 
     // Render mapping UI
     return (
-        <div className="min-h-screen bg-background">
+        <div className="auna-import-page">
             {/* Header */}
             <div className="border-b bg-card">
-                <div className="container mx-auto px-4 py-3">
+                <div className="auna-import-container">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <Button variant="ghost" size="icon" onClick={() => navigate(MASTER_DATA_MODULE_PATH)}>
@@ -490,10 +477,11 @@ export default function CatalogImportPage() {
                 </div>
             </div>
 
-            <div className="container mx-auto px-4 py-6">
-                <div className="grid grid-cols-12 gap-6">
+            <ImportWizardSteps current={hasTestedOnce ? 3 : 2} fileName={file?.name} />
+            <div className="auna-import-container auna-import-main">
+                <div className="auna-import-grid">
                     {/* Left Sidebar */}
-                    <div className="col-span-3">
+                    <div className="auna-import-source">
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-sm font-medium">Datos a importar</CardTitle>
@@ -554,7 +542,7 @@ export default function CatalogImportPage() {
                     </div>
 
                     {/* Main Content - Column Mapping */}
-                    <div className="col-span-9">
+                    <div className="auna-import-mapping">
                         <Card>
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">

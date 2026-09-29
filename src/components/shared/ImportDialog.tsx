@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { downloadFile } from '@/services/api'
+import { ImportWizardSteps } from './ImportWizardSteps'
 
 /** 10 MB: por encima de eso el navegador se traba al pasarlo a base64. */
 const MAX_BYTES = 10 * 1024 * 1024
@@ -132,7 +133,7 @@ export const ImportDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-            <DialogContent className="max-w-lg">
+            <DialogContent className="auna-import-dialog">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5" />
@@ -140,6 +141,7 @@ export const ImportDialog = ({
                     </DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
+                <ImportWizardSteps current={1} />
 
                 {busy ? (
                     <div className="flex flex-col items-center justify-center py-12">

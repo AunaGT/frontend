@@ -50,7 +50,6 @@ import { Pagination } from '@/components/shared/Pagination'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 
 // Feature imports
-import { ImportDialog } from './components'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
@@ -121,7 +120,6 @@ const ProductManagement = () => {
 
     // Dialog states
     const [isScannerOpen, setIsScannerOpen] = useState(false)
-    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false)
     const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
     const EXPORT_COLUMNS: { id: string; label: string }[] = [
         { id: 'name', label: 'Nombre' },
@@ -296,12 +294,14 @@ const ProductManagement = () => {
         ids?: string[],
         includeSummary?: boolean,
         format: 'pdf' | 'csv' = 'pdf',
+        fileName?: string,
     ) => {
         if (!canExport) return
         try {
             const svc = await import('@/services/productService')
             await svc.exportProducts({
                 format,
+                fileName,
                 ...(fields?.length ? { fields } : {}),
                 ...(ids?.length ? { ids } : {}),
                 ...(includeSummary === false ? { includeSummary: false } : {}),
@@ -386,7 +386,7 @@ const ProductManagement = () => {
                                         </DropdownMenuItem>
                                     )}
                                     {canImport && (
-                                        <DropdownMenuItem onClick={() => setIsImportDialogOpen(true)}>
+                                        <DropdownMenuItem onClick={() => navigate('/inventario/importar')}>
                                             <Upload className="mr-2 h-4 w-4" />
                                             Importar
                                         </DropdownMenuItem>
@@ -662,7 +662,7 @@ const ProductManagement = () => {
                             ) : viewMode === 'table' ? (
                                 // Vista de lista (tabla)
                                 <div className="overflow-x-auto">
-                                    <table className="w-full">
+                                    <table className="auna-data-table">
                                         <thead>
                                             <tr className="border-b border-border">
                                                 <th className="w-10 p-3 text-left">
@@ -903,21 +903,12 @@ const ProductManagement = () => {
                 </CardContent>
             </Card>
 
-            {/* Import Dialog */}
-            <ImportDialog
-                open={isImportDialogOpen}
-                onOpenChange={setIsImportDialogOpen}
-                onImportSuccess={() => {
-                    // Trigger refetch by invalidating query
-                    window.location.reload()
-                }}
-            />
-
             {/* Export PDF Dialog — columnas del reporte de inventario */}
             <ExportDialog
                 open={isExportDialogOpen}
                 onOpenChange={setIsExportDialogOpen}
                 title="Exportar inventario"
+                fileName="inventario"
                 summary={
                     selectedIds.length > 0
                         ? `Se exportan los ${selectedIds.length} producto(s) seleccionados.`
@@ -948,13 +939,14 @@ const ProductManagement = () => {
                     onClick: () =>
                         handleExport(undefined, selectedIds.length ? selectedIds : undefined, exportIncludeSummary),
                 }}
-                onExport={({ format, columns }) => {
+                onExport={({ format, columns, fileName }) => {
                     if (format === 'xlsx') return // este diálogo ofrece PDF y CSV
                     handleExport(
                         columns?.length ? columns : undefined,
                         selectedIds.length ? selectedIds : undefined,
                         exportIncludeSummary,
                         format,
+                        fileName,
                     )
                 }}
             />

@@ -32,10 +32,11 @@ export function UsersPage({
           <span>←</span> {backLabel}
         </Link>
       )}
-      <header className="users-heading mb-6">
+      <header className="users-heading auna-module-heading mb-6">
         <div>
+          <p className="auna-module-eyebrow">Administración</p>
           <h1>{title}</h1>
-          {description && <p className="mt-1 text-sm">{description}</p>}
+          {description && <p className="auna-module-description">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
       </header>

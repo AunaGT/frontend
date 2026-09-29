@@ -129,10 +129,11 @@ export const TrialBalanceTab = () => {
         open={exportOpen}
         onOpenChange={setExportOpen}
         title="Exportar balanza de comprobación"
+        fileName="balanza-comprobacion"
         summary={`${rangoTexto(from, to)} (${data?.rows.length ?? 0} cuenta(s)).`}
         formats={['xlsx']}
-        onExport={() => {
-          if (data) exportTrialBalance(data, { from: from || undefined, to: to || undefined })
+        onExport={({ fileName }) => {
+          if (data) exportTrialBalance(data, { from: from || undefined, to: to || undefined }, fileName)
           setExportOpen(false)
         }}
       />

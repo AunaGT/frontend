@@ -18,7 +18,7 @@
  * - Real-time validation feedback
  */
 import { useState, useEffect, useMemo } from 'react'
-import { apiFetch, getApiBaseUrl, getAuthToken } from '@/services/api'
+import { ApiError, apiFetch, getApiBaseUrl, getAuthToken } from '@/services/api'
 import { useQuery } from '@tanstack/react-query'
 import { useTenant } from '@/context/useTenant'
 import { fetchWarehouses } from '@/services/warehouseService'
@@ -56,6 +56,12 @@ import {
     RefreshCw,
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
+import { ImportFileStep } from '@/components/shared/ImportFileStep'
+import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportStream } from '@/components/shared/useImportStream'
+import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
+import { validateImportFile } from '@/components/shared/importFile.mjs'
 
 // System fields available for mapping
 const SYSTEM_FIELDS = [
@@ -110,6 +116,7 @@ export default function ImportPage() {
     const [importProgress, setImportProgress] = useState(0)
     const [errorMessage, setErrorMessage] = useState('')
     const [importResult, setImportResult] = useState<{ created: number; skipped?: number } | null>(null)
+    const importStream = useImportStream()
 
     // Testing/Validation state
     const [isTesting, setIsTesting] = useState(false)
@@ -139,41 +146,6 @@ export default function ImportPage() {
     )
     const [skipRowIndexes, setSkipRowIndexes] = useState<number[]>([])
     const [resolutionHints, setResolutionHints] = useState<ResolutionHint[]>([])
-
-    // Check for file in sessionStorage on mount
-    useEffect(() => {
-        const storedFileName = sessionStorage.getItem('import:fileName')
-        const storedFileData = sessionStorage.getItem('import:fileData')
-
-        if (storedFileName && storedFileData) {
-            try {
-                // Convert base64 back to ArrayBuffer
-                const binaryString = atob(storedFileData)
-                const bytes = new Uint8Array(binaryString.length)
-                for (let i = 0; i < binaryString.length; i++) {
-                    bytes[i] = binaryString.charCodeAt(i)
-                }
-
-                const wb = XLSX.read(bytes.buffer, { type: 'array' })
-                setWorkbook(wb)
-                setSheetNames(wb.SheetNames)
-                setSelectedSheet(wb.SheetNames[0])
-
-                // Create a mock file object for display
-                setFile({ name: storedFileName } as File)
-
-                // Clear sessionStorage
-                sessionStorage.removeItem('import:fileName')
-                sessionStorage.removeItem('import:fileData')
-            } catch (err) {
-                console.error('Error loading file from sessionStorage:', err)
-                navigate('/inventario')
-            }
-        } else {
-            // No file provided, redirect back
-            navigate('/inventario')
-        }
-    }, [navigate])
 
     // Parse selected sheet and extract columns
     useEffect(() => {
@@ -243,17 +215,21 @@ export default function ImportPage() {
     }
 
     // Handle file drop (for re-upload)
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = e.target.files
-        if (!files || files.length === 0) return
-
-        const selectedFile = files[0]
-        setFile(selectedFile)
+    const handleFileChange = async (input: File | React.ChangeEvent<HTMLInputElement>) => {
+        const selectedFile = input instanceof File ? input : input.target.files?.[0]
+        if (!selectedFile) return
+        const problem = validateImportFile(selectedFile)
+        if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
 
         try {
             const buffer = await selectedFile.arrayBuffer()
             const wb = XLSX.read(buffer, { type: 'array' })
+            if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
             setWorkbook(wb)
+            setFile(selectedFile)
+            setStep('mapping')
+            setImportResult(null)
+            setErrorMessage('')
             setSheetNames(wb.SheetNames)
             setSelectedSheet(wb.SheetNames[0])
             setHasTestedOnce(false)
@@ -263,11 +239,13 @@ export default function ImportPage() {
             setSkipRowIndexes([])
             setResolutionHints([])
         } catch (err) {
+            const message = err instanceof Error ? err.message : 'No se pudo leer el archivo'
             toast({
                 variant: 'destructive',
                 title: 'Error',
-                description: 'No se pudo leer el archivo'
+                description: message
             })
+            return message
         }
     }
 
@@ -405,6 +383,7 @@ export default function ImportPage() {
             const msg = err instanceof Error ? err.message : 'Error al validar productos'
             toast({ title: 'Error de validación', description: msg, variant: 'destructive' })
             setValidationErrors([{ rowIndex: -1, errors: [msg], fieldErrors: { _general: [msg] } }])
+            setHasTestedOnce(true)
             setValidRowCount(0)
             setResolutionHints([])
             setStep('mapping')
@@ -472,28 +451,13 @@ export default function ImportPage() {
 
     const handleImport = async () => {
         if (!workbook || !selectedSheet) return
-
-        setStep('validating')
-        setImportProgress(10)
-
+        setStep('importing')
+        setErrorMessage('')
         try {
             const mappedData = buildMappedRows()
-            const total = mappedData.length || 1
-
-            mappedData.forEach((_, index) => {
-                if (index % 10 === 0) {
-                    setImportProgress(10 + Math.round(((index + 1) / total) * 50))
-                }
-            })
-
-            setStep('importing')
-            setImportProgress(65)
-
-            const result = await apiFetch<{ created: number; adopted?: number; skipped?: number; message?: string }>(
-                '/products/bulk-import-mapped',
+            const result = await importStream.start<{ created: number; adopted?: number; skipped?: number; message?: string }>(
+                `${getApiBaseUrl()}/products/bulk-import-mapped-stream`,
                 {
-                    method: 'POST',
-                    body: JSON.stringify({
                         products: mappedData,
                         location_id: importLocation === 'default' ? undefined : importLocation,
                         importOptions: {
@@ -501,11 +465,8 @@ export default function ImportPage() {
                             createSuppliers,
                             skipRowIndexes,
                         },
-                    }),
                 }
             )
-
-            setImportProgress(100)
             setImportResult(result)
             setStep('success')
 
@@ -514,7 +475,13 @@ export default function ImportPage() {
                 description: result.message ?? `Se importaron ${result.created} productos`,
             })
         } catch (err) {
-            setErrorMessage(err instanceof Error ? err.message : 'Error en importación')
+            const rowErrors = readImportErrors(err instanceof ApiError ? err.data : err)
+            if (rowErrors.length) {
+                setValidationErrors(rowErrors.map(row => ({ ...row, fieldErrors: {} })))
+                setValidRowCount(0)
+                setHasTestedOnce(true)
+            }
+            setErrorMessage(err instanceof Error && err.name === 'AbortError' ? 'Importación cancelada. Verifica los datos antes de reintentar; alguna fila pudo haberse guardado.' : err instanceof Error ? err.message : 'Error en importación')
             setStep('error')
         }
     }
@@ -614,13 +581,32 @@ export default function ImportPage() {
         return SYSTEM_FIELDS.filter(f => !usedFields.includes(f.id))
     }
 
+    return <ImportWorkbench
+        title="Importar inventario" description="Carga y valida productos antes de agregarlos al catálogo y a la sucursal activa."
+        back="/inventario" backLabel="Inventario" templatePath="/products/import-template" templateName="plantilla_productos.xlsx"
+        file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
+        onSheetChange={sheet => { setSelectedSheet(sheet); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreateSuppliers([]); setSkipRowIndexes([]) }}
+        useFirstRowAsHeader={useFirstRowAsHeader} onHeaderChange={checked => { setUseFirstRowAsHeader(checked); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreateSuppliers([]); setSkipRowIndexes([]) }}
+        fields={SYSTEM_FIELDS} mappings={columnMappings}
+        onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreateSuppliers([]); setSkipRowIndexes([]) }}
+        rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
+        firstErrorIndex={2} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={skipRowIndexes}
+        onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
+        progress={importStream.progress} onCancel={importStream.cancel}
+        result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
+        options={<div className="auna-import-options"><p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
+        resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
+    />
+
+    if (!workbook) return <ImportFileStep title="Importar inventario" description="Carga y valida productos antes de agregarlos al catálogo y a la sucursal activa." templatePath="/products/import-template" templateName="plantilla_productos.xlsx" backLabel="Inventario" onBack={() => navigate('/inventario')} onFile={file => void handleFileChange(file)} />
+
     // Render mapping UI (incluye 'testing' mientras revalidamos tras Crear/Omitir)
     if (step === 'mapping' || step === 'testing') {
         return (
-            <div className="min-h-screen bg-background">
+            <div className="auna-import-page">
                 {/* Header */}
                 <div className="border-b bg-card">
-                    <div className="container mx-auto px-4 py-3">
+                    <div className="auna-import-container">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-4">
                                 <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
@@ -677,10 +663,11 @@ export default function ImportPage() {
                     </div>
                 </div>
 
-                <div className="container mx-auto px-4 py-6">
-                    <div className="grid grid-cols-12 gap-6">
+                <ImportWizardSteps current={hasTestedOnce ? 3 : 2} fileName={file?.name} />
+                <div className="auna-import-container auna-import-main">
+                    <div className="auna-import-grid">
                         {/* Left Sidebar */}
-                        <div className="col-span-3">
+                        <div className="auna-import-source">
                             <Card>
                                 <CardHeader className="pb-3">
                                     <CardTitle className="text-sm font-medium">Datos a importar</CardTitle>
@@ -800,7 +787,7 @@ export default function ImportPage() {
                         </div>
 
                         {/* Main Content - Column Mapping */}
-                        <div className="col-span-9">
+                        <div className="auna-import-mapping">
                             <Card>
                                 <CardHeader className="pb-3">
                                     <div className="flex items-center justify-between">
@@ -1040,7 +1027,8 @@ export default function ImportPage() {
     // Loading/importing state
     if (step === 'validating' || step === 'importing') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md w-full">
                     <CardContent className="py-12">
                         <div className="flex flex-col items-center gap-6">
@@ -1064,7 +1052,8 @@ export default function ImportPage() {
     // Success state
     if (step === 'success') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={4} fileName={file?.name} />
                 <Card className="max-w-md w-full">
                     <CardContent className="py-12">
                         <div className="flex flex-col items-center gap-6">
@@ -1111,7 +1100,8 @@ export default function ImportPage() {
     // Error state
     if (step === 'error') {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
+            <div className="auna-import-page auna-import-result">
+                <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md w-full">
                     <CardContent className="py-12">
                         <div className="flex flex-col items-center gap-6">

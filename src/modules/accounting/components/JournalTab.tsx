@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,13 +30,13 @@ import { fmtQ, fmtDate, SOURCE_LABELS , rangoTexto } from './format'
 import { exportJournal } from './exportExcel'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 import { NewEntryDialog } from './NewEntryDialog'
-import { AccountingImportDialog } from './AccountingImportDialog'
 import { ExpenseDialog } from './ExpenseDialog'
 
 const entryTotal = (entry: JournalEntry) =>
   entry.lines.reduce((s, l) => s + (Number(l.debit) || 0), 0)
 
 export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCreate: boolean }) => {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const { branches } = useTenant()
   const [items, setItems] = useState<JournalEntry[]>([])
@@ -50,7 +51,6 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   const [branchFilter, setBranchFilter] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [isNewOpen, setIsNewOpen] = useState(false)
-  const [isImportOpen, setIsImportOpen] = useState(false)
   const [isExpenseOpen, setIsExpenseOpen] = useState(false)
   const [posting, setPosting] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -92,7 +92,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
     }
   }
 
-  const handleExport = async () => {
+  const handleExport = async (fileName?: string) => {
     setExporting(true)
     try {
       // Descarga todas las páginas con los filtros activos (el backend pagina a 100 máx.)
@@ -112,7 +112,8 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
       }
       // El diario se exporta en orden cronológico
       all.reverse()
-      exportJournal(all, filters)
+      exportJournal(all, filters, fileName)
+      setExportOpen(false)
       toast({ title: 'Excel generado', description: `Libro Diario con ${all.length} asientos` })
     } catch (e) {
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo exportar', variant: 'destructive' })
@@ -161,7 +162,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
                 <Button variant="outline" size="sm" onClick={() => setIsExpenseOpen(true)}>
                   <Receipt className="h-4 w-4 mr-2" />Registrar gasto
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setIsImportOpen(true)}>
+                <Button variant="outline" size="sm" onClick={() => navigate('/contabilidad/importar?type=journal')}>
                   <Upload className="h-4 w-4 mr-2" />Importar
                 </Button>
                 <Button variant="outline" size="sm" onClick={handlePostPending} disabled={posting}>
@@ -292,8 +293,8 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
       </CardContent>
 
       <NewEntryDialog open={isNewOpen} onOpenChange={setIsNewOpen} accounts={accounts} onSaved={() => void load(1)} />
-      <AccountingImportDialog open={isImportOpen} onOpenChange={setIsImportOpen} type="journal" />
       <ExpenseDialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen} accounts={accounts} onSaved={() => void load(1)} />
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar libro diario" fileName="libro-diario" summary={`${rangoTexto(from, to)} (${totalItems} asientos). Se exportan todas las páginas filtradas.`} formats={['xlsx']} pending={exporting} onExport={({ fileName }) => void handleExport(fileName)} />
     </Card>
   )
 }
