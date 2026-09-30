@@ -132,9 +132,11 @@ No se permite `Pendiente → Completada` por defecto: la aprobación es un contr
 
 **Files:** backend `src/modules/cash-closure/controller.js`, `src/services/accounting/postingEngine.js`, proyección de Cartera, `tests/returns.reconciliation.test.js`.
 
-- [ ] Probar que caja descuenta solo reintegros efectivamente **pagados en esa sesión**, no `sale.total_returned` acumulado de ventas del período ni devoluciones pendientes/aprobadas. Diferencias de cambio cuentan solo su cobro/reintegro real.
-- [ ] El posteo RETURN se dispara al completar, no al aprobar; separar reducción de ingresos/impuesto (si aplica), inventario apto que vuelve, cuentas por cobrar y salida real de efectivo/banco según liquidaciones. Un retorno procesado genera un solo asiento idempotente; una aprobación seguida de rechazo no genera asiento.
-- [ ] Para ventas con DTE, mostrar obligación fiscal pendiente y vínculo a documento original. No emitir/anular automáticamente: integrar nota de crédito FEL solo tras validar proveedor, referencia DTE y regla de país con asesoría fiscal; probar por separado antes de habilitar el control.
+- [x] Probar que caja descuenta solo reintegros efectivamente **pagados en esa sesión**, no `sale.total_returned` acumulado de ventas del período ni devoluciones pendientes/aprobadas. Diferencias de cambio cuentan solo su cobro/reintegro real.
+- [x] El posteo RETURN se dispara al completar, no al aprobar; separar reducción de ingresos/impuesto (si aplica), inventario apto que vuelve, cuentas por cobrar y salida real de efectivo/banco según liquidaciones. Un retorno procesado genera un solo asiento idempotente; una aprobación seguida de rechazo no genera asiento.
+- [x] Para ventas con DTE, mostrar obligación fiscal pendiente y vínculo a documento original. No emitir/anular automáticamente: integrar nota de crédito FEL solo tras validar proveedor, referencia DTE y regla de país con asesoría fiscal; probar por separado antes de habilitar el control.
+
+**Evidencia:** caja consulta `ReturnSettlement` por sesión/período y excluye ventas vinculadas de cambio; contabilidad solo toma `Completada`, distribuye salida real/compensación y revierte inventario únicamente por `restock_qty`. El detalle publica obligación FEL pendiente sin emitir nada. Backend: commit `49652b8`.
 
 ### Task 7 — Listado y detalle fieles a las referencias
 
