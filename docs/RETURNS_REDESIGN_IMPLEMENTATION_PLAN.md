@@ -122,9 +122,11 @@ No se permite `Pendiente → Completada` por defecto: la aprobación es un contr
 
 **Files:** backend `src/modules/returns/application.js`, servicio público de creación de venta extraído del flujo existente de `src/modules/sales/controller.js`, `tests/returns.exchange.test.js`.
 
-- [ ] Probar cambio sin diferencia, con diferencia a cobrar, con diferencia a reintegrar, stock insuficiente, sucursal ajena y doble confirmación; primero rojo.
-- [ ] Al completar EXCHANGE, generar una venta nueva vinculada para reemplazos usando el mismo motor de precio/stock/tenant de Ventas, compensar el valor devuelto con el valor nuevo y registrar solo la diferencia real como `COLLECTION` o `REFUND`. No modificar `SaleItem.qty` de la venta original. Rechazar precios de reemplazo enviados por cliente si no hay permiso explícito para cambiarlos.
-- [ ] Mantener legibles los EXCHANGE históricos sin recontabilizarlos automáticamente. Nuevos cambios no se habilitan en UI hasta que estas pruebas y la conciliación contable de Task 6 pasen.
+- [x] Probar cambio sin diferencia, con diferencia a cobrar, con diferencia a reintegrar, stock insuficiente, sucursal ajena y doble confirmación; primero rojo.
+- [x] Al completar EXCHANGE, generar una venta nueva vinculada para reemplazos usando el mismo motor de precio/stock/tenant de Ventas, compensar el valor devuelto con el valor nuevo y registrar solo la diferencia real como `COLLECTION` o `REFUND`. No modificar `SaleItem.qty` de la venta original. Rechazar precios de reemplazo enviados por cliente si no hay permiso explícito para cambiarlos.
+- [x] Mantener legibles los EXCHANGE históricos sin recontabilizarlos automáticamente. Nuevos cambios no se habilitan en UI hasta que estas pruebas y la conciliación contable de Task 6 pasen.
+
+**Evidencia:** el núcleo reutilizable de ventas resuelve precios, tenant, disponibilidad, folio, líneas netas, stock, lotes y alertas. `returns.exchange.test.js` cubre diferencias cero/positiva/negativa, saldo a favor identificado, precio vigente/histórico, precio cliente rechazado, stock, tenant e idempotencia. Backend: commit `e98929e`.
 
 ### Task 6 — Cuadrar caja, cartera, contabilidad y fiscal
 
