@@ -78,10 +78,12 @@ No se permite `Pendiente → Completada` por defecto: la aprobación es un contr
 
 **Files:** backend `tests/returns.contract.test.js`, `src/modules/returns/domain.js`; documentación operativa en este archivo.
 
-- [ ] Escribir pruebas que reproduzcan devolución parcial duplicada, rechazo tras aprobación, aprobación sin stock y cambio completado sin liquidación. Ejecutar `node --test tests/returns.contract.test.js` y registrar fallos actuales.
-- [ ] Inventariar en una consulta de **solo lectura** cuántas devoluciones históricas están Pendiente/Aprobada/Completada/Rechazada, cuántas son EXCHANGE y si hay movimientos `SALE_RETURN` por ID. No modificar datos para “limpiarlos”.
-- [ ] Verificar `prisma migrate status`. Si persiste la divergencia ya observada, documentar IDs locales/remotos y reconciliar con respaldo y revisión humana antes de Task 3; no usar `migrate reset`.
-- [ ] Definir en `domain.js` la matriz de transición y `availableQty = originalQty - activeReturnedQty`. Probar rechazada no consume, aprobada sí reserva y completada no puede completarse de nuevo.
+- [x] Escribir pruebas que reproduzcan devolución parcial duplicada, rechazo tras aprobación, aprobación sin stock y cambio completado sin liquidación. Ejecutar `node --test tests/returns.contract.test.js` y registrar fallos actuales.
+- [x] Inventariar en una consulta de **solo lectura** cuántas devoluciones históricas están Pendiente/Aprobada/Completada/Rechazada, cuántas son EXCHANGE y si hay movimientos `SALE_RETURN` por ID. No modificar datos para “limpiarlos”.
+- [x] Verificar `prisma migrate status`. Si persiste la divergencia ya observada, documentar IDs locales/remotos y reconciliar con respaldo y revisión humana antes de Task 3; no usar `migrate reset`.
+- [x] Definir en `domain.js` la matriz de transición y `availableQty = originalQty - activeReturnedQty`. Probar rechazada no consume, aprobada sí reserva y completada no puede completarse de nuevo.
+
+**Evidencia 2026-09-29:** 3 Aprobadas, 4 Completadas; 6 REFUND y 1 EXCHANGE. Tres devoluciones históricas ya tienen movimientos `SALE_RETURN`. La última migración común es `20260928140000_branches_operational_state`; hay dos migraciones locales pendientes y 23 entradas remotas ausentes localmente (incluidos duplicados históricos). No se aplicará ni generará una migración de Devoluciones contra esa base hasta reconciliar el historial con respaldo.
 
 ### Task 2 — Endurecer creación y búsqueda sin migración
 
