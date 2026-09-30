@@ -8,19 +8,22 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
 import { BrandLoading } from "@/components/branding/BrandLoading";
 
 const PrivateRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
   // Show loading spinner while checking auth state
   if (isLoading) {
     return <BrandLoading fullScreen message="Verificando tu sesión…" />;
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.must_change_password && location.pathname !== '/cambiar-contrasena') return <Navigate to="/cambiar-contrasena" replace />;
+  return <Outlet />;
 };
 
 export default PrivateRoute;

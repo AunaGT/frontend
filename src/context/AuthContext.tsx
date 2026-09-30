@@ -43,6 +43,7 @@ export interface Branch {
 }
 
 export interface AuthUser {
+  must_change_password?: boolean;
   access_status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   updated_at?: string;
   password_changed_at?: string | null;

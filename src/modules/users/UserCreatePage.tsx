@@ -37,6 +37,7 @@ export default function UserCreatePage() {
 
   // ─── 2. Acceso y seguridad ───
   const [isActive, setIsActive] = useState(true)
+  const [mustChangePassword, setMustChangePassword] = useState(true)
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
@@ -102,6 +103,7 @@ export default function UserCreatePage() {
         password,
         role_id: primaryRoleId,
         access_status: isActive ? 'ACTIVE' : 'INACTIVE',
+        must_change_password: mustChangePassword,
       })
 
       const userId = newUser.user.id
@@ -293,10 +295,10 @@ export default function UserCreatePage() {
               <div className="space-y-2 pt-1 text-xs">
                 <label className="flex items-center gap-2.5 cursor-pointer">
                   <Checkbox
-                    checked={false} disabled
+                    checked={mustChangePassword} onCheckedChange={(checked) => setMustChangePassword(checked === true)}
                     className="data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
                   />
-                  <span className="text-foreground">Cambio obligatorio al ingresar (pendiente de integración)</span>
+                  <span className="text-foreground">Exigir cambio de contraseña al ingresar</span>
                 </label>
 
                 <label className="flex items-center gap-2.5 cursor-pointer">

@@ -219,7 +219,7 @@ export function PageFooter({
     .sort((a, b) => a - b)
 
   return (
-    <footer className="users-footer">
+    <footer className="users-footer auna-data-table-pagination">
       <span>
         Mostrando {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} de {total}
       </span>

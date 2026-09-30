@@ -28,6 +28,7 @@ import { BrandLoading } from "@/components/branding/BrandLoading";
 import { MainLayout } from "@/components/layout";
 
 import MyProfilePage from "@/modules/users/MyProfilePage";
+import MandatoryPasswordPage from "@/modules/users/MandatoryPasswordPage";
 import {
   accountingModule,
   alertsModule,
@@ -145,6 +146,7 @@ const App = () => (
 
             {/* Private routes with MainLayout */}
             <Route element={<PrivateRoute />}>
+              <Route path="/cambiar-contrasena" element={<MandatoryPasswordPage />} />
               <Route element={<MainLayout />}>
                 {/* Home - App Grid (siempre accesible tras login) */}
                 <Route path="/" element={<HomePage />} />

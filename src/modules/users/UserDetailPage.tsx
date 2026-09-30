@@ -55,6 +55,7 @@ export default function UserDetailPage() {
   const { toast } = useToast()
   const { company } = useTenant()
   const [activityPage, setActivityPage] = useState(1)
+  const [permissionPage, setPermissionPage] = useState(1)
   const activity = useQuery({
     queryKey: ['user-activity', company?.id, id, activityPage],
     queryFn: () => getUserActivity(id!, { page: activityPage, pageSize: 10 }),
@@ -69,6 +70,7 @@ export default function UserDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [roles, setRoles] = useState<Role[]>([])
   const [roleDetail, setRoleDetail] = useState<Role | null>(null)
+  useEffect(() => { setPermissionPage(1) }, [id, roleDetail?.id])
   const [cashRegisters, setCashRegisters] = useState<CashRegisterDto[]>([])
   const [accessVersion, setAccessVersion] = useState(0)
 
@@ -741,7 +743,7 @@ export default function UserDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allPermissions.map((p) => {
+                    {allPermissions.slice((permissionPage - 1) * 10, permissionPage * 10).map((p) => {
                       const mod = formatPermissionGroupLabel(p.code.split('.')[0])
                       const level = isReadPermission(p.code) ? 'Lectura' : 'Escritura'
                       return (
@@ -756,6 +758,7 @@ export default function UserDetailPage() {
                   </tbody>
                 </table>
               </div>
+              <PageFooter page={permissionPage} totalPages={Math.max(1, Math.ceil(allPermissions.length / 10))} total={allPermissions.length} pageSize={10} onChange={setPermissionPage} />
             </div>
           ) : (
             <p className="users-muted text-xs text-center py-8">Este usuario no tiene un rol asignado.</p>

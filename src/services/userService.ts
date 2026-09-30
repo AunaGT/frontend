@@ -12,6 +12,7 @@ import { apiFetch } from "./api";
 import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface User {
+  must_change_password?: boolean;
   access_status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
   last_login_at?: string | null;
   shared_account?: boolean;
@@ -69,6 +70,7 @@ export interface Role {
 }
 
 export interface CreateUserPayload {
+  must_change_password?: boolean;
   access_status?: 'ACTIVE' | 'INACTIVE';
   name: string;
   email: string;
