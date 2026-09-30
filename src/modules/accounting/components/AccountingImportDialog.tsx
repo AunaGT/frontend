@@ -108,7 +108,7 @@ export function AccountingImportDialog({ open, onOpenChange, type }: AccountingI
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="auna-import-dialog">
+      <DialogContent variant="auna" className="auna-import-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />{title}

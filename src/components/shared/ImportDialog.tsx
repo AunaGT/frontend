@@ -133,7 +133,7 @@ export const ImportDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-            <DialogContent className="auna-import-dialog">
+            <DialogContent variant="auna" className="auna-import-dialog">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5" />

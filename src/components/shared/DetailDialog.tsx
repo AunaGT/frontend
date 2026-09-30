@@ -39,6 +39,7 @@ interface DetailDialogProps {
     sections: DetailSection[]
     footer?: React.ReactNode
     maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
+    appearance?: 'default' | 'auna'
 }
 
 export const DetailDialog = ({
@@ -48,6 +49,7 @@ export const DetailDialog = ({
     sections,
     footer,
     maxWidth = 'lg',
+    appearance = 'default',
 }: DetailDialogProps) => {
     const maxWidthClass = {
         sm: 'max-w-sm',
@@ -60,7 +62,7 @@ export const DetailDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`${maxWidthClass} max-h-[90vh] overflow-y-auto`}>
+            <DialogContent variant={appearance} className={`${maxWidthClass} max-h-[90vh] overflow-y-auto`}>
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription className="sr-only">Detalle de {title}.</DialogDescription>

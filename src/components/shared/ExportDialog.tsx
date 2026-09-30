@@ -46,7 +46,7 @@ export const ExportDialog = ({ open, onOpenChange, title, summary, columns, defa
     onExport({ format, columns: columns ? selected : undefined, fileName: normalizedName })
   }
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="auna-export-dialog">
+    <DialogContent variant="auna" className="auna-export-dialog">
       <DialogHeader className="auna-export-heading">
         <DialogTitle className="text-2xl font-bold">{title}</DialogTitle>
         <DialogDescription>Selecciona el formato, las columnas y las opciones de exportación.</DialogDescription>
