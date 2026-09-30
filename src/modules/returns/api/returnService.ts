@@ -27,6 +27,7 @@ export interface ReturnItem {
     id: string
     name: string
     barcode?: string | null
+    image_url?: string | null
   }
   sale_item?: {
     id: number
@@ -36,6 +37,14 @@ export interface ReturnItem {
 }
 
 export type ReturnType = 'REFUND' | 'EXCHANGE'
+export type ReturnResolution = 'REFUND_ORIGINAL' | 'REFUND_CASH' | 'REFUND_TRANSFER' | 'CUSTOMER_CREDIT' | 'EXCHANGE'
+
+export interface ReturnPolicy {
+  windowDays: number
+  allowAuthorizedExceptions: boolean
+  exchangePricing: 'CURRENT_PRICE' | 'ORIGINAL_SALE_PRICE'
+  enabledResolutions: ReturnResolution[]
+}
 
 export interface ReturnReplacementItem {
   id: number
@@ -69,6 +78,7 @@ export interface Return {
   replacement_items?: ReturnReplacementItem[]
   sale?: {
     id: string
+    reference?: string | null
     customer?: string | null
     date: string
     total: number
@@ -80,6 +90,9 @@ export interface Return {
       id: number
       name: string
     }
+    customerContact?: { id: string; name: string } | null
+    sale_dtes?: Array<{ id: string; status?: string | null; authorization?: string | null }>
+    sale_items?: Array<{ id: number; qty: number; price: number; product: { id: string; name: string; barcode?: string | null; image_url?: string | null } }>
     branch?: { id: string; name: string; code: string } | null
   }
   _stockAdjustment?: string
@@ -91,6 +104,7 @@ export interface CreateReturnPayload {
   type?: ReturnType
   reason?: string
   notes?: string
+  policy_override_reason?: string
   items: {
     sale_item_id: number
     product_id: string
@@ -110,6 +124,40 @@ export interface UpdateReturnStatusPayload {
   restore_stock?: boolean // Solo aplica cuando status_name = 'Aprobada'
 }
 
+export interface EligibleSaleItem {
+  id: number
+  qty: number
+  price: number
+  product_id: string
+  available_to_return: number
+  estimated_unit_refund: number
+  product: { id: string; name: string; barcode?: string | null; image_url?: string | null }
+}
+
+export interface EligibleSale {
+  id: string
+  reference?: string | null
+  date: string
+  total: number
+  customer?: string | null
+  customerContact?: { id: string; name: string } | null
+  sale_items: EligibleSaleItem[]
+  eligible: boolean
+  days_elapsed: number
+  eligibility_reasons: Array<'SALE_NOT_COMPLETED' | 'NO_RETURNABLE_UNITS' | 'RETURN_WINDOW_EXPIRED'>
+  return_policy: ReturnPolicy
+}
+
+export interface EligibleSalesResponse {
+  items: EligibleSale[]
+  page: number
+  pageSize: number
+  totalPages: number
+  totalItems: number
+  nextPage: number | null
+  prevPage: number | null
+}
+
 export interface ReturnListResponse {
   items: Return[]
   page: number
@@ -126,6 +174,11 @@ export interface ReturnListResponse {
 export const fetchReturns = async (params?: {
   status?: string
   sale_id?: string
+  search?: string
+  type?: string
+  reason?: string
+  date_from?: string
+  date_to?: string
   page?: number
   pageSize?: number
 }): Promise<ReturnListResponse> => {
@@ -133,6 +186,11 @@ export const fetchReturns = async (params?: {
   
   if (params?.status) queryParams.append('status', params.status)
   if (params?.sale_id) queryParams.append('sale_id', params.sale_id)
+  if (params?.search) queryParams.append('search', params.search)
+  if (params?.type) queryParams.append('type', params.type)
+  if (params?.reason) queryParams.append('reason', params.reason)
+  if (params?.date_from) queryParams.append('date_from', params.date_from)
+  if (params?.date_to) queryParams.append('date_to', params.date_to)
   if (params?.page) queryParams.append('page', params.page.toString())
   if (params?.pageSize) queryParams.append('pageSize', params.pageSize.toString())
 
@@ -141,6 +199,20 @@ export const fetchReturns = async (params?: {
     { method: 'GET' }
   )
   return response
+}
+
+export const fetchEligibleSales = async (params?: {
+  search?: string
+  sale_id?: string
+  page?: number
+  pageSize?: number
+}): Promise<EligibleSalesResponse> => {
+  const query = new URLSearchParams()
+  if (params?.search) query.set('search', params.search)
+  if (params?.sale_id) query.set('sale_id', params.sale_id)
+  if (params?.page) query.set('page', String(params.page))
+  if (params?.pageSize) query.set('pageSize', String(params.pageSize))
+  return apiFetch(`/returns/eligible-sales${query.size ? `?${query}` : ''}`, { method: 'GET' })
 }
 
 /**
