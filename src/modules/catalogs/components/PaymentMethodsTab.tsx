@@ -210,7 +210,7 @@ export function PaymentMethodsTab() {
       <PaymentMethodDialog dialog={dialog} setDialog={setDialog} />
 
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar método de pago?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -315,7 +315,7 @@ function PaymentMethodDialog({
 
   return (
     <Dialog open={dialog.open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent variant="auna">
         <DialogHeader>
           <DialogTitle>
             {dialog.mode === 'create' ? 'Nuevo método de pago' : 'Editar método de pago'}

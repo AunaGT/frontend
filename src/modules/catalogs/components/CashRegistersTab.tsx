@@ -346,7 +346,7 @@ export function CashRegistersTab() {
         open={dialog.open}
         onOpenChange={(open) => setDialog((d) => ({ ...d, open }))}
       >
-        <DialogContent className="sm:max-w-md">
+        <DialogContent variant="auna" className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{dialog.mode === 'create' ? 'Nueva caja' : 'Editar caja'}</DialogTitle>
             <DialogDescription>
@@ -398,7 +398,7 @@ export function CashRegistersTab() {
 
       {/* Diálogo de asignación de usuarios */}
       <Dialog open={assignTarget != null} onOpenChange={(open) => !open && setAssignTarget(null)}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent variant="auna" className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Asignar usuarios — {assignTarget?.name}</DialogTitle>
             <DialogDescription>

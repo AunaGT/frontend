@@ -862,7 +862,7 @@ export default function UserDetailPage() {
 
       {/* Diálogo de Confirmación de Acciones de Seguridad */}
       <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open && !actionBusy) setConfirmAction(null) }}>
-        <AlertDialogContent className="users-overlay sm:max-w-md">
+        <AlertDialogContent variant="auna" className="users-overlay sm:max-w-md">
           <AlertDialogHeader>
             <AlertDialogTitle>{confirmAction ? CONFIRM_INFO[confirmAction].title : ''}</AlertDialogTitle>
             <AlertDialogDescription>{confirmAction ? CONFIRM_INFO[confirmAction].desc : ''}</AlertDialogDescription>

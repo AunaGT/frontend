@@ -407,7 +407,7 @@ function PaymentTermsTab({
           if (!open) setDeleteConfirmTerm(null)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar término de pago?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -438,7 +438,7 @@ function PaymentTermsTab({
           if (!open) setRestoreConfirmTerm(null)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Restaurar término de pago?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -701,7 +701,7 @@ function ProductCategoriesTab({
           if (!open) setDeleteConfirmCategory(null)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar categoría?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -732,7 +732,7 @@ function ProductCategoriesTab({
           if (!open) setRestoreConfirmCategory(null)
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Restaurar categoría?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -857,7 +857,7 @@ function PaymentTermDialog({
 
   return (
     <Dialog open={dialog.open} onOpenChange={handleOpenChange}>
-      <DialogContent>
+      <DialogContent variant="auna">
         <DialogHeader>
           <DialogTitle>
             {dialog.mode === 'create' ? 'Nuevo Término de Pago' : 'Editar Término de Pago'}
@@ -1037,7 +1037,7 @@ function ProductCategoryDialog({
 
   return (
     <Dialog open={dialog.open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent variant="auna" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>
             {dialog.mode === 'create' ? 'Nueva Categoría' : 'Editar Categoría'}

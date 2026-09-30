@@ -550,7 +550,7 @@ export default function MyProfilePage() {
 
       {/* Diálogo para Cambiar Contraseña */}
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
-        <DialogContent className="users-overlay sm:max-w-md">
+        <DialogContent variant="auna" className="users-overlay sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Cambiar contraseña</DialogTitle>
             <DialogDescription>
