@@ -99,6 +99,6 @@ export default function ReturnsManagement() {
       </section>
     </div>
 
-    <AlertDialog open={Boolean(decision)} onOpenChange={(open) => { if (!open) setDecision(null) }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>¿Rechazar solicitud?</AlertDialogTitle><AlertDialogDescription>La solicitud quedará cerrada. Esta acción no mueve inventario ni dinero.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={mutation.isPending} className="bg-destructive text-destructive-foreground" onClick={() => void confirmDecision()}>{mutation.isPending ? 'Guardando…' : 'Confirmar rechazo'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={Boolean(decision)} onOpenChange={(open) => { if (!open) setDecision(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Rechazar solicitud?</AlertDialogTitle><AlertDialogDescription>La solicitud quedará cerrada. Esta acción no mueve inventario ni dinero.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction disabled={mutation.isPending} className="bg-destructive text-destructive-foreground" onClick={() => void confirmDecision()}>{mutation.isPending ? 'Guardando…' : 'Confirmar rechazo'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>
 }

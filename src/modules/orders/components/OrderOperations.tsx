@@ -67,7 +67,7 @@ export function OrderOperations({ order }: { order: Order }) {
     {hasPermission('orders.manage') && hasPermission('sales.create') && modules.isEnabled('sales') && canInvoice && <Button className="rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => open('invoice')}><Receipt className="mr-2 h-4 w-4" />Facturar entregas</Button>}
     {order.customer_contact_id && hasPermission('receivables.view') && modules.isEnabled('receivables') && <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/cartera/${order.customer_contact_id}`)}>Ver cartera</Button>}
     <Dialog open={action !== null} onOpenChange={open => { if (!open && !mutation.isPending) setAction(null) }}>
-      <DialogContent className="max-w-xl">
+      <DialogContent variant="auna" className="max-w-xl">
         <DialogHeader><DialogTitle>{action === 'delivery' ? 'Registrar entrega' : 'Facturar cantidades entregadas'}</DialogTitle><DialogDescription>{action === 'delivery'
           ? 'Registra la salida de productos del pedido. Puedes entregar una parte y completar el resto después.'
           : 'Esta venta cubre productos ya entregados. Selecciona crédito para administrar sus cobros desde Cartera.'}</DialogDescription></DialogHeader>

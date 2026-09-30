@@ -499,10 +499,10 @@ export default function OrderDetailPage() {
         </div>
 
       <Dialog open={deliveryToReverse !== null} onOpenChange={open => { if (!open && !reverseDeliveryMutation.isPending) setDeliveryToReverse(null); }}>
-        <DialogContent><DialogHeader><DialogTitle>Revertir entrega</DialogTitle><DialogDescription>Confirma que los productos permanecen en bodega o ya fueron recibidos de vuelta. Se restaurará el inventario y quedarán pendientes de entregar en el pedido.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={reverseDeliveryMutation.isPending} onClick={() => setDeliveryToReverse(null)}>Cancelar</Button><Button disabled={reverseDeliveryMutation.isPending} onClick={() => reverseDeliveryMutation.mutate()}>Confirmar reversión</Button></DialogFooter></DialogContent>
+        <DialogContent variant="auna"><DialogHeader><DialogTitle>Revertir entrega</DialogTitle><DialogDescription>Confirma que los productos permanecen en bodega o ya fueron recibidos de vuelta. Se restaurará el inventario y quedarán pendientes de entregar en el pedido.</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" disabled={reverseDeliveryMutation.isPending} onClick={() => setDeliveryToReverse(null)}>Cancelar</Button><Button disabled={reverseDeliveryMutation.isPending} onClick={() => reverseDeliveryMutation.mutate()}>Confirmar reversión</Button></DialogFooter></DialogContent>
       </Dialog>
       <Dialog open={adminDetailsOpen} onOpenChange={setAdminDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent variant="auna" className="max-w-2xl">
           <DialogHeader><DialogTitle>Despacho y notas del pedido</DialogTitle><DialogDescription>Actualiza la información operativa visible para administración.</DialogDescription></DialogHeader>
           <div className="grid max-h-[65vh] gap-4 overflow-y-auto py-2 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="delivery-carrier">Transportista</Label><Input id="delivery-carrier" maxLength={150} value={adminDraft.delivery_carrier} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_carrier: event.target.value }))} /></div>
@@ -517,7 +517,7 @@ export default function OrderDetailPage() {
       </Dialog>
 
       <Dialog open={saleDialogOpen} onOpenChange={setSaleDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent variant="auna" className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Registrar venta (entrega parcial)</DialogTitle>
             <DialogDescription>

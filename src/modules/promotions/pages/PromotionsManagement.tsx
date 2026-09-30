@@ -378,7 +378,7 @@ const PromotionsManagement = () => {
                                                                 <Trash2 className='w-4 h-4' />
                                                             </Button>
                                                         </AlertDialogTrigger>
-                                                        <AlertDialogContent>
+                                                        <AlertDialogContent variant="auna">
                                                             <AlertDialogHeader>
                                                                 <AlertDialogTitle>¿Eliminar promoción?</AlertDialogTitle>
                                                                 <AlertDialogDescription>
@@ -477,7 +477,7 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
 
     return (
         <Dialog open={dialog.open} onOpenChange={(open) => setDialog({ ...dialog, open })}>
-            <DialogContent className='max-w-3xl max-h-[90vh] overflow-y-auto'>
+            <DialogContent variant="auna" className='max-w-3xl max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                     <DialogTitle className='flex items-center gap-2'>
                         <TicketIcon className='w-5 h-5' />

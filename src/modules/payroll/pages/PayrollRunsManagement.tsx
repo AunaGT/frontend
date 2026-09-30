@@ -154,7 +154,7 @@ export const PayrollRunsManagement = () => {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent variant="auna" className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Nueva planilla</DialogTitle>
             <DialogDescription className="sr-only">

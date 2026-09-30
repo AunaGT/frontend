@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -130,7 +130,7 @@ export const PayrollRunDetail = () => {
         {!slips.length && <TableRow><TableCell colSpan={8} className="py-8 text-center text-muted-foreground">No hay empleados para esta búsqueda.</TableCell></TableRow>}
       </TableBody></Table></div><div className="auna-data-table-pagination"><span>Mostrando {slips.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, slips.length)} de {slips.length} empleados</span><nav aria-label="Paginación de empleados"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div></CardContent></Card>
       {run.status === 'BORRADOR' && <p className="rounded-lg border border-blue-500/25 bg-blue-500/10 p-4 text-sm text-foreground">Revisa los totales y los recibos individuales antes de confirmar la nómina.</p>}
-      <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null) }}><DialogContent className="payroll-receipt max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Recibo de nómina · {run.code}</DialogTitle></DialogHeader><div className="flex justify-end print:hidden"><Button variant="outline" onClick={printReceipt}><Printer className="mr-2 h-4 w-4" />Imprimir recibo</Button></div>{selected && <PayslipCard payslip={selected} />}</DialogContent></Dialog>
+      <Dialog open={Boolean(selected)} onOpenChange={(open) => { if (!open) setSelected(null) }}><DialogContent variant="auna" className="payroll-receipt max-h-[90vh] max-w-4xl overflow-y-auto"><DialogHeader><DialogTitle>Recibo de nómina · {run.code}</DialogTitle><DialogDescription className="sr-only">Recibo detallado de {selected?.employee?.first_name} {selected?.employee?.last_name}.</DialogDescription></DialogHeader><div className="flex justify-end print:hidden"><Button variant="outline" onClick={printReceipt}><Printer className="mr-2 h-4 w-4" />Imprimir recibo</Button></div>{selected && <PayslipCard payslip={selected} />}</DialogContent></Dialog>
     </div>
   )
 }
