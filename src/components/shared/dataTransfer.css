@@ -51,6 +51,7 @@
 
 /* Asistente de importación: el mismo recorrido de Usuarios, sin alterar el mapeo de cada módulo. */
 .auna-import-page { min-height: calc(100vh - 64px); padding: 28px clamp(16px, 2.2vw, 36px); background: radial-gradient(ellipse at top right, hsl(var(--brand-orange, 24 95% 53%) / .035), transparent 42%), hsl(var(--background)); color: hsl(var(--foreground)); }
+.dark .auna-import-page { --background: var(--brand-navy); }
 .auna-import-page > .border-b { border: 0; background: transparent; }
 .auna-import-container { width: 100%; max-width: 1480px; margin-inline: auto; }
 .auna-import-page > .border-b .auna-import-container { padding: 0 0 20px; }
@@ -101,7 +102,7 @@
 /* Misma estructura de cuatro paneles que /usuarios/importar, compartida por los otros módulos. */
 .auna-import-workbench { min-height: calc(100vh - 64px); padding: 28px clamp(16px, 2.2vw, 36px); background: radial-gradient(ellipse at top right, hsl(var(--brand-orange, 24 95% 53%) / .035), transparent 42%), hsl(var(--background)); color: hsl(var(--foreground)); }
 .auna-import-workbench { --background: 216 50% 98%; --foreground: 220 62% 18%; --card: 0 0% 100%; --muted: 216 40% 96%; --muted-foreground: 219 25% 45%; --border: 215 45% 88%; --input: 215 40% 82%; --primary: var(--brand-orange, 24 95% 53%); --primary-foreground: 0 0% 100%; }
-.dark .auna-import-workbench { --background: 217 58% 9%; --foreground: 215 65% 96%; --card: 215 46% 12%; --muted: 215 38% 18%; --muted-foreground: 215 30% 70%; --border: 213 34% 25%; --input: 213 34% 30%; }
+.dark .auna-import-workbench { --background: var(--brand-navy); --foreground: 215 65% 96%; --card: 215 46% 12%; --muted: 215 38% 18%; --muted-foreground: 215 30% 70%; --border: 213 34% 25%; --input: 213 34% 30%; }
 .auna-import-back { display: inline-flex; gap: 5px; margin-bottom: 12px; color: hsl(var(--muted-foreground)); font-size: 14px; }
 .auna-import-back:hover { color: hsl(var(--foreground)); }
 .auna-import-workbench-heading { margin-bottom: 22px; }

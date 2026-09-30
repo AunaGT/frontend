@@ -140,6 +140,25 @@ Todos los colores DEBEN ser HSL.
 }
 
 /* Encabezados y tablas opt-in: solo vistas ya migradas al diseño Auna. */
+.auna-app-content {
+  min-width: 0;
+  min-height: calc(100dvh - 64px);
+}
+
+/*
+ * Lienzo compartido de las vistas ya migradas. Mantiene el mismo fondo del
+ * layout y limita el contenido a la anchura usada por Nómina, Pedidos y
+ * Traslados, evitando páginas administrativas pegadas a los bordes.
+ */
+:is(.users-page, .config-page, .alerts-page, .branches-page, .auna-import-page, .auna-import-workbench) {
+  width: min(100%, 1560px);
+  margin-inline: auto;
+}
+.dark :is(.users-page, .config-page, .alerts-page, .branches-page, .auna-import-page, .auna-import-workbench) {
+  --background: var(--brand-navy);
+  background-color: hsl(var(--brand-navy));
+}
+
 header.auna-module-heading {
   display: flex;
   flex-wrap: wrap;

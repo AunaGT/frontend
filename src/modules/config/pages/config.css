@@ -20,7 +20,7 @@
 }
 
 .dark .config-page {
-  --background: 217 58% 9%;
+  --background: var(--brand-navy);
   --foreground: 215 65% 96%;
   --card: 215 46% 12%;
   --card-foreground: 215 65% 96%;

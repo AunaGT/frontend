@@ -7,7 +7,7 @@
   background: hsl(var(--background)); color: hsl(var(--foreground));
 }
 .dark .alerts-page {
-  --background: 217 58% 9%; --foreground: 215 65% 96%; --card: 215 46% 12%;
+  --background: var(--brand-navy); --foreground: 215 65% 96%; --card: 215 46% 12%;
   --muted: 215 38% 18%; --muted-foreground: 215 30% 70%; --border: 213 34% 25%;
   --input: 213 34% 30%; --accent: 215 38% 19%; --accent-foreground: 215 65% 96%;
 }

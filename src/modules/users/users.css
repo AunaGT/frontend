@@ -22,7 +22,7 @@
 }
 
 .dark .users-page, .dark .users-overlay {
-  --background: 217 58% 9%;       /* #0B132B deep navy */
+  --background: var(--brand-navy); /* mismo lienzo oscuro del layout */
   --foreground: 215 65% 96%;
   --card: 215 46% 12%;            /* #111C38 card surface */
   --card-foreground: 215 65% 96%;
