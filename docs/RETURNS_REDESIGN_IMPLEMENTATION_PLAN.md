@@ -110,11 +110,13 @@ No se permite `Pendiente → Completada` por defecto: la aprobación es un contr
 
 **Files:** backend `src/modules/returns/{application.js,controller.js,domain.js}`, `src/modules/receivables/domain/receivables.js`, `tests/returns.completion.test.js`.
 
-- [ ] Pruebas rojas: Pendiente→Completada rechazada; Aprobada→Completada única; `restock_qty` de 0 a cantidad devuelta; rechazo sin stock; venta con descuento; crédito con/sin abonos; fallo de caja revierte toda la transacción.
-- [ ] Añadir `POST /:id/approve`: conserva solicitud original, permite cambiar resolución aprobada, exige destino previsto por línea y registra aprobador/fecha. Aprobar no mueve stock, caja, cartera ni contabilidad. El `PATCH` legacy delega en esta regla para Aprobada/Rechazada.
-- [ ] El endpoint legacy `PATCH /:id/status` conserva la ruta, pero `status_name=Completada` exige payload aditivo de disposición por línea y liquidación validada. `status_name=Aprobada` ignora/depreca `restore_stock`: aprobación solo cambia estado; no aceptar que un cliente antiguo reactive el comportamiento peligroso.
-- [ ] Bajo bloqueo transaccional: comprobar estado, empresa y sucursal; validar suma/restock y montos; restaurar únicamente unidades aptas; ajustar venta sin reducir `SaleItem.qty`; actualizar `total_returned`, `adjusted_total` y `payment_status`; registrar `ReturnSettlement` y `processed_by/at`; devolver los efectos reales en respuesta. Reintento de misma clave devuelve el resultado existente; otro intento no duplica.
-- [ ] Para crédito, compensar deuda antes de pagar efectivo. Reusar reglas públicas de Cartera para desasignar aplicaciones que excedan el nuevo total y dejar ese importe como saldo a favor del mismo cliente/sucursal; si no hay cliente maestro, exigir liquidación directa registrada. No crear un `CustomerPayment` positivo para representar salida.
+- [x] Pruebas rojas: Pendiente→Completada rechazada; Aprobada→Completada única; `restock_qty` de 0 a cantidad devuelta; rechazo sin stock; venta con descuento; crédito con/sin abonos; fallo de caja revierte toda la transacción.
+- [x] Añadir `POST /:id/approve`: conserva solicitud original, permite cambiar resolución aprobada, exige destino previsto por línea y registra aprobador/fecha. Aprobar no mueve stock, caja, cartera ni contabilidad. El `PATCH` legacy delega en esta regla para Aprobada/Rechazada.
+- [x] El endpoint legacy `PATCH /:id/status` conserva la ruta, pero `status_name=Completada` exige payload aditivo de disposición por línea y liquidación validada. `status_name=Aprobada` ignora/depreca `restore_stock`: aprobación solo cambia estado; no aceptar que un cliente antiguo reactive el comportamiento peligroso.
+- [x] Bajo bloqueo transaccional: comprobar estado, empresa y sucursal; validar suma/restock y montos; restaurar únicamente unidades aptas; ajustar venta sin reducir `SaleItem.qty`; actualizar `total_returned`, `adjusted_total` y `payment_status`; registrar `ReturnSettlement` y `processed_by/at`; devolver los efectos reales en respuesta. Reintento de misma clave devuelve el resultado existente; otro intento no duplica.
+- [x] Para crédito, compensar deuda antes de pagar efectivo. Reusar reglas públicas de Cartera para desasignar aplicaciones que excedan el nuevo total y dejar ese importe como saldo a favor del mismo cliente/sucursal; si no hay cliente maestro, exigir liquidación directa registrada. No crear un `CustomerPayment` positivo para representar salida.
+
+**Evidencia:** `returns.completion.test.js` cubre aprobación sin efectos, clasificación de inventario, venta con descuento, compensación de cartera con y sin abonos, idempotencia y rollback completo ante fallo de caja. Backend: commit `bc3dd3f`.
 
 ### Task 5 — Cambio como devolución y nueva venta vinculada
 
