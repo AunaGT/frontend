@@ -194,7 +194,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
 
       {/* Nueva cuenta */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent variant="auna" className="max-w-md">
           <DialogHeader>
             <DialogTitle>Nueva cuenta contable</DialogTitle>
             <DialogDescription className="sr-only">
@@ -251,7 +251,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
 
       {/* Editar nombre */}
       <Dialog open={!!editing} onOpenChange={(open) => { if (!open) setEditing(null) }}>
-        <DialogContent className="max-w-sm">
+        <DialogContent variant="auna" className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Editar cuenta {editing?.code}</DialogTitle>
             <DialogDescription className="sr-only">Editar el nombre y el tipo de esta cuenta contable.</DialogDescription>

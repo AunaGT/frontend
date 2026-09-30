@@ -576,7 +576,7 @@ export function CashClosureCreatePage() {
       </Card>
 
       <AlertDialog open={showConfirmSaveDialog} onOpenChange={setShowConfirmSaveDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>Diferencia significativa</AlertDialogTitle>
             <AlertDialogDescription>

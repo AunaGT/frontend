@@ -34,7 +34,7 @@ export const RejectClosureDialog = ({
 }: RejectClosureDialogProps) => {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent variant="auna">
                 <DialogHeader>
                     <DialogTitle>Rechazar Cierre de Caja</DialogTitle>
                     <DialogDescription className="sr-only">

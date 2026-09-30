@@ -83,7 +83,7 @@ export const NewEntryDialog = ({ open, onOpenChange, accounts, onSaved }: {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent variant="auna" className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo asiento contable</DialogTitle>
           <DialogDescription>Partida doble: la suma del debe debe igualar la del haber.</DialogDescription>
