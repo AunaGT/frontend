@@ -25,6 +25,7 @@ import {
   type ApplicableCategoryRef
 } from './PromotionApplicableScopeFields'
 import { PromotionBranchesField } from './PromotionBranchesField'
+import { PromotionPreview } from './PromotionPreview'
 import {
   ArrowLeft,
   Tag,
@@ -54,6 +55,7 @@ interface PromotionCode {
 
 interface Promotion {
   id: string
+  active: boolean
   name: string
   description?: string | null
   type_id: number
@@ -104,6 +106,13 @@ const emptyFormData = {
 }
 
 function promotionToFormData(p: Promotion) {
+  const localDate = (value?: string | null) => {
+    if (!value) return ''
+    if (value.endsWith('T00:00:00.000Z')) return value.slice(0, 10) // fechas legacy guardadas en UTC
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Guatemala', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(value))
+    const get = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+    return `${get('year')}-${get('month')}-${get('day')}`
+  }
   return {
     name: p.name,
     description: p.description ?? '',
@@ -116,8 +125,8 @@ function promotionToFormData(p: Promotion) {
     trigger_product_id: p.trigger_product_id ?? '',
     target_product_id: p.target_product_id ?? '',
     applies_to_all: p.applies_to_all,
-    start_date: p.start_date ? p.start_date.split('T')[0] : '',
-    end_date: p.end_date ? p.end_date.split('T')[0] : '',
+    start_date: localDate(p.start_date),
+    end_date: localDate(p.end_date),
     max_uses: p.max_uses != null ? String(p.max_uses) : '',
     max_uses_per_customer: p.max_uses_per_customer != null ? String(p.max_uses_per_customer) : '',
     min_purchase_amount: p.min_purchase_amount != null ? String(p.min_purchase_amount) : ''
@@ -137,6 +146,7 @@ export default function PromotionEditPage() {
   const [applicableCategories, setApplicableCategories] = useState<ApplicableCategoryRef[]>([])
   const [appliesToAllBranches, setAppliesToAllBranches] = useState(true)
   const [branchIds, setBranchIds] = useState<string[]>([])
+  const [active, setActive] = useState(true)
 
   const { data: promotion, isLoading: loadingPromotion, error: errorPromotion } = useQuery({
     queryKey: ['promotion', id],
@@ -152,6 +162,7 @@ export default function PromotionEditPage() {
   useEffect(() => {
     if (!promotion) return
     setFormData(promotionToFormData(promotion))
+    setActive(promotion.active)
     const prods = (promotion.applicable_products ?? [])
       .map((pp) => {
         const id = pp.product?.id ?? pp.product_id ?? ''
@@ -189,12 +200,17 @@ export default function PromotionEditPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.end_date && formData.start_date && formData.end_date < formData.start_date) {
+      toast({ title: 'Revisa la vigencia', description: 'La fecha de fin debe ser posterior o igual a la de inicio.', variant: 'destructive' })
+      return
+    }
     if (!id || !promotion) return
 
     const selectedType = promotionTypes.find((t) => t.id === formData.type_id) ?? promotion.type
     const payload: Record<string, unknown> = {
       id,
       name: formData.name,
+      active,
       description: formData.description || null,
       type_id: formData.type_id,
       applies_to_all: formData.applies_to_all,
@@ -309,59 +325,18 @@ export default function PromotionEditPage() {
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in w-full min-w-0">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/promociones')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Editar promoción</h1>
-            <p className="text-sm text-muted-foreground">
-              {getFriendlyTypeName(promotion.type.name)} — modifica los datos según el tipo
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Códigos existentes (solo lectura) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Tag className="w-4 h-4" />
-              Códigos de esta promoción
-            </CardTitle>
-            <CardDescription>
-              {promotion.codes?.length ?? 0} código(s). Para agregar más, usa la lista de promociones y el botón de códigos.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {promotion.codes?.map((c) => (
-                <code
-                  key={c.id}
-                  className="inline-flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm font-mono"
-                >
-                  {c.code}
-                  <span className="text-xs text-muted-foreground">({c.current_uses} usos)</span>
-                </code>
-              ))}
-              {(!promotion.codes || promotion.codes.length === 0) && (
-                <span className="text-sm text-muted-foreground">Sin códigos</span>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
+    <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      <header className="auna-module-heading"><div><button type="button" className="mb-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-orange" onClick={() => navigate('/promociones')}><ArrowLeft className="h-4 w-4" />Promociones</button><p className="auna-module-eyebrow">Ventas</p><h1>Editar promoción</h1><p className="auna-module-description">Modifica los detalles, reglas, alcance y productos de esta promoción.</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-lg px-3 py-2 text-xs font-semibold ${active ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'}`}>{active ? 'Habilitada' : 'Desactivada'}</span><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-edit-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar cambios</Button></div></header>
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
+      <form id="promotion-edit-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Datos generales</CardTitle>
+            <CardTitle className="text-base">1. Información general</CardTitle>
             <CardDescription>Nombre, tipo y descripción</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-start">
               <div>
                 <Label htmlFor="name">Nombre *</Label>
                 <Input
@@ -385,6 +360,10 @@ export default function PromotionEditPage() {
                     </p>
                   )}
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="promotion-active">Estado</Label>
+                <div className="mt-2 flex min-h-9 items-center gap-3"><Switch id="promotion-active" checked={active} onCheckedChange={setActive} /><span className="text-sm">{active ? 'Habilitada' : 'Desactivada'}</span></div>
               </div>
             </div>
 
@@ -691,16 +670,20 @@ export default function PromotionEditPage() {
           </CardContent>
         </Card>
 
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de esta promoción</CardTitle><CardDescription>{promotion.codes?.length ?? 0} códigos. Para agregar más, utiliza el menú de acciones del listado.</CardDescription></CardHeader><CardContent>{promotion.codes?.length ? <details className="group"><summary className="cursor-pointer text-sm font-medium text-brand-orange focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-orange">Ver los {promotion.codes.length} códigos</summary><div className="mt-3 flex flex-wrap gap-2">{promotion.codes.map((code) => <code key={code.id} className="rounded bg-muted px-2 py-1 text-sm font-mono">{code.code} <span className="text-xs text-muted-foreground">({code.current_uses} {code.current_uses === 1 ? 'uso' : 'usos'})</span></code>)}</div></details> : <span className="text-sm text-muted-foreground">Sin códigos</span>}</CardContent></Card>
+
         <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => navigate('/promociones')} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">
             {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Guardar cambios
           </Button>
         </div>
       </form>
-    </div>
+      <PromotionPreview name={formData.name} description={formData.description} typeName={selectedType?.name} percentage={formData.discount_percentage} amount={formData.discount_value} startDate={formData.start_date} endDate={formData.end_date} products={applicableProducts} appliesToAllBranches={appliesToAllBranches} branchIds={branchIds} maxUses={formData.max_uses} active={active} />
+      </div>
+    </div></div>
   )
 }

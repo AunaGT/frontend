@@ -31,6 +31,7 @@ import {
   type ApplicableCategoryRef
 } from './PromotionApplicableScopeFields'
 import { PromotionBranchesField } from './PromotionBranchesField'
+import { PromotionPreview } from './PromotionPreview'
 import {
   ArrowLeft,
   Tag,
@@ -67,7 +68,7 @@ const defaultFormData = {
   trigger_product_id: '',
   target_product_id: '',
   applies_to_all: true,
-  start_date: new Date().toISOString().split('T')[0],
+  start_date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Guatemala', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()),
   end_date: '',
   max_uses: '',
   max_uses_per_customer: '',
@@ -91,6 +92,7 @@ export default function PromotionCreatePage() {
   const [applicableCategories, setApplicableCategories] = useState<ApplicableCategoryRef[]>([])
   const [appliesToAllBranches, setAppliesToAllBranches] = useState(true)
   const [branchIds, setBranchIds] = useState<string[]>([])
+  const [active, setActive] = useState(true)
 
   const { data: promotionTypes = [] } = useQuery({
     queryKey: ['promotion-types'],
@@ -144,6 +146,10 @@ export default function PromotionCreatePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if (formData.end_date && formData.start_date && formData.end_date < formData.start_date) {
+      toast({ title: 'Revisa la vigencia', description: 'La fecha de fin debe ser posterior o igual a la de inicio.', variant: 'destructive' })
+      return
+    }
 
     const selectedType = promotionTypes.find((t) => t.id === formData.type_id)
     if (!selectedType) {
@@ -153,6 +159,7 @@ export default function PromotionCreatePage() {
 
     const payload: Record<string, unknown> = {
       name: formData.name,
+      active,
       description: formData.description || null,
       type_id: formData.type_id,
       applies_to_all: formData.applies_to_all,
@@ -268,131 +275,18 @@ export default function PromotionCreatePage() {
   const isLoading = createMutation.isPending
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in w-full min-w-0">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/promociones')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Nueva Promoción</h1>
-            <p className="text-sm text-muted-foreground">Crea una promoción con uno o varios códigos de descuento</p>
-          </div>
-        </div>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Códigos */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Tag className="w-4 h-4" />
-              Códigos de promoción
-            </CardTitle>
-            <CardDescription>
-              Genera códigos automáticamente o ingrésalos manualmente
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={codeMode === 'auto' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCodeMode('auto')}
-              >
-                <Shuffle className="w-4 h-4 mr-1" />
-                Generar
-              </Button>
-              <Button
-                type="button"
-                variant={codeMode === 'manual' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setCodeMode('manual')}
-              >
-                <Pencil className="w-4 h-4 mr-1" />
-                Manual
-              </Button>
-            </div>
-
-            {codeMode === 'auto' ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="codeCount">Cantidad de códigos</Label>
-                  <Input
-                    id="codeCount"
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={codeCount}
-                    onChange={(e) => setCodeCount(e.target.value)}
-                    placeholder="1"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="codePrefix">Prefijo (opcional)</Label>
-                  <Input
-                    id="codePrefix"
-                    value={codePrefix}
-                    onChange={(e) => setCodePrefix(e.target.value.toUpperCase())}
-                    placeholder="Ej: DESC, PROMO"
-                    className="mt-1 uppercase"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label>Códigos manuales</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={newManualCode}
-                    onChange={(e) => setNewManualCode(e.target.value.toUpperCase())}
-                    placeholder="Escribe un código"
-                    className="uppercase font-mono"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        addManualCode()
-                      }
-                    }}
-                  />
-                  <Button type="button" size="sm" onClick={addManualCode}>
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-                {manualCodes.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {manualCodes.map((code) => (
-                      <span
-                        key={code}
-                        className="inline-flex items-center gap-1 bg-muted px-2 py-1 rounded text-sm font-mono"
-                      >
-                        {code}
-                        <button
-                          type="button"
-                          onClick={() => removeManualCode(code)}
-                          className="hover:bg-muted-foreground/20 rounded p-0.5"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
+    <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      <header className="auna-module-heading"><div><button type="button" className="mb-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-orange" onClick={() => navigate('/promociones')}><ArrowLeft className="h-4 w-4" />Promociones</button><p className="auna-module-eyebrow">Ventas</p><h1>Nueva promoción</h1><p className="auna-module-description">Crea y configura una promoción para impulsar tus ventas.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-create-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promoción</Button></div></header>
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
+      <form id="promotion-create-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Datos generales</CardTitle>
+            <CardTitle className="text-base">1. Información general</CardTitle>
             <CardDescription>Nombre, tipo y descripción de la promoción</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-start">
               <div>
                 <Label htmlFor="name">Nombre *</Label>
                 <Input
@@ -426,6 +320,10 @@ export default function PromotionCreatePage() {
                     {typeConfig.shortDescription}
                   </p>
                 )}
+              </div>
+              <div>
+                <Label htmlFor="promotion-active">Estado</Label>
+                <div className="mt-2 flex min-h-9 items-center gap-3"><Switch id="promotion-active" checked={active} onCheckedChange={setActive} /><span className="text-sm">{active ? 'Habilitada' : 'Desactivada'}</span></div>
               </div>
             </div>
 
@@ -755,16 +653,23 @@ export default function PromotionCreatePage() {
           </CardContent>
         </Card>
 
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de promoción</CardTitle><CardDescription>Genera códigos automáticamente o ingrésalos manualmente.</CardDescription></CardHeader><CardContent className="space-y-4">
+          <div className="flex gap-2"><Button type="button" variant={codeMode === 'auto' ? 'default' : 'outline'} size="sm" onClick={() => setCodeMode('auto')}><Shuffle className="mr-1 h-4 w-4" />Generar</Button><Button type="button" variant={codeMode === 'manual' ? 'default' : 'outline'} size="sm" onClick={() => setCodeMode('manual')}><Pencil className="mr-1 h-4 w-4" />Manual</Button></div>
+          {codeMode === 'auto' ? <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="codeCount">Cantidad de códigos</Label><Input id="codeCount" type="number" min={1} max={100} value={codeCount} onChange={(event) => setCodeCount(event.target.value)} className="mt-1" /></div><div><Label htmlFor="codePrefix">Prefijo (opcional)</Label><Input id="codePrefix" value={codePrefix} onChange={(event) => setCodePrefix(event.target.value.toUpperCase())} className="mt-1 uppercase" /></div></div> : <div className="space-y-2"><Label htmlFor="manualCode">Códigos manuales</Label><div className="flex gap-2"><Input id="manualCode" value={newManualCode} onChange={(event) => setNewManualCode(event.target.value.toUpperCase())} placeholder="Escribe un código" className="font-mono uppercase" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addManualCode() } }} /><Button type="button" onClick={addManualCode} aria-label="Añadir código"><Plus className="h-4 w-4" /></Button></div><div className="flex flex-wrap gap-2">{manualCodes.map((code) => <span key={code} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-sm">{code}<button type="button" className="rounded p-1 hover:bg-muted-foreground/20" onClick={() => removeManualCode(code)} aria-label={`Quitar código ${code}`}><X className="h-3 w-3" /></button></span>)}</div></div>}
+        </CardContent></Card>
+
         <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => navigate('/promociones')} disabled={isLoading}>
             Cancelar
           </Button>
-          <Button type="submit" disabled={isLoading}>
+          <Button type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">
             {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
             Crear promoción
           </Button>
         </div>
       </form>
-    </div>
+      <PromotionPreview name={formData.name} description={formData.description} typeName={selectedType?.name} percentage={formData.discount_percentage} amount={formData.discount_value} startDate={formData.start_date} endDate={formData.end_date} products={applicableProducts} appliesToAllBranches={appliesToAllBranches} branchIds={branchIds} maxUses={formData.max_uses} active={active} />
+      </div>
+    </div></div>
   )
 }

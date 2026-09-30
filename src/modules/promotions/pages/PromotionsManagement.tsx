@@ -88,13 +88,13 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 
 // Types
-interface PromotionType {
+export interface PromotionType {
     id: number
     name: string
     description: string
 }
 
-interface PromotionCode {
+export interface PromotionCode {
     id: number
     code: string
     current_uses: number
@@ -102,7 +102,7 @@ interface PromotionCode {
     created_at: string
 }
 
-interface Promotion {
+export interface Promotion {
     id: string
     name: string
     description?: string
@@ -124,9 +124,10 @@ interface Promotion {
     active: boolean
     applies_to_all_branches?: boolean
     branches?: { branch: { id: string; name: string; code: string } }[]
+    usage?: { used: number; capacity: number | null }
 }
 
-interface CodesDialogState {
+export interface CodesDialogState {
     open: boolean
     promotion?: Promotion
 }
@@ -433,7 +434,7 @@ interface CodesDialogProps {
     companyLogoUrl?: string
 }
 
-const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, companyLogoUrl }: CodesDialogProps) => {
+export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, companyLogoUrl }: CodesDialogProps) => {
     const [selectedCodes, setSelectedCodes] = useState<string[]>([])
     const [termsText, setTermsText] = useState('Válido solo en tiendas participantes. No acumulable con otras promociones.')
 
