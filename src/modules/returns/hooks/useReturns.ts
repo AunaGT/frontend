@@ -14,10 +14,14 @@ import {
   fetchReturnById,
   createReturn,
   updateReturnStatus,
+  approveReturn,
+  completeReturn,
   Return,
   ReturnListResponse,
   CreateReturnPayload,
-  UpdateReturnStatusPayload
+  UpdateReturnStatusPayload,
+  ApproveReturnPayload,
+  CompleteReturnPayload,
 } from '../api/returnService'
 
 /**
@@ -26,6 +30,11 @@ import {
 export const useReturns = (params?: {
   status?: string
   sale_id?: string
+  search?: string
+  type?: string
+  reason?: string
+  date_from?: string
+  date_to?: string
   page?: number
   pageSize?: number
 }): UseQueryResult<ReturnListResponse, Error> => {
@@ -35,6 +44,22 @@ export const useReturns = (params?: {
     staleTime: 30000 // 30 seconds
   })
 }
+
+const useReturnAction = <T,>(action: (id: string, payload: T) => Promise<Return>) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: T }) => action(id, payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['returns'] })
+      queryClient.invalidateQueries({ queryKey: ['returns', data.id] })
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['sales'] })
+    },
+  })
+}
+
+export const useApproveReturn = () => useReturnAction<ApproveReturnPayload>(approveReturn)
+export const useCompleteReturn = () => useReturnAction<CompleteReturnPayload>(completeReturn)
 
 /**
  * Hook to fetch a specific return by ID

@@ -23,6 +23,10 @@ export interface ReturnItem {
   qty_returned: number
   refund_amount: number
   reason?: string | null
+  received_qty?: number | null
+  restock_qty?: number | null
+  disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null
+  stock_location_id?: string | null
   product?: {
     id: string
     name: string
@@ -62,6 +66,7 @@ export interface ReturnReplacementItem {
 
 export interface Return {
   id: string
+  reference?: string | null
   sale_id: string
   return_date: string
   type: ReturnType
@@ -73,6 +78,27 @@ export interface Return {
   processed_by?: string | null
   processed_at?: string | null
   notes?: string | null
+  requested_resolution?: ReturnResolution | null
+  approved_resolution?: ReturnResolution | null
+  approved_at?: string | null
+  approved_by?: string | null
+  replacement_sale_id?: string | null
+  return_policy?: ReturnPolicy
+  actors?: {
+    approved_by?: { id: string; name?: string | null; email?: string | null } | null
+    processed_by?: { id: string; name?: string | null; email?: string | null } | null
+    policy_overridden_by?: { id: string; name?: string | null; email?: string | null } | null
+  }
+  fiscal?: { requires_credit_note: boolean; status: string; original_documents: Array<{ id: string; authorization?: string | null; series?: string | null; number?: string | null }> }
+  settlements?: Array<{
+    id: string
+    kind: 'REFUND' | 'COLLECTION' | 'CUSTOMER_CREDIT' | 'CREDIT_OFFSET'
+    amount: number
+    external_reference?: string | null
+    created_at: string
+    payment_method?: { id: number; name: string } | null
+    cash_register_session?: { id: string; cashRegister?: { id: string; name: string; code: string } | null } | null
+  }>
   status: ReturnStatus
   return_items: ReturnItem[]
   replacement_items?: ReturnReplacementItem[]
@@ -105,6 +131,7 @@ export interface CreateReturnPayload {
   reason?: string
   notes?: string
   policy_override_reason?: string
+  requested_resolution?: ReturnResolution
   items: {
     sale_item_id: number
     product_id: string
@@ -115,8 +142,20 @@ export interface CreateReturnPayload {
   replacements?: {
     product_id: string
     qty: number
-    unit_price: number
+    unit_price?: number
   }[]
+}
+
+export interface ApproveReturnPayload {
+  approved_resolution: ReturnResolution
+  lines: Array<{ return_item_id: number; disposition: 'SELLABLE' | 'QUARANTINE' | 'SCRAP'; stock_location_id?: string | null }>
+  replacements?: Array<{ product_id: string; qty: number }>
+}
+
+export interface CompleteReturnPayload {
+  idempotency_key: string
+  lines: Array<{ return_item_id: number; received_qty: number; disposition: 'SELLABLE' | 'QUARANTINE' | 'SCRAP'; stock_location_id?: string | null }>
+  settlement: { payment_method_id?: number; cash_register_session_id?: string; external_reference?: string; channel?: 'ORIGINAL' | 'CASH' | 'TRANSFER' | 'CUSTOMER_CREDIT' }
 }
 
 export interface UpdateReturnStatusPayload {
@@ -249,3 +288,11 @@ export const updateReturnStatus = async (
   })
   return response
 }
+
+export const approveReturn = (id: string, payload: ApproveReturnPayload): Promise<Return> => apiFetch(`/returns/${id}/approve`, {
+  method: 'POST', body: JSON.stringify(payload),
+})
+
+export const completeReturn = (id: string, payload: CompleteReturnPayload): Promise<Return> => apiFetch(`/returns/${id}/complete`, {
+  method: 'POST', body: JSON.stringify(payload),
+})

@@ -63,6 +63,7 @@ const InventoryCountListPage = inventoryCountModule.pages.Management;
 const InventoryCountNewPage = inventoryCountModule.pages.Create;
 const InventoryCountSessionPage = inventoryCountModule.pages.Session;
 const ReturnsManagement = returnsModule.pages.Management;
+const ReturnDetailPage = returnsModule.pages.Detail;
 const NewReturn = returnsModule.pages.Create;
 const CashClosureManagement = cashClosureModule.pages.Management;
 const CashClosureCreatePage = cashClosureModule.pages.Create;
@@ -348,6 +349,14 @@ const App = () => (
                   element={
                     <PermissionRoute any={["returns.manage"]}>
                       <NewReturn />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path={returnsModule.paths.detail}
+                  element={
+                    <PermissionRoute any={["returns.view"]}>
+                      <ReturnDetailPage />
                     </PermissionRoute>
                   }
                 />
