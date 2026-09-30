@@ -71,7 +71,7 @@ export const ExportDialog = ({ open, onOpenChange, title, summary, columns, defa
         </section>
       </div>
       <div className="auna-export-status" role="status"><strong>{pending ? 'Preparando datos…' : 'Listo para exportar'}</strong><div className={pending ? 'auna-export-progress is-pending' : 'auna-export-progress'} /><span>{pending ? 'La descarga comenzará al finalizar.' : 'Elige un formato para descargar el archivo.'}</span></div>
-      <footer className="auna-export-footer">
+      <footer data-slot="dialog-footer" className="auna-export-footer">
         {secondaryAction && <Button type="button" variant="ghost" onClick={secondaryAction.onClick} disabled={pending}>{secondaryAction.label}</Button>}
         <Button type="button" variant="outline" className="auna-export-cancel" onClick={() => onOpenChange(false)} disabled={pending}>Cancelar</Button>
         {formats.map(format => <Button key={format} type="button" variant={format === activeFormat ? 'default' : 'outline'} disabled={pending || Boolean(columns?.length && !selected.length) || Boolean(fileName !== undefined && !normalizeExportName(name, format))} onClick={() => exportAs(format)}><Download size={16} className="mr-2" />Exportar {FORMAT_LABELS[format]}</Button>)}

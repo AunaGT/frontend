@@ -17,6 +17,8 @@ test('la apariencia Auna limita el panel, usa la marca y adapta sus acciones', (
   assert.match(appearance.content, /calc\(100vw-2rem\)/)
   assert.match(appearance.content, /calc\(100dvh-2rem\)/)
   assert.match(appearance.content, /--primary:var\(--brand-orange\)/)
+  assert.match(appearance.content, /--background:0_0%_100%/)
+  assert.match(appearance.content, /dark:\[--background:215_46%_12%\]/)
   assert.match(appearance.content, /data-slot=dialog-header/)
   assert.match(appearance.content, /data-slot=dialog-footer/)
   assert.match(appearance.close, /size-10/)
