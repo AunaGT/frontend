@@ -74,10 +74,10 @@ export default function NewOrderPage() {
   const updateQty = (id: string, value: number) => setLines((current) => current.map((line) => line.product_id === id ? { ...line, qty: Math.max(1, Math.floor(value) || 1) } : line))
 
   return <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
-    <main className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <main className="mx-auto max-w-[1560px] space-y-4 px-4 py-4 sm:px-6 lg:px-8">
       <header className="auna-module-heading">
         <div>
-          <Button variant="ghost" className="-ml-3 mb-2 h-9 text-muted-foreground" onClick={() => navigate('/pedidos')}><ArrowLeft className="mr-2 h-4 w-4" />Volver a pedidos</Button>
+          <Button variant="ghost" className="-ml-3 mb-1 h-11 text-muted-foreground" onClick={() => navigate('/pedidos')}><ArrowLeft className="mr-2 h-4 w-4" />Volver a pedidos</Button>
           <p className="auna-module-eyebrow">Ventas</p><h1>Nuevo pedido</h1><p className="auna-module-description">Registra el cliente y los productos que formarán el pedido.</p>
         </div>
         <div className="rounded-xl border border-border/70 bg-card px-4 py-3 text-sm shadow-sm dark:bg-[#101f34]"><span className="text-muted-foreground">Sucursal</span><strong className="ml-2">{branch?.name || 'Selecciona una sucursal'}</strong></div>
@@ -86,29 +86,33 @@ export default function NewOrderPage() {
       {!branch ? <div role="alert" className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">Selecciona una sucursal antes de crear el pedido.</div> : null}
 
       <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]">
-        <CardHeader><CardTitle className="text-lg">1. Cliente</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 lg:grid-cols-2">
-          <SavedCustomerMany2One className="lg:col-span-2" valueId={customerId} linkedDisplayName={customerName} onPick={pickCustomer} onClear={() => { setCustomerId('__none__'); setCustomerName(''); setCustomerNit('') }} canCreateContact={hasPermission('contacts.clients.create')} />
-          <div><Label htmlFor="order-customer">Nombre del cliente</Label><Input id="order-customer" className="mt-2 h-12 rounded-xl" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Consumidor final o razón social" /></div>
-          <div><Label htmlFor="order-nit">NIT o identificación fiscal</Label><Input id="order-nit" className="mt-2 h-12 rounded-xl" value={customerNit} onChange={(event) => setCustomerNit(event.target.value)} placeholder="CF o identificación fiscal" /></div>
-          <div className="lg:col-span-2"><CommercialPaymentFields customerId={customerId} value={paymentTerms} onChange={setPaymentTerms} /></div>
+        <CardHeader className="pb-3"><CardTitle className="text-lg">1. Cliente y condiciones</CardTitle></CardHeader>
+        <CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,.8fr)]">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <SavedCustomerMany2One className="sm:col-span-2" valueId={customerId} linkedDisplayName={customerName} onPick={pickCustomer} onClear={() => { setCustomerId('__none__'); setCustomerName(''); setCustomerNit('') }} canCreateContact={hasPermission('contacts.clients.create')} />
+            <div><Label htmlFor="order-customer">Nombre del cliente</Label><Input id="order-customer" className="mt-1.5 h-11 rounded-xl" value={customerName} onChange={(event) => setCustomerName(event.target.value)} placeholder="Consumidor final o razón social" /></div>
+            <div><Label htmlFor="order-nit">NIT o identificación fiscal</Label><Input id="order-nit" className="mt-1.5 h-11 rounded-xl" value={customerNit} onChange={(event) => setCustomerNit(event.target.value)} placeholder="CF o identificación fiscal" /></div>
+          </div>
+          <div className="border-t border-border/70 pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0"><CommercialPaymentFields customerId={customerId} value={paymentTerms} onChange={setPaymentTerms} /></div>
         </CardContent>
       </Card>
 
-      <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]">
-        <CardHeader><CardTitle className="text-lg">2. Productos del pedido</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <Card className="min-w-0 rounded-2xl border-border/70 dark:bg-[#101f34]">
+        <CardHeader className="pb-3"><CardTitle className="text-lg">2. Productos del pedido</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
           <ProductPicker branchId={branch?.id} money={money} onPick={(product) => setLines((current) => addOrderDraftLine(current, product))} />
-          {!lines.length ? <div className="rounded-2xl border border-dashed border-border p-10 text-center"><Package className="mx-auto h-9 w-9 text-brand-orange" /><p className="mt-3 font-semibold">Aún no hay productos</p><p className="mt-1 text-sm text-muted-foreground">Busca un producto arriba para agregarlo al pedido.</p></div>
+          {!lines.length ? <div className="rounded-2xl border border-dashed border-border p-7 text-center"><Package className="mx-auto h-8 w-8 text-brand-orange" /><p className="mt-2 font-semibold">Aún no hay productos</p><p className="mt-1 text-sm text-muted-foreground">Busca un producto arriba para agregarlo al pedido.</p></div>
             : <section className="auna-data-table-shell"><Table className="auna-data-table min-w-[820px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Código</TableHead><TableHead className="text-center">Stock</TableHead><TableHead className="w-32">Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead className="w-16"><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>
               {lines.map((line) => <TableRow key={line.product_id}><TableCell><div className="flex items-center gap-3">{line.imageUrl ? <img src={line.imageUrl} alt={line.name} className="h-12 w-12 rounded-xl border object-cover" /> : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<strong className="min-w-0 truncate">{line.name}</strong></div></TableCell><TableCell className="text-muted-foreground">{line.barcode || '—'}</TableCell><TableCell className="text-center tabular-nums">{line.stock}</TableCell><TableCell><Input aria-label={`Cantidad de ${line.name}`} type="number" min={1} className="h-10 w-24 rounded-lg text-center" value={line.qty} onChange={(event) => updateQty(line.product_id, Number(event.target.value))} /></TableCell><TableCell className="text-right tabular-nums">{money(line.unitPrice)}</TableCell><TableCell className="text-right font-semibold tabular-nums">{money(line.unitPrice * line.qty)}</TableCell><TableCell><Button type="button" size="icon" variant="ghost" className="h-10 w-10 text-destructive" aria-label={`Quitar ${line.name}`} onClick={() => setLines((current) => current.filter((item) => item.product_id !== line.product_id))}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>)}
             </TableBody></Table></section>}
         </CardContent>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
-        <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]"><CardHeader><CardTitle className="text-lg">3. Notas</CardTitle></CardHeader><CardContent><Label htmlFor="order-notes" className="sr-only">Notas del pedido</Label><Textarea id="order-notes" className="min-h-32 rounded-xl" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Instrucciones de preparación, entrega u observaciones…" /></CardContent></Card>
-        <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]"><CardHeader><CardTitle className="text-lg">Resumen</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><strong>{lines.length}</strong></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades</span><strong>{lines.reduce((sum, line) => sum + line.qty, 0)}</strong></div><div className="border-t pt-4"><div className="flex items-end justify-between"><span className="font-semibold">Total estimado</span><strong className="text-2xl text-brand-orange tabular-nums">{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">El servidor validará precios y existencias al guardar.</p></div><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="h-12 rounded-xl" onClick={() => navigate('/pedidos')}>Cancelar</Button><Button className="h-12 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={!branch || !lines.length || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Crear pedido</Button></div></CardContent></Card>
+      <aside className="space-y-4 xl:sticky xl:top-4">
+        <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]"><CardHeader className="pb-3"><CardTitle className="text-lg">Notas</CardTitle></CardHeader><CardContent><Label htmlFor="order-notes" className="sr-only">Notas del pedido</Label><Textarea id="order-notes" className="min-h-24 rounded-xl" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preparación, entrega u observaciones…" /></CardContent></Card>
+        <Card className="rounded-2xl border-border/70 dark:bg-[#101f34]"><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><strong>{lines.length}</strong></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades</span><strong>{lines.reduce((sum, line) => sum + line.qty, 0)}</strong></div><div className="border-t pt-3"><div className="flex items-end justify-between"><span className="font-semibold">Total estimado</span><strong className="text-2xl text-brand-orange tabular-nums">{money(total)}</strong></div><p className="mt-2 text-xs text-muted-foreground">El servidor validará precios y existencias al guardar.</p></div><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="h-11 rounded-xl" onClick={() => navigate('/pedidos')}>Cancelar</Button><Button className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={!branch || !lines.length || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Crear pedido</Button></div></CardContent></Card>
+      </aside>
       </div>
     </main>
   </div>
