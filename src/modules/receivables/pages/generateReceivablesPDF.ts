@@ -21,13 +21,14 @@ import {
   type CustomerStatement, type PaymentReceipt,
 } from '../api/receivablesService'
 
-const HEADER_COLOR: [number, number, number] = [13, 148, 136] // teal del módulo
+const HEADER_COLOR: [number, number, number] = [249, 115, 22]
 
 interface PdfOptions {
   companyName?: string
   logoDataUrl?: string
   currencyCode?: string
   locale?: string
+  timezone?: string
 }
 
 const makeMoney = (o: PdfOptions) => {
@@ -38,12 +39,13 @@ const makeMoney = (o: PdfOptions) => {
   return (v: number | null | undefined) => fmt.format(Number(v) || 0)
 }
 
-const fecha = (iso?: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
+const makeDate = (o: PdfOptions) => (iso?: string | null) =>
+  iso ? new Date(iso).toLocaleDateString(o.locale || 'es-GT', { timeZone: o.timezone || 'America/Guatemala', day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
 /** Estado de cuenta completo: facturas abiertas, cobros y resumen. */
 export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}) => {
   const money = makeMoney(o)
+  const fecha = makeDate(o)
   const doc = new jsPDF() as jsPDFDocument
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 15
@@ -94,6 +96,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
     startY: y,
     body: resumen,
     theme: 'plain',
+    tableWidth: 80,
     styles: { fontSize: 9, cellPadding: 1.5 },
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 }, 1: { halign: 'right', cellWidth: 35 } },
     margin: { left: margin },
@@ -129,7 +132,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
     autoTable(doc, {
       startY: y,
       head: [['Fecha', 'Tipo', 'Monto', 'Forma', 'Referencia', 'Aplicado a']],
-      body: data.cobros.slice(0, 60).map((c) => [
+      body: data.cobros.map((c) => [
         fecha(c.paid_at),
         PAYMENT_KIND_LABELS[c.kind],
         money(c.amount),
@@ -151,6 +154,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
 /** Recibo de un cobro: el comprobante que se lleva el cliente. */
 export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
   const money = makeMoney(o)
+  const fecha = makeDate(o)
   const doc = new jsPDF() as jsPDFDocument
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 15

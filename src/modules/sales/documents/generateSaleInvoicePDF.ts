@@ -139,6 +139,12 @@ export function generateSaleInvoicePDF(
   }
 
   const dte = sale.sale_dtes?.[0]
+  if (sale.isCredit) {
+    if (y > 250) { doc.addPage(); y = 24 }
+    doc.text('Venta a crédito', MARGIN, y); y += 6
+    doc.text(`Abonos: ${fmt(sale.creditPaid ?? 0)} · Saldo pendiente: ${fmt(sale.creditBalance ?? 0)}`, MARGIN, y); y += 6
+    if (sale.dueDate) { doc.text(`Vencimiento: ${formatDateTime(sale.dueDate, { hour: undefined, minute: undefined }, locale)}`, MARGIN, y); y += 8 }
+  }
   if (dte?.authorization) {
     doc.setFontSize(8)
     doc.setTextColor(80, 80, 80)

@@ -59,6 +59,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 import { ImportFileStep } from '@/components/shared/ImportFileStep'
 import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportDecisions, type ImportDecisions } from '@/components/shared/useImportDecisions'
 import { useImportStream } from '@/components/shared/useImportStream'
 import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
 import { validateImportFile } from '@/components/shared/importFile.mjs'
@@ -146,6 +147,7 @@ export default function ImportPage() {
     )
     const [skipRowIndexes, setSkipRowIndexes] = useState<number[]>([])
     const [resolutionHints, setResolutionHints] = useState<ResolutionHint[]>([])
+    const decisions = useImportDecisions(workbook, selectedSheet, columnMappings, useFirstRowAsHeader)
 
     // Parse selected sheet and extract columns
     useEffect(() => {
@@ -223,7 +225,7 @@ export default function ImportPage() {
 
         try {
             const buffer = await selectedFile.arrayBuffer()
-            const wb = XLSX.read(buffer, { type: 'array' })
+            const wb = XLSX.read(buffer, { type: 'array', codepage: /\.csv$/i.test(selectedFile.name) ? 65001 : undefined })
             if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
             setWorkbook(wb)
             setFile(selectedFile)
@@ -271,12 +273,14 @@ export default function ImportPage() {
         createCategories?: string[]
         createSuppliers?: string[]
         skipRowIndexes?: number[]
+        allowSimilarRowIndexes?: number[]
     }) => {
         if (!workbook || !selectedSheet) return
 
         const cats = overrides?.createCategories ?? createCategories
         const sups = overrides?.createSuppliers ?? createSuppliers
-        const skips = overrides?.skipRowIndexes ?? skipRowIndexes
+        const skips = overrides?.skipRowIndexes ?? [...new Set([...skipRowIndexes, ...decisions.options.skipRowIndexes])]
+        const allows = overrides?.allowSimilarRowIndexes ?? decisions.options.allowSimilarRowIndexes
 
         setIsTesting(true)
         setStep('testing')
@@ -312,6 +316,7 @@ export default function ImportPage() {
                         createCategories: cats,
                         createSuppliers: sups,
                         skipRowIndexes: skips,
+                        allowSimilarRowIndexes: allows,
                     },
                 }),
             })
@@ -353,7 +358,7 @@ export default function ImportPage() {
                         else if (error.includes('código') || error.includes('barras')) fieldErrors.barcode = [...(fieldErrors.barcode || []), error]
                         else fieldErrors._general = [...(fieldErrors._general || []), error]
                     })
-                    return { rowIndex: row.rowIndex, errors: row.errors, fieldErrors }
+                    return { ...row, fieldErrors }
                 })
                 setValidationErrors(processed)
                 setValidRowCount(result.totals?.valid ?? 0)
@@ -463,7 +468,8 @@ export default function ImportPage() {
                         importOptions: {
                             createCategories,
                             createSuppliers,
-                            skipRowIndexes,
+                            skipRowIndexes: [...new Set([...skipRowIndexes, ...decisions.options.skipRowIndexes])],
+                            allowSimilarRowIndexes: decisions.options.allowSimilarRowIndexes,
                         },
                 }
             )
@@ -590,11 +596,13 @@ export default function ImportPage() {
         fields={SYSTEM_FIELDS} mappings={columnMappings}
         onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreateSuppliers([]); setSkipRowIndexes([]) }}
         rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
-        firstErrorIndex={2} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={skipRowIndexes}
+        firstErrorIndex={2} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={[...new Set([...skipRowIndexes, ...decisions.options.skipRowIndexes])]}
+        onResolveRow={(row, action) => decisions.resolve(row, action, (options: ImportDecisions) => { const skips = [...new Set([...skipRowIndexes.filter(index => action !== 'restore' || index !== row), ...options.skipRowIndexes])]; setSkipRowIndexes(skips); return executeValidate({ ...options, skipRowIndexes: skips }) })}
         onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
         progress={importStream.progress} onCancel={importStream.cancel}
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
         options={<div className="auna-import-options"><p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
+        rowResolutionActions={row => resolutionHints.filter(hint => hint.rowIndexes.includes(row)).map(hint => <div key={`${hint.kind}:${hint.value}`} className="mt-2 text-foreground"><Button type="button" size="sm" variant="outline" disabled={isTesting} onClick={() => approveCreateCatalogValue(hint)}>Crear valor: {hint.value}</Button></div>)}
         resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
     />
 

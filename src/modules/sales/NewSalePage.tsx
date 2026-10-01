@@ -260,6 +260,7 @@ export default function NewSalePage() {
   const userId = user?.id ?? ''
   const {
     locale,
+    timezone,
     currencyCode,
     companyName,
     companyLogoUrl,
@@ -314,8 +315,8 @@ export default function NewSalePage() {
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
   const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
   const visiblePaymentMethods = useMemo(
-    () => paymentMethods.filter((method) => (salesAllowCredit && !loadedOrder) || !method.is_credit),
-    [paymentMethods, salesAllowCredit, loadedOrder]
+    () => paymentMethods.filter((method) => salesAllowCredit || !method.is_credit),
+    [paymentMethods, salesAllowCredit]
   )
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
   type ElsewhereState = { product: Product; atPos: number; rows: { label: string; stock: number }[] }
@@ -342,6 +343,8 @@ export default function NewSalePage() {
 
   // ---- Venta al crédito ----
   const [creditDueDate, setCreditDueDate] = useState('')
+  const [initialCreditPayment, setInitialCreditPayment] = useState('')
+  const [initialCreditMethod, setInitialCreditMethod] = useState('')
   const [creditOverride, setCreditOverride] = useState(false)
   const isCreditSale = Boolean(paymentMethod?.is_credit)
   const canOverrideCredit = hasPermission('sales.credit.override')
@@ -603,8 +606,8 @@ export default function NewSalePage() {
    * porque el saldo depende de todas sus facturas abiertas, no solo de esta venta.
    */
   const creditCheck = useQuery({
-    queryKey: ['credit-check', customerContactIdForPricing, displayTotal],
-    queryFn: () => checkCustomerCredit(customerContactIdForPricing!, displayTotal),
+    queryKey: ['credit-check', customerContactIdForPricing, displayTotal, initialCreditPayment],
+    queryFn: () => checkCustomerCredit(customerContactIdForPricing!, Math.max(0, displayTotal - Number(initialCreditPayment || 0))),
     enabled: isCreditSale && Boolean(customerContactIdForPricing) && displayTotal > 0,
     staleTime: 15 * 1000,
   })
@@ -614,9 +617,15 @@ export default function NewSalePage() {
   // vencimiento en silencio. Ahora la sugerencia se muestra y se puede editar.
   const sugerida = creditCheck.data?.due_date_sugerida
   useEffect(() => {
-    if (!isCreditSale || !sugerida) return
-    setCreditDueDate((actual) => actual || sugerida.slice(0, 10))
-  }, [isCreditSale, sugerida])
+    if (!isCreditSale) return
+    let suggestion = sugerida
+    if (loadedOrder?.payment_condition === 'CREDIT' && loadedOrder.credit_days != null) {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+      const part = (type: string) => Number(parts.find(item => item.type === type)?.value)
+      suggestion = new Date(Date.UTC(part('year'), part('month') - 1, part('day') + loadedOrder.credit_days)).toISOString().slice(0, 10)
+    }
+    if (suggestion) setCreditDueDate((actual) => actual || suggestion.slice(0, 10))
+  }, [isCreditSale, sugerida, loadedOrder, timezone])
 
   // La ayuda del campo decía "Sugerido por su plazo" pasara lo que pasara, así
   // que prometía una fecha que muchas veces no llegaba: sin productos todavía
@@ -787,6 +796,9 @@ export default function NewSalePage() {
         setSalesChannel('POS')
       }
       setAmountReceived(draft.amountReceived ?? '')
+      setCreditDueDate(draft.creditDueDate ?? '')
+      setInitialCreditPayment(draft.initialCreditPayment ?? '')
+      setInitialCreditMethod(draft.initialCreditMethod ?? '')
       if (draft.productPageSize && [9, 18, 36, 54].includes(draft.productPageSize)) {
         setProductPageSize(draft.productPageSize)
       }
@@ -981,6 +993,9 @@ export default function NewSalePage() {
       salesChannel,
       paymentMethodId: paymentMethod?.id ?? null,
       amountReceived,
+      creditDueDate,
+      initialCreditPayment,
+      initialCreditMethod,
       lines: cart.cartItems.map((item) => ({ productId: item.id, qty: item.qty })),
       adminAuthorizedProductIds: [...cart.adminAuthorizedProducts],
       promotionCodes: promotions.promotionCodes,
@@ -993,6 +1008,9 @@ export default function NewSalePage() {
     setPickedCustomerId('__none__')
     setSalesChannel('POS')
     setIsFinalConsumer(true)
+    setCreditDueDate('')
+    setInitialCreditPayment('')
+    setInitialCreditMethod('')
     setAmountReceived('')
     setProductSearch('')
     setProductPage(1)
@@ -1037,6 +1055,9 @@ export default function NewSalePage() {
       setUnitPricesById(prices)
       cart.hydrateFromLines(lines, [])
       setLoadedOrder(order)
+      if (order.payment_condition === 'CREDIT') setPaymentMethod(paymentMethods.find(method => method.is_credit) ?? null)
+      setInitialCreditPayment('')
+      setCreditDueDate('')
       setCustomer(order.customer || order.customerContact?.name || '')
       setCustomerNit(order.is_final_consumer ? '' : order.customer_nit || '')
       setIsFinalConsumer(order.is_final_consumer)
@@ -1045,7 +1066,7 @@ export default function NewSalePage() {
       promotions.clearPromotions()
       toast({ title: 'Pedido cargado', description: order.reference ?? order.id })
     },
-    [cart, promotions, toast]
+    [cart, promotions, toast, paymentMethods]
   )
 
   const handleLoadOrder = useCallback(async () => {
@@ -1115,6 +1136,11 @@ export default function NewSalePage() {
       return
     }
     if (isCreditSale) {
+      const initial = Number(initialCreditPayment || 0)
+      if (!Number.isFinite(initial) || initial < 0 || initial >= displayTotal || (initial > 0 && !initialCreditMethod)) {
+        toast({ title: 'Revisa el abono inicial', description: 'Debe ser menor al total y tener un medio de cobro. Para cobrar todo, selecciona contado.', variant: 'destructive' })
+        return
+      }
       if (!customerContactIdForPricing) {
         toast({
           title: 'Falta el cliente',
@@ -1177,6 +1203,7 @@ export default function NewSalePage() {
       ...(isCreditSale
         ? {
             due_date: creditDueDate || undefined,
+            initial_payment: Number(initialCreditPayment) > 0 ? { amount: Number(initialCreditPayment), payment_method_id: Number(initialCreditMethod) } : undefined,
             credit_override: canOverrideCredit && creditOverride ? true : undefined,
           }
         : {}),
@@ -1193,6 +1220,8 @@ export default function NewSalePage() {
         const [{ company_name: companyNameFromApi }, result] = await Promise.all([
           getCompanyNamePublic().catch(() => ({ company_name: '' })),
           convertOrderToSale(loadedOrder.id, {
+            due_date: isCreditSale ? creditDueDate : undefined,
+            initial_payment: isCreditSale && Number(initialCreditPayment) > 0 ? { amount: Number(initialCreditPayment), payment_method_id: Number(initialCreditMethod) } : undefined,
             payment_method_id: paymentMethod.id,
             amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
             change: isCash ? changeAmount : undefined,
@@ -1242,7 +1271,9 @@ export default function NewSalePage() {
         })
       }
       intentoDeCobroRef.current = crypto.randomUUID()
-      toast({ title: 'Venta registrada correctamente' })
+      toast({ title: isCreditSale ? 'Venta a crédito registrada' : 'Venta registrada correctamente', description: isCreditSale ? `Abono: ${fmt(Number(initialCreditPayment || 0))} · Saldo en Cartera: ${fmt(displayTotal - Number(initialCreditPayment || 0))}` : undefined })
+      void queryClient.invalidateQueries({ queryKey: ['receivables'] })
+      void queryClient.invalidateQueries({ queryKey: ['credit-check'] })
       salesData.refreshSales()
       await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
       if (userId) {
@@ -1258,6 +1289,9 @@ export default function NewSalePage() {
       setIsFinalConsumer(true)
       setAmountReceived('')
       setProductSearch('')
+      setInitialCreditPayment('')
+      setInitialCreditMethod('')
+      setCreditDueDate('')
       requestAnimationFrame(() => productSearchRef.current?.focus())
     } catch (e) {
       toast({
@@ -1530,6 +1564,9 @@ export default function NewSalePage() {
                   <AlertTitle>Venta al crédito</AlertTitle>
                   <AlertDescription>
                     Selecciona un cliente registrado y confirma su vencimiento.
+                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="h-11 w-full rounded-xl border border-input bg-background px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
                   </AlertDescription>
                 </Alert>
               )}
@@ -1597,12 +1634,13 @@ export default function NewSalePage() {
                       valueId={pickedCustomerId}
                       linkedDisplayName={customer}
                       onPick={(row) => {
+                        if (String(row.id) !== pickedCustomerId) setCreditDueDate('')
                         setPickedCustomerId(String(row.id))
                         setCustomer(row.name)
                         setCustomerNit(row.taxId ?? '')
                         setIsFinalConsumer(false)
                       }}
-                      onClear={() => setPickedCustomerId('__none__')}
+                      onClear={() => { setPickedCustomerId('__none__'); setCreditDueDate('') }}
                       canCreateContact={canCreateClientContact}
                     />
                   )}
@@ -1875,6 +1913,7 @@ export default function NewSalePage() {
                     parseFloat(amountReceived) < displayTotal)) ||
                 (isCreditSale &&
                   (!customerContactIdForPricing ||
+                    !creditDueDate || Number(initialCreditPayment) < 0 || !Number.isFinite(Number(initialCreditPayment)) || Number(initialCreditPayment) >= displayTotal || (Number(initialCreditPayment) > 0 && !initialCreditMethod) ||
                     (creditCheck.data != null &&
                       !creditCheck.data.ok &&
                       !(canOverrideCredit && creditOverride))))
@@ -1888,7 +1927,7 @@ export default function NewSalePage() {
               ) : (
                 <>
                   <Receipt className="w-4 h-4 mr-2" />
-                  {isCreditSale ? 'Registrar fiado' : 'Cobrar'}
+                  {isCreditSale ? 'Registrar venta a crédito' : 'Cobrar'}
                 </>
               )}
             </Button>

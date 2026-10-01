@@ -82,6 +82,9 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
+  payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';
+  due_date?: string | null;
+  paymentEntries?: Array<{ amount: number | string }>;
   id: string;
   /** Referencia legible (ej. V-000001). Generada en backend al crear la venta. */
   reference?: string;
@@ -110,6 +113,7 @@ export interface Sale {
   payment_method: {
     id: number;
     name: string;
+    is_credit?: boolean;
   };
   sale_items: SaleItem[];
   sale_dtes?: SaleDte[];

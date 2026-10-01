@@ -57,6 +57,10 @@ export interface SalePromotion {
 
 // Interfaz principal de venta
 export interface Sale extends BaseEntity {
+  isCredit?: boolean;
+  dueDate?: string;
+  creditPaid?: number;
+  creditBalance?: number;
   /** Referencia legible (ej. V-000001). Se usa en UI y ticket; el id sigue siendo el UUID para la API. */
   reference?: string;
   date: string;

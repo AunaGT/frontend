@@ -81,6 +81,7 @@ import {
 } from "@/services/orderService";
 import { OrderStatusBadge } from "../components/OrderStatusBadge";
 import { OrderOperations } from "../components/OrderOperations";
+import { CommercialPaymentFields, type CommercialPaymentTerms } from '@/components/shared/CommercialPaymentFields';
 import { generateOrderPDF } from "../documents/generateOrderPDF";
 import { buildOrderMailto, orderPaymentSummary, orderProgressStep, orderVisualState, paginateOrderLines } from "../ordersViewModel";
 
@@ -110,6 +111,8 @@ export default function OrderDetailPage() {
   const [deliveryToReverse, setDeliveryToReverse] = useState<string | null>(null);
   const [linePageSize, setLinePageSize] = useState(10);
   const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
+  const [legacyDueDate, setLegacyDueDate] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState<CommercialPaymentTerms>({ payment_condition: 'CASH', credit_days: null });
   const [adminDraft, setAdminDraft] = useState({
     delivery_carrier: "",
     delivery_tracking_number: "",
@@ -194,6 +197,8 @@ export default function OrderDetailPage() {
       if (pending > 0) init[line.id] = String(pending);
     }
     setSaleQtys(init);
+    setPaymentMethodId(String(paymentMethods.find(method => Boolean(method.is_credit) === (order.payment_condition === 'CREDIT'))?.id ?? ''));
+    setLegacyDueDate('');
     setCashRegisterId(usableCashRegisters.length === 1 ? usableCashRegisters[0].id : "");
     setSaleDialogOpen(true);
   };
@@ -235,6 +240,7 @@ export default function OrderDetailPage() {
 
   const adminDetailsMutation = useMutation({
     mutationFn: () => updateOrderAdminDetails(id!, {
+      ...paymentTerms,
       delivery_carrier: adminDraft.delivery_carrier || null,
       delivery_tracking_number: adminDraft.delivery_tracking_number || null,
       delivery_address: adminDraft.delivery_address || null,
@@ -257,6 +263,7 @@ export default function OrderDetailPage() {
         .map(([line_id, raw]) => ({ line_id, qty: Number(raw) }))
         .filter((x) => Number.isFinite(x.qty) && x.qty > 0);
       return convertOrderToSale(id!, {
+        due_date: legacyDueDate || undefined,
         payment_method_id: Number(paymentMethodId),
         amount_received: amountReceived ? Number(amountReceived) : undefined,
         lines,
@@ -301,6 +308,7 @@ export default function OrderDetailPage() {
       : [order.status] as const;
 
   const openAdminDetails = () => {
+    setPaymentTerms({ payment_condition: order.payment_condition ?? 'CASH', credit_days: order.credit_days ?? null });
     const inputDate = (value?: string | null) => value ? format(new Date(value), "yyyy-MM-dd'T'HH:mm") : "";
     setAdminDraft({
       delivery_carrier: order.delivery_carrier || "",
@@ -445,6 +453,7 @@ export default function OrderDetailPage() {
             <CardContent className="space-y-3 text-sm">
               <InfoRow label="Folio" value={order.reference ?? order.id.slice(0, 8)} />
               <InfoRow label="Canal" value={order.sales_channel || "—"} />
+              <InfoRow label="Condición de pago" value={order.payment_condition === 'CREDIT' ? `Crédito a ${order.credit_days} días desde la venta` : 'Al contado'} />
               <InfoRow label="Moneda" value={currencyCode} />
               <InfoRow label="Creado por" value={order.createdBy?.name || "—"} />
               <InfoRow label="Vigencia" value={order.valid_until ? formatDateTime(order.valid_until, undefined, locale) : "—"} />
@@ -506,6 +515,7 @@ export default function OrderDetailPage() {
           <DialogHeader><DialogTitle>Despacho y notas del pedido</DialogTitle><DialogDescription>Actualiza la información operativa visible para administración.</DialogDescription></DialogHeader>
           <div className="grid max-h-[65vh] gap-4 overflow-y-auto py-2 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="delivery-carrier">Transportista</Label><Input id="delivery-carrier" maxLength={150} value={adminDraft.delivery_carrier} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_carrier: event.target.value }))} /></div>
+            <div className="sm:col-span-2"><CommercialPaymentFields customerId={order.customer_contact_id} value={paymentTerms} onChange={setPaymentTerms} /><p className="mt-2 text-xs text-muted-foreground">Cambiar este acuerdo no modifica ventas ni vencimientos ya registrados.</p></div>
             <div className="space-y-2"><Label htmlFor="delivery-tracking">Guía de envío</Label><Input id="delivery-tracking" maxLength={100} value={adminDraft.delivery_tracking_number} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_tracking_number: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="delivery-dispatched">Fecha de salida</Label><Input id="delivery-dispatched" type="datetime-local" value={adminDraft.delivery_dispatched_at} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_dispatched_at: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="delivery-estimated">Entrega estimada</Label><Input id="delivery-estimated" type="datetime-local" value={adminDraft.delivery_estimated_at} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_estimated_at: event.target.value }))} /></div>
@@ -582,6 +592,7 @@ export default function OrderDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+            {paymentMethods.find(method => String(method.id) === paymentMethodId)?.is_credit && <div className="space-y-2"><Label htmlFor="legacy-credit-due">Vencimiento (opcional)</Label><Input id="legacy-credit-due" type="date" value={legacyDueDate} onChange={event => setLegacyDueDate(event.target.value)} /><p className="text-xs text-muted-foreground">{order.payment_condition === 'CREDIT' ? `Se aplicará el plazo acordado de ${order.credit_days} días desde hoy.` : 'Si dejas la fecha vacía se usa el plazo del cliente.'} El saldo quedará pendiente en Cartera.</p></div>}
             {isCash && (
               <div className="space-y-2">
                 <Label htmlFor="received">Monto recibido</Label>

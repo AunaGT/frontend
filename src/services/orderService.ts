@@ -16,6 +16,8 @@ export type OrderStatus =
   | "EXPIRED";
 
 export type Order = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   fulfillment_mode?: 'LEGACY' | 'SEPARATE';
   deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number; qty_invoiced: number }> }>;
   id: string;
@@ -85,6 +87,8 @@ export type Order = {
 };
 
 export type CreateOrderPayload = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   /** Sucursal a la que pertenece; por defecto la activa */
   branch_id?: string;
   customer?: string;
@@ -109,6 +113,8 @@ export type OrdersListResponse = {
 };
 
 export type ConvertOrderToSalePayload = {
+  due_date?: string;
+  initial_payment?: { amount: number; payment_method_id: number };
   payment_method_id: number;
   amount_received?: number;
   change?: number;
@@ -118,6 +124,8 @@ export type ConvertOrderToSalePayload = {
 };
 
 export type OrderAdminDetailsPayload = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   delivery_carrier?: string | null;
   delivery_tracking_number?: string | null;
   delivery_address?: string | null;
@@ -127,6 +135,8 @@ export type OrderAdminDetailsPayload = {
 };
 
 export type PublicOrder = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   reference?: string | null;
   status: OrderStatus;
   created_at: string;

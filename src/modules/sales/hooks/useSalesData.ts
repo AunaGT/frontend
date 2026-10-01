@@ -99,7 +99,8 @@ export const normalizeRawSale = (raw: unknown): Sale => {
     // Process returns data
     const returnsRaw = Array.isArray(r.returns) ? r.returns : []
     const totalReturned = parseFloat(String(r.total_returned ?? '0')) || 0
-    const adjustedTotal = parseFloat(String(r.adjusted_total ?? totalNum)) || totalNum
+    const adjusted = Number(r.adjusted_total ?? totalNum)
+    const adjustedTotal = Number.isFinite(adjusted) ? adjusted : totalNum
     const hasReturns = returnsRaw.length > 0 || totalReturned > 0
 
     const returnDetails = returnsRaw
@@ -178,6 +179,10 @@ export const normalizeRawSale = (raw: unknown): Sale => {
 
     return {
         id: String(r.id ?? ''),
+        isCredit: paymentObj?.is_credit === true,
+        dueDate: r.due_date ? String(r.due_date) : undefined,
+        creditPaid: Array.isArray(r.paymentEntries) ? r.paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : 0,
+        creditBalance: Math.max(0, adjustedTotal - (Array.isArray(r.paymentEntries) ? r.paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : 0)),
         reference: reference || undefined,
         date: String(r.sold_at ?? r.date ?? ''),
         customer: String(r.customer ?? ''),

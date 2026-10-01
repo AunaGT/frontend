@@ -10,6 +10,8 @@ import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePaymentMethods } from '@/hooks/usePaymentMethods'
 import { useModules } from '@/context/useModules'
 import { useToast } from '@/hooks/use-toast'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { formatMoney } from '@/utils/formatters'
 import { listCashRegisters } from '@/services/cashSessionsService'
 import { deliverOrder, invoiceOrder, type Order } from '@/services/orderService'
 
@@ -17,6 +19,8 @@ export function OrderOperations({ order }: { order: Order }) {
   const { hasPermission } = useAuthPermissions()
   const modules = useModules()
   const { toast } = useToast()
+  const { locale, currencyCode } = useSystemSettings()
+  const money = (amount: number) => formatMoney(amount, locale, currencyCode)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const { data: methods = [] } = usePaymentMethods()
@@ -26,10 +30,12 @@ export function OrderOperations({ order }: { order: Order }) {
   const [methodId, setMethodId] = useState('')
   const [cashId, setCashId] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [initialAmount, setInitialAmount] = useState('')
+  const [initialMethod, setInitialMethod] = useState('')
   const credit = methods.find(method => String(method.id) === methodId)?.is_credit === true
   const { data: registers = [] } = useQuery({
     queryKey: ['cash-registers', 'order-invoice', order.branch_id], queryFn: () => listCashRegisters(),
-    enabled: action === 'invoice' && !credit,
+    enabled: action === 'invoice' && (!credit || Number(initialAmount) > 0),
   })
   const pending = (line: Order['lines'][number], kind = action) => kind === 'invoice'
     ? Math.max(0, Number(line.qty_fulfilled || 0) - Number(line.qty_invoiced || 0))
@@ -37,9 +43,17 @@ export function OrderOperations({ order }: { order: Order }) {
   const open = (kind: 'delivery' | 'invoice') => {
     setKey(crypto.randomUUID())
     setQuantities(Object.fromEntries(order.lines.map(line => [line.id, String(pending(line, kind))])))
+    setMethodId(String(methods.find(method => Boolean(method.is_credit) === (order.payment_condition === 'CREDIT'))?.id ?? ''))
+    setInitialAmount('')
+    setInitialMethod(String(methods.find(method => !method.is_credit)?.id ?? ''))
+    setCashId('')
+    setDueDate('')
     setAction(kind)
   }
   const lines = order.lines.map(line => ({ line_id: line.id, qty: Number(quantities[line.id] || 0) })).filter(line => line.qty > 0)
+  const invoiceTotal = Math.round(order.lines.reduce((sum, line) => sum + Number(quantities[line.id] || 0) * Number(line.unit_price), 0) * 100) / 100
+  const initial = Number(initialAmount || 0)
+  const invalidInitial = credit && (!Number.isFinite(initial) || initial < 0 || initial >= invoiceTotal || (initial > 0 && !initialMethod))
   const invalid = order.lines.some(line => {
     const quantity = Number(quantities[line.id] || 0)
     return !Number.isSafeInteger(quantity) || quantity < 0 || quantity > pending(line)
@@ -48,13 +62,14 @@ export function OrderOperations({ order }: { order: Order }) {
     mutationFn: () => action === 'delivery'
       ? deliverOrder(order.id, { request_key: key, lines })
       : invoiceOrder(order.id, { request_key: key, lines, payment_method_id: Number(methodId),
-        cash_register_id: cashId || (registers.length === 1 ? registers[0].id : undefined), due_date: dueDate || undefined }),
+        cash_register_id: cashId || (registers.length === 1 ? registers[0].id : undefined), due_date: dueDate || undefined,
+        initial_payment: credit && Number(initialAmount) > 0 ? { amount: Number(initialAmount), payment_method_id: Number(initialMethod) } : undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order'] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['receivables'] })
       toast({ title: action === 'delivery' ? 'Entrega registrada' : 'Venta registrada',
-        description: action === 'invoice' && credit ? 'El saldo está disponible en Cartera.' : undefined })
+        description: action === 'invoice' && credit ? `Abono: ${money(initial)} · Saldo en Cartera: ${money(invoiceTotal - initial)}` : undefined })
       setAction(null)
     },
     onError: (error: Error) => toast({ title: 'No se pudo completar la operación', description: error.message, variant: 'destructive' }),
@@ -78,12 +93,15 @@ export function OrderOperations({ order }: { order: Order }) {
           </div>)}
           {action === 'invoice' && <>
             <div className="space-y-2"><Label htmlFor="order-payment-method">Condición de pago</Label><select id="order-payment-method" className={selectClass} value={methodId} onChange={event => setMethodId(event.target.value)} disabled={mutation.isPending}><option value="">Selecciona un método</option>{methods.filter(method => !method.is_credit || modules.isEnabled('receivables')).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></div>
-            {credit ? <div className="space-y-2"><Label htmlFor="order-due-date">Vencimiento del crédito</Label><Input id="order-due-date" type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} disabled={mutation.isPending} /><p className="text-xs text-muted-foreground">Si lo dejas vacío, se usa el plazo configurado del cliente. Los abonos se registran desde Cartera.</p></div>
-              : <div className="space-y-2"><Label htmlFor="order-cash-register">Caja</Label><select id="order-cash-register" className={selectClass} value={cashId || (registers.length === 1 ? registers[0].id : '')} onChange={event => setCashId(event.target.value)} disabled={mutation.isPending}><option value="">Selecciona una caja con turno abierto</option>{registers.map(register => <option key={register.id} value={register.id}>{register.name}</option>)}</select><p className="text-xs text-muted-foreground">Confirma únicamente cuando hayas recibido el importe completo.</p></div>}
-            <p className="font-semibold">Importe: {order.lines.reduce((sum, line) => sum + Number(quantities[line.id] || 0) * Number(line.unit_price), 0).toFixed(2)}</p>
+            {credit && <><div className="space-y-2"><Label htmlFor="order-due-date">Vencimiento del crédito (opcional)</Label><Input id="order-due-date" type="date" value={dueDate} onChange={event => setDueDate(event.target.value)} disabled={mutation.isPending} /><p className="text-xs text-muted-foreground">{order.payment_condition === 'CREDIT' ? `Se aplicará el plazo acordado de ${order.credit_days} días desde hoy, salvo que indiques otra fecha.` : 'Se usa el plazo del cliente si dejas la fecha vacía.'}</p></div>
+              <div className="space-y-2"><Label htmlFor="order-initial-payment">Abono recibido hoy (opcional)</Label><Input id="order-initial-payment" type="number" min={0} step="0.01" value={initialAmount} onChange={event => setInitialAmount(event.target.value)} disabled={mutation.isPending} placeholder="0.00" /><p className="text-xs text-muted-foreground">Si no recibiste dinero, déjalo en cero. El saldo restante se cobrará desde Cartera.</p></div>
+              {Number(initialAmount) > 0 && <div className="space-y-2"><Label htmlFor="order-initial-method">Medio de cobro del abono</Label><select id="order-initial-method" className={selectClass} value={initialMethod} onChange={event => setInitialMethod(event.target.value)}>{methods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></div>}</>}
+            {(!credit || Number(initialAmount) > 0) && <div className="space-y-2"><Label htmlFor="order-cash-register">Caja</Label><select id="order-cash-register" className={selectClass} value={cashId || (registers.length === 1 ? registers[0].id : '')} onChange={event => setCashId(event.target.value)} disabled={mutation.isPending}><option value="">Selecciona una caja con turno abierto</option>{registers.map(register => <option key={register.id} value={register.id}>{register.name}</option>)}</select><p className="text-xs text-muted-foreground">Registra únicamente dinero que hayas recibido.</p></div>}
+            <p className="font-semibold">Importe: {money(invoiceTotal)}</p>
+            {credit && <p className="text-sm font-semibold text-brand-orange">Saldo en Cartera: {money(Math.max(0, invoiceTotal - initial))}</p>}
           </>}
         </div>
-        <DialogFooter><Button variant="outline" disabled={mutation.isPending} onClick={() => setAction(null)}>Cancelar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={mutation.isPending || invalid || !lines.length || (action === 'invoice' && (!methodId || (!credit && !cashId && registers.length !== 1)))} onClick={() => mutation.mutate()}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{action === 'delivery' ? 'Confirmar entrega' : 'Registrar venta'}</Button></DialogFooter>
+        <DialogFooter><Button variant="outline" disabled={mutation.isPending} onClick={() => setAction(null)}>Cancelar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={mutation.isPending || invalid || !lines.length || (action === 'invoice' && (!methodId || invalidInitial || ((!credit || Number(initialAmount) > 0) && !cashId && registers.length !== 1)))} onClick={() => mutation.mutate()}>{mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{action === 'delivery' ? 'Confirmar entrega' : 'Registrar venta'}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   </>

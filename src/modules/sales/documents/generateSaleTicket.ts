@@ -96,6 +96,7 @@ function computeTicketHeightMm(sale: Sale, options: SaleTicketOptions): number {
   h += LINE_HEIGHT + LINE_HEIGHT + (discount > 0 ? LINE_HEIGHT : 0) + LINE_HEIGHT + LINE_HEIGHT + 1 + LINE_HEIGHT // totales
   h += LINE_HEIGHT + LINE_HEIGHT + (hasPaymentDetails ? LINE_HEIGHT : 0) + (hasChange ? LINE_HEIGHT : 0) + 1 + LINE_HEIGHT // pago
   if (hasCajero) h += LINE_HEIGHT + 1
+  if (sale.payment_method?.is_credit) h += LINE_HEIGHT * 4
   h += LINE_HEIGHT + LINE_HEIGHT + LINE_HEIGHT + (dte ? LINE_HEIGHT : 0) // pie
   h += BOTTOM_MARGIN_MM
   return Math.ceil(h)
@@ -247,6 +248,12 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   // ----- Pago -----
   doc.text(`Pago: ${sale.payment_method?.name ?? 'N/A'}`, X_LEFT, y)
   y += LINE_HEIGHT
+  if (sale.payment_method?.is_credit) {
+    const paid = (sale.paymentEntries ?? []).reduce((sum, entry) => sum + Number(entry.amount), 0)
+    doc.text(`Abonos registrados: ${fmt(paid)}`, X_LEFT, y); y += LINE_HEIGHT
+    doc.text(`Saldo pendiente: ${fmt(Math.max(0, Number(sale.adjusted_total ?? sale.total) - paid))}`, X_LEFT, y); y += LINE_HEIGHT
+    if (sale.due_date) { doc.text(`Vence: ${formatDateTime(sale.due_date, { hour: undefined, minute: undefined }, locale)}`, X_LEFT, y); y += LINE_HEIGHT }
+  }
   if (sale.amount_received != null && Number(sale.amount_received) > 0) {
     doc.text('Recibido:', X_LEFT, y)
     doc.text(fmt(Number(sale.amount_received)), X_IMPORTE_END, y, { align: 'right' })

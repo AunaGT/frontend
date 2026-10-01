@@ -15,20 +15,18 @@
  * elegir nada; el reparto manual está detrás de un switch porque es la
  * excepción («este cheque es de la factura tal»), no lo de todos los días.
  */
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, CalendarClock, FileDown, Loader2, Plus, Printer, Scissors, Trash2, Wallet,
+  ArrowLeft, CalendarClock, FileDown, Loader2, Plus, Printer, Scissors, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
@@ -44,32 +42,36 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import {
-  fetchCustomerStatement, createCustomerPayment, deleteCustomerPayment,
+  fetchCustomerStatement, fetchCompleteCustomerStatement, createCustomerPayment, deleteCustomerPayment,
   createCustomerAdjustment, applyCustomerCredit, updateSaleDueDate, fetchPaymentReceipt,
   SALE_PAYMENT_STATUS_LABELS, PAYMENT_KIND_LABELS,
   type PaymentApplication,
 } from '../api/receivablesService'
-import { generateStatementPDF, generateReceiptPDF } from './generateReceivablesPDF'
+import { Pagination } from '@/components/shared/Pagination'
+import { ExportDialog } from '@/components/shared/ExportDialog'
+import { SavedCustomerMany2One } from '@/modules/sales/components/SavedCustomerMany2One'
+import { useTenant } from '@/context/useTenant'
+import { ReceivableMetrics, ReceivableStatus } from './ReceivablesPresentation'
+import { downloadReceivablesCsv, matchesStatementRow, statementMovements, statementDate } from './statementViewModel.mjs'
 
 const EPS = 0.005
-
-const fecha = (iso: string | null) =>
-  iso ? new Date(iso).toLocaleDateString('es-GT', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
-
-/** yyyy-mm-dd para los <input type="date">. */
-const isoDay = (iso?: string | null) => (iso ? new Date(iso).toISOString().slice(0, 10) : '')
 
 export const CustomerStatementPage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [params, setParams] = useSearchParams()
+  const { company, branch, isConsolidated } = useTenant()
+  const companyId = company?.id
+  const branchId = isConsolidated ? 'all' : branch?.id
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuthPermissions()
-  const { companyName, companyLogoUrl, currencyCode, locale } = useSystemSettings()
-  const puedeCobrar = hasPermission('receivables.manage')
-  const puedeAjustar = hasPermission('receivables.adjust')
+  const { companyName, companyLogoUrl, currencyCode, locale, timezone } = useSystemSettings()
+  const isoDay = (iso?: string | null) => statementDate(iso, timezone)
+  const puedeCobrar = hasPermission('receivables.manage') && branchId !== 'all'
+  const puedeAjustar = hasPermission('receivables.adjust') && branchId !== 'all'
 
-  const [cobroAbierto, setCobroAbierto] = useState(false)
+  const [cobroAbierto, setCobroAbierto] = useState(puedeCobrar && params.get('cobrar') === '1')
   const [monto, setMonto] = useState('')
   const [metodo, setMetodo] = useState<string>('')
   const [referencia, setReferencia] = useState('')
@@ -83,6 +85,26 @@ export const CustomerStatementPage = () => {
   const [ajusteMonto, setAjusteMonto] = useState('')
   const [ajusteMotivo, setAjusteMotivo] = useState('')
 
+  const [tab, setTab] = useState('MOVEMENTS')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [from, setFrom] = useState('')
+  const [to, setTo] = useState('')
+  const [kind, setKind] = useState('ALL')
+  const [state, setState] = useState('ALL')
+  const [filters, setFilters] = useState({ from: '', to: '', kind: 'ALL', state: 'ALL' })
+  const [exportOpen, setExportOpen] = useState(false)
+  const [pdfPending, setPdfPending] = useState(false)
+  const [exportPending, setExportPending] = useState(false)
+  const [receiptPending, setReceiptPending] = useState<string | null>(null)
+  const [preparedInvoice, setPreparedInvoice] = useState('')
+  const fecha = (iso: string | null) => iso ? new Date(iso).toLocaleDateString(locale, { timeZone: timezone, day: '2-digit', month: 'short', year: 'numeric' }) : 'Sin fecha'
+  useEffect(() => {
+    setPage(1)
+    setTab('MOVEMENTS')
+    setCobroAbierto(puedeCobrar && params.get('cobrar') === '1')
+    setMonto(''); setReparto({}); setReferencia(''); setManual(Boolean(params.get('factura'))); setConfirmaAnticipo(false); setPreparedInvoice('')
+  }, [id, params, puedeCobrar])
   const [prorroga, setProrroga] = useState<{ id: string; ref: string; due: string } | null>(null)
 
   const money = useMemo(() => {
@@ -90,11 +112,29 @@ export const CustomerStatementPage = () => {
     return (v: number) => fmt.format(Number(v) || 0)
   }, [locale, currencyCode])
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['receivables', 'statement', id],
-    queryFn: () => fetchCustomerStatement(id!),
+  const history = useInfiniteQuery({
+    queryKey: ['receivables', 'statement', companyId, branchId, id],
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => fetchCustomerStatement(id!, pageParam, 100),
+    getNextPageParam: last => last.history?.hasNextPage ? last.history.page + 1 : undefined,
     enabled: Boolean(id),
   })
+  const { isLoading, isError, refetch } = history
+  const first = history.data?.pages[0]
+  const data = first ? { ...first, ventas: history.data.pages.flatMap(part => part.ventas), cobros: history.data.pages.flatMap(part => part.cobros) } : undefined
+  useEffect(() => {
+    const invoiceId = params.get('factura')
+    if (!invoiceId || preparedInvoice === invoiceId || !data || !cobroAbierto) return
+    const invoice = data.ventas.find(sale => sale.id === invoiceId)
+    if (invoice) {
+      setManual(true)
+      setMonto(String(invoice.saldo))
+      setReparto({ [invoice.id]: String(invoice.saldo) })
+      setPreparedInvoice(invoiceId)
+    } else if (history.hasNextPage && !history.isFetchingNextPage) {
+      void history.fetchNextPage()
+    }
+  }, [params, preparedInvoice, data, cobroAbierto, history.hasNextPage, history.isFetchingNextPage, history.fetchNextPage])
 
   const { data: metodos } = usePaymentMethods()
   // Cobrar «al crédito» no significa nada: es justo lo que cancela el crédito.
@@ -111,12 +151,19 @@ export const CustomerStatementPage = () => {
   const sesionAbierta =
     sesion?.ok && sesion.session?.status === 'OPEN' ? sesion.session.id : undefined
 
-  const refrescar = () => {
-    queryClient.invalidateQueries({ queryKey: ['receivables'] })
+  const refrescar = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['receivables'] }),
+      queryClient.invalidateQueries({ queryKey: ['credit-check'] }),
+      queryClient.invalidateQueries({ queryKey: ['order'] }),
+      queryClient.invalidateQueries({ queryKey: ['sales'] }),
+    ])
+    await refetch()
   }
 
   const cerrarCobro = () => {
     setCobroAbierto(false)
+    if (params.has('cobrar')) setParams({}, { replace: true })
     setMonto('')
     setReferencia('')
     setManual(false)
@@ -152,7 +199,7 @@ export const CustomerStatementPage = () => {
         applications: manual ? repartoLista : undefined,
         allow_advance: sobrante > EPS ? true : undefined,
       }),
-    onSuccess: (res) => {
+    onSuccess: async (res) => {
       const n = res.aplicaciones.length
       const extra = (res.no_aplicado ?? 0) > EPS
         ? ` ${money(res.no_aplicado ?? 0)} quedaron como saldo a favor.`
@@ -164,7 +211,7 @@ export const CustomerStatementPage = () => {
           ` Saldo: ${money(res.resumen.saldo)}`,
       })
       cerrarCobro()
-      refrescar()
+      await refrescar()
     },
     onError: (e: Error) =>
       toast({ title: 'No se pudo registrar el cobro', description: e.message, variant: 'destructive' }),
@@ -235,22 +282,30 @@ export const CustomerStatementPage = () => {
 
   const descargarEstado = async () => {
     if (!data) return
-    const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
-    generateStatementPDF(data, { companyName, logoDataUrl, currencyCode, locale })
+    setPdfPending(true)
+    try {
+      const { generateStatementPDF } = await import('./generateReceivablesPDF')
+      const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
+      const complete = await fetchCompleteCustomerStatement(id!)
+      generateStatementPDF(complete, { companyName, logoDataUrl, currencyCode, locale, timezone })
+    } catch (error) { toast({ title: 'No se pudo generar el estado de cuenta', description: (error as Error).message, variant: 'destructive' }) }
+    finally { setPdfPending(false) }
   }
 
   const imprimirRecibo = async (paymentId: string) => {
+    setReceiptPending(paymentId)
     try {
+      const { generateReceiptPDF } = await import('./generateReceivablesPDF')
       const recibo = await fetchPaymentReceipt(paymentId)
       const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
-      generateReceiptPDF(recibo, { companyName, logoDataUrl, currencyCode, locale })
+      generateReceiptPDF(recibo, { companyName, logoDataUrl, currencyCode, locale, timezone })
     } catch (e) {
       toast({
         title: 'No se pudo generar el recibo',
         description: (e as Error).message,
         variant: 'destructive',
       })
-    }
+    } finally { setReceiptPending(null) }
   }
 
   if (isLoading) {
@@ -261,289 +316,80 @@ export const CustomerStatementPage = () => {
     )
   }
   if (!data) {
-    return <div className='container mx-auto p-6 text-muted-foreground'>Cliente no encontrado.</div>
+    return <div className="receivables-page mx-auto max-w-[1560px] p-8"><Button variant="ghost" onClick={() => navigate('/cartera')}>Volver a cartera</Button><p role="alert">{isError ? 'No se pudo cargar el estado de cuenta.' : 'Cliente no encontrado.'}</p>{isError && <Button variant="outline" onClick={() => refetch()}>Reintentar</Button>}</div>
   }
 
-  const { customer, resumen, ventas, cobros } = data
+  const { customer, resumen, ventas } = data
   const ajusteNum = Number(ajusteMonto)
   const ajusteInvalido =
     !Number.isFinite(ajusteNum) || ajusteNum <= 0 || ajusteNum > resumen.saldo + EPS || !ajusteMotivo.trim()
 
+  const movements = statementMovements(data)
+  const filteredMovements = movements.filter(row => matchesStatementRow(row, filters, timezone))
+  const filteredSales = ventas.filter(sale => matchesStatementRow({ date: sale.date, kind: 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
+  const totalRows = tab === 'MOVEMENTS' ? filteredMovements.length : filteredSales.length
+  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const visibleMovements = filteredMovements.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const visibleSales = filteredSales.slice((safePage - 1) * pageSize, safePage * pageSize)
+  const oldOverdue = resumen.vencido_30_mas ?? 0
+  const exportColumns = (tab === 'MOVEMENTS' ? ['Fecha', 'Documento', 'Tipo', 'Descripción', 'Cargo', 'Abono', 'Saldo', 'Estado'] : ['Factura', 'Fecha', 'Vencimiento', 'Total', 'Abonado', 'Saldo', 'Estado']).map((label, index) => ({ id: String(index), label }))
+  const exportCsv = async (selected: string[], fileName?: string) => {
+    setExportPending(true)
+    try {
+    const complete = await fetchCompleteCustomerStatement(id!)
+    const filteredMovements = statementMovements(complete).filter(row => matchesStatementRow(row, filters, timezone))
+    const filteredSales = complete.ventas.filter(sale => matchesStatementRow({ date: sale.date, kind: 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
+    const rows = tab === 'MOVEMENTS'
+      ? filteredMovements.map(row => [fecha(row.date), row.reference, row.kind === 'SALE' ? 'Factura' : PAYMENT_KIND_LABELS[row.kind], row.payment?.notes || row.payment?.payment_method?.name || 'Venta al crédito', row.charge, row.credit, row.balance, row.sale ? SALE_PAYMENT_STATUS_LABELS[row.sale.payment_status] : 'Aplicado'])
+      : filteredSales.map(sale => [sale.reference || sale.id.slice(0, 8), fecha(sale.date), fecha(sale.due_date), sale.total, sale.abonado, sale.saldo, SALE_PAYMENT_STATUS_LABELS[sale.payment_status]])
+    const columns = exportColumns.filter(column => selected.includes(column.id))
+    downloadReceivablesCsv(fileName || 'estado-de-cuenta.csv', [columns.map(column => column.label), ...rows.map(row => columns.map(column => row[Number(column.id)]))])
+    setExportOpen(false)
+    } catch (error) { toast({ title: 'No se pudo exportar el estado de cuenta', description: (error as Error).message, variant: 'destructive' }) }
+    finally { setExportPending(false) }
+  }
+
   return (
-    <div className='container mx-auto space-y-4 p-4 sm:p-6'>
-      <div className='flex flex-wrap items-start justify-between gap-3'>
-        <div className='flex items-start gap-3'>
-          <Button variant='ghost' size='icon' onClick={() => navigate('/cartera')} className='mt-0.5'>
-            <ArrowLeft className='h-4 w-4' />
-          </Button>
-          <div>
-            <h1 className='text-2xl font-semibold'>{customer.name}</h1>
-            <p className='text-sm text-muted-foreground'>
-              {[customer.contact, customer.tax_id && `NIT ${customer.tax_id}`, customer.phone]
-                .filter(Boolean)
-                .join(' · ') || 'Estado de cuenta'}
-            </p>
-          </div>
+    <div className="receivables-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+      <Button variant="ghost" onClick={() => navigate('/cartera')} className="pl-0"><ArrowLeft className="mr-2 h-4 w-4" />Cuentas por cobrar</Button>
+      <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Finanzas · Cartera</p><h1>Estado de cuenta</h1><p className="auna-module-description">Consulta el saldo, vencimientos y movimientos de {customer.name}.</p></div><div className="flex flex-wrap gap-2">
+        <Button variant="outline" disabled={pdfPending} onClick={descargarEstado}>{pdfPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}Estado de cuenta PDF</Button>
+        {puedeAjustar && resumen.saldo > 0 && <Button variant="outline" onClick={() => setAjusteAbierto(true)}><Scissors className="mr-2 h-4 w-4" />Ajustar deuda</Button>}
+        {puedeCobrar && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => setCobroAbierto(true)}><Plus className="mr-2 h-4 w-4" />Registrar cobro</Button>}
+      </div></header>
+      <section className="space-y-5 rounded-2xl border bg-card p-5">
+        <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1.7fr_1fr_1fr_1fr_1fr_auto]">
+          <div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customer.id} linkedDisplayName={customer.name} onPick={c => navigate('/cartera/' + c.id)} onClear={() => navigate('/cartera')} /></div>
+          <div className="space-y-2"><Label htmlFor="statement-from">Desde</Label><Input id="statement-from" type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="statement-to">Hasta</Label><Input id="statement-to" type="date" min={from} value={to} onChange={e => setTo(e.target.value)} /></div>
+          <div className="space-y-2"><Label>Documento</Label><Select value={kind} onValueChange={setKind}><SelectTrigger aria-label="Tipo de documento"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="SALE">Facturas</SelectItem>{Object.entries(PAYMENT_KIND_LABELS).map(([value, label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Estado</Label><Select value={state} onValueChange={setState}><SelectTrigger aria-label="Estado de factura"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="OVERDUE">Vencidas</SelectItem>{Object.entries(SALE_PAYMENT_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+          <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={Boolean(from && to && from > to)} onClick={() => { setFilters({ from, to, kind, state }); setPage(1) }}>Consultar</Button>
         </div>
-        <div className='flex flex-wrap gap-2'>
-          <Button variant='outline' onClick={descargarEstado}>
-            <FileDown className='mr-1.5 h-4 w-4' />
-            Estado de cuenta
-          </Button>
-          {puedeAjustar && resumen.saldo > 0 && (
-            <Button variant='outline' onClick={() => setAjusteAbierto(true)}>
-              <Scissors className='mr-1.5 h-4 w-4' />
-              Ajustar
-            </Button>
-          )}
-          {puedeCobrar && resumen.saldo > 0 && (
-            <Button onClick={() => setCobroAbierto(true)}>
-              <Plus className='mr-1.5 h-4 w-4' />
-              Registrar cobro
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {resumen.credito_disponible > EPS && (
-        <div className='flex flex-wrap items-center justify-between gap-3 rounded-md border border-teal-500/40 bg-teal-500/5 px-4 py-3'>
-          <p className='text-sm'>
-            Este cliente tiene{' '}
-            <span className='font-semibold'>{money(resumen.credito_disponible)}</span> a favor sin
-            aplicar a ninguna factura.
-          </p>
-          {puedeCobrar && resumen.saldo > EPS && (
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={() => aplicarSaldoFavor.mutate()}
-              disabled={aplicarSaldoFavor.isPending}
-            >
-              {aplicarSaldoFavor.isPending && <Loader2 className='mr-1.5 h-4 w-4 animate-spin' />}
-              Aplicar a las facturas abiertas
-            </Button>
-          )}
-        </div>
-      )}
-
-      <div className='grid gap-3 sm:grid-cols-3'>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>Saldo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className='text-2xl font-semibold'>{money(resumen.saldo)}</p>
-            <p className='text-xs text-muted-foreground'>
-              {resumen.facturas_abiertas} factura(s) abierta(s)
-              {resumen.credito_disponible > EPS && ` · neto ${money(resumen.saldo_neto)}`}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className={resumen.vencido ? 'border-destructive/40' : undefined}>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>Vencido</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className={`text-2xl font-semibold ${resumen.vencido ? 'text-destructive' : ''}`}>
-              {money(resumen.vencido)}
-            </p>
-            <p className='text-xs text-muted-foreground'>{resumen.facturas_vencidas} vencida(s)</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className='pb-2'>
-            <CardTitle className='text-sm font-medium text-muted-foreground'>Disponible</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {customer.credit_limit == null ? (
-              <Badge variant='outline' className='font-normal'>Sin límite</Badge>
-            ) : (
-              <>
-                <p className='text-2xl font-semibold'>{money(resumen.disponible ?? 0)}</p>
-                <p className='text-xs text-muted-foreground'>de {money(customer.credit_limit)}</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader className='pb-3'>
-          <CardTitle className='text-base'>Ventas al crédito</CardTitle>
-        </CardHeader>
-        <CardContent className='p-0'>
-          <div className='overflow-x-auto'>
-            <table className='w-full min-w-[42rem] text-sm'>
-              <thead className='bg-muted/50 text-xs uppercase text-muted-foreground'>
-                <tr>
-                  <th className='px-4 py-2 text-left font-medium'>Factura</th>
-                  <th className='px-4 py-2 text-left font-medium'>Fecha</th>
-                  <th className='px-4 py-2 text-left font-medium'>Vence</th>
-                  <th className='px-4 py-2 text-right font-medium'>Total</th>
-                  <th className='px-4 py-2 text-right font-medium'>Abonado</th>
-                  <th className='px-4 py-2 text-right font-medium'>Saldo</th>
-                  <th className='px-4 py-2 text-left font-medium'>Estado</th>
-                  {puedeCobrar && <th className='w-10' />}
-                </tr>
-              </thead>
-              <tbody>
-                {ventas.length === 0 && (
-                  <tr>
-                    <td colSpan={puedeCobrar ? 8 : 7} className='px-4 py-8 text-center text-muted-foreground'>
-                      Este cliente no tiene ventas al crédito
-                    </td>
-                  </tr>
-                )}
-                {ventas.map((v) => (
-                  <tr key={v.id} className='border-t'>
-                    <td className='px-4 py-2 font-mono text-xs'>{v.reference || v.id.slice(0, 8)}</td>
-                    <td className='px-4 py-2 text-muted-foreground'>{fecha(v.date)}</td>
-                    <td className='px-4 py-2'>
-                      <span className={v.vencida ? 'font-medium text-destructive' : 'text-muted-foreground'}>
-                        {fecha(v.due_date)}
-                      </span>
-                      {v.vencida && (
-                        <span className='ml-1 text-xs text-destructive'>({v.dias_vencida}d)</span>
-                      )}
-                    </td>
-                    <td className='px-4 py-2 text-right tabular-nums'>{money(v.total)}</td>
-                    <td className='px-4 py-2 text-right tabular-nums text-muted-foreground'>
-                      {money(v.abonado)}
-                    </td>
-                    <td className='px-4 py-2 text-right font-medium tabular-nums'>{money(v.saldo)}</td>
-                    <td className='px-4 py-2'>
-                      <Badge
-                        variant={
-                          v.payment_status === 'PAID'
-                            ? 'outline'
-                            : v.vencida
-                              ? 'destructive'
-                              : 'secondary'
-                        }
-                        className='font-normal'
-                      >
-                        {SALE_PAYMENT_STATUS_LABELS[v.payment_status]}
-                      </Badge>
-                    </td>
-                    {puedeCobrar && (
-                      <td className='px-2'>
-                        {v.payment_status !== 'PAID' && (
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            title='Prorrogar vencimiento'
-                            className='h-7 w-7 text-muted-foreground'
-                            onClick={() =>
-                              setProrroga({
-                                id: v.id,
-                                ref: v.reference || v.id.slice(0, 8),
-                                due: isoDay(v.due_date),
-                              })
-                            }
-                          >
-                            <CalendarClock className='h-3.5 w-3.5' />
-                          </Button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className='pb-3'>
-          <CardTitle className='flex items-center gap-2 text-base'>
-            <Wallet className='h-4 w-4 text-muted-foreground' />
-            Cobros y ajustes
-          </CardTitle>
-        </CardHeader>
-        <CardContent className='p-0'>
-          <div className='overflow-x-auto'>
-            <table className='w-full min-w-[44rem] text-sm'>
-              <thead className='bg-muted/50 text-xs uppercase text-muted-foreground'>
-                <tr>
-                  <th className='px-4 py-2 text-left font-medium'>Fecha</th>
-                  <th className='px-4 py-2 text-left font-medium'>Tipo</th>
-                  <th className='px-4 py-2 text-right font-medium'>Monto</th>
-                  <th className='px-4 py-2 text-left font-medium'>Forma</th>
-                  <th className='px-4 py-2 text-left font-medium'>Referencia</th>
-                  <th className='px-4 py-2 text-left font-medium'>Aplicado a</th>
-                  <th className='w-20' />
-                </tr>
-              </thead>
-              <tbody>
-                {cobros.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className='px-4 py-8 text-center text-muted-foreground'>
-                      Todavía no se le ha cobrado nada
-                    </td>
-                  </tr>
-                )}
-                {cobros.map((c) => (
-                  <tr key={c.id} className='border-t'>
-                    <td className='px-4 py-2 text-muted-foreground'>{fecha(c.paid_at)}</td>
-                    <td className='px-4 py-2'>
-                      {c.kind === 'PAYMENT' ? (
-                        <span className='text-muted-foreground'>Cobro</span>
-                      ) : (
-                        <Badge variant='outline' className='font-normal'>
-                          {PAYMENT_KIND_LABELS[c.kind]}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className='px-4 py-2 text-right font-medium tabular-nums'>{money(c.amount)}</td>
-                    <td className='px-4 py-2'>{c.payment_method?.name || '—'}</td>
-                    <td className='px-4 py-2 text-muted-foreground'>{c.reference || '—'}</td>
-                    <td className='px-4 py-2 text-xs text-muted-foreground'>
-                      {c.aplicaciones.map((a) => a.reference || a.sale_id?.slice(0, 8)).join(', ') || '—'}
-                      {c.no_aplicado > EPS && (
-                        <span className='ml-1 text-teal-600'>
-                          (+{money(c.no_aplicado)} a favor)
-                        </span>
-                      )}
-                    </td>
-                    <td className='px-2'>
-                      <div className='flex justify-end'>
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          title='Imprimir recibo'
-                          className='h-7 w-7 text-muted-foreground'
-                          onClick={() => imprimirRecibo(c.id)}
-                        >
-                          <Printer className='h-3.5 w-3.5' />
-                        </Button>
-                        {puedeCobrar && (
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            title='Eliminar'
-                            className='h-7 w-7 text-muted-foreground hover:text-destructive'
-                            onClick={() => setPorBorrar(c.id)}
-                          >
-                            <Trash2 className='h-3.5 w-3.5' />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={cobroAbierto} onOpenChange={(o) => (o ? setCobroAbierto(true) : cerrarCobro())}>
-        <DialogContent className='max-h-[90vh] overflow-y-auto'>
+        {from && to && from > to && <p role="alert" className="text-sm text-destructive">La fecha final debe ser posterior a la inicial.</p>}
+        <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><div><h2 className="font-bold">{customer.name}</h2><p className="mt-1 text-sm text-muted-foreground">{[customer.tax_id && 'NIT ' + customer.tax_id, customer.contact, customer.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</p>{customer.address && <p className="mt-1 text-sm text-muted-foreground">{customer.address}</p>}</div><div><p className="text-sm text-muted-foreground">Límite de crédito</p><strong>{customer.credit_limit == null ? 'Sin límite' : money(customer.credit_limit)}</strong><p className="text-xs text-muted-foreground">{resumen.disponible == null ? '' : 'Disponible: ' + money(resumen.disponible)}</p></div><div><p className="text-sm text-muted-foreground">Días de crédito</p><strong>{customer.payment_term?.net_days ?? 'Sin plazo definido'}</strong></div><div><p className="text-sm text-muted-foreground">Condición de pago</p><strong>{customer.payment_term?.name || 'Sin condición definida'}</strong></div></div>
+      </section>
+      <ReceivableMetrics balance={resumen.saldo} overdue={resumen.vencido} upcoming={Math.max(0, resumen.saldo - resumen.vencido)} oldOverdue={oldOverdue} />
+      {resumen.credito_disponible > EPS && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><p className="text-sm">Saldo a favor sin aplicar: <strong>{money(resumen.credito_disponible)}</strong>. Saldo neto: <strong>{money(resumen.saldo_neto)}</strong>.</p>{puedeCobrar && resumen.saldo > EPS && <Button variant="outline" disabled={aplicarSaldoFavor.isPending} onClick={() => aplicarSaldoFavor.mutate()}>{aplicarSaldoFavor.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Aplicar a facturas abiertas</Button>}</div>}
+      <section className="auna-data-table-shell">
+        {history.hasNextPage && <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4 text-sm text-muted-foreground"><p>Historial parcial: {ventas.length + data.cobros.length} de {(data.history?.total_sales ?? 0) + (data.history?.total_payments ?? 0)} movimientos. Carga el historial completo para ver el saldo acumulado y consultar todas las fechas.</p><Button variant="outline" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>{history.isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cargar más movimientos</Button></div>}
+        {history.isFetchNextPageError && <p role="alert" className="p-4 text-sm text-destructive">No se pudieron cargar más movimientos. Reintenta con el botón anterior.</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 pt-3"><div className="flex gap-1" role="tablist" aria-label="Estado de cuenta">{[{ value: 'MOVEMENTS', label: 'Movimientos' }, { value: 'DUE', label: 'Vencimientos' }, { value: 'DOCS', label: 'Documentos' }].map(item => <button key={item.value} role="tab" aria-selected={tab === item.value} onClick={() => { setTab(item.value); setPage(1) }} className={`border-b-2 px-3 py-3 text-sm font-medium ${tab === item.value ? 'border-brand-orange text-brand-orange' : 'border-transparent text-muted-foreground'}`}>{item.label}</button>)}</div><Button variant="outline" className="mb-3" disabled={!totalRows && !history.hasNextPage} onClick={() => setExportOpen(true)}><FileDown className="mr-2 h-4 w-4" />Exportar</Button></div>
+        <div className="overflow-x-auto"><table className="auna-data-table min-w-[1000px]"><thead><tr>{[...exportColumns.map(column => column.label), 'Acciones'].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>
+          {!totalRows && <tr><td colSpan={exportColumns.length + 1} className="text-center text-muted-foreground">No hay movimientos para estos filtros.</td></tr>}
+          {tab === 'MOVEMENTS' ? visibleMovements.map(row => <tr key={row.kind + row.id}><td>{fecha(row.date)}</td><td className="font-semibold text-brand-orange">{row.reference}</td><td>{row.kind === 'SALE' ? 'Factura' : PAYMENT_KIND_LABELS[row.kind]}</td><td><p className="max-w-60 truncate" title={row.payment?.notes || ''}>{row.payment?.notes || row.payment?.payment_method?.name || 'Venta al crédito'}</p>{row.payment?.aplicaciones.length > 0 && <p className="text-xs text-muted-foreground">{row.payment.aplicaciones.map(a => a.reference || a.sale_id?.slice(0, 8)).join(', ')}</p>}</td><td className="whitespace-nowrap tabular-nums">{money(row.charge)}</td><td className="whitespace-nowrap tabular-nums">{money(row.credit)}</td><td className="whitespace-nowrap font-semibold tabular-nums">{history.hasNextPage ? '—' : money(row.balance)}</td><td>{row.sale ? <ReceivableStatus sale={row.sale} /> : <span className="whitespace-nowrap rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">{row.payment.no_aplicado > EPS ? 'Saldo a favor' : 'Aplicado'}</span>}</td><td><div className="flex gap-2">{row.payment && <><Button variant="outline" size="icon" aria-label="Descargar recibo" disabled={Boolean(receiptPending)} onClick={() => imprimirRecibo(row.id)}>{receiptPending === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}</Button>{puedeCobrar && <Button variant="outline" size="icon" aria-label="Eliminar movimiento" onClick={() => setPorBorrar(row.id)}><Trash2 className="h-4 w-4" /></Button>}</>}{row.sale && puedeCobrar && row.sale.saldo > EPS && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: row.id, ref: row.reference, due: isoDay(row.sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</div></td></tr>) : visibleSales.map(sale => <tr key={sale.id}><td className="font-semibold text-brand-orange">{sale.reference || sale.id.slice(0, 8)}</td><td>{fecha(sale.date)}</td><td className={sale.vencida ? 'text-destructive' : ''}>{fecha(sale.due_date)}{sale.vencida && <span className="ml-2 text-xs">({sale.dias_vencida} días)</span>}</td><td>{money(sale.total)}</td><td>{money(sale.abonado)}</td><td className="font-semibold">{money(sale.saldo)}</td><td><ReceivableStatus sale={sale} /></td><td>{puedeCobrar && sale.saldo > EPS && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: sale.id, ref: sale.reference || sale.id.slice(0, 8), due: isoDay(sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</td></tr>)}
+        </tbody></table></div>
+        <Pagination currentPage={safePage} totalPages={totalPages} totalItems={totalRows} pageSize={pageSize} count={tab === 'MOVEMENTS' ? visibleMovements.length : visibleSales.length} itemLabel={tab === 'MOVEMENTS' ? 'movimientos' : 'documentos'} onPageChange={setPage} />
+      </section>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground"><p>Los cargos muestran el importe neto de devoluciones.</p><div className="flex items-center gap-3"><Label>Filas por página</Label><Select value={String(pageSize)} onValueChange={value => { setPageSize(Number(value)); setPage(1) }}><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map(n => <SelectItem value={String(n)} key={n}>{n}</SelectItem>)}</SelectContent></Select></div></div>
+      <ExportDialog open={exportOpen} onOpenChange={open => { if (!exportPending) setExportOpen(open) }} title="Exportar estado de cuenta" columns={exportColumns} summary="Se exporta el historial completo con los filtros aplicados." pending={exportPending} formats={['csv']} fileName="estado-de-cuenta" onExport={options => void exportCsv(options.columns ?? [], options.fileName)} />
+      <Dialog open={cobroAbierto} onOpenChange={(o) => { if (cobrar.isPending) return; if (o) setCobroAbierto(true); else cerrarCobro() }}>
+        <DialogContent variant="auna" className='max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Registrar cobro</DialogTitle>
             <DialogDescription>
-              Se aplica a las facturas más antiguas primero. Saldo actual: {money(resumen.saldo)}.
+              {manual ? 'Se aplica únicamente a las facturas seleccionadas.' : 'Se aplica a las facturas más antiguas primero.'} Saldo actual: {money(resumen.saldo)}.
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-3'>
@@ -585,12 +431,13 @@ export const CustomerStatementPage = () => {
               />
             </div>
 
-            {abiertas.length > 1 && (
+            {history.hasNextPage && <Button variant="outline" disabled={history.isFetchingNextPage || cobrar.isPending} onClick={() => void history.fetchNextPage()}>{history.isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cargar facturas anteriores</Button>}
+            {resumen.facturas_abiertas > 1 && (
               <div className='flex items-center justify-between rounded-md border px-3 py-2'>
                 <div>
                   <Label htmlFor='manual' className='cursor-pointer'>Elegir facturas</Label>
                   <p className='text-xs text-muted-foreground'>
-                    Por defecto se paga de la más vieja a la más nueva.
+                    {manual ? 'Revisa los importes que deseas aplicar a cada factura.' : 'Por defecto se paga de la más vieja a la más nueva.'}
                   </p>
                 </div>
                 <Switch id='manual' checked={manual} onCheckedChange={setManual} />
@@ -615,6 +462,7 @@ export const CustomerStatementPage = () => {
                       className='h-8 w-28'
                       placeholder='0.00'
                       value={reparto[v.id] ?? ''}
+                      aria-label={`Aplicar a factura ${v.reference || v.id.slice(0, 8)}`}
                       onChange={(e) => setReparto((r) => ({ ...r, [v.id]: e.target.value }))}
                     />
                   </div>
@@ -653,7 +501,7 @@ export const CustomerStatementPage = () => {
             )}
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={cerrarCobro}>Cancelar</Button>
+            <Button variant='outline' disabled={cobrar.isPending} onClick={cerrarCobro}>Cancelar</Button>
             <Button
               onClick={() => cobrar.mutate()}
               disabled={
@@ -667,8 +515,8 @@ export const CustomerStatementPage = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={ajusteAbierto} onOpenChange={setAjusteAbierto}>
-        <DialogContent>
+      <Dialog open={ajusteAbierto} onOpenChange={open => { if (!ajustar.isPending) setAjusteAbierto(open) }}>
+        <DialogContent variant="auna">
           <DialogHeader>
             <DialogTitle>Ajustar la deuda</DialogTitle>
             <DialogDescription>
@@ -726,7 +574,7 @@ export const CustomerStatementPage = () => {
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setAjusteAbierto(false)}>Cancelar</Button>
+            <Button variant='outline' disabled={ajustar.isPending} onClick={() => setAjusteAbierto(false)}>Cancelar</Button>
             <Button onClick={() => ajustar.mutate()} disabled={ajusteInvalido || ajustar.isPending}>
               {ajustar.isPending && <Loader2 className='mr-1.5 h-4 w-4 animate-spin' />}
               Registrar
@@ -735,8 +583,8 @@ export const CustomerStatementPage = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(prorroga)} onOpenChange={(o) => !o && setProrroga(null)}>
-        <DialogContent className='sm:max-w-sm'>
+      <Dialog open={Boolean(prorroga)} onOpenChange={(o) => { if (!o && !prorrogar.isPending) setProrroga(null) }}>
+        <DialogContent variant="auna" className='sm:max-w-sm'>
           <DialogHeader>
             <DialogTitle>Prorrogar vencimiento</DialogTitle>
             <DialogDescription>Factura {prorroga?.ref}</DialogDescription>
@@ -751,7 +599,7 @@ export const CustomerStatementPage = () => {
             />
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setProrroga(null)}>Cancelar</Button>
+            <Button variant='outline' disabled={prorrogar.isPending} onClick={() => setProrroga(null)}>Cancelar</Button>
             <Button
               onClick={() => prorroga && prorrogar.mutate({ id: prorroga.id, due: prorroga.due })}
               disabled={!prorroga?.due || prorrogar.isPending}
@@ -763,8 +611,8 @@ export const CustomerStatementPage = () => {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={Boolean(porBorrar)} onOpenChange={(o) => !o && setPorBorrar(null)}>
-        <AlertDialogContent>
+      <AlertDialog open={Boolean(porBorrar)} onOpenChange={(o) => { if (!o && !borrar.isPending) setPorBorrar(null) }}>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar este movimiento?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -773,9 +621,10 @@ export const CustomerStatementPage = () => {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={borrar.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => porBorrar && borrar.mutate(porBorrar)}
+              disabled={borrar.isPending}
+              onClick={e => { e.preventDefault(); if (porBorrar && !borrar.isPending) borrar.mutate(porBorrar) }}
               className='bg-destructive text-destructive-foreground hover:bg-destructive/90'
             >
               Eliminar

@@ -20,7 +20,8 @@ export interface QuotePDFOptions {
   currencyCode?: string;
 }
 
-export function generateQuotePDF(quote: Quote, options: QuotePDFOptions = {}): void {
+type QuoteDocument = Pick<Quote, 'id' | 'reference' | 'created_at' | 'customer' | 'customerContact' | 'is_final_consumer' | 'customer_nit' | 'valid_until' | 'createdBy' | 'lines' | 'total' | 'notes' | 'payment_condition' | 'credit_days'>;
+export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions = {}): void {
   const { companyName, logoDataUrl, locale = "es-GT", currencyCode = "GTQ" } = options;
   const doc = new jsPDF() as jsPDFDocument;
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
@@ -56,6 +57,8 @@ export function generateQuotePDF(quote: Quote, options: QuotePDFOptions = {}): v
   );
   y += 6;
 
+  doc.text(quote.payment_condition === 'CREDIT' ? `Condición: crédito a ${quote.credit_days} días desde la venta` : 'Condición: al contado', MARGIN, y);
+  y += 6;
   if (quote.valid_until) {
     doc.setFont("helvetica", "bold");
     doc.text("Válida hasta:", MARGIN, y);

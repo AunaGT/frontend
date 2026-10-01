@@ -20,10 +20,13 @@ export type QuoteLine = {
     id: string;
     name: string;
     barcode?: string | null;
+    image_url?: string | null;
   };
 };
 
 export type Quote = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   id: string;
   reference?: string | null;
   branch_id?: string;
@@ -76,6 +79,8 @@ export type QuoteLinePayload = {
 };
 
 export type CreateQuotePayload = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
   /** Sucursal a la que pertenece; por defecto la activa */
   branch_id?: string;
   customer?: string;
@@ -117,12 +122,18 @@ export async function fetchQuotes(params?: {
   pageSize?: number;
   status?: string;
   search?: string;
+  customer_contact_id?: string;
+  date_from?: string;
+  date_to?: string;
 }): Promise<QuotesListResponse> {
   const q = new URLSearchParams();
   if (params?.page != null) q.set("page", String(params.page));
   if (params?.pageSize != null) q.set("pageSize", String(params.pageSize));
   if (params?.status) q.set("status", params.status);
   if (params?.search) q.set("search", params.search);
+  if (params?.customer_contact_id) q.set("customer_contact_id", params.customer_contact_id);
+  if (params?.date_from) q.set("date_from", params.date_from);
+  if (params?.date_to) q.set("date_to", params.date_to);
   const qs = q.toString();
   return apiFetch<QuotesListResponse>(`/api/quotes${qs ? `?${qs}` : ""}`, { method: "GET" });
 }
@@ -138,7 +149,7 @@ export async function createQuote(payload: CreateQuotePayload): Promise<Quote> {
   });
 }
 
-export async function updateQuote(id: string, payload: CreateQuotePayload): Promise<Quote> {
+export async function updateQuote(id: string, payload: CreateQuotePayload | Pick<CreateQuotePayload, 'payment_condition' | 'credit_days'>): Promise<Quote> {
   return apiFetch<Quote>(`/api/quotes/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -169,6 +180,13 @@ export async function convertQuoteToOrder(id: string): Promise<ConvertToOrderRes
 }
 
 export type PublicQuote = {
+  payment_condition?: 'CASH' | 'CREDIT';
+  credit_days?: number | null;
+  created_at: string;
+  currency_code?: string;
+  locale?: string;
+  timezone?: string;
+  discount_total?: number | string | null;
   reference?: string | null;
   status: QuoteStatus;
   customer?: string | null;
@@ -183,6 +201,7 @@ export type PublicQuote = {
   lines: Array<{
     product_name?: string | null;
     barcode?: string | null;
+    image_url?: string | null;
     qty: number;
     unit_price: number | string;
     line_total: number | string;
@@ -210,6 +229,14 @@ export async function fetchPublicQuote(token: string): Promise<PublicQuote> {
 
 export async function fetchQuoteShareLink(id: string): Promise<{ public_token: string; public_url: string }> {
   return apiFetch(`/api/quotes/${encodeURIComponent(id)}/share-link`, { method: "GET" });
+}
+
+export async function respondToPublicQuote(token: string, status: 'ACCEPTED' | 'REJECTED'): Promise<{ status: QuoteStatus }> {
+  const base = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '');
+  const res = await fetch(`${base}/quotes/public/${encodeURIComponent(token)}/respond`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+  const payload = await res.json();
+  if (!res.ok) throw new Error(payload.message || 'No se pudo registrar la respuesta');
+  return payload;
 }
 
 export function buildQuoteMailto(publicUrl: string, reference?: string | null, customerEmail?: string | null) {

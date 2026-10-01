@@ -27,6 +27,7 @@ import { ChevronsUpDown, Loader2, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { fetchSuppliers } from '@/services/supplierService'
 import type { Supplier } from '@/types'
+import { useTenant } from '@/context/useTenant'
 
 const PAGE_SIZE = 35
 
@@ -48,6 +49,7 @@ export interface SavedCustomerMany2OneProps {
   onClear: () => void
   canCreateContact?: boolean
   className?: string
+  mode?: 'form' | 'filter' | 'required'
 }
 
 export function SavedCustomerMany2One({
@@ -57,7 +59,9 @@ export function SavedCustomerMany2One({
   onClear,
   canCreateContact = false,
   className,
+  mode = 'form',
 }: SavedCustomerMany2OneProps) {
+  const { company, branch, isConsolidated } = useTenant()
   const [open, setOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -82,7 +86,7 @@ export function SavedCustomerMany2One({
     isFetchingNextPage,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['saved-customer-m2o', debouncedSearch],
+    queryKey: ['saved-customer-m2o', company?.id, isConsolidated ? 'all' : branch?.id, debouncedSearch],
     queryFn: ({ pageParam }) =>
       fetchCustomerPage({ search: debouncedSearch, page: pageParam }),
     initialPageParam: 1,
@@ -104,7 +108,7 @@ export function SavedCustomerMany2One({
 
   const triggerLabel =
     valueId === '__none__'
-      ? 'Manual · sin vincular'
+      ? mode === 'filter' ? 'Todos los clientes' : mode === 'required' ? 'Selecciona un cliente' : 'Manual · sin vincular'
       : linkedDisplayName.trim() || 'Cliente seleccionado'
 
   const handlePick = useCallback(
@@ -117,13 +121,15 @@ export function SavedCustomerMany2One({
 
   return (
     <div className={cn('space-y-1', className)}>
-      <Label>Cliente guardado (opcional)</Label>
+      {mode === 'form' && <Label>Cliente guardado (opcional)</Label>}
+      {mode === 'required' && <Label>Cliente</Label>}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             type="button"
             variant="outline"
             role="combobox"
+            aria-label={mode === 'filter' ? 'Filtrar por cliente' : 'Seleccionar cliente'}
             aria-expanded={open}
             className="w-full justify-between font-normal min-h-10 h-auto py-2 px-3"
           >
@@ -158,7 +164,7 @@ export function SavedCustomerMany2One({
                   <CommandGroup>
                     <ScrollArea className="h-[min(55vh,320px)]">
                       <div className="p-1">
-                        <CommandItem
+                        {mode !== 'required' && <CommandItem
                           value="__manual__"
                           onSelect={() => {
                             onClear()
@@ -166,8 +172,8 @@ export function SavedCustomerMany2One({
                           }}
                           className="text-muted-foreground"
                         >
-                          Manual · sin vincular (nombre e ID fiscal abajo)
-                        </CommandItem>
+                          {mode === 'filter' ? 'Todos los clientes' : 'Manual · sin vincular (nombre e ID fiscal abajo)'}
+                        </CommandItem>}
                         {flatRows.map((row) => (
                           <CommandItem
                             key={row.id}
@@ -232,10 +238,10 @@ export function SavedCustomerMany2One({
           </Command>
         </PopoverContent>
       </Popover>
-      <p className="text-xs text-muted-foreground">
+      {mode === 'form' && <p className="text-xs text-muted-foreground">
         Busca y elige un contacto tipo cliente; los resultados vienen por páginas del servidor. También
         puedes dejar manual y rellenar nombre e ID fiscal abajo.
-      </p>
+      </p>}
     </div>
   )
 }

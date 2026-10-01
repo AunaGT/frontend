@@ -4,9 +4,9 @@
  * Nueva cotización — carrito + catálogo con validación de disponible neto.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarDays, FileText, Loader2, Package, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,12 +21,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useAllProducts } from "@/hooks/useProducts";
+import { ProductPicker } from "@/components/shared/ProductPicker";
+import { CommercialPaymentFields, type CommercialPaymentTerms } from "@/components/shared/CommercialPaymentFields";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { QuoteProductImage, QuoteSummary } from "./QuotePresentation";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { formatMoney } from "@/utils/formatters";
 import { postPricingPreview, fetchProductsAvailability } from "@/services/productService";
-import { createQuote } from "@/services/quoteService";
+import { createQuote, updateQuoteStatus } from "@/services/quoteService";
 import { useTenant } from "@/context/useTenant";
 import { adaptApiSupplier, fetchSupplierById } from "@/services/supplierService";
 import { SavedCustomerMany2One } from "@/modules/sales";
@@ -37,7 +40,6 @@ import {
   QUOTE_PRICE_TIER_LABELS,
   QUOTE_PRICE_TIER_ORDER,
   QUOTE_PRICE_TIER_SHORT,
-  catalogPriceForProduct,
   normalizeQuotePriceTier,
   productSupportsPriceTier,
   resolvePriceTierForCustomer,
@@ -50,6 +52,7 @@ type CartLine = {
   name: string;
   qty: number;
   price: number;
+  product: Product;
 };
 
 export default function NewQuotePage() {
@@ -60,19 +63,15 @@ export default function NewQuotePage() {
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const canCreate = hasPermission("quotes.create");
-  const { data: products = [], isLoading: loadingProducts } = useAllProducts({ forSaleOnly: true, inBranchOnly: true });
+  const canManage = hasPermission("quotes.manage");
 
   const [customer, setCustomer] = useState("");
   const [customerNit, setCustomerNit] = useState("");
   const [isFinalConsumer, setIsFinalConsumer] = useState(true);
   const [pickedCustomerId, setPickedCustomerId] = useState("__none__");
   const [notes, setNotes] = useState("");
-  const [validUntil, setValidUntil] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 30);
-    return d.toISOString().slice(0, 10);
-  });
-  const [productSearch, setProductSearch] = useState("");
+  const [validUntil, setValidUntil] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState<CommercialPaymentTerms>({ payment_condition: 'CASH', credit_days: null });
   const [cartItems, setCartItems] = useState<CartLine[]>([]);
   const [priceMap, setPriceMap] = useState<Record<string, number>>({});
   const [availabilityById, setAvailabilityById] = useState<
@@ -150,28 +149,17 @@ export default function NewQuotePage() {
       product_ids: [],
     }).then((res) => {
       setResolvedPriceTier(normalizeQuotePriceTier(res.price_tier_used));
-    });
+    }).catch(() => { /* conservar la tarifa local */ });
   }, [manualPriceTier, pickedCustomer, customerContactId, salesChannel]);
 
   useEffect(() => {
     void refreshPrices();
   }, [customerContactId, manualPriceTier, selectedPriceTier, resolvedPriceTier]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filteredProducts = useMemo(() => {
-    const q = productSearch.trim().toLowerCase();
-    if (!q) return products.slice(0, 40);
-    return products
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          (p.barcode && p.barcode.toLowerCase().includes(q))
-      )
-      .slice(0, 40);
-  }, [products, productSearch]);
 
   useEffect(() => {
     const ids = [
-      ...new Set([...filteredProducts.map((p) => p.id), ...cartItems.map((c) => c.id)]),
+      ...new Set(cartItems.map((c) => c.id)),
     ];
     if (ids.length === 0) {
       setAvailabilityById({});
@@ -184,7 +172,7 @@ export default function NewQuotePage() {
     return () => {
       cancelled = true;
     };
-  }, [filteredProducts, cartItems]);
+  }, [cartItems]);
 
   const cartTotal = cartItems.reduce((acc, l) => acc + l.price * l.qty, 0);
 
@@ -239,7 +227,7 @@ export default function NewQuotePage() {
       if (existing) {
         return prev.map((x) => (x.id === product.id ? { ...x, qty: x.qty + 1 } : x));
       }
-      return [...prev, { id: product.id, name: product.name, qty: 1, price: unit }];
+      return [...prev, { id: product.id, name: product.name, qty: 1, price: unit, product }];
     });
     void postPricingPreview({
       customer_contact_id: customerContactId,
@@ -254,15 +242,16 @@ export default function NewQuotePage() {
           prev.map((x) => (x.id === product.id ? { ...x, price } : x))
         );
       }
-    });
+    }).catch(() => toast({ title: "No se pudo actualizar el precio", description: "Verifica la tarifa antes de guardar.", variant: "destructive" }));
   };
 
   const updateQty = (productId: string, qty: number) => {
+    if (!Number.isFinite(qty) || !Number.isInteger(qty)) return;
     if (qty <= 0) {
       setCartItems((prev) => prev.filter((x) => x.id !== productId));
       return;
     }
-    const product = products.find((p) => p.id === productId);
+    const product = cartItems.find((line) => line.id === productId)?.product;
     if (!product) return;
     const available = getAvailableQty(product);
     if (qty > available) {
@@ -303,7 +292,7 @@ export default function NewQuotePage() {
     setIsFinalConsumer(true);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (send = false) => {
     if (!canCreate) {
       toast({ title: "Sin permiso", variant: "destructive" });
       return;
@@ -313,7 +302,7 @@ export default function NewQuotePage() {
       return;
     }
     for (const line of cartItems) {
-      const product = products.find((p) => p.id === line.id);
+      const product = line.product;
       if (!product) continue;
       if (manualPriceTier) {
         const tierCheck = productSupportsPriceTier(product, selectedPriceTier);
@@ -346,6 +335,7 @@ export default function NewQuotePage() {
         customer_contact_id: customerContactId,
         sales_channel: salesChannel,
         ...(manualPriceTier ? { price_tier: selectedPriceTier } : {}),
+        ...paymentTerms,
         notes: notes.trim() || undefined,
         valid_until: validUntil ? new Date(validUntil).toISOString() : undefined,
         items: cartItems.map((l) => ({
@@ -354,7 +344,11 @@ export default function NewQuotePage() {
           unit_price: l.price,
         })),
       });
-      toast({ title: "Cotización guardada", description: created.reference ?? created.id });
+      if (send && canManage) {
+        try { await updateQuoteStatus(created.id, "SENT"); }
+        catch (e) { toast({ title: "Borrador guardado, no se pudo generar", description: e instanceof Error ? e.message : "Reintenta desde el detalle.", variant: "destructive" }); navigate(`/cotizaciones/${created.id}`); return; }
+      }
+      toast({ title: send ? "Cotización generada" : "Borrador guardado", description: created.reference ?? created.id });
       navigate(`/cotizaciones/${created.id}`);
     } catch (e) {
       toast({
@@ -367,219 +361,38 @@ export default function NewQuotePage() {
     }
   };
 
-  return (
-    <div className="p-3 sm:p-6 space-y-4 animate-fade-in">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/cotizaciones")}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div>
-          <h1 className="text-lg sm:text-2xl font-bold">Nueva cotización</h1>
-          <p className="text-sm text-muted-foreground">
-            Canal mayoreo ·{" "}
-            {manualPriceTier
-              ? `tarifa manual: ${QUOTE_PRICE_TIER_SHORT[selectedPriceTier]}`
-              : `tarifa automática: ${QUOTE_PRICE_TIER_SHORT[effectivePriceTier]}`}
-          </p>
-        </div>
+  return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+    <header className="auna-module-heading"><div><Button variant="link" className="mb-3 h-auto p-0 text-muted-foreground" onClick={() => navigate("/cotizaciones")}><ArrowLeft className="mr-2 h-4 w-4" />Cotizaciones</Button><p className="auna-module-eyebrow">Ventas</p><h1>Nueva cotización</h1><p className="auna-module-description">Crea una propuesta comercial para tu cliente de forma rápida y sencilla.</p></div></header>
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="min-w-0 space-y-5">
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-brand-orange" />Cliente</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2 sm:col-span-2"><Label>Buscar cliente</Label><SavedCustomerMany2One valueId={pickedCustomerId} linkedDisplayName={customer} onPick={handlePickCustomer} onClear={handleClearCustomer} /></div>
+          <div className="space-y-2"><Label htmlFor="customer">Nombre del cliente</Label><Input id="customer" value={customer} onChange={(e) => setCustomer(e.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="nit">NIT</Label><Input id="nit" disabled={isFinalConsumer} value={isFinalConsumer ? "CF" : customerNit} onChange={(e) => setCustomerNit(e.target.value)} /></div>
+          <div className="flex items-center gap-2 sm:col-span-2"><Checkbox id="cf" checked={isFinalConsumer} onCheckedChange={(v) => setIsFinalConsumer(Boolean(v))} /><Label htmlFor="cf">Consumidor final</Label></div>
+          {pickedCustomer && <div className="grid gap-3 rounded-xl bg-muted/40 p-3 text-sm sm:col-span-2 sm:grid-cols-2"><div><span className="text-muted-foreground">Correo</span><p className="break-all">{pickedCustomer.email || "No registrado"}</p></div><div><span className="text-muted-foreground">Teléfono</span><p>{pickedCustomer.phone || "No registrado"}</p></div></div>}
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Productos y servicios</CardTitle></CardHeader><CardContent className="space-y-4">
+          <ProductPicker branchId={branch?.id} money={fmt} onPick={addProduct} />
+          {!cartItems.length ? <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">Busca un producto para agregarlo a la cotización.</div>
+            : <section className="auna-data-table-shell"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
+              <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || "Sin código"} · Disponible: {getAvailableQty(line.product)}</p></div></div></TableCell>
+              <TableCell><Input type="number" className="w-24" aria-label={`Cantidad de ${line.name}`} min={1} max={getAvailableQty(line.product)} step={1} value={line.qty} onChange={(e) => updateQty(line.id, Number(e.target.value))} /></TableCell><TableCell className="text-right">{fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{fmt(line.price * line.qty)}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id, 0)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+            </TableRow>)}</TableBody></Table></section>}
+        </CardContent></Card>
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas adicionales</CardTitle></CardHeader><CardContent><Label htmlFor="notes" className="sr-only">Notas adicionales</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={4} placeholder="Condiciones comerciales, tiempos de entrega o información para el cliente…" /></CardContent></Card>
       </div>
-
-      <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Cliente y condiciones</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <SavedCustomerMany2One
-              valueId={pickedCustomerId}
-              linkedDisplayName={customer}
-              onPick={handlePickCustomer}
-              onClear={handleClearCustomer}
-            />
-            <div className="space-y-2">
-              <Label htmlFor="customer">Nombre cliente</Label>
-              <Input id="customer" value={customer} onChange={(e) => setCustomer(e.target.value)} />
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="cf"
-                checked={isFinalConsumer}
-                onCheckedChange={(v) => setIsFinalConsumer(Boolean(v))}
-              />
-              <Label htmlFor="cf">Consumidor final</Label>
-            </div>
-            {!isFinalConsumer && (
-              <div className="space-y-2">
-                <Label htmlFor="nit">NIT</Label>
-                <Input id="nit" value={customerNit} onChange={(e) => setCustomerNit(e.target.value)} />
-              </div>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="valid">Válida hasta</Label>
-              <Input
-                id="valid"
-                type="date"
-                value={validUntil}
-                onChange={(e) => setValidUntil(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notas</Label>
-              <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
-            </div>
-            {branches.length > 1 && (
-              <div className="space-y-2">
-                <Label htmlFor="quote-branch">Sucursal</Label>
-                <Select value={targetBranchId} onValueChange={setTargetBranchId}>
-                  <SelectTrigger id="quote-branch">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {branches.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  El catálogo y el stock que ves son los de {branch?.name ?? "la sucursal activa"}.
-                </p>
-              </div>
-            )}
-            <div className="rounded-md border p-3 space-y-3">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="manual-tier"
-                  checked={manualPriceTier}
-                  onCheckedChange={(v) => setManualPriceTier(Boolean(v))}
-                />
-                <Label htmlFor="manual-tier">Elegir tarifa de precio manualmente</Label>
-              </div>
-              {manualPriceTier ? (
-                <div className="space-y-2">
-                  <Label htmlFor="price-tier">Tarifa</Label>
-                  <Select
-                    value={selectedPriceTier}
-                    onValueChange={(v) => setSelectedPriceTier(v as QuotePriceTier)}
-                  >
-                    <SelectTrigger id="price-tier">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {QUOTE_PRICE_TIER_ORDER.map((tier) => (
-                        <SelectItem key={tier} value={tier}>
-                          {QUOTE_PRICE_TIER_LABELS[tier]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Se usa la tarifa del cliente y canal ({QUOTE_PRICE_TIER_SHORT[effectivePriceTier]}).
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Productos ({cartItems.length})</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {cartItems.length === 0 && (
-              <p className="text-sm text-muted-foreground">Agrega productos desde el catálogo.</p>
-            )}
-            {cartItems.map((line) => {
-              const product = products.find((p) => p.id === line.id);
-              const available = product ? getAvailableQty(product) : 0;
-              const atMax = line.qty >= available;
-              return (
-              <div key={line.id} className="flex items-center gap-2 border rounded-md p-2">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{line.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {fmt(line.price)} c/u · disp. {available}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQty(line.id, line.qty - 1)}>
-                    <Minus className="h-3 w-3" />
-                  </Button>
-                  <span className="w-8 text-center text-sm">{line.qty}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8"
-                    disabled={atMax}
-                    onClick={() => updateQty(line.id, line.qty + 1)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => updateQty(line.id, 0)}>
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            );
-            })}
-            <div className="flex justify-between font-semibold pt-2 border-t">
-              <span>Total</span>
-              <span>{fmt(cartTotal)}</span>
-            </div>
-            <Button className="w-full" disabled={isSaving || cartItems.length === 0} onClick={() => void handleSave()}>
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Guardar borrador
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Catálogo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              className="pl-9"
-              placeholder="Buscar producto…"
-              value={productSearch}
-              onChange={(e) => setProductSearch(e.target.value)}
-            />
-          </div>
-          {loadingProducts && <p className="text-sm text-muted-foreground">Cargando productos…</p>}
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[420px] overflow-y-auto">
-            {filteredProducts.map((p) => {
-              const available = getAvailableQty(p);
-              const inCart = getCartQty(p.id);
-              const tierOk = manualPriceTier
-                ? productSupportsPriceTier(p, selectedPriceTier).ok
-                : true;
-              const canAdd = tierOk && inCart < available;
-              const displayPrice = fmt(catalogPriceForProduct(p, effectivePriceTier, priceMap));
-              return (
-              <button
-                key={p.id}
-                type="button"
-                disabled={!canAdd}
-                className="text-left border rounded-md p-3 hover:bg-muted/50 transition-colors disabled:opacity-50 disabled:pointer-events-none"
-                onClick={() => addProduct(p)}
-              >
-                <p className="text-sm font-medium line-clamp-2">{p.name}</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {displayPrice} · disp. {available}
-                  {!tierOk && manualPriceTier ? " · sin tarifa" : ""}
-                </p>
-              </button>
-            );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      <aside className="space-y-5 xl:sticky xl:top-5">
+        <QuoteSummary subtotal={cartTotal} total={cartTotal} money={fmt} />
+        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarDays className="h-5 w-5 text-brand-orange" />Vigencia y condiciones</CardTitle></CardHeader><CardContent className="space-y-4">
+          <CommercialPaymentFields customerId={customerContactId} value={paymentTerms} onChange={setPaymentTerms} />
+          <div className="space-y-2"><Label htmlFor="valid">Válida hasta</Label><Input id="valid" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /><p className="text-xs text-muted-foreground">Si no eliges una fecha se aplica la vigencia configurada para tu empresa.</p></div>
+          {branches.length > 1 && <div className="space-y-2"><Label htmlFor="quote-branch">Sucursal</Label><Select value={targetBranchId} onValueChange={setTargetBranchId}><SelectTrigger id="quote-branch"><SelectValue /></SelectTrigger><SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">El catálogo y la disponibilidad corresponden a {branch?.name ?? "la sucursal activa"}.</p></div>}
+          <div className="flex items-center gap-2"><Checkbox id="manual-tier" checked={manualPriceTier} onCheckedChange={(v) => setManualPriceTier(Boolean(v))} /><Label htmlFor="manual-tier">Elegir tarifa manualmente</Label></div>
+          {manualPriceTier ? <div className="space-y-2"><Label>Tarifa</Label><Select value={selectedPriceTier} onValueChange={(v) => setSelectedPriceTier(v as QuotePriceTier)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{QUOTE_PRICE_TIER_ORDER.map((tier) => <SelectItem key={tier} value={tier}>{QUOTE_PRICE_TIER_LABELS[tier]}</SelectItem>)}</SelectContent></Select></div> : <p className="text-sm text-muted-foreground">Canal mayoreo · Tarifa automática: {QUOTE_PRICE_TIER_SHORT[effectivePriceTier]}</p>}
+        </CardContent></Card>
+        <div className="space-y-3"><Button variant="outline" className="h-12 w-full" disabled={isSaving || !cartItems.length} onClick={() => void handleSave()}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar borrador</Button>{canManage && <Button className="h-12 w-full bg-brand-orange text-white hover:bg-brand-orange/90" disabled={isSaving || !cartItems.length} onClick={() => void handleSave(true)}><FileText className="mr-2 h-4 w-4" />Generar cotización</Button>}<Button variant="ghost" className="w-full" disabled={isSaving} onClick={() => navigate("/cotizaciones")}>Cancelar</Button></div>
+      </aside>
     </div>
-  );
+  </div>;
 }

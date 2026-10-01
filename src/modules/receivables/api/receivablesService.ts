@@ -85,6 +85,13 @@ export interface StatementSale {
   dias_vencida: number;
 }
 
+export interface ReceivableInvoice extends StatementSale { customer_id: string; customer_name: string }
+export interface InvoicePage { items: ReceivableInvoice[]; page: number; pageSize: number; totalItems: number; totalPages: number }
+export const fetchReceivableInvoices = (params: Record<string, string | number>) => {
+  const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== '').map(([key, value]) => [key, String(value)]))
+  return apiFetch<InvoicePage>(`/api/receivables/invoices?${query}`)
+}
+
 export interface StatementPayment {
   id: string;
   amount: number;
@@ -100,6 +107,7 @@ export interface StatementPayment {
 }
 
 export interface CustomerStatement {
+  history?: { page: number; pageSize: number; total_sales: number; total_payments: number; hasNextPage: boolean };
   customer: {
     id: string;
     name: string;
@@ -109,10 +117,12 @@ export interface CustomerStatement {
     address: string | null;
     tax_id: string | null;
     credit_limit: number | null;
+    payment_term?: { name: string; net_days: number | null } | null;
   };
   resumen: {
     saldo: number;
     vencido: number;
+    vencido_30_mas?: number;
     facturas_abiertas: number;
     facturas_vencidas: number;
     credito_disponible: number;
@@ -221,8 +231,19 @@ export const fetchAging = () => apiFetch<AgingReport>("/api/receivables/aging");
 export const fetchOverdueCount = () =>
   apiFetch<{ count: number; monto: number }>("/api/receivables/overdue-count");
 
-export const fetchCustomerStatement = (customerId: string) =>
-  apiFetch<CustomerStatement>(`/api/receivables/customers/${customerId}`);
+export const fetchCustomerStatement = (customerId: string, page = 1, pageSize = 500) =>
+  apiFetch<CustomerStatement>(`/api/receivables/customers/${customerId}?page=${page}&pageSize=${pageSize}`);
+
+export async function fetchCompleteCustomerStatement(customerId: string) {
+  const result = await fetchCustomerStatement(customerId);
+  let next = result;
+  while (next.history?.hasNextPage) {
+    next = await fetchCustomerStatement(customerId, next.history.page + 1);
+    result.ventas.push(...next.ventas);
+    result.cobros.push(...next.cobros);
+  }
+  return result;
+}
 
 /** Consulta previa del POS: ¿puede este cliente llevarse este monto al crédito? */
 export const checkCustomerCredit = (customerId: string, amount: number) =>

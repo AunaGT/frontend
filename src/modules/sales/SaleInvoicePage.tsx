@@ -372,6 +372,7 @@ export const SaleInvoicePage = () => {
                 </div>
               </>
             )}
+            {sale.isCredit && <div className="space-y-2 rounded-xl border border-brand-orange/30 bg-brand-orange/5 p-4"><p className="font-semibold">Venta a crédito · {Number(sale.creditBalance) > 0 ? 'Saldo pendiente' : 'Pagada'}</p><div className="flex justify-between"><span>Abonos registrados</span><strong>{formatMoney(sale.creditPaid ?? 0, locale, currencyCode)}</strong></div><div className="flex justify-between text-brand-orange"><span>Saldo en Cartera</span><strong>{formatMoney(sale.creditBalance ?? 0, locale, currencyCode)}</strong></div>{sale.dueDate && <p className="text-sm">Vencimiento: {formatDateTime(sale.dueDate, { hour: undefined, minute: undefined }, locale)}</p>}</div>}
           </div>
         </CardContent>
       </Card>

@@ -96,7 +96,7 @@ export default function PublicOrderPage() {
 
         <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
           <CardHeader><CardTitle className="text-lg">Información del pedido</CardTitle></CardHeader>
-          <CardContent className="space-y-3 text-sm"><InfoRow label="Folio" value={data.reference || "—"} /><InfoRow label="Fecha" value={formatDateTime(data.created_at, undefined, locale)} /><InfoRow label="Canal" value={data.sales_channel || "—"} /><InfoRow label="Sucursal" value={data.branch?.name || "—"} />{data.valid_until ? <InfoRow label="Vigencia" value={formatDateTime(data.valid_until, undefined, locale)} /> : null}</CardContent>
+          <CardContent className="space-y-3 text-sm"><InfoRow label="Folio" value={data.reference || "—"} /><InfoRow label="Fecha" value={formatDateTime(data.created_at, undefined, locale)} /><InfoRow label="Condición de pago" value={data.payment_condition === 'CREDIT' ? `Crédito a ${data.credit_days} días desde la venta` : 'Al contado'} /><InfoRow label="Canal" value={data.sales_channel || "—"} /><InfoRow label="Sucursal" value={data.branch?.name || "—"} />{data.valid_until ? <InfoRow label="Vigencia" value={formatDateTime(data.valid_until, undefined, locale)} /> : null}</CardContent>
         </Card>
       </div>
 

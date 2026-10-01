@@ -57,6 +57,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 import { ImportFileStep } from '@/components/shared/ImportFileStep'
 import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportDecisions, type ImportDecisions } from '@/components/shared/useImportDecisions'
 import { useImportStream } from '@/components/shared/useImportStream'
 import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
 import { validateImportFile } from '@/components/shared/importFile.mjs'
@@ -104,6 +105,7 @@ export default function CatalogImportPage() {
     const [errorMessage, setErrorMessage] = useState('')
     const [importResult, setImportResult] = useState<{ created: number; skipped?: number } | null>(null)
     const importStream = useImportStream()
+    const decisions = useImportDecisions(workbook, selectedSheet, columnMappings, useFirstRowAsHeader)
 
     // Testing/Validation state
     const [isTesting, setIsTesting] = useState(false)
@@ -166,7 +168,7 @@ export default function CatalogImportPage() {
         const problem = validateImportFile(selectedFile)
         if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
         try {
-                const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array' })
+                const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array', codepage: /\.csv$/i.test(selectedFile.name) ? 65001 : undefined })
                 if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
                 setWorkbook(wb)
                 setStep('mapping')
@@ -184,7 +186,7 @@ export default function CatalogImportPage() {
         }
     }
 
-    const handleTest = async () => {
+    const handleTest = async (importOptions: ImportDecisions = decisions.options) => {
         if (!workbook || !selectedSheet || !catalogType) return
 
         setIsTesting(true)
@@ -217,7 +219,7 @@ export default function CatalogImportPage() {
             const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ items: mappedData })
+                body: JSON.stringify({ items: mappedData, importOptions })
             })
 
             const result = await response.json()
@@ -230,7 +232,7 @@ export default function CatalogImportPage() {
                         if (error.includes('nombre')) fieldErrors.name = [...(fieldErrors.name || []), error]
                         else fieldErrors._general = [...(fieldErrors._general || []), error]
                     })
-                    return { rowIndex: row.rowIndex, errors: row.errors, fieldErrors }
+                    return { ...row, fieldErrors }
                 })
                 setValidationErrors(processed)
                 setValidRowCount(result.totals.valid)
@@ -284,7 +286,7 @@ export default function CatalogImportPage() {
             const endpoint = catalogType === 'categories'
                 ? `${getApiBaseUrl()}/catalogs/product-categories/bulk-import-mapped-stream`
                 : `${getApiBaseUrl()}/catalogs/payment-terms/bulk-import-mapped-stream`
-            const result = await importStream.start<{ created: number; skipped?: number }>(endpoint, { items: mappedData })
+            const result = await importStream.start<{ created: number; skipped?: number }>(endpoint, { items: mappedData, importOptions: decisions.options })
             setImportResult(result)
             setStep('success')
             const itemName = catalogType === 'categories' ? 'categorías' : 'términos de pago'
@@ -353,7 +355,8 @@ export default function CatalogImportPage() {
         fields={SYSTEM_FIELDS} mappings={columnMappings}
         onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]) }}
         rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
-        firstErrorIndex={1} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors}
+        firstErrorIndex={1} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={decisions.options.skipRowIndexes}
+        onResolveRow={(row, action) => decisions.resolve(row, action, handleTest)}
         onValidate={() => void handleTest()} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
         progress={importStream.progress} onCancel={importStream.cancel}
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
@@ -449,7 +452,7 @@ export default function CatalogImportPage() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={handleTest}
+                                    onClick={() => void handleTest()}
                                     disabled={!requiredFieldsMapped || isTesting}
                                 >
                                     {isTesting ? (

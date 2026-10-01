@@ -14,3 +14,11 @@ export function readImportErrors(data) {
     ? data.invalidRows.filter((row) => Number.isInteger(row?.rowIndex) && Array.isArray(row?.errors))
     : []
 }
+
+export function resolveImportRows(options, rowIndexes, action) {
+  const indexes = Array.isArray(rowIndexes) ? rowIndexes : [rowIndexes]
+  return {
+    skipRowIndexes: action === 'skip' ? [...new Set([...options.skipRowIndexes, ...indexes])] : options.skipRowIndexes.filter(index => !indexes.includes(index)),
+    allowSimilarRowIndexes: action === 'allow' ? [...new Set([...options.allowSimilarRowIndexes, ...indexes])] : options.allowSimilarRowIndexes.filter(index => !indexes.includes(index)),
+  }
+}

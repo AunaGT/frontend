@@ -37,6 +37,7 @@ import { useToast } from '@/hooks/use-toast'
 import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 import { ImportFileStep } from '@/components/shared/ImportFileStep'
 import { ImportWorkbench } from '@/components/shared/ImportWorkbench'
+import { useImportDecisions, type ImportDecisions } from '@/components/shared/useImportDecisions'
 import { useImportStream } from '@/components/shared/useImportStream'
 import { assignImportField, readImportErrors } from '@/components/shared/importRowFeedback.mjs'
 import { validateImportFile } from '@/components/shared/importFile.mjs'
@@ -108,11 +109,13 @@ export default function AccountingImportPage() {
   const [errorMessage, setErrorMessage] = useState('')
   const [importResult, setImportResult] = useState<{ created: number; skipped?: number; message?: string } | null>(null)
   const importStream = useImportStream()
+  const decisions = useImportDecisions(workbook, selectedSheet, columnMappings, useFirstRowAsHeader)
 
   const [isTesting, setIsTesting] = useState(false)
   const [hasTestedOnce, setHasTestedOnce] = useState(false)
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
   const [validRowCount, setValidRowCount] = useState(0)
+  const [automaticSkippedRowIndexes, setAutomaticSkippedRowIndexes] = useState<number[]>([])
 
   // Parsear hoja seleccionada y automapear columnas por palabras clave
   useEffect(() => {
@@ -156,7 +159,7 @@ export default function AccountingImportPage() {
     const problem = validateImportFile(selectedFile)
     if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
     try {
-        const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array' })
+        const wb = XLSX.read(await selectedFile.arrayBuffer(), { type: 'array', codepage: /\.csv$/i.test(selectedFile.name) ? 65001 : undefined })
         if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
         setWorkbook(wb)
         setStep('mapping')
@@ -188,28 +191,29 @@ export default function AccountingImportPage() {
     })
   }
 
-  const postJson = async (path: string, items: Record<string, unknown>[]) => {
+  const postJson = async (path: string, items: Record<string, unknown>[], importOptions: ImportDecisions) => {
     const response = await fetch(`${baseEndpoint}${path}`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${localStorage.getItem('auth:token')}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, importOptions }),
     })
     const result = await response.json()
     return { ok: response.ok, result }
   }
 
-  const handleTest = async () => {
+  const handleTest = async (importOptions: ImportDecisions = decisions.options) => {
     setIsTesting(true)
     setStep('mapping')
     setErrorMessage('')
     try {
       const items = mappedItems()
-      const { ok, result } = await postJson('/validate-import', items)
+      const { ok, result } = await postJson('/validate-import', items, importOptions)
       if (!ok) throw new Error(result.message || 'Error al validar')
       setValidRowCount(result.totals.valid)
+      setAutomaticSkippedRowIndexes((result.skippedRows || []).map((row: { rowIndex: number }) => row.rowIndex).filter((index: number) => !importOptions.skipRowIndexes.includes(index)))
       setValidationErrors(result.invalidRows ?? [])
       if (result.totals.invalid > 0) {
         toast({ title: 'Validación completada', description: `${result.totals.invalid} filas con errores`, variant: 'destructive' })
@@ -233,7 +237,7 @@ export default function AccountingImportPage() {
     setErrorMessage('')
     try {
       const items = mappedItems()
-      const result = await importStream.start<{ created: number; skipped?: number; message?: string }>(`${baseEndpoint}/bulk-import-stream`, { items })
+      const result = await importStream.start<{ created: number; skipped?: number; message?: string }>(`${baseEndpoint}/bulk-import-stream`, { items, importOptions: decisions.options })
       setImportResult(result)
       setStep('success')
     } catch (err) {
@@ -272,8 +276,10 @@ export default function AccountingImportPage() {
     fields={fields} mappings={columnMappings}
     onMappingChange={(field, column) => { setColumnMappings(previous => assignImportField(previous, field, column)); setHasTestedOnce(false); setValidationErrors([]) }}
     rows={workbook && selectedSheet ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets[selectedSheet], { header: useFirstRowAsHeader ? undefined : 1, defval: '' }) : []}
-    firstErrorIndex={0} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors}
+    firstErrorIndex={0} validated={hasTestedOnce} validCount={validRowCount} errors={validationErrors} skippedRowIndexes={decisions.options.skipRowIndexes} automaticSkippedRowIndexes={automaticSkippedRowIndexes}
+        onResolveRow={(row, action) => decisions.resolve(importType === 'journal' ? mappedItems().flatMap((item, index, items) => String(item.reference ?? '').trim() && String(item.reference).trim() === String(items[row]?.reference ?? '').trim() ? [index] : index === row ? [row] : []) : row, action, handleTest)}
     onValidate={() => void handleTest()} onImport={() => void handleImport()} busy={isTesting || step === 'importing'}
+    resolutionActions={importType === 'journal' ? <p className="auna-import-note">Omitir o restaurar una línea afecta todas las líneas de su asiento. “Crear igualmente” confirma los movimientos repetidos, sin saltarse el cuadre ni los demás errores.</p> : undefined}
     progress={importStream.progress} onCancel={importStream.cancel}
     result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
   />
@@ -355,7 +361,7 @@ export default function AccountingImportPage() {
                 >
                   <Upload className="h-4 w-4 mr-2" />Importar
                 </Button>
-                <Button variant="outline" size="sm" onClick={handleTest} disabled={!requiredFieldsMapped || isTesting}>
+                <Button variant="outline" size="sm" onClick={() => void handleTest()} disabled={!requiredFieldsMapped || isTesting}>
                   {isTesting ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Probando...</>) : 'Probar'}
                 </Button>
                 <Button variant="outline" size="sm" asChild>

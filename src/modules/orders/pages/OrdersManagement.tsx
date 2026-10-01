@@ -1,5 +1,5 @@
 import { useDeferredValue, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
   CalendarDays,
@@ -33,7 +33,6 @@ import { fetchSuppliers } from '@/services/supplierService'
 import { fetchOrderById, fetchOrders, num, type Order } from '@/services/orderService'
 import { commercialDocSearchHint, isCommercialDocSearchReady } from '@/modules/quotes'
 import { DeliveryBadge, OrderStatusBadge, PreparationBadge } from '../components/OrderStatusBadge'
-import { OrderCreateDialog } from '../components/OrderCreateDialog'
 import { orderPaginationItems, orderVisualState } from '../ordersViewModel'
 
 type Filters = {
@@ -76,7 +75,6 @@ function Pagination({ current, totalPages, totalItems, pageSize, count, onChange
 
 export default function OrdersManagement() {
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
@@ -87,7 +85,6 @@ export default function OrdersManagement() {
   const deferredSearch = useDeferredValue(filters.search.trim())
   const [sort, setSort] = useState<'created_desc' | 'created_asc' | 'total_desc' | 'total_asc'>('created_desc')
   const [page, setPage] = useState(1)
-  const [createOpen, setCreateOpen] = useState(false)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
   const pageSize = 10
@@ -156,7 +153,7 @@ export default function OrdersManagement() {
     <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
       <header className="auna-module-heading">
         <div><p className="auna-module-eyebrow">Ventas</p><h1>Pedidos</h1><p className="auna-module-description">Gestiona y da seguimiento a todos tus pedidos.</p></div>
-        {canCreate ? <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-5 w-5" />Nuevo pedido</Button> : null}
+        {canCreate ? <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => navigate('/pedidos/nuevo')}><Plus className="mr-2 h-5 w-5" />Nuevo pedido</Button> : null}
       </header>
 
       <section className="grid grid-cols-3 gap-3 min-[650px]:hidden">
@@ -191,7 +188,6 @@ export default function OrdersManagement() {
       </section>
     </div>
     <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar pedidos" summary={`Se exportan los ${orders.length} pedidos de la página ${currentPage}; los filtros activos ya están aplicados.`} columns={ORDER_EXPORT_COLUMNS} formats={['csv']} fileName="pedidos" onExport={({ columns, fileName }) => downloadCsv(columns ?? ORDER_EXPORT_COLUMNS.map(column => column.id), fileName)} />
-    <OrderCreateDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={(order) => { void queryClient.invalidateQueries({ queryKey: ['orders'] }); navigate(`/pedidos/${order.id}`) }} />
   </div>
 }
 

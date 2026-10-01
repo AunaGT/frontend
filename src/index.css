@@ -166,6 +166,16 @@ header.auna-module-heading {
   justify-content: space-between;
   gap: 16px 24px;
 }
+
+/* Cotizaciones reutiliza el lienzo, tarjetas y controles de las vistas migradas. */
+.quotes-page :is([class*="bg-card"], .auna-data-table-shell) { border-radius: 1rem; }
+.quotes-page :is(input, [role="combobox"], textarea) { border-radius: .75rem; }
+.quotes-page :is(input, [role="combobox"]) { min-height: 44px; }
+.quotes-page input:disabled { opacity: .7; }
+.dark .quotes-page { --background: var(--brand-navy); }
+.receivables-page :is(input, [role="combobox"], textarea) { border-radius: .75rem; }
+.receivables-page :is(input, [role="combobox"]) { min-height: 44px; }
+.dark .receivables-page { --background: var(--brand-navy); }
 header.auna-module-heading > div:first-child { min-width: 0; }
 header.auna-module-heading .auna-module-eyebrow {
   margin: 0 0 4px;

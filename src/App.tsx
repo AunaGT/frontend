@@ -57,6 +57,7 @@ import {
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
 const OrdersManagement = ordersModule.pages.Management;
+const NewOrderPage = ordersModule.pages.Create;
 const OrderDetailPage = ordersModule.pages.Detail;
 const PublicOrderPage = ordersModule.pages.Public;
 const InventoryCountListPage = inventoryCountModule.pages.Management;
@@ -216,6 +217,14 @@ const App = () => (
                   element={
                     <PermissionRoute any={["orders.view", "orders.create"]}>
                       <OrdersManagement />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path={ordersModule.paths.create}
+                  element={
+                    <PermissionRoute any={["orders.create"]}>
+                      <NewOrderPage />
                     </PermissionRoute>
                   }
                 />

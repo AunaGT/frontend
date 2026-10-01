@@ -23,6 +23,9 @@ export interface NewSaleDraft {
   salesChannel?: 'POS' | 'WHOLESALE' | 'ONLINE'
   paymentMethodId: number | null
   amountReceived: string
+  creditDueDate?: string
+  initialCreditPayment?: string
+  initialCreditMethod?: string
   lines: NewSaleDraftLine[]
   adminAuthorizedProductIds: string[]
   promotionCodes: string[]

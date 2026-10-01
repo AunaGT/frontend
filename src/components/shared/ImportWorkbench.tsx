@@ -8,14 +8,15 @@ import { ImportWizardSteps } from './ImportWizardSteps'
 import { ImportProgress, type ImportProgressEvent } from './ImportProgress'
 import { ImportSummary, type ImportSummaryResult } from './ImportSummary'
 import { feedbackForRow } from './importRowFeedback.mjs'
+import { ImportRowActions, type ImportRowIssue } from './useImportDecisions'
 import { validateImportFile } from './importFile.mjs'
 import './dataTransfer.css'
 
 type Field = { id: string; label: string; required: boolean }
 type Mapping = { excelColumn: string; systemField: string | null }
-type RowError = { rowIndex: number; errors: string[] }
+type RowError = ImportRowIssue
 
-export function ImportWorkbench({ title, description, back, backLabel, templatePath, templateName, file, onFile, sheetNames, selectedSheet, onSheetChange, useFirstRowAsHeader = true, onHeaderChange, fields, mappings, onMappingChange, rows, firstErrorIndex, validated, validCount, errors, skippedRowIndexes = [], onValidate, onImport, busy = false, progress, onCancel, result, errorMessage, options, resolutionActions }: {
+export function ImportWorkbench({ title, description, back, backLabel, templatePath, templateName, file, onFile, sheetNames, selectedSheet, onSheetChange, useFirstRowAsHeader = true, onHeaderChange, fields, mappings, onMappingChange, rows, firstErrorIndex, validated, validCount, errors, skippedRowIndexes = [], automaticSkippedRowIndexes = [], onResolveRow, onValidate, onImport, busy = false, progress, onCancel, result, errorMessage, options, resolutionActions, rowResolutionActions }: {
   title: string
   description: string
   back: string
@@ -38,6 +39,8 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
   validCount: number
   errors: RowError[]
   skippedRowIndexes?: number[]
+  automaticSkippedRowIndexes?: number[]
+  onResolveRow?: (rowIndex: number, action: 'skip' | 'restore' | 'allow') => void
   onValidate: () => void
   onImport: () => void
   busy?: boolean
@@ -47,6 +50,7 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
   errorMessage?: string
   options?: ReactNode
   resolutionActions?: ReactNode
+  rowResolutionActions?: (rowIndex: number) => ReactNode
 }) {
   const [fileError, setFileError] = useState('')
   const [page, setPage] = useState(1)
@@ -121,10 +125,10 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
         {firstError && <p className="auna-import-error" role="alert">{firstError.errors.join(' · ')}</p>}
         {validated ? <>
           {invalid > 0 && <p ref={errorSummary} tabIndex={-1} role="alert" className="auna-import-error">{invalid} {invalid === 1 ? 'fila necesita' : 'filas necesitan'} corrección. Revisa el mensaje de cada fila en la tabla.</p>}
-          <div className="auna-import-totals"><div><strong>{validCount}</strong><span>Válidos</span></div><div><strong>{invalid}</strong><span>Con errores</span></div><div><strong>{Math.max(0, rows.length - validCount - invalid)}</strong><span>Omitidos</span></div></div>
+          <div className="auna-import-totals"><div><strong>{validCount}</strong><span>Válidos</span></div><div><strong>{invalid}</strong><span>Con errores</span></div><div><strong>{firstError ? skippedRowIndexes.length : Math.max(0, rows.length - validCount - invalid)}</strong><span>Omitidos</span></div></div>
           {resolutionActions}
           <label className="auna-import-only-errors"><input type="checkbox" checked={showErrorsOnly} onChange={(event) => { setShowErrorsOnly(event.target.checked); setPage(1) }} />Mostrar solo filas con errores</label>
-          <div className="auna-import-table-wrap"><table className="auna-import-table"><thead><tr><th>Fila</th>{previewFields.map((field) => <th key={field.id}>{field.label}</th>)}<th>Validación</th></tr></thead><tbody>{visible.map(({ row, index }) => { const rowErrors = feedbackForRow(errors, index, firstErrorIndex); const skipped = skippedRowIndexes.includes(index + firstErrorIndex); return <tr key={index}><td>{index + (useFirstRowAsHeader ? 2 : 1)}</td>{previewFields.map((field) => <td key={field.id}>{String(row[selected[field.id]] ?? '') || '—'}</td>)}<td className={rowErrors.length ? 'auna-import-invalid' : skipped ? '' : 'auna-import-valid'}>{rowErrors.length ? rowErrors.join(' · ') : skipped ? 'Omitido por decisión del usuario' : 'Válido'}</td></tr> })}</tbody></table></div>
+          <div className="auna-import-table-wrap"><table className="auna-import-table"><thead><tr><th>Fila</th>{previewFields.map((field) => <th key={field.id}>{field.label}</th>)}<th>Validación</th></tr></thead><tbody>{visible.map(({ row, index }) => { const rowErrors = feedbackForRow(errors, index, firstErrorIndex); const skipped = skippedRowIndexes.includes(index + firstErrorIndex) || automaticSkippedRowIndexes.includes(index + firstErrorIndex); return <tr key={index}><td>{index + (useFirstRowAsHeader ? 2 : 1)}</td>{previewFields.map((field) => <td key={field.id}>{String(row[selected[field.id]] ?? '') || '—'}</td>)}<td className={firstError ? '' : rowErrors.length ? 'auna-import-invalid' : skipped ? '' : 'auna-import-valid'}>{firstError ? 'Pendiente de validación' : rowErrors.length ? rowErrors.join(' · ') : skipped ? automaticSkippedRowIndexes.includes(index + firstErrorIndex) ? 'Omitido: el código ya existe' : 'Omitido por decisión del usuario' : 'Válido'}{rowResolutionActions?.(index + firstErrorIndex)}{onResolveRow && !automaticSkippedRowIndexes.includes(index + firstErrorIndex) && <ImportRowActions rowIndex={index + firstErrorIndex} displayRowIndex={index + (useFirstRowAsHeader ? 2 : 1)} issue={errors.find(error => error.rowIndex === index + firstErrorIndex)} skipped={skipped} disabled={busy || Boolean(firstError)} onResolve={onResolveRow} />}</td></tr> })}</tbody></table></div>
           <footer className="auna-import-pagination"><span>Mostrando {visible.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, filtered.length)} de {filtered.length}</span><nav aria-label="Paginación"><Button type="button" size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button>{pages.map((number, index) => <span key={number} className="auna-import-page-number">{index > 0 && number - pages[index - 1] > 1 && <span aria-hidden="true">…</span>}<Button type="button" size="icon" variant={number === currentPage ? 'default' : 'outline'} aria-label={`Página ${number}`} aria-current={number === currentPage ? 'page' : undefined} onClick={() => setPage(number)}>{number}</Button></span>)}<Button type="button" size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></nav></footer>
         </> : <p className="auna-import-note">Valida el archivo para revisar cada fila antes de guardar datos.</p>}
       </div>
