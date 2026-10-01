@@ -36,7 +36,10 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
-import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
+import { CatalogFilters } from './CatalogFilters'
+import { CatalogRowActions } from './CatalogRowActions'
+import { useCatalogSearch } from './useCatalogSearch'
 import { Pagination } from '@/components/shared/Pagination'
 import {
   usePaymentMethodsCatalog,
@@ -47,7 +50,7 @@ import {
   catalogApiErrorMessage,
   type PaymentMethodCatalog,
 } from '@/hooks/usePaymentMethodsCatalog'
-import { Pencil, Trash2, Plus, Loader2 } from 'lucide-react'
+import { Plus, Loader2 } from 'lucide-react'
 
 type MethodDialogState = {
   open: boolean
@@ -65,9 +68,13 @@ export function PaymentMethodsTab() {
     { defaultPage: 1, defaultPageSize: 10 }
   )
 
-  const { data, isLoading } = usePaymentMethodsCatalog({
+  const { search, setSearch, query } = useCatalogSearch()
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  useResetPageOnFilterChange(setCurrentPage, [query, order])
+  const { data, isLoading, error } = usePaymentMethodsCatalog({
     page: currentPage,
     pageSize,
+    search: query, order,
   })
   const items = data?.items ?? []
 
@@ -95,7 +102,7 @@ export function PaymentMethodsTab() {
 
   return (
     <>
-      <Card>
+      <Card className="auna-data-table-shell">
         <CardHeader className="p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
             <div>
@@ -108,16 +115,17 @@ export function PaymentMethodsTab() {
               <Button
                 size="sm"
                 onClick={() => setDialog({ open: true, mode: 'create' })}
-                className="text-xs sm:text-sm shrink-0 self-start sm:self-auto"
+                className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong shrink-0 self-start sm:self-auto"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
-                <span className="hidden sm:inline">Nuevo</span>
+                <span>Nuevo método</span>
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
+        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+        <CardContent className="catalog-content">
+          {error ? <p role="alert" className="p-6 text-destructive">{catalogApiErrorMessage(error, 'No se pudieron cargar los métodos de pago')}</p> : isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin" />
             </div>
@@ -151,38 +159,16 @@ export function PaymentMethodsTab() {
                         <TableCell>{usage.sales}</TableCell>
                         <TableCell>{usage.closures}</TableCell>
                         <TableCell>
-                          <Badge variant="default">Activo</Badge>
+                          <Badge className="catalog-status">Activo</Badge>
                         </TableCell>
                         <TableCell className="text-right">
                           {canManageCatalogs && (
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() =>
-                                  setDialog({ open: true, mode: 'edit', item: method })
-                                }
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                title={
-                                  inUse
-                                    ? 'No se puede eliminar: tiene ventas o cierres registrados'
-                                    : 'Eliminar'
-                                }
-                                onClick={() => setDeleteTarget(method)}
-                                disabled={inUse || deleteMutation.isPending}
-                              >
-                                {deleteMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </div>
+                            <CatalogRowActions
+                              onEdit={() => setDialog({ open: true, mode: 'edit', item: method })}
+                              onDelete={() => setDeleteTarget(method)}
+                              deleteDisabled={inUse}
+                              disabled={deleteMutation.isPending}
+                            />
                           )}
                         </TableCell>
                       </TableRow>
@@ -201,6 +187,10 @@ export function PaymentMethodsTab() {
                 hasNextPage={data.nextPage !== null}
                 hasPrevPage={data.prevPage !== null}
                 loading={isLoading}
+                totalItems={data.totalItems}
+                pageSize={pageSize}
+                count={items.length}
+                itemLabel="métodos de pago"
               />
             </div>
           )}

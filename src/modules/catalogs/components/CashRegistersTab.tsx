@@ -4,7 +4,10 @@
  * La asignación de caja a un usuario se hace desde la ficha del usuario.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { CatalogFilters } from './CatalogFilters'
+import { useCatalogSearch } from './useCatalogSearch'
+import { Pagination } from '@/components/shared/Pagination'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -55,11 +58,23 @@ export function CashRegistersTab() {
   const canManage = hasPermission('settings.manage')
   const { branch } = useTenant()
   const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  const [status, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  useEffect(() => { setPage(1) }, [search, order, status, branch?.id])
 
-  const { data: registers = [], isLoading } = useQuery({
-    queryKey: REGISTERS_QUERY_KEY,
+  const { data: registers = [], isLoading, error: registersError } = useQuery({
+    queryKey: [...REGISTERS_QUERY_KEY, branch?.id],
     queryFn: () => listCashRegisters(true),
   })
+  const filteredRegisters = registers.filter(reg =>
+    `${reg.name} ${reg.code}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) &&
+    (status === 'all' || reg.active === (status === 'active'))
+  ).sort((a, b) => a.name.localeCompare(b.name, 'es') * (order === 'asc' ? 1 : -1))
+  const totalPages = Math.max(1, Math.ceil(filteredRegisters.length / 10))
+  const safePage = Math.min(page, totalPages)
+  const visibleRegisters = filteredRegisters.slice((safePage - 1) * 10, safePage * 10)
 
   const [dialog, setDialog] = useState<RegisterDialogState>({ open: false, mode: 'create' })
   const [formName, setFormName] = useState('')
@@ -69,18 +84,21 @@ export function CashRegistersTab() {
   // Diálogo de asignación de usuarios a una caja
   const [assignTarget, setAssignTarget] = useState<CashRegisterDto | null>(null)
   const [assignSelected, setAssignSelected] = useState<Set<string>>(new Set())
-  const [assignSearch, setAssignSearch] = useState('')
+  const { search: assignSearch, setSearch: setAssignSearch, query: assignQuery } = useCatalogSearch()
+  const [assignPage, setAssignPage] = useState(1)
+  useEffect(() => { setAssignPage(1) }, [assignQuery])
   const [assignSaving, setAssignSaving] = useState(false)
 
-  const { data: usersData, isLoading: isLoadingUsers } = useQuery({
-    queryKey: ['users', 'for-register-assign'],
-    queryFn: () => getUsers({ page: 1, pageSize: 100 }),
+  const { data: usersData, isLoading: isLoadingUsers, error: usersError } = useQuery({
+    queryKey: ['users', 'for-register-assign', assignTarget?.branch?.id, assignQuery, assignPage],
+    queryFn: () => getUsers({ page: assignPage, pageSize: 20, search: assignQuery, branch_id: assignTarget?.branch?.id }),
     enabled: assignTarget != null,
   })
   const allUsers: User[] = usersData?.items ?? []
 
   const openAssign = (reg: CashRegisterDto) => {
     setAssignSearch('')
+    setAssignPage(1)
     setAssignSelected(new Set((reg.assigned_users ?? []).map((u) => u.id)))
     setAssignTarget(reg)
   }
@@ -117,11 +135,7 @@ export function CashRegistersTab() {
     }
   }
 
-  const filteredUsers = assignSearch.trim()
-    ? allUsers.filter((u) =>
-        `${u.name} ${u.email}`.toLowerCase().includes(assignSearch.trim().toLowerCase())
-      )
-    : allUsers
+  const filteredUsers = allUsers
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['cash-registers'] })
@@ -204,33 +218,33 @@ export function CashRegistersTab() {
 
   return (
     <>
-      <Card>
+      <Card className="auna-data-table-shell">
         <CardHeader className="p-3 sm:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
             <div>
               <CardTitle className="text-base sm:text-lg">Cajas registradoras</CardTitle>
               <CardDescription className="text-xs sm:text-sm">
-                Cajas de {branch?.name ?? 'la sucursal activa'}. Cada caja pertenece a una
-                sucursal: para crear una en otra, cámbiate de sucursal en el selector de arriba.
-                Cada usuario puede tener una caja asignada (se configura en la ficha del usuario);
-                si no tiene, usa la predeterminada de su sucursal.
+                Gestiona las cajas y sus usuarios en {branch?.name ?? 'la sucursal activa'}.
+                Cambia de sucursal en el selector superior para administrar otra sede.
               </CardDescription>
             </div>
             {canManage && (
-              <Button onClick={openCreate} size="sm" className="w-full sm:w-auto">
+              <Button onClick={openCreate} size="sm" className="h-11 bg-brand-orange text-white hover:bg-brand-orange-strong w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva caja
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
-          {isLoading ? (
+        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+        <div className="px-6 pb-4"><select aria-label="Estado de las cajas" value={status} onChange={e => setStatus(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-sm"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></div>
+        <CardContent className="catalog-content">
+          {registersError ? <p role="alert" className="p-6 text-destructive">{registersError.message}</p> : isLoading ? (
             <div className="flex items-center justify-center py-8 text-muted-foreground">
               <Loader2 className="w-5 h-5 animate-spin mr-2" />
               Cargando cajas...
             </div>
-          ) : registers.length === 0 ? (
+          ) : visibleRegisters.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No hay cajas registradas
             </div>
@@ -248,7 +262,7 @@ export function CashRegistersTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {registers.map((reg) => (
+                  {visibleRegisters.map((reg) => (
                     <TableRow key={reg.id} className={!reg.active ? 'opacity-60' : undefined}>
                       <TableCell className="font-medium">
                         <span className="inline-flex items-center gap-1.5">
@@ -271,7 +285,7 @@ export function CashRegistersTab() {
                         {reg.branch?.name ?? '—'}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={reg.active ? 'default' : 'secondary'}>
+                        <Badge className={reg.active ? 'catalog-status' : undefined} variant={reg.active ? 'default' : 'secondary'}>
                           {reg.active ? 'Activa' : 'Inactiva'}
                         </Badge>
                       </TableCell>
@@ -340,6 +354,7 @@ export function CashRegistersTab() {
             </div>
           )}
         </CardContent>
+        {!registersError && !isLoading && <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={filteredRegisters.length} pageSize={10} count={visibleRegisters.length} itemLabel="cajas" />}
       </Card>
 
       <Dialog
@@ -417,7 +432,7 @@ export function CashRegistersTab() {
               />
             </div>
             <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
-              {isLoadingUsers ? (
+              {usersError ? <p role="alert" className="p-4 text-destructive">{usersError.message}</p> : isLoadingUsers ? (
                 <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
                   <Loader2 className="w-4 h-4 animate-spin mr-2" />
                   Cargando usuarios...
@@ -459,6 +474,7 @@ export function CashRegistersTab() {
                 })
               )}
             </div>
+            {usersData && <Pagination currentPage={usersData.page} totalPages={usersData.totalPages} onPageChange={setAssignPage} totalItems={usersData.totalItems} pageSize={20} count={allUsers.length} itemLabel="usuarios" loading={isLoadingUsers} />}
             <p className="text-xs text-muted-foreground">
               {assignSelected.size} usuario{assignSelected.size === 1 ? '' : 's'} seleccionado
               {assignSelected.size === 1 ? '' : 's'}
@@ -468,7 +484,7 @@ export function CashRegistersTab() {
             <Button variant="outline" onClick={() => setAssignTarget(null)} disabled={assignSaving}>
               Cancelar
             </Button>
-            <Button onClick={handleAssignSave} disabled={assignSaving || isLoadingUsers}>
+            <Button onClick={handleAssignSave} disabled={assignSaving || isLoadingUsers || !!usersError}>
               {assignSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Guardar asignación
             </Button>

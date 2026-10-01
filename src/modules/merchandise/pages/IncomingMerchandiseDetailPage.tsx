@@ -18,6 +18,11 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import '../merchandise.css'
+import { PaymentStatusBadge } from '../components/PaymentStatusBadge'
+import { Pagination } from '@/components/shared/Pagination'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -79,6 +84,9 @@ export default function IncomingMerchandiseDetailPage() {
   /** Solo el permiso dedicado permite tocar pagos/abonos: ver detalles NO implica poder abonar. */
   const canEditPayment = hasPermission('merchandise.mark_paid')
 
+  const [itemsPage, setItemsPage] = useState(1)
+  const [removeEntryId, setRemoveEntryId] = useState<string | null>(null)
+  useEffect(() => { setItemsPage(1); setRemoveEntryId(null) }, [id])
   const [editPaymentStatus, setEditPaymentStatus] = useState<MerchandisePaymentStatus>('PENDING')
   const [editPaymentTermId, setEditPaymentTermId] = useState('')
   const [editPaidAtLocal, setEditPaidAtLocal] = useState('')
@@ -109,6 +117,8 @@ export default function IncomingMerchandiseDetailPage() {
     [supplierDetailRaw]
   )
   const paymentTermsForEdit = supplierDetailForEdit?.paymentTermsList ?? []
+  const loadedReceiptId = detailData?.id
+  const loadedPaymentStatus = detailData?.payment_status
 
   useEffect(() => {
     if (!detailData) return
@@ -120,10 +130,10 @@ export default function IncomingMerchandiseDetailPage() {
   }, [detailData])
 
   useEffect(() => {
-    if (!detailData) return
-    const paid = (detailData.payment_status ?? 'PENDING') === 'PAID'
+    if (!loadedReceiptId) return
+    const paid = (loadedPaymentStatus ?? 'PENDING') === 'PAID'
     setPaymentFieldsUnlocked(!paid)
-  }, [detailData?.id, detailData?.payment_status])
+  }, [loadedReceiptId, loadedPaymentStatus])
 
   useEffect(() => {
     if (editPaymentStatus === 'PAID' && !editPaidAtLocal) {
@@ -136,13 +146,13 @@ export default function IncomingMerchandiseDetailPage() {
   }, [editPaymentStatus, editPaidAtLocal])
 
   useEffect(() => {
-    if (!detailData) return
+    if (!loadedReceiptId) return
     const d = new Date()
     const pad = (n: number) => String(n).padStart(2, '0')
     setAbonoPaidAt(
       `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
     )
-  }, [detailData?.id])
+  }, [loadedReceiptId])
 
   const loc = locale || 'es-GT'
   const formatCurrency = (value: number) => {
@@ -271,7 +281,6 @@ export default function IncomingMerchandiseDetailPage() {
 
   const handleDeleteAbono = async (entryId: string) => {
     if (!detailData || !canEditPayment) return
-    if (!window.confirm('¿Eliminar este abono del historial?')) return
     try {
       await deleteAbonoMutation.mutateAsync({ id: detailData.id, entryId })
       toast({ title: 'Abono eliminado', description: 'El estado se recalculó según los abonos restantes.' })
@@ -353,66 +362,28 @@ export default function IncomingMerchandiseDetailPage() {
   /** Un solo CTA primario (ámbar): abono mientras haya saldo e historial de abonos; si no, guardar condiciones/pago. */
   const abonoIsPrimaryCta = hasAbonosDetail && amountPending > 0.004
 
-  return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in w-full min-w-0">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-        <div className="flex items-center gap-3 min-w-0">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="shrink-0"
-            onClick={() => navigate('/mercancia')}
-            aria-label="Volver"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-bold text-foreground truncate">
-              Detalle del registro
-            </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Ingreso de mercancía · {formatDateShort(detailData.date)}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-muted-foreground">Proveedor</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <Building2 className="w-4 h-4" />
-              <span className="font-medium">{detailData.supplier.name}</span>
-            </div>
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Fecha</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <Calendar className="w-4 h-4" />
-              <span>{formatDate(detailData.date)}</span>
-            </div>
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Registrado por</Label>
-            <div className="flex items-center gap-2 mt-1">
-              <User className="w-4 h-4" />
-              <span>{detailData.registeredBy.name}</span>
-            </div>
-          </div>
-          <div>
-            <Label className="text-muted-foreground">Total</Label>
-            <div className="mt-1">
-              <span className="text-2xl font-bold text-primary">
-                {formatCurrency(detailData.totalValue)}
-              </span>
-            </div>
-          </div>
-        </div>
-
+  const visibleItems = detailData.items.slice((itemsPage - 1) * 10, itemsPage * 10)
+  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <Button variant="ghost" className="-ml-3" onClick={() => navigate('/mercancia')}><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Button>
+    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Entrada de mercadería</h1><p className="auna-module-description">Registro {detailData.id.slice(0,8).toUpperCase()} · {formatDateShort(detailData.date)}</p></div><PaymentStatusBadge status={detailData.payment_status} /></header>
+    <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="space-y-2"><p className="text-xs text-muted-foreground">Proveedor</p><p className="flex items-center gap-2 font-semibold"><Building2 className="h-4 w-4 text-brand-orange" />{detailData.supplier.name}</p><p className="text-sm text-muted-foreground">{[detailData.supplier.contact, detailData.supplier.phone, detailData.supplier.email].filter(Boolean).join(' · ')}</p></div>
+      <div className="space-y-2"><p className="text-xs text-muted-foreground">Recepción</p><p className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-brand-orange" />{formatDate(detailData.date)}</p><p className="text-sm text-muted-foreground">{detailData.items.length} productos recibidos</p></div>
+      <div className="space-y-2"><p className="text-xs text-muted-foreground">Registrado por</p><p className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-brand-orange" />{detailData.registeredBy.name}</p><p className="text-sm text-muted-foreground">{detailData.registeredBy.email}</p></div>
+    </CardContent></Card>
+    <Tabs defaultValue="items"><TabsList><TabsTrigger value="items">Partidas ({detailData.items.length})</TabsTrigger><TabsTrigger value="payments">Pagos y condiciones</TabsTrigger></TabsList>
+      <TabsContent value="items" className="mt-5">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0 space-y-5">
+          <section className="auna-data-table-shell"><h2 className="border-b p-4 font-semibold">Productos recibidos</h2><div className="overflow-x-auto"><table className="w-full min-w-[660px]"><thead><tr><th>Producto</th><th>Código</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>{visibleItems.map(item => <tr key={item.id}><td><div className="flex items-center gap-3">{item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} loading="lazy" className="h-11 w-11 shrink-0 rounded-lg border object-cover" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<div><strong className="font-medium">{item.product.name}</strong><small className="block text-muted-foreground">{[item.product.brand,item.product.size].filter(Boolean).join(' · ')}</small></div></div></td><td>{item.product.barcode || '—'}</td><td>{item.quantity}</td><td className="whitespace-nowrap">{formatCurrency(item.unit_cost)}</td><td className="whitespace-nowrap font-medium">{formatCurrency(item.subtotal)}</td></tr>)}</tbody></table></div><Pagination currentPage={itemsPage} totalPages={Math.max(1, Math.ceil(detailData.items.length / 10))} onPageChange={setItemsPage} totalItems={detailData.items.length} pageSize={10} count={visibleItems.length} itemLabel="productos" /></section>
+          {detailData.notes && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Observaciones</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm">{detailData.notes}</p></CardContent></Card>}
+        </div><aside className="space-y-5">
+          <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen de costos</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><span>{detailData.items.length}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades recibidas</span><span>{detailData.items.reduce((sum,item)=>sum+Number(item.quantity),0)}</span></div><div className="flex justify-between border-t pt-4 font-bold"><span>Total</span><span className="text-brand-orange">{formatCurrency(detailData.totalValue)}</span></div></CardContent></Card>
+          <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Pago al proveedor</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Pagado</span><span>{formatCurrency(amountPaid)}</span></div><div className="flex justify-between text-sm font-semibold"><span>Saldo pendiente</span><span>{formatCurrency(amountPending)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Porcentaje pagado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(payProgressPct)}><div className="h-full rounded-full bg-emerald-500" style={{ width: `${payProgressPct}%` }} /></div><p className="text-xs text-muted-foreground">{detailData.payment_term?.name || 'Sin término de pago'}{detailData.due_date ? ` · Vence ${formatDateShort(detailData.due_date)}` : ''}</p></CardContent></Card>
+        </aside></div>
+      </TabsContent>
+      <TabsContent value="payments" className="mt-5 space-y-5">
         {showPaymentEditForm ? (
-          <div className="space-y-4">
+          <div className="grid items-start gap-5 xl:grid-cols-2">
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Abonos al proveedor</CardTitle>
@@ -431,7 +402,7 @@ export default function IncomingMerchandiseDetailPage() {
                   </div>
                   <div className="h-2.5 bg-muted rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary transition-all rounded-full"
+                      className="h-full bg-brand-orange transition-all rounded-full"
                       style={{ width: `${payProgressPct}%` }}
                     />
                   </div>
@@ -441,7 +412,7 @@ export default function IncomingMerchandiseDetailPage() {
                   </p>
                 </div>
                 {entries.length > 0 && (
-                  <div className="border rounded-md overflow-hidden">
+                  <div className="auna-data-table-shell overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/80">
                         <tr>
@@ -467,7 +438,7 @@ export default function IncomingMerchandiseDetailPage() {
                                   size="icon"
                                   className="h-8 w-8 text-destructive"
                                   disabled={deleteAbonoMutation.isPending}
-                                  onClick={() => void handleDeleteAbono(row.id)}
+                                  onClick={() => setRemoveEntryId(row.id)}
                                   aria-label="Eliminar abono"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -481,7 +452,7 @@ export default function IncomingMerchandiseDetailPage() {
                   </div>
                 )}
                 {canEditPayment && amountPending > 0.004 && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end pt-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end pt-1">
                     <div className="space-y-1">
                       <Label htmlFor="abono-amount">Monto del abono</Label>
                       <Input
@@ -517,7 +488,7 @@ export default function IncomingMerchandiseDetailPage() {
                         variant={abonoIsPrimaryCta ? 'default' : 'outline'}
                         className={
                           abonoIsPrimaryCta
-                            ? 'bg-liquor-amber hover:bg-liquor-amber/90 text-white'
+                            ? 'bg-brand-orange hover:bg-brand-orange/90 text-white'
                             : undefined
                         }
                         disabled={postAbonoMutation.isPending}
@@ -691,7 +662,7 @@ export default function IncomingMerchandiseDetailPage() {
                   className={
                     abonoIsPrimaryCta
                       ? undefined
-                      : 'bg-liquor-amber hover:bg-liquor-amber/90 text-white'
+                      : 'bg-brand-orange hover:bg-brand-orange/90 text-white'
                   }
                   disabled={patchPaymentMutation.isPending || supplierDetailLoading}
                   onClick={() => void handleSavePayment()}
@@ -738,11 +709,11 @@ export default function IncomingMerchandiseDetailPage() {
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-primary rounded-full"
+                    className="h-full bg-brand-orange rounded-full"
                     style={{ width: `${payProgressPct}%` }}
                   />
                 </div>
-                <div className="border rounded-md overflow-hidden text-sm">
+                <div className="auna-data-table-shell overflow-x-auto text-sm">
                   <table className="w-full">
                     <thead className="bg-muted/80">
                       <tr>
@@ -819,58 +790,9 @@ export default function IncomingMerchandiseDetailPage() {
           </div>
         )}
 
-        {detailData.notes && (
-          <div>
-            <Label className="text-muted-foreground">Notas</Label>
-            <p className="mt-1 text-sm">{detailData.notes}</p>
-          </div>
-        )}
 
-        <div>
-          <Label className="text-muted-foreground mb-2 block">Productos</Label>
-          <div className="border rounded-lg overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-muted">
-                <tr>
-                  <th className="text-left p-3 font-semibold">Producto</th>
-                  <th className="text-center p-3 font-semibold">Cantidad</th>
-                  <th className="text-right p-3 font-semibold">Costo Unit.</th>
-                  <th className="text-right p-3 font-semibold">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {detailData.items.map((item) => (
-                  <tr key={item.id} className="border-t">
-                    <td className="p-3">
-                      <div>
-                        <div className="font-medium">{item.product.name}</div>
-                        {(item.product.brand || item.product.size) && (
-                          <div className="text-xs text-muted-foreground">
-                            {[item.product.brand, item.product.size].filter(Boolean).join(' - ')}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3 text-center">{item.quantity}</td>
-                    <td className="p-3 text-right">{formatCurrency(item.unit_cost)}</td>
-                    <td className="p-3 text-right font-semibold">{formatCurrency(item.subtotal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="bg-muted">
-                <tr>
-                  <td colSpan={3} className="p-3 text-right font-semibold">
-                    Total:
-                  </td>
-                  <td className="p-3 text-right font-bold text-lg">
-                    {formatCurrency(detailData.totalValue)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
+      </TabsContent>
+    </Tabs>
+    <AlertDialog open={Boolean(removeEntryId)} onOpenChange={open => { if (!open) setRemoveEntryId(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Eliminar este abono?</AlertDialogTitle><AlertDialogDescription>Se quitará del historial y se recalcularán el saldo y el estado de pago. No se modificará el inventario recibido.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={deleteAbonoMutation.isPending}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={deleteAbonoMutation.isPending} onClick={() => { if (removeEntryId) void handleDeleteAbono(removeEntryId) }}>Eliminar abono</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </div></div>
 }

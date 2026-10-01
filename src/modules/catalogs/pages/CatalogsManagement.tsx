@@ -9,7 +9,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
@@ -59,7 +59,11 @@ import {
   useRestoreProductCategory,
   ProductCategory,
 } from '@/hooks/useProductCategories'
-import { Pencil, Trash2, Plus, RotateCcw, Loader2, FileUp, ImageIcon } from 'lucide-react'
+import { Plus, Loader2, FileUp, ImageIcon, CreditCard, CalendarDays, Tags, Wallet } from 'lucide-react'
+import { CatalogFilters } from '../components/CatalogFilters'
+import { CatalogRowActions } from '../components/CatalogRowActions'
+import { useCatalogSearch } from '../components/useCatalogSearch'
+import '../catalogs.css'
 import { PaymentMethodsTab } from '../components/PaymentMethodsTab'
 import { CashRegistersTab } from '../components/CashRegistersTab'
 import { Pagination } from '@/components/shared/Pagination'
@@ -92,7 +96,10 @@ type ProductCategoryDialogState = {
 
 export function CatalogsManagement() {
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('payment-methods')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab')
+  const activeTab = ['categories', 'payment-terms', 'cash-registers', 'payment-methods'].includes(requestedTab ?? '') ? requestedTab! : 'categories'
+  const setActiveTab = (tab: string) => setSearchParams({ tab }, { replace: true })
   const [showDeleted, setShowDeleted] = useState(false)
 
   // Payment Terms Dialog State
@@ -111,28 +118,25 @@ export function CatalogsManagement() {
 
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Datos maestros</h1>
-        <p className="text-xs sm:text-sm text-muted-foreground">
-          Listas compartidas: métodos de cobro (ventas), términos con proveedores, categorías de producto y cajas del POS
+    <div className="catalogs-page space-y-6">
+      <header className="auna-module-heading"><div>
+        <p className="auna-module-eyebrow">Configuración</p>
+        <h1>Datos maestros</h1>
+        <p className="auna-module-description">
+          Administra las categorías, cajas y condiciones de pago de tu negocio.
         </p>
-      </div>
+      </div></header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-4 h-auto">
+          <TabsList className="catalogs-tabs">
+            <TabsTrigger value="categories"><Tags className="h-4 w-4" />Categorías</TabsTrigger>
+            <TabsTrigger value="cash-registers"><Wallet className="h-4 w-4" />Cajas</TabsTrigger>
             <TabsTrigger value="payment-methods" className="text-xs sm:text-sm whitespace-nowrap">
-              Métodos de pago
+              <CreditCard className="h-4 w-4" />Métodos de pago
             </TabsTrigger>
             <TabsTrigger value="payment-terms" className="text-xs sm:text-sm whitespace-nowrap">
-              Términos de pago
-            </TabsTrigger>
-            <TabsTrigger value="categories" className="text-xs sm:text-sm whitespace-nowrap">
-              Categorías
-            </TabsTrigger>
-            <TabsTrigger value="cash-registers" className="text-xs sm:text-sm whitespace-nowrap">
-              Cajas
+              <CalendarDays className="h-4 w-4" />Términos de pago
             </TabsTrigger>
           </TabsList>
         </div>
@@ -207,12 +211,15 @@ function PaymentTermsTab({
     'catalogs/payment-terms',
     { defaultPage: 1, defaultPageSize: 10 }
   )
-  useResetPageOnFilterChange(setCurrentPage, [showDeleted])
+  const { search, setSearch, query } = useCatalogSearch()
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
   
-  const { data: paymentTermsData, isLoading } = usePaymentTerms({
+  const { data: paymentTermsData, isLoading, error: termsError } = usePaymentTerms({
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
+    search: query, order,
   })
   const paymentTerms = paymentTermsData?.items || []
 
@@ -231,11 +238,11 @@ function PaymentTermsTab({
         description: 'El término de pago ha sido eliminado correctamente',
       })
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
+      const apiError = error as Error
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: apiError.response?.data?.message || 'No se pudo eliminar el término de pago',
+        description: apiError.message || 'No se pudo eliminar el término de pago',
       })
     }
   }
@@ -259,7 +266,7 @@ function PaymentTermsTab({
   }
 
   return (
-    <Card>
+    <Card className="auna-data-table-shell">
       <CardHeader className="p-3 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
           <div>
@@ -284,23 +291,24 @@ function PaymentTermsTab({
                   className="text-xs sm:text-sm"
                 >
                   <FileUp className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Importar</span>
+                  <span>Importar</span>
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setDialog({ open: true, mode: 'create' })}
-                  className="text-xs sm:text-sm"
+                  className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong"
                 >
                   <Plus className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Nuevo</span>
+                  <span>Nuevo término</span>
                 </Button>
               </>
             )}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
+      <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+      <CardContent className="catalog-content">
+        {termsError ? <p role="alert" className="p-6 text-destructive">{termsError.message}</p> : isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
@@ -336,49 +344,17 @@ function PaymentTermsTab({
                       {term.deleted ? (
                         <Badge variant="destructive">Eliminado</Badge>
                       ) : (
-                        <Badge variant="default">Activo</Badge>
+                        <Badge className="catalog-status">Activo</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       {canManageCatalogs && (
-                        <div className="flex justify-end gap-2">
-                          {term.deleted ? (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => setRestoreConfirmTerm(term)}
-                              disabled={restoreMutation.isPending}
-                            >
-                              {restoreMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <RotateCcw className="w-4 h-4" />
-                              )}
-                            </Button>
-                          ) : (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => setDialog({ open: true, mode: 'edit', item: term })}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => setDeleteConfirmTerm(term)}
-                                disabled={deleteMutation.isPending}
-                              >
-                                {deleteMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        <CatalogRowActions
+                          onEdit={term.deleted ? undefined : () => setDialog({ open: true, mode: 'edit', item: term })}
+                          onDelete={term.deleted ? undefined : () => setDeleteConfirmTerm(term)}
+                          onRestore={term.deleted ? () => setRestoreConfirmTerm(term) : undefined}
+                          disabled={deleteMutation.isPending || restoreMutation.isPending}
+                        />
                       )}
                     </TableCell>
                   </TableRow>
@@ -396,6 +372,10 @@ function PaymentTermsTab({
               hasNextPage={paymentTermsData.nextPage !== null}
               hasPrevPage={paymentTermsData.prevPage !== null}
               loading={isLoading}
+              totalItems={paymentTermsData.totalItems}
+              pageSize={pageSize}
+              count={paymentTerms.length}
+              itemLabel="términos de pago"
             />
           </div>
         )}
@@ -486,12 +466,15 @@ function ProductCategoriesTab({
     'catalogs/categories',
     { defaultPage: 1, defaultPageSize: 10 }
   )
-  useResetPageOnFilterChange(setCurrentPage, [showDeleted])
+  const { search, setSearch, query } = useCatalogSearch()
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
   
-  const { data: categoriesData, isLoading } = useProductCategories({
+  const { data: categoriesData, isLoading, error: categoriesError } = useProductCategories({
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
+    search: query, order,
   })
   const categories = categoriesData?.items || []
 
@@ -510,11 +493,11 @@ function ProductCategoriesTab({
         description: 'La categoría ha sido eliminada correctamente',
       })
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
+      const apiError = error as Error
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: apiError.response?.data?.message || 'No se pudo eliminar la categoría',
+        description: apiError.message || 'No se pudo eliminar la categoría',
       })
     }
   }
@@ -538,7 +521,7 @@ function ProductCategoriesTab({
   }
 
   return (
-    <Card>
+    <Card className="auna-data-table-shell">
       <CardHeader className="p-3 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
           <div>
@@ -563,23 +546,24 @@ function ProductCategoriesTab({
                   className="text-xs sm:text-sm"
                 >
                   <FileUp className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Importar</span>
+                  <span>Importar</span>
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => setDialog({ open: true, mode: 'create' })}
-                  className="text-xs sm:text-sm"
+                  className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong"
                 >
                   <Plus className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Nueva</span>
+                  <span>Nueva categoría</span>
                 </Button>
               </>
             )}
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {isLoading ? (
+      <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+      <CardContent className="catalog-content">
+        {categoriesError ? <p role="alert" className="p-6 text-destructive">{categoriesError.message}</p> : isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
@@ -587,9 +571,7 @@ function ProductCategoriesTab({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[72px]">Imagen</TableHead>
-                <TableHead>ID</TableHead>
-                <TableHead>Nombre</TableHead>
+                <TableHead>Categoría</TableHead>
                 <TableHead>Productos</TableHead>
                 <TableHead>Proveedores</TableHead>
                 <TableHead>Estado</TableHead>
@@ -599,7 +581,7 @@ function ProductCategoriesTab({
             <TableBody>
               {categories?.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     No hay categorías registradas
                   </TableCell>
                 </TableRow>
@@ -607,6 +589,7 @@ function ProductCategoriesTab({
                 categories?.map((category) => (
                   <TableRow key={category.id}>
                     <TableCell>
+                      <div className="flex items-center gap-3">
                       {category.image_url ? (
                         <img
                           src={category.image_url}
@@ -621,58 +604,26 @@ function ProductCategoriesTab({
                           <ImageIcon className="h-5 w-5" />
                         </div>
                       )}
+                      <div><span className="font-semibold">{category.name}</span><span className="block text-xs text-muted-foreground">#{category.id}</span></div>
+                      </div>
                     </TableCell>
-                    <TableCell className="font-medium">{category.id}</TableCell>
-                    <TableCell>{category.name}</TableCell>
                     <TableCell>{category._count?.products || 0}</TableCell>
                     <TableCell>{category._count?.suppliers || 0}</TableCell>
                     <TableCell>
                       {category.deleted ? (
                         <Badge variant="destructive">Eliminado</Badge>
                       ) : (
-                        <Badge variant="default">Activo</Badge>
+                        <Badge className="catalog-status">Activo</Badge>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
                       {canManageCatalogs && (
-                        <div className="flex justify-end gap-2">
-                          {category.deleted ? (
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              onClick={() => setRestoreConfirmCategory(category)}
-                              disabled={restoreMutation.isPending}
-                            >
-                              {restoreMutation.isPending ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <RotateCcw className="w-4 h-4" />
-                              )}
-                            </Button>
-                          ) : (
-                            <>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                onClick={() => setDialog({ open: true, mode: 'edit', item: category })}
-                              >
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                size="icon"
-                                onClick={() => setDeleteConfirmCategory(category)}
-                                disabled={deleteMutation.isPending}
-                              >
-                                {deleteMutation.isPending ? (
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                  <Trash2 className="w-4 h-4" />
-                                )}
-                              </Button>
-                            </>
-                          )}
-                        </div>
+                        <CatalogRowActions
+                          onEdit={category.deleted ? undefined : () => setDialog({ open: true, mode: 'edit', item: category })}
+                          onDelete={category.deleted ? undefined : () => setDeleteConfirmCategory(category)}
+                          onRestore={category.deleted ? () => setRestoreConfirmCategory(category) : undefined}
+                          disabled={deleteMutation.isPending || restoreMutation.isPending}
+                        />
                       )}
                     </TableCell>
                   </TableRow>
@@ -690,6 +641,10 @@ function ProductCategoriesTab({
               hasNextPage={categoriesData.nextPage !== null}
               hasPrevPage={categoriesData.prevPage !== null}
               loading={isLoading}
+              totalItems={categoriesData.totalItems}
+              pageSize={pageSize}
+              count={categories.length}
+              itemLabel="categorías"
             />
           </div>
         )}
@@ -846,11 +801,11 @@ function PaymentTermDialog({
 
       handleOpenChange(false)
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
+      const apiError = error as Error
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: apiError.response?.data?.message || 'Ocurrió un error',
+        description: apiError.message || 'Ocurrió un error',
       })
     }
   }
@@ -883,8 +838,7 @@ function PaymentTermDialog({
             <div className="space-y-2">
               <Label htmlFor="net-days">Días neto (opcional)</Label>
               <p className="text-xs text-muted-foreground">
-                Días naturales desde la fecha de ingreso hasta el vencimiento sugerido al registrar mercancía;
-                si no envías vencimiento manual, el servidor usa esta fecha.
+                Plazo para calcular el vencimiento de una compra. Puedes ajustar la fecha al registrar mercancía.
               </p>
               <Input
                 id="net-days"
@@ -1024,11 +978,11 @@ function ProductCategoryDialog({
 
       resetForm()
     } catch (error: unknown) {
-      const apiError = error as { response?: { data?: { message?: string } } }
+      const apiError = error as Error
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: apiError.response?.data?.message || 'Ocurrió un error',
+        description: apiError.message || 'Ocurrió un error',
       })
     }
   }
@@ -1076,8 +1030,7 @@ function ProductCategoryDialog({
                   isUploading={isUploadingImage}
                   helperText={
                     <>
-                      Opcional. Máx 5MB. Bucket{' '}
-                      <span className="font-semibold">categorias</span>.
+                      Imagen opcional. Máximo 5 MB.
                     </>
                   }
                 />

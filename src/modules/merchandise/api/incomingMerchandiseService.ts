@@ -18,6 +18,7 @@ export interface IncomingMerchandiseItem {
     brand?: string | null
     size?: string | null
     barcode?: string | null
+    image_url?: string | null
     cost?: number
     price?: number
     stock?: number
@@ -156,12 +157,14 @@ export const deleteIncomingMerchandisePayment = async (
 }
 
 export const generateMerchandiseReport = async (params?: {
+  search?: string
   supplier_id?: string
   start_date?: string
   end_date?: string
   payment_status?: MerchandisePaymentStatus
 }): Promise<Blob> => {
   const search = new URLSearchParams()
+  if (params?.search) search.set('search', params.search)
   if (params?.supplier_id) search.set('supplier_id', params.supplier_id)
   if (params?.start_date) search.set('start_date', params.start_date)
   if (params?.end_date) search.set('end_date', params.end_date)

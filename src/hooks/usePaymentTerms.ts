@@ -31,6 +31,8 @@ export interface PaymentTermsQueryParams {
   page?: number
   pageSize?: number
   includeDeleted?: boolean
+  search?: string
+  order?: 'asc' | 'desc'
 }
 
 export interface PaymentTermsResponse {
@@ -45,15 +47,17 @@ export interface PaymentTermsResponse {
 
 // Obtener términos de pago con paginación
 export function usePaymentTerms(params?: PaymentTermsQueryParams) {
-  const { page = 1, pageSize = 20, includeDeleted = false } = params || {}
+  const { page = 1, pageSize = 20, includeDeleted = false, search: query = '', order = 'asc' } = params || {}
   
   return useQuery<PaymentTermsResponse>({
-    queryKey: [...PAYMENT_TERMS_QUERY_KEY, page, pageSize, includeDeleted],
+    queryKey: [...PAYMENT_TERMS_QUERY_KEY, page, pageSize, includeDeleted, query, order],
     queryFn: async () => {
       const search = new URLSearchParams()
       if (page) search.set('page', String(page))
       if (pageSize) search.set('pageSize', String(pageSize))
       if (includeDeleted) search.set('includeDeleted', 'true')
+      if (query.trim()) search.set('search', query.trim())
+      search.set('order', order)
       
       const url = `/catalogs/payment-terms${search.toString() ? `?${search.toString()}` : ''}`
       return apiFetch<PaymentTermsResponse>(url)

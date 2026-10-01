@@ -8,66 +8,38 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { SupplierPicker } from '@/components/shared/SupplierPicker'
+import { Pagination } from '@/components/shared/Pagination'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
-import {
-  Search,
-  Package,
-  Calendar,
-  User,
-  Building2,
-  LayoutGrid,
-  List,
-  Download,
-  Plus,
-  Filter,
-  ChevronDown,
-  X,
-} from 'lucide-react'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { PaymentStatusBadge } from '../components/PaymentStatusBadge'
+import { Download, Plus, Eye, Package, LayoutGrid, List, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useIncomingMerchandise } from '../hooks/useIncomingMerchandise'
-import { useSuppliers } from '@/hooks/useSuppliers'
-import { SUPPLIERS_DROPDOWN_PARAMS } from '@/services/supplierService'
-import { Pagination } from '@/components/shared/Pagination'
 import { generateMerchandiseReport } from '../api/incomingMerchandiseService'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import type { IncomingMerchandise, MerchandisePaymentStatus } from '../api/incomingMerchandiseService'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
-
-function PaymentStatusBadge({ status }: { status?: MerchandisePaymentStatus }) {
-  const s = status ?? 'PENDING'
-  if (s === 'PAID') {
-    return <Badge className="bg-emerald-600 hover:bg-emerald-600">Pagado</Badge>
-  }
-  if (s === 'PARTIAL') {
-    return <Badge className="bg-amber-600 hover:bg-amber-600">Parcial</Badge>
-  }
-  return <Badge variant="secondary">Pendiente</Badge>
-}
+import '../merchandise.css'
 
 const IncomingMerchandiseManagement = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const { showAdvancedByDefault } = useExperienceProfile()
   const { currencyCode, locale, timezone } = useSystemSettings()
 
   const [searchTerm, setSearchTerm] = useState('')
+  const [search, setSearch] = useState('')
+  const [supplierLabel, setSupplierLabel] = useState('Todos los proveedores')
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchTerm.trim()), 280)
+    return () => window.clearTimeout(timer)
+  }, [searchTerm])
   const {
     page: currentPage,
     setPage: setCurrentPage,
@@ -75,45 +47,36 @@ const IncomingMerchandiseManagement = () => {
     setPageSize,
     viewMode,
     setViewMode,
-  } = usePersistedListUiState('mercancia/lista', { defaultPageSize: 18, defaultView: 'cards' })
+  } = usePersistedListUiState('mercancia/lista', { defaultPageSize: 10, defaultView: 'table' })
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [isFilterOpen, setIsFilterOpen] = useState(showAdvancedByDefault)
   const [exportOpen, setExportOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<'all' | MerchandisePaymentStatus>('all')
-  const activeAdvancedFilters = [
-    selectedSupplierId !== 'all',
-    Boolean(startDate),
-    Boolean(endDate),
-    paymentStatusFilter !== 'all',
-  ].filter(Boolean).length
 
   const canView = hasPermission('merchandise.view')
   const canRegister = hasPermission('products.register_incoming')
   const canDetails = hasPermission('merchandise.details')
   const canReports = hasPermission('merchandise.reports')
 
-  const { data: recordsData, isLoading } = useIncomingMerchandise({
+  const { data: recordsData, isLoading, isFetching, isError, refetch } = useIncomingMerchandise({
     page: currentPage,
     pageSize,
-    search: searchTerm || undefined,
+    search: search || undefined,
+    enabled: canView,
     supplier_id: selectedSupplierId !== 'all' ? selectedSupplierId : undefined,
     start_date: startDate || undefined,
     end_date: endDate || undefined,
     payment_status: paymentStatusFilter === 'all' ? undefined : paymentStatusFilter,
   })
 
-  const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
-  const suppliers = useMemo(() => suppliersData?.items ?? [], [suppliersData])
-
   const records: IncomingMerchandise[] = recordsData?.items ?? []
   const totalItems = recordsData?.totalItems ?? 0
   const totalPages = recordsData?.totalPages ?? 1
 
   useResetPageOnFilterChange(setCurrentPage, [
-    searchTerm,
+    search,
     selectedSupplierId,
     startDate,
     endDate,
@@ -129,6 +92,7 @@ const IncomingMerchandiseManagement = () => {
     setExporting(true)
     try {
       const blob = await generateMerchandiseReport({
+        search: search || undefined,
         supplier_id: selectedSupplierId !== 'all' ? selectedSupplierId : undefined,
         start_date: startDate || undefined,
         end_date: endDate || undefined,
@@ -164,6 +128,7 @@ const IncomingMerchandiseManagement = () => {
   const clearFilters = () => {
     setSearchTerm('')
     setSelectedSupplierId('all')
+    setSupplierLabel('Todos los proveedores')
     setStartDate('')
     setEndDate('')
     setPaymentStatusFilter('all')
@@ -207,361 +172,23 @@ const IncomingMerchandiseManagement = () => {
     )
   }
 
-  return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-lg sm:text-2xl font-bold text-foreground">Registros de Mercancía</h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Gestiona los ingresos de mercancía.
-            {canDetails
-              ? ' Haz clic en una fila o tarjeta para abrir el detalle en una nueva vista.'
-              : ''}
-          </p>
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible">
-          {canReports && (
-            <Button variant="outline" onClick={() => setExportOpen(true)} size="sm" className="shrink-0">
-              <Download className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Reporte</span>
-            </Button>
-          )}
-          {canRegister && (
-            <Button
-              size="sm"
-              onClick={() => navigate('/inventario/registrar-ingreso')}
-              className="shrink-0"
-            >
-              <Plus className="w-4 h-4 sm:mr-2" />
-              <span className="hidden sm:inline">Nuevo Registro</span>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader className="space-y-3 pb-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                id="search"
-                placeholder="Buscar proveedor o registro..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              {(searchTerm ||
-                selectedSupplierId !== 'all' ||
-                startDate ||
-                endDate ||
-                paymentStatusFilter !== 'all') && (
-                <Button variant="ghost" size="sm" onClick={clearFilters}>
-                  <X className="w-4 h-4 mr-1" />
-                  Limpiar
-                </Button>
-              )}
-              <Button
-                variant={isFilterOpen || activeAdvancedFilters > 0 ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                aria-expanded={isFilterOpen}
-              >
-                <Filter className="w-4 h-4 mr-1" />
-                Filtros
-                {activeAdvancedFilters > 0 && (
-                  <Badge variant="secondary" className="ml-2 h-5 min-w-5 justify-center px-1.5">
-                    {activeAdvancedFilters}
-                  </Badge>
-                )}
-                <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${isFilterOpen ? 'rotate-180' : ''}`} />
-              </Button>
-            </div>
-          </div>
-          {!isFilterOpen && activeAdvancedFilters > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Hay {activeAdvancedFilters} filtro{activeAdvancedFilters === 1 ? '' : 's'} avanzado{activeAdvancedFilters === 1 ? '' : 's'} activo{activeAdvancedFilters === 1 ? '' : 's'}.
-            </p>
-          )}
-        </CardHeader>
-        {isFilterOpen && (
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="supplier">Proveedor</Label>
-                <Select value={selectedSupplierId} onValueChange={setSelectedSupplierId}>
-                  <SelectTrigger id="supplier">
-                    <SelectValue placeholder="Todos los proveedores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los proveedores</SelectItem>
-                    {suppliers.map((supplier) => (
-                      <SelectItem key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Fecha inicio</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Fecha fin</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="pay-filter">Estado de pago</Label>
-                <Select
-                  value={paymentStatusFilter}
-                  onValueChange={(v) =>
-                    setPaymentStatusFilter(v as 'all' | MerchandisePaymentStatus)
-                  }
-                >
-                  <SelectTrigger id="pay-filter">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="PENDING">Pendiente</SelectItem>
-                    <SelectItem value="PARTIAL">Pago parcial</SelectItem>
-                    <SelectItem value="PAID">Pagado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <CardTitle className="text-2xl font-bold">Registros ({totalItems})</CardTitle>
-          <div className="flex items-center border rounded-md bg-background/80">
-            <Button
-              type="button"
-              variant={viewMode === 'table' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-8 w-8 rounded-r-none"
-              onClick={() => setViewMode('table')}
-              aria-label="Vista de lista"
-            >
-              <List className="w-4 h-4" />
-            </Button>
-            <Button
-              type="button"
-              variant={viewMode === 'cards' ? 'default' : 'ghost'}
-              size="icon"
-              className="h-8 w-8 rounded-l-none"
-              onClick={() => setViewMode('cards')}
-              aria-label="Vista de cuadros"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="text-muted-foreground">Cargando registros...</div>
-            </div>
-          ) : records.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Package className="w-16 h-16 mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">No hay registros</h3>
-              <p className="text-muted-foreground mb-4">
-                {searchTerm ||
-                selectedSupplierId !== 'all' ||
-                startDate ||
-                endDate ||
-                paymentStatusFilter !== 'all'
-                  ? 'No se encontraron registros con los filtros aplicados'
-                  : 'Aún no hay registros de mercancía'}
-              </p>
-              {canRegister && (
-                <Button onClick={() => navigate('/inventario/registrar-ingreso')}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Registrar Mercancía
-                </Button>
-              )}
-            </div>
-          ) : viewMode === 'table' ? (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-semibold">Fecha</th>
-                    <th className="text-left p-2 font-semibold">Proveedor</th>
-                    <th className="text-left p-2 font-semibold">Término</th>
-                    <th className="text-left p-2 font-semibold">Pago</th>
-                    <th className="text-left p-2 font-semibold">Registrado por</th>
-                    <th className="text-left p-2 font-semibold">Productos</th>
-                    <th className="text-right p-2 font-semibold">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {records.map((record) => (
-                    <tr
-                      key={record.id}
-                      role={canDetails ? 'button' : undefined}
-                      tabIndex={canDetails ? 0 : undefined}
-                      className={
-                        canDetails
-                          ? 'border-b hover:bg-muted/50 cursor-pointer transition-colors'
-                          : 'border-b hover:bg-muted/50'
-                      }
-                      onClick={canDetails ? () => handleViewDetails(record.id) : undefined}
-                      onKeyDown={
-                        canDetails
-                          ? (e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                handleViewDetails(record.id)
-                              }
-                            }
-                          : undefined
-                      }
-                    >
-                      <td className="p-2 text-sm">{formatDate(record.date)}</td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-muted-foreground" />
-                          <span className="font-medium">{record.supplier.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-2 text-sm max-w-[140px] truncate" title={record.payment_term?.name}>
-                        {record.payment_term?.name ?? '—'}
-                      </td>
-                      <td className="p-2">
-                        <PaymentStatusBadge status={record.payment_status} />
-                      </td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-muted-foreground" />
-                          <span>{record.registeredBy.name}</span>
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <Badge variant="secondary">{record.itemsCount} productos</Badge>
-                      </td>
-                      <td className="p-2 text-right font-semibold">
-                        {formatCurrency(record.totalValue)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {records.map((record) => (
-                <Card
-                  key={record.id}
-                  role={canDetails ? 'button' : undefined}
-                  tabIndex={canDetails ? 0 : undefined}
-                  className={
-                    canDetails
-                      ? 'hover:shadow-md transition-shadow cursor-pointer'
-                      : 'hover:shadow-md transition-shadow'
-                  }
-                  onClick={canDetails ? () => handleViewDetails(record.id) : undefined}
-                  onKeyDown={
-                    canDetails
-                      ? (e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            handleViewDetails(record.id)
-                          }
-                        }
-                      : undefined
-                  }
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <CardTitle className="text-base font-semibold">{record.supplier.name}</CardTitle>
-                        <p className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {formatDate(record.date)}
-                        </p>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <User className="w-4 h-4" />
-                      <span>{record.registeredBy.name}</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">
-                        {record.itemsCount} {record.itemsCount === 1 ? 'producto' : 'productos'}
-                      </Badge>
-                      <PaymentStatusBadge status={record.payment_status} />
-                    </div>
-                    {record.payment_term?.name && (
-                      <p className="text-xs text-muted-foreground truncate" title={record.payment_term.name}>
-                        Término: {record.payment_term.name}
-                      </p>
-                    )}
-                    <div className="flex items-center justify-between pt-1">
-                      <span className="text-lg font-bold text-primary">
-                        {formatCurrency(record.totalValue)}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Items por página:</span>
-              <Select
-                value={String(pageSize)}
-                onValueChange={(v) => {
-                  setPageSize(Number(v))
-                  setCurrentPage(1)
-                }}
-              >
-                <SelectTrigger className="w-[72px] h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {[18, 27, 36].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {totalPages > 1 && (
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </div>
-        </CardContent>
-      </Card>
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar reporte de mercancía" summary="El PDF contiene los registros con los filtros de proveedor, fecha y pago aplicados." formats={['pdf']} fileName="reporte-mercancia" pending={exporting} onExport={({ fileName }) => void handleGenerateReport(fileName)} />
-    </div>
-  )
+  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Entradas de mercadería</h1><p className="auna-module-description">Consulta las recepciones, sus costos y los pagos a proveedores.</p></div><div className="flex flex-wrap gap-2">{canReports && <Button variant="outline" onClick={() => setExportOpen(true)}><Download className="mr-2 h-4 w-4" />Exportar</Button>}{canRegister && <Button onClick={() => navigate('/inventario/registrar-ingreso')} className="bg-brand-orange text-white hover:bg-brand-orange/90"><Plus className="mr-2 h-4 w-4" />Nueva entrada</Button>}</div></header>
+    <Card><CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto]">
+      <div className="space-y-2"><label htmlFor="merch-search" className="text-xs font-medium">Buscar</label><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="merch-search" className="pl-9" placeholder="Proveedor, notas o responsable…" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div></div>
+      <div className="space-y-2"><p className="text-xs font-medium">Proveedor</p><SupplierPicker allowAll label={supplierLabel} onSelect={supplier => { setSelectedSupplierId(supplier?.id || 'all'); setSupplierLabel(supplier?.name || 'Todos los proveedores') }} /></div>
+      <div className="space-y-2"><label htmlFor="merch-state" className="text-xs font-medium">Estado de pago</label><select id="merch-state" className="auna-receipt-select" value={paymentStatusFilter} onChange={e => setPaymentStatusFilter(e.target.value as typeof paymentStatusFilter)}><option value="all">Todos</option><option value="PENDING">Pendiente</option><option value="PARTIAL">Parcial</option><option value="PAID">Pagado</option></select></div>
+      <div className="space-y-2"><label htmlFor="merch-from" className="text-xs font-medium">Desde</label><Input id="merch-from" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} /></div>
+      <div className="space-y-2"><label htmlFor="merch-to" className="text-xs font-medium">Hasta</label><Input id="merch-to" type="date" min={startDate || undefined} value={endDate} onChange={e => setEndDate(e.target.value)} /></div>
+      <Button variant="outline" className="self-end" onClick={clearFilters}>Limpiar</Button>
+    </CardContent></Card>
+    <section className="auna-data-table-shell" aria-busy={isFetching}>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4"><h2 className="font-semibold">Entradas ({totalItems})</h2><div className="flex items-center gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground">Por página<select className="auna-receipt-select !w-20" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1) }}>{Array.from(new Set([10, 18, 20, 27, 36, 50, pageSize])).sort((a,b)=>a-b).map(size => <option key={size} value={size}>{size}</option>)}</select></label><Button size="icon" variant="ghost" className={viewMode === 'table' ? 'bg-brand-orange text-white hover:bg-brand-orange/90' : ''} aria-label="Vista de tabla" aria-pressed={viewMode === 'table'} onClick={() => setViewMode('table')}><List className="h-4 w-4" /></Button><Button size="icon" variant="ghost" className={viewMode === 'cards' ? 'bg-brand-orange text-white hover:bg-brand-orange/90' : ''} aria-label="Vista de tarjetas" aria-pressed={viewMode === 'cards'} onClick={() => setViewMode('cards')}><LayoutGrid className="h-4 w-4" /></Button></div></div>
+      {isLoading ? <p role="status" className="p-12 text-center text-muted-foreground">Cargando entradas…</p> : isError ? <div role="alert" className="p-10 text-center"><p>No se pudieron cargar las entradas.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Reintentar</Button></div> : !records.length ? <div className="p-12 text-center text-muted-foreground"><Package className="mx-auto mb-3 h-9 w-9" /><p>No hay entradas que coincidan con los filtros.</p></div> : viewMode === 'table' ? <div className="overflow-x-auto"><table className="w-full min-w-[900px]"><thead><tr><th>Registro</th><th>Fecha</th><th>Proveedor</th><th>Productos</th><th>Condición de pago</th><th>Estado de pago</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td className="font-medium">{record.id.slice(0,8).toUpperCase()}</td><td>{formatDate(record.date)}</td><td><strong className="font-medium">{record.supplier.name}</strong><small className="block text-muted-foreground">{record.supplier.contact}</small></td><td>{record.itemsCount} productos</td><td>{record.payment_term?.name || 'Sin término'}</td><td><PaymentStatusBadge status={record.payment_status} /></td><td className="whitespace-nowrap font-medium">{formatCurrency(record.totalValue)}</td><td>{canDetails && <Button variant="outline" size="icon" aria-label={`Ver entrada ${record.id.slice(0,8)}`} onClick={() => handleViewDetails(record.id)}><Eye className="h-4 w-4" /></Button>}</td></tr>)}</tbody></table></div> : <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">{records.map(record => <Card key={record.id}><CardContent className="space-y-3 p-5"><div className="flex items-center justify-between gap-2"><strong>{record.supplier.name}</strong><PaymentStatusBadge status={record.payment_status} /></div><p className="text-sm text-muted-foreground">{formatDate(record.date)} · {record.itemsCount} productos</p><p className="text-xl font-bold">{formatCurrency(record.totalValue)}</p><p className="text-sm text-muted-foreground">{record.payment_term?.name || 'Sin término de pago'}</p>{canDetails && <Button variant="outline" className="w-full" onClick={() => handleViewDetails(record.id)}>Ver detalles</Button>}</CardContent></Card>)}</div>}
+      {!isError && <Pagination currentPage={recordsData?.page ?? currentPage} totalPages={totalPages} onPageChange={setCurrentPage} loading={isFetching} totalItems={totalItems} pageSize={pageSize} count={records.length} itemLabel="entradas" />}
+    </section>
+    <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar reporte de mercancía" summary="El PDF contiene las entradas de la sucursal con la búsqueda y los filtros aplicados." formats={['pdf']} fileName="reporte-mercancia" pending={exporting} onExport={({ fileName }) => void handleGenerateReport(fileName)} />
+  </div></div>
 }
 
 export default IncomingMerchandiseManagement

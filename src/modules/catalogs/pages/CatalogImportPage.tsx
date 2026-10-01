@@ -92,6 +92,7 @@ export default function CatalogImportPage() {
     // El tipo viaja en la URL para que la vista de importación abra directamente.
     const requestedType = searchParams.get('type')
     const catalogType = requestedType === 'payment-terms' ? 'payment-terms' : 'categories'
+    const backPath = `${MASTER_DATA_MODULE_PATH}?tab=${catalogType}`
 
     // State
     const [step, setStep] = useState<ImportStep>('mapping')
@@ -346,7 +347,7 @@ export default function CatalogImportPage() {
     // Render success state
     return <ImportWorkbench
         title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros."
-        back={MASTER_DATA_MODULE_PATH} backLabel="Datos maestros"
+        back={backPath} backLabel="Datos maestros"
         templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'}
         templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'}
         file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
@@ -362,7 +363,7 @@ export default function CatalogImportPage() {
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
     />
 
-    if (!workbook) return <ImportFileStep title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros." templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'} templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'} backLabel="Datos maestros" onBack={() => navigate(MASTER_DATA_MODULE_PATH)} onFile={file => void handleFileChange(file)} />
+    if (!workbook) return <ImportFileStep title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros." templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'} templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'} backLabel="Datos maestros" onBack={() => navigate(backPath)} onFile={file => void handleFileChange(file)} />
 
     if (step === 'success' && importResult) {
         return (
@@ -377,7 +378,7 @@ export default function CatalogImportPage() {
                             {importResult.skipped && importResult.skipped > 0 && ` ${importResult.skipped} fueron omitidos.`}
                         </p>
                         <div className="flex gap-3 justify-center">
-                            <Button variant="outline" onClick={() => navigate(MASTER_DATA_MODULE_PATH)}>Ir a Datos maestros</Button>
+                            <Button variant="outline" onClick={() => navigate(backPath)}>Ir a Datos maestros</Button>
                             <Button onClick={() => { setStep('mapping'); setImportResult(null) }}>Importar Más</Button>
                         </div>
                     </CardContent>
@@ -397,7 +398,7 @@ export default function CatalogImportPage() {
                         <h3 className="text-xl font-semibold mb-2">Error</h3>
                         <p className="text-muted-foreground mb-4">{errorMessage}</p>
                         <div className="flex gap-3 justify-center">
-                            <Button variant="outline" onClick={() => navigate(MASTER_DATA_MODULE_PATH)}>Cancelar</Button>
+                            <Button variant="outline" onClick={() => navigate(backPath)}>Cancelar</Button>
                             <Button onClick={() => setStep('mapping')}>Intentar de nuevo</Button>
                         </div>
                     </CardContent>
@@ -431,7 +432,7 @@ export default function CatalogImportPage() {
                 <div className="auna-import-container">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Button variant="ghost" size="icon" onClick={() => navigate(MASTER_DATA_MODULE_PATH)}>
+                            <Button variant="ghost" size="icon" onClick={() => navigate(backPath)}>
                                 <ArrowLeft className="h-5 w-5" />
                             </Button>
                             <div className="flex items-center gap-2">
@@ -468,7 +469,7 @@ export default function CatalogImportPage() {
                                         <input type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleFileChange} />
                                     </label>
                                 </Button>
-                                <Button variant="ghost" size="sm" onClick={() => navigate(MASTER_DATA_MODULE_PATH)}>
+                                <Button variant="ghost" size="sm" onClick={() => navigate(backPath)}>
                                     Cancelar
                                 </Button>
                             </div>

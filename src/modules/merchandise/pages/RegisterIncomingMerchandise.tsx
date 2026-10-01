@@ -9,46 +9,31 @@
  */
 
 import { useState, useMemo, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { ArrowLeft, ChevronDown, Plus, Trash2, Package, Check, ChevronsUpDown, Settings2 } from 'lucide-react'
+import { ArrowLeft, Trash2, Package, Check, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
-import { useSuppliers } from '@/hooks/useSuppliers'
-import { SUPPLIERS_DROPDOWN_PARAMS } from '@/services/supplierService'
-import { useProducts } from '@/hooks/useProducts'
 import { apiFetch } from '@/services/api'
 import { fetchWarehouses } from '@/services/warehouseService'
-import { adaptApiProduct } from '@/services/productService'
 import { adaptApiSupplier } from '@/services/supplierService'
 import { useSupplier } from '@/hooks/useSupplier'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { ProductPicker } from '@/components/shared/ProductPicker'
+import { SupplierPicker } from '@/components/shared/SupplierPicker'
+import '../merchandise.css'
+import { Pagination } from '@/components/shared/Pagination'
+import type { Product } from '@/types/product'
 
 interface IncomingItem {
   product_id: string
   product_name: string
+  image_url?: string
+  barcode: string
   quantity: string
   unit_cost: string
   /** El producto exige fecha de caducidad (tracks_expiry) */
@@ -60,10 +45,12 @@ interface IncomingItem {
 export const RegisterIncomingMerchandise = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { showAdvancedByDefault } = useExperienceProfile()
+  const queryClient = useQueryClient()
+  const { currencyCode, locale } = useSystemSettings()
+  const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode }).format(value)
+  const [itemsPage, setItemsPage] = useState(1)
+  const [supplierLabel, setSupplierLabel] = useState('Seleccionar proveedor…')
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
-  const [supplierPopoverOpen, setSupplierPopoverOpen] = useState(false)
-  const [openProductPopoverIndex, setOpenProductPopoverIndex] = useState<number | null>(null)
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<IncomingItem[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -73,7 +60,6 @@ export const RegisterIncomingMerchandise = () => {
   const [paymentReference, setPaymentReference] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [locationId, setLocationId] = useState('default')
-  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   // Ubicaciones de la sucursal: dónde se guarda lo que llega.
   const { data: warehouses = [] } = useQuery({ queryKey: ['warehouses'], queryFn: () => fetchWarehouses() })
@@ -85,24 +71,7 @@ export const RegisterIncomingMerchandise = () => {
     [warehouses]
   )
 
-  const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
-  const suppliers = useMemo(() => suppliersData?.items ?? [], [suppliersData])
-
-  // Fetch products for selected supplier
-  const { data: productsData } = useProducts({
-    supplier: selectedSupplierId || undefined,
-    pageSize: 1000, // Get all products for the supplier
-  })
-  const supplierProducts = useMemo(() => {
-    if (!productsData?.items) return []
-    return productsData.items.map(adaptApiProduct).filter(p => p.supplierId === selectedSupplierId)
-  }, [productsData, selectedSupplierId])
-
-  const selectedSupplier = useMemo(() => {
-    return suppliers.find(s => s.id === selectedSupplierId)
-  }, [suppliers, selectedSupplierId])
-
-  const { data: supplierRaw, isLoading: supplierDetailLoading } = useSupplier(
+  const { data: supplierRaw, isLoading: supplierDetailLoading, isError: supplierDetailError, refetch: retrySupplier } = useSupplier(
     selectedSupplierId || undefined
   )
   const supplierDetail = useMemo(
@@ -117,13 +86,14 @@ export const RegisterIncomingMerchandise = () => {
   const selectSupplier = (supplierId: string) => {
     if (supplierId !== selectedSupplierId) {
       setItems([])
+      setPaymentTermId('')
       setPaymentStatus('PENDING')
       setPaidAtLocal('')
       setPaymentReference('')
       setDueDate('')
     }
     setSelectedSupplierId(supplierId)
-    setSupplierPopoverOpen(false)
+    setItemsPage(1)
   }
 
   useEffect(() => {
@@ -180,71 +150,19 @@ export const RegisterIncomingMerchandise = () => {
     )
   }, [paymentTermId, paymentTermsOptions])
 
-  const handleAddProduct = () => {
-    if (!selectedSupplierId) {
-      toast({
-        title: 'Seleccione un proveedor',
-        description: 'Debe seleccionar un proveedor antes de agregar productos',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (supplierProducts.length === 0) {
-      toast({
-        title: 'Sin productos',
-        description: 'Este proveedor no tiene productos asociados',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const hasAvailableProduct = supplierProducts.some(
-      p => !items.some(item => item.product_id === p.id)
-    )
-
-    if (!hasAvailableProduct) {
-      toast({
-        title: 'Todos los productos agregados',
-        description: 'Ya ha agregado todos los productos disponibles de este proveedor',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    setItems([
-      ...items,
-      {
-        product_id: '',
-        product_name: '',
-        quantity: '',
-        unit_cost: '',
-        tracks_expiry: false,
-        lot_code: '',
-        expiry_date: '',
-      },
-    ])
+  const handleAddProduct = (product: Product) => {
+    if (!selectedSupplierId || items.some(item => item.product_id === product.id)) return
+    setItems(previous => [...previous, {
+      product_id: product.id, product_name: product.name, image_url: product.imageUrl,
+      barcode: product.barcode, quantity: '1', unit_cost: String(product.cost ?? 0),
+      tracks_expiry: product.tracksExpiry === true, lot_code: '', expiry_date: '',
+    }])
+    setItemsPage(Math.ceil((items.length + 1) / 8))
   }
 
   const handleRemoveProduct = (index: number) => {
     setItems(items.filter((_, i) => i !== index))
-  }
-
-  const handleProductChange = (index: number, productId: string) => {
-    const product = supplierProducts.find(p => p.id === productId)
-    if (!product) return
-
-    const newItems = [...items]
-    newItems[index] = {
-      ...newItems[index],
-      product_id: productId,
-      product_name: product.name,
-      unit_cost: product.cost?.toString() || '0',
-      tracks_expiry: product.tracksExpiry === true,
-      lot_code: '',
-      expiry_date: '',
-    }
-    setItems(newItems)
+    setItemsPage(page => Math.min(page, Math.max(1, Math.ceil((items.length - 1) / 8))))
   }
 
   const handleLotFieldChange = (index: number, field: 'lot_code' | 'expiry_date', value: string) => {
@@ -266,6 +184,10 @@ export const RegisterIncomingMerchandise = () => {
   }
 
   const handleSubmit = async () => {
+    if (isSubmitting || supplierDetailLoading || supplierDetailError) {
+      toast({ title: 'Condiciones no disponibles', description: 'Espera a que carguen las condiciones del proveedor o presiona Reintentar.', variant: 'destructive' })
+      return
+    }
     if (!selectedSupplierId) {
       toast({
         title: 'Proveedor requerido',
@@ -381,8 +303,15 @@ export const RegisterIncomingMerchandise = () => {
       setDueDate('')
       setLocationId('default')
 
-      // Navigate back to inventory
-      navigate('/inventario')
+      // Actualizar listados y selectores después del ingreso.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['incoming-merchandise'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['supplier'] }),
+        queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
+        queryClient.invalidateQueries({ queryKey: ['document-product-picker'] }),
+      ])
+      navigate('/mercancia')
     } catch (err: unknown) {
       const message = (err as { message?: string })?.message || 'No se pudo registrar el ingreso'
       toast({
@@ -395,452 +324,45 @@ export const RegisterIncomingMerchandise = () => {
     }
   }
 
-  const availableProductsForItem = (currentIndex: number) => {
-    const usedProductIds = items
-      .map((item, idx) => idx !== currentIndex ? item.product_id : null)
-      .filter(Boolean) as string[]
-    
-    return supplierProducts.filter(p => !usedProductIds.includes(p.id))
-  }
+  const totalValue = useMemo(() => items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0), 0), [items])
+  const totalPages = Math.max(1, Math.ceil(items.length / 8))
+  const visibleItems = items.slice((itemsPage - 1) * 8, itemsPage * 8)
 
-  const totalValue = useMemo(() => {
-    return items.reduce((sum, item) => {
-      const qty = Number(item.quantity) || 0
-      const cost = Number(item.unit_cost) || 0
-      return sum + (qty * cost)
-    }, 0)
-  }, [items])
-
-  return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate('/inventario')}
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
-        <div>
-          <h2 className="text-lg sm:text-2xl font-bold text-foreground">
-            Registrar Ingreso de Mercancía
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Registre el ingreso de productos desde un proveedor
-          </p>
-        </div>
-      </div>
-
-      {/* Form */}
-      <Card>
-        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Datos del ingreso</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Selecciona proveedor, productos y cantidades. Lo contable se completa automáticamente.
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen}
-            className="w-full gap-2 sm:w-auto"
-          >
-            <Settings2 className="h-4 w-4" />
-            {advancedOpen ? 'Ocultar opciones' : 'Más opciones'}
-            <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Supplier Selection */}
-          <div>
-            <Label htmlFor="supplier">Proveedor *</Label>
-            <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  id="supplier"
-                  variant="outline"
-                  role="combobox"
-                  className="w-full justify-between mt-1"
-                >
-                  {selectedSupplier ? selectedSupplier.name : 'Seleccione un proveedor'}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[320px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Buscar proveedor..." />
-                  <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
-                  <CommandList>
-                    <CommandGroup>
-                      <ScrollArea className="h-48">
-                        {suppliers.map((supplier) => (
-                          <CommandItem
-                            key={supplier.id}
-                            value={supplier.name}
-                            onSelect={() => {
-                              selectSupplier(supplier.id)
-                            }}
-                          >
-                            <Check className={`mr-2 h-4 w-4 ${supplier.id === selectedSupplierId ? 'opacity-100' : 'opacity-0'}`} />
-                            {supplier.name}
-                          </CommandItem>
-                        ))}
-                      </ScrollArea>
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-            {selectedSupplier && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Contacto: {selectedSupplier.contact} • {selectedSupplier.phone}
-              </p>
-            )}
-          </div>
-
-          {/* El estado sí es una decisión cotidiana; los detalles contables son progresivos. */}
-          {selectedSupplierId && (
-            <div className="space-y-3 rounded-lg border border-border p-4 bg-muted/30">
-              <div>
-                <Label>¿La compra ya fue pagada?</Label>
-                <p className="text-xs text-muted-foreground">
-                  Esto evita crear una cuenta pendiente por accidente.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant={paymentStatus === 'PENDING' ? 'default' : 'outline'}
-                  onClick={() => setPaymentStatus('PENDING')}
-                >
-                  Queda pendiente
-                </Button>
-                <Button
-                  type="button"
-                  variant={paymentStatus === 'PAID' ? 'default' : 'outline'}
-                  onClick={() => setPaymentStatus('PAID')}
-                >
-                  Ya fue pagada
-                </Button>
-              </div>
-
-              {advancedOpen && (
-                <div className="space-y-4 border-t border-border pt-4">
-                  <p className="text-sm font-medium text-foreground">Documento y condiciones de pago</p>
-                  {supplierDetailLoading ? (
-                    <p className="text-sm text-muted-foreground">Cargando términos del proveedor…</p>
-                  ) : (
-                    <>
-                      {paymentTermsOptions.length > 0 ? (
-                        <div>
-                          <Label htmlFor="payment-term">Término de pago *</Label>
-                          <Select value={paymentTermId} onValueChange={setPaymentTermId}>
-                            <SelectTrigger id="payment-term" className="mt-1">
-                              <SelectValue placeholder="Seleccionar" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {paymentTermsOptions.map((t) => (
-                                <SelectItem key={t.id} value={String(t.id)}>
-                                  {t.name}{t.isDefault ? ' (predeterminado)' : ''}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          Este proveedor no tiene términos configurados. El ingreso se puede registrar sin término de pago.
-                        </p>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        {paymentStatus === 'PAID' && (
-                          <div>
-                            <Label htmlFor="paid-at">Fecha / hora del pago</Label>
-                            <Input
-                              id="paid-at"
-                              type="datetime-local"
-                              className="mt-1"
-                              value={paidAtLocal}
-                              onChange={(e) => setPaidAtLocal(e.target.value)}
-                            />
-                          </div>
-                        )}
-                        {paymentStatus === 'PENDING' && (
-                          <div>
-                            <Label htmlFor="due-date">Vencimiento</Label>
-                            <Input
-                              id="due-date"
-                              type="date"
-                              className="mt-1"
-                              value={dueDate}
-                              onChange={(e) => setDueDate(e.target.value)}
-                            />
-                          </div>
-                        )}
-                        <div>
-                          <Label htmlFor="payment-ref">Factura o referencia</Label>
-                          <Input
-                            id="payment-ref"
-                            placeholder="Opcional"
-                            className="mt-1"
-                            value={paymentReference}
-                            onChange={(e) => setPaymentReference(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Products List */}
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <Label>Productos *</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddProduct}
-                disabled={!selectedSupplierId || supplierProducts.length === 0}
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Agregar Producto
-              </Button>
-            </div>
-
-            {items.length === 0 ? (
-              <div className="p-6 text-center text-muted-foreground border border-dashed rounded-lg">
-                <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No hay productos agregados</p>
-                <p className="text-xs mt-1">
-                  Haga clic en "Agregar Producto" para comenzar
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {items.map((item, index) => {
-                  const availableProducts = availableProductsForItem(index)
-                  return (
-                    <Card key={index}>
-                      <CardContent className="p-4">
-                        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                          <div className="md:col-span-5">
-                            <Label>Producto *</Label>
-                            <Popover
-                              open={openProductPopoverIndex === index}
-                              onOpenChange={(open) => setOpenProductPopoverIndex(open ? index : null)}
-                            >
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  className="w-full justify-between mt-1"
-                                >
-                                  {item.product_name || 'Seleccione producto'}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[320px] p-0" align="start">
-                                <Command>
-                                  <CommandInput placeholder="Buscar producto..." />
-                                  <CommandEmpty>No se encontraron productos.</CommandEmpty>
-                                  <CommandList>
-                                    <CommandGroup>
-                                      <ScrollArea className="h-48">
-                                        {availableProducts.map((product) => {
-                                          const label = `${product.name}${product.brand ? ` • ${product.brand}` : ''}${product.size ? ` • ${product.size}` : ''}`
-                                          return (
-                                            <CommandItem
-                                              key={product.id}
-                                              value={label}
-                                              onSelect={() => {
-                                                handleProductChange(index, product.id)
-                                                setOpenProductPopoverIndex(null)
-                                              }}
-                                            >
-                                              <Check className={`mr-2 h-4 w-4 ${product.id === item.product_id ? 'opacity-100' : 'opacity-0'}`} />
-                                              {label}
-                                            </CommandItem>
-                                          )
-                                        })}
-                                      </ScrollArea>
-                                    </CommandGroup>
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                          <div className="md:col-span-3">
-                            <Label>Cantidad *</Label>
-                            <Input
-                              type="number"
-                              min="1"
-                              placeholder="0"
-                              value={item.quantity}
-                              onChange={(e) => handleQuantityChange(index, e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-3">
-                            <Label>Costo Unitario (Q) *</Label>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={item.unit_cost}
-                              onChange={(e) => handleCostChange(index, e.target.value)}
-                            />
-                          </div>
-                          <div className="md:col-span-1">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleRemoveProduct(index)}
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </div>
-                        {item.product_id && (item.tracks_expiry || advancedOpen) && (
-                          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                              <Label>Nº de lote (opcional)</Label>
-                              <Input
-                                placeholder="Se genera automático si se deja vacío"
-                                maxLength={60}
-                                className="mt-1"
-                                value={item.lot_code}
-                                onChange={(e) => handleLotFieldChange(index, 'lot_code', e.target.value)}
-                              />
-                            </div>
-                            <div>
-                              <Label>
-                                Fecha de caducidad {item.tracks_expiry ? '*' : '(opcional)'}
-                              </Label>
-                              <Input
-                                type="date"
-                                className="mt-1"
-                                value={item.expiry_date}
-                                onChange={(e) => handleLotFieldChange(index, 'expiry_date', e.target.value)}
-                              />
-                              {item.tracks_expiry && !item.expiry_date && (
-                                <p className="text-xs text-destructive mt-1">
-                                  Este producto controla caducidad: la fecha es obligatoria.
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        {item.product_id && (
-                          <div className="mt-2 flex items-center gap-2">
-                            <Badge variant="outline">
-                              Stock actual: {supplierProducts.find(p => p.id === item.product_id)?.stock || 0}
-                            </Badge>
-                            {Number(item.quantity) > 0 && Number(item.unit_cost) > 0 && (
-                              <Badge>
-                                Subtotal: Q {(Number(item.quantity) * Number(item.unit_cost)).toFixed(2)}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Dónde se guarda lo que llega */}
-          {advancedOpen && receiveLocations.length > 1 && (
-            <div>
-              <Label htmlFor="receive-location">¿Dónde se guarda?</Label>
-              <Select value={locationId} onValueChange={setLocationId}>
-                <SelectTrigger id="receive-location" className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="default">Ubicación de recepción por defecto</SelectItem>
-                  {receiveLocations.map((l) => (
-                    <SelectItem key={l.id} value={l.id}>
-                      {l.warehouse} · {l.code}{l.name ? ` — ${l.name}` : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Todo el ingreso (y sus lotes) queda en esa ubicación. Después se puede repartir
-                con un movimiento interno.
-              </p>
-            </div>
-          )}
-
-          {/* Notes */}
-          {advancedOpen && <div>
-            <Label htmlFor="notes">Notas (opcional)</Label>
-            <Textarea
-              id="notes"
-              placeholder="Agregue notas adicionales sobre este ingreso..."
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-            />
-          </div>}
-
-          {/* Total */}
-          {items.length > 0 && (
-            <div className="p-4 bg-muted rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">Total del Ingreso:</span>
-                <span className="text-2xl font-bold text-primary">
-                  Q {totalValue.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/inventario')}
-              disabled={isSubmitting}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={
-                isSubmitting ||
-                items.length === 0 ||
-                !selectedSupplierId ||
-                supplierDetailLoading ||
-                (paymentTermsOptions.length > 0 && !paymentTermId)
-              }
-              className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-            >
-              {isSubmitting ? (
-                <>
-                  <svg className="animate-spin w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
-                  </svg>
-                  Registrando...
-                </>
-              ) : (
-                'Registrar Ingreso'
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy">
+    <div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      <Button type="button" variant="ghost" className="-ml-3" onClick={() => navigate('/mercancia')} disabled={isSubmitting}><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Button>
+      <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Registrar entrada de mercadería</h1><p className="auna-module-description">Recibe productos, registra sus costos y define el pago al proveedor.</p></div></header>
+      <fieldset disabled={isSubmitting} className="min-w-0 space-y-5">
+        <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-2"><Label>Proveedor <span className="text-brand-orange">*</span></Label><SupplierPicker label={supplierDetail?.name || supplierLabel} onSelect={supplier => { setSupplierLabel(supplier?.name || 'Seleccionar proveedor…'); selectSupplier(supplier?.id || '') }} />{supplierDetailError && <div role="alert" className="space-y-1"><p className="text-xs text-destructive">No se pudieron cargar las condiciones.</p><Button type="button" variant="outline" size="sm" onClick={() => retrySupplier()}>Reintentar</Button></div>}{supplierDetailLoading && <p role="status" className="text-xs text-muted-foreground">Cargando condiciones…</p>}</div>
+          <div className="space-y-2"><Label htmlFor="receipt-location">Almacén / ubicación</Label><select id="receipt-location" className="auna-receipt-select" value={locationId} onChange={e => setLocationId(e.target.value)}><option value="default">Ubicación de recepción predeterminada</option>{receiveLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.name}</option>)}</select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-term">Condición de pago</Label><select id="receipt-term" className="auna-receipt-select" value={paymentTermId} onChange={e => setPaymentTermId(e.target.value)} disabled={!paymentTermsOptions.length}><option value="">Sin término configurado</option>{paymentTermsOptions.map(term => <option key={term.id} value={term.id}>{term.name}{term.isDefault ? ' (predeterminado)' : ''}</option>)}</select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-status">Estado de pago</Label><select id="receipt-status" className="auna-receipt-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as 'PENDING' | 'PAID')}><option value="PENDING">Pendiente de pago</option><option value="PAID">Pagado completamente</option></select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-reference">Referencia de pago</Label><Input id="receipt-reference" maxLength={255} value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Opcional" /></div>
+          <div className="space-y-2"><Label htmlFor="receipt-due">Fecha de vencimiento</Label><Input id="receipt-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="receipt-paid">Fecha del pago</Label><Input id="receipt-paid" type="datetime-local" disabled={paymentStatus !== 'PAID'} value={paidAtLocal} onChange={e => setPaidAtLocal(e.target.value)} /></div>
+          <div className="space-y-2"><Label>Moneda</Label><div className="flex h-10 items-center rounded-md border px-3 text-sm text-muted-foreground">{currencyCode} · moneda del sistema</div></div>
+          <div className="space-y-2 sm:col-span-2 xl:col-span-4"><Label htmlFor="receipt-notes">Observaciones</Label><Textarea id="receipt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre la recepción…" /></div>
+        </CardContent></Card>
+        <section className="auna-data-table-shell">
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md"><ProductPicker purchase supplierId={selectedSupplierId || undefined} excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} /></div></div>
+          <div className="overflow-x-auto"><table className="w-full min-w-[1000px]"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th>Acciones</th></tr></thead><tbody>
+            {!items.length && <tr><td colSpan={9} className="py-12 text-center text-muted-foreground"><Package className="mx-auto mb-3 h-8 w-8 opacity-50" />{selectedSupplierId ? 'Busca y agrega los productos recibidos.' : 'Selecciona un proveedor para agregar productos.'}</td></tr>}
+            {visibleItems.map((item, offset) => {
+              const index = (itemsPage - 1) * 8 + offset
+              return <tr key={item.product_id}><td>{index + 1}</td><td><div className="flex items-center gap-3">{item.image_url ? <img src={item.image_url} alt={item.product_name} className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<span className="max-w-56 font-medium">{item.product_name}</span></div></td><td>{item.barcode || '—'}</td>
+                <td><Input aria-label={`Lote de ${item.product_name}`} className="w-28" value={item.lot_code} onChange={e => handleLotFieldChange(index, 'lot_code', e.target.value)} placeholder="Opcional" /></td>
+                <td><Input type="date" aria-label={`Caducidad de ${item.product_name}`} required={item.tracks_expiry} className="w-40" value={item.expiry_date} onChange={e => handleLotFieldChange(index, 'expiry_date', e.target.value)} />{item.tracks_expiry && <small className="text-brand-orange">Requerida</small>}</td>
+                <td><Input type="number" min="0.01" step="any" aria-label={`Cantidad de ${item.product_name}`} className="w-24" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} /></td>
+                <td><Input type="number" min="0" step="0.01" aria-label={`Costo de ${item.product_name}`} className="w-28" value={item.unit_cost} onChange={e => handleCostChange(index, e.target.value)} /></td>
+                <td className="whitespace-nowrap font-medium">{money((Number(item.quantity) || 0) * (Number(item.unit_cost) || 0))}</td><td><Button type="button" variant="ghost" size="icon" aria-label={`Quitar ${item.product_name}`} onClick={() => handleRemoveProduct(index)}><Trash2 className="h-4 w-4" /></Button></td></tr>
+            })}
+          </tbody></table></div>
+          <Pagination currentPage={itemsPage} totalPages={totalPages} onPageChange={setItemsPage} totalItems={items.length} count={visibleItems.length} pageSize={8} itemLabel="productos" />
+        </section>
+        <Card><CardContent className="grid gap-4 p-5 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Productos</p><p className="text-xl font-semibold">{items.length}</p></div><div><p className="text-sm text-muted-foreground">Unidades totales</p><p className="text-xl font-semibold">{items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}</p></div><div className="sm:text-right"><p className="text-sm text-muted-foreground">Total de la entrada</p><p className="text-2xl font-bold text-brand-orange">{money(totalValue)}</p></div></CardContent></Card>
+        <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Al registrar se actualizarán el inventario, los costos y los lotes.</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate('/mercancia')}>Cancelar</Button><Button type="button" onClick={handleSubmit} disabled={isSubmitting || !items.length || !selectedSupplierId || supplierDetailLoading || supplierDetailError || (paymentTermsOptions.length > 0 && !paymentTermId)} className="bg-brand-orange text-white hover:bg-brand-orange/90">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}{isSubmitting ? 'Registrando…' : 'Registrar entrada'}</Button></div></div>
+      </fieldset>
     </div>
-  )
+  </div>
 }
