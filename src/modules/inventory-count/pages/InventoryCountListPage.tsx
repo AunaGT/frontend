@@ -1,179 +1,66 @@
-/**
- * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * Lista de sesiones de inventariado.
- */
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { Eye, Plus, Search } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Pagination } from '@/components/shared/Pagination'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { listInventorySessions, statusLabel, type InventoryCountSessionStatus } from '../api/inventoryCountService'
+import { CountStatusBadge } from '../components/CountStatusBadge'
+import '../inventoryCount.css'
 
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
-import { useState } from "react";
-import { ClipboardList, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { useAuthPermissions } from "@/hooks/useAuthPermissions";
-import {
-  listInventorySessions,
-  statusLabel,
-  type InventoryCountSessionSummary,
-} from "../api/inventoryCountService";
-
+const statuses: InventoryCountSessionStatus[] = ['DRAFT', 'IN_PROGRESS', 'IN_REVIEW', 'PENDING_SECOND_APPROVAL', 'APPROVED', 'CANCELLED']
 export default function InventoryCountListPage() {
-  const navigate = useNavigate();
-  const { hasPermission } = useAuthPermissions();
-
-  const canCreate = hasPermission("inventory_count.create");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["inventory-sessions", statusFilter],
-    queryFn: () =>
-      listInventorySessions({
-        limit: 80,
-        ...(statusFilter ? { status: statusFilter } : {}),
-      }),
-  });
-
-  const sessions = data?.data ?? [];
-
-  const badgeVariant = (s: InventoryCountSessionSummary["status"]) => {
-    if (s === "APPROVED") return "default" as const;
-    if (s === "CANCELLED") return "secondary" as const;
-    if (s === "IN_REVIEW") return "outline" as const;
-    if (s === "PENDING_SECOND_APPROVAL") return "outline" as const;
-    return "secondary" as const;
-  };
-
-  return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold">Inventariado</h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              Revisar lo que hay en tienda frente a lo que dice el sistema
-            </p>
-          </div>
-        </div>
-        {canCreate && (
-          <Button onClick={() => navigate("/inventario/inventariado/nuevo")} className="shrink-0">
-            <Plus className="h-4 w-4 mr-2" />
-            Nuevo inventariado
-          </Button>
-        )}
-      </div>
-
-      <Card>
-        <CardHeader className="pb-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 space-y-0">
-          <div className="space-y-1">
-            <CardTitle className="text-base">Sesiones</CardTitle>
-            <p className="text-xs sm:text-sm text-muted-foreground font-normal">
-              Toca una fila para abrirla. Si dice «Pendiente de empezar», entra y pulsa «Armar lista y contar».
-            </p>
-          </div>
-          <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <SelectValue placeholder="Todos los estados" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos los estados</SelectItem>
-              <SelectItem value="DRAFT">Pendiente de empezar</SelectItem>
-              <SelectItem value="IN_PROGRESS">Contando</SelectItem>
-              <SelectItem value="IN_REVIEW">En revisión</SelectItem>
-              <SelectItem value="PENDING_SECOND_APPROVAL">Falta segunda firma</SelectItem>
-              <SelectItem value="CANCELLED">Cancelado</SelectItem>
-              <SelectItem value="APPROVED">Cerrado y guardado</SelectItem>
-            </SelectContent>
-          </Select>
-        </CardHeader>
-        <CardContent>
-          {isLoading && <p className="text-sm text-muted-foreground">Cargando…</p>}
-          {isError && (
-            <p className="text-sm text-destructive">No se pudieron cargar las sesiones.</p>
-          )}
-          {!isLoading && !sessions.length && (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              No hay inventarios todavía. Pulsa «Nuevo inventariado» para crear uno.
-            </p>
-          )}
-          {sessions.length > 0 && (
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nombre / ID</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead className="text-right">Progreso</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sessions.map((row) => {
-                    const prog = row.progress;
-                    const label = row.name?.trim() || row.id.slice(0, 8);
-                    const go = () => navigate(`/inventario/inventariado/${row.id}`);
-                    return (
-                      <TableRow
-                        key={row.id}
-                        role="button"
-                        tabIndex={0}
-                        className="cursor-pointer hover:bg-muted/50"
-                        onClick={go}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            go();
-                          }
-                        }}
-                      >
-                        <TableCell className="font-medium max-w-[200px] truncate" title={row.id}>
-                          {label}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={badgeVariant(row.status)}>
-                            {statusLabel(row.status)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right text-sm">
-                          {prog ? (
-                            <div className="text-muted-foreground">
-                              <span>
-                                {prog.countedLines}/{prog.totalLines} ({prog.pct}%)
-                              </span>
-                              {row.status === "IN_PROGRESS" &&
-                                row.scope_json?.doubleCount === true &&
-                                prog.countedLines < prog.totalLines && (
-                                  <span className="block text-[11px] text-amber-700 dark:text-amber-400 mt-0.5 max-w-[220px] ml-auto leading-snug">
-                                    Cuenta Contado + Comprobación
-                                  </span>
-                                )}
-                            </div>
-                          ) : (
-                            "—"
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
+  const { hasPermission } = useAuthPermissions()
+  const { locale } = useSystemSettings()
+  const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setQ(search.trim()); setPage(1) }, 300)
+    return () => window.clearTimeout(timer)
+  }, [search])
+  const query = useQuery({
+    queryKey: ['inventory-sessions', status, q, page],
+    queryFn: () => listInventorySessions({ status: status === 'all' ? undefined : status, q: q || undefined, limit: pageSize, offset: (page - 1) * pageSize }),
+  })
+  const sessions = query.data?.data ?? []
+  const total = query.data?.total ?? 0
+  const pages = Math.max(1, Math.ceil(total / pageSize))
+  useEffect(() => { if (query.data && page > pages) setPage(pages) }, [query.data, page, pages])
+  return <div className="inventory-count-page"><div className="inventory-count-content">
+    <header className="auna-module-heading">
+      <div><p className="auna-module-eyebrow">Inventario</p><h1>Sesiones de conteo</h1><p className="auna-module-description">Gestiona el conteo físico y revisa las diferencias antes de ajustar tus existencias.</p></div>
+      {hasPermission('inventory_count.create') && <Button asChild className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong"><Link to="/inventario/inventariado/nuevo"><Plus className="mr-2 h-4 w-4" />Crear sesión</Link></Button>}
+    </header>
+    <section className="rounded-2xl border bg-card p-4 flex flex-col md:flex-row gap-3" aria-label="Filtros de conteo">
+      <div className="relative flex-1"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Buscar sesiones" placeholder="Buscar por nombre, sucursal, almacén o responsable…" value={search} onChange={e => setSearch(e.target.value)} /></div>
+      <Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger aria-label="Estado" className="md:w-60"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem>{statuses.map(s => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}</SelectContent></Select>
+      <Button variant="outline" onClick={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }}>Limpiar</Button>
+    </section>
+    <section className="auna-data-table-shell" aria-label="Sesiones de inventariado" aria-busy={query.isFetching}>
+      {query.isLoading ? <div role="status" className="p-5 space-y-4"><span className="sr-only">Cargando sesiones…</span>{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div> : query.isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar las sesiones.</p><Button variant="outline" className="mt-3" onClick={() => query.refetch()}>Reintentar</Button></div> : <>
+        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Sesión</TableHead><TableHead>Sucursal / almacén</TableHead><TableHead>Responsable</TableHead><TableHead>Progreso</TableHead><TableHead>Estado</TableHead><TableHead>Fecha de creación</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
+          {sessions.map(s => <TableRow key={s.id}>
+            <TableCell><Link className="font-semibold hover:text-primary" to={`/inventario/inventariado/${s.id}`}>{s.name?.trim() || `Conteo ${s.id.slice(0, 8).toUpperCase()}`}</Link><p className="text-xs text-muted-foreground mt-1">{s.id.slice(0, 8).toUpperCase()}</p></TableCell>
+            <TableCell>{s.branch?.name || 'Sucursal actual'}<p className="text-xs text-muted-foreground mt-1">{s.warehouse?.name || 'Todos los almacenes'}</p></TableCell>
+            <TableCell>{s.createdBy.name}</TableCell>
+            <TableCell className="min-w-40"><div className="flex justify-between text-xs mb-2"><span>{s.progress?.countedLines ?? 0} / {s.progress?.totalLines ?? 0}</span><span>{s.progress?.pct ?? 0}%</span></div><div role="progressbar" aria-label={`Progreso de ${s.name || 'conteo'}`} aria-valuenow={s.progress?.pct ?? 0} aria-valuemin={0} aria-valuemax={100} className="h-2 rounded-full bg-muted overflow-hidden"><div className={s.status === 'APPROVED' ? 'h-full bg-emerald-500' : 'h-full bg-primary'} style={{ width: `${s.progress?.pct ?? 0}%` }} /></div></TableCell>
+            <TableCell><CountStatusBadge status={s.status} /></TableCell>
+            <TableCell className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString(locale)}<p className="text-xs text-muted-foreground mt-1">{new Date(s.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</p></TableCell>
+            <TableCell className="text-right"><Button asChild variant="outline" size="icon"><Link aria-label={`Ver conteo ${s.name || s.id.slice(0, 8)}`} to={`/inventario/inventariado/${s.id}`}><Eye className="h-4 w-4" /></Link></Button></TableCell>
+          </TableRow>)}
+          {!sessions.length && <TableRow><TableCell colSpan={7} className="h-40 text-center text-muted-foreground">No hay sesiones para estos filtros.</TableCell></TableRow>}
+        </TableBody></Table></div>
+        <Pagination currentPage={page} totalPages={pages} onPageChange={setPage} totalItems={total} pageSize={pageSize} count={sessions.length} itemLabel="sesiones" loading={query.isFetching} />
+      </>}
+    </section>
+  </div></div>
 }

@@ -46,9 +46,10 @@ export type InventoryCountSessionSummary = {
   approvedBy?: { id: string; name: string; email: string } | null;
   firstApprovedBy?: { id: string; name: string; email: string } | null;
   warehouse?: { id: string; name: string; code: string } | null;
+  branch?: { id: string; name: string; code: string };
   _count?: { lines: number };
   progress?: { totalLines: number; countedLines: number; pct: number };
-  totals?: { sumStockSnapshot: number; valueDeltaApprox: number };
+  totals?: { sumStockSnapshot: number; valueDeltaApprox: number; unchangedLines: number; differenceLines: number; notFoundLines: number; mismatchLines: number };
 };
 
 export type InventoryCountLineRow = {
@@ -67,6 +68,7 @@ export type InventoryCountLineRow = {
     id: string;
     name: string;
     barcode: string | null;
+    image_url?: string | null;
     stock: number;
     cost: string | number;
     category: { id: number; name: string };
@@ -87,11 +89,13 @@ export type InventoryCountLineRow = {
 const path = (p: string) => `/inventory-counts${p}`;
 
 export async function listInventorySessions(params?: {
+  q?: string;
   status?: string;
   offset?: number;
   limit?: number;
 }): Promise<{ data: InventoryCountSessionSummary[]; total: number }> {
   const sp = new URLSearchParams();
+  if (params?.q) sp.set("q", params.q);
   if (params?.status) sp.set("status", params.status);
   if (params?.offset != null) sp.set("offset", String(params.offset));
   if (params?.limit != null) sp.set("limit", String(params.limit));

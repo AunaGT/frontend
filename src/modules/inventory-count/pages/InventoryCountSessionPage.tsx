@@ -4,21 +4,26 @@
  * Detalle de sesión: conteo, envío a revisión, aprobación, informes.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
-  ClipboardList,
+  Package,
+  Check,
+  AlertTriangle,
   Download,
-  FileSpreadsheet,
   Send,
   CheckCircle,
   XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { CountStatusBadge } from "../components/CountStatusBadge";
+import { Pagination } from "@/components/shared/Pagination";
+import { ExportDialog } from "@/components/shared/ExportDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import "../inventoryCount.css";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -56,7 +61,6 @@ import {
   approveInventorySession,
   cancelInventorySession,
   downloadInventorySessionReport,
-  statusLabel,
 } from "../api/inventoryCountService";
 import type { InventoryCountScope } from "../api/inventoryCountService";
 import { fetchWarehouses } from "@/services/warehouseService";
@@ -84,7 +88,9 @@ export default function InventoryCountSessionPage() {
   // Se cuenta parado frente a un anaquel: se filtra por ubicación.
   const [locationId, setLocationId] = useState("all");
   const [page, setPage] = useState(0);
-  const pageSize = 30;
+  const pageSize = 10;
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportPending, setExportPending] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [approveOpen, setApproveOpen] = useState(false);
@@ -124,7 +130,7 @@ export default function InventoryCountSessionPage() {
         pendingOnly: pendingOnly || undefined,
         locationId: locationId === "all" ? undefined : locationId,
       }),
-    enabled: Boolean(sessionId) && sessionQuery.data?.status !== "DRAFT",
+    enabled: Boolean(sessionId) && Boolean(sessionQuery.data) && sessionQuery.data?.status !== "DRAFT",
   });
 
   // Solo las ubicaciones del alcance: si la sesión es de un almacén, las suyas.
@@ -151,7 +157,7 @@ export default function InventoryCountSessionPage() {
   const savePrimary = useCallback(
     async (lineId: string, qty: number) => {
       await updateInventoryLine(sessionId, lineId, {
-        qty_counted: Math.max(0, Math.floor(qty)),
+        qty_counted: qty,
       });
       queryClient.invalidateQueries({ queryKey: ["inventory-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
@@ -163,7 +169,7 @@ export default function InventoryCountSessionPage() {
   const saveSecondary = useCallback(
     async (lineId: string, qty: number) => {
       await updateInventoryLine(sessionId, lineId, {
-        qty_counted_secondary: Math.max(0, Math.floor(qty)),
+        qty_counted_secondary: qty,
       });
       queryClient.invalidateQueries({ queryKey: ["inventory-session", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
@@ -225,13 +231,10 @@ export default function InventoryCountSessionPage() {
   const lines = linesQuery.data?.data ?? [];
   const linesTotal = linesQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(linesTotal / pageSize));
+  useEffect(() => { if (linesQuery.data && page >= totalPages) setPage(totalPages - 1) }, [linesQuery.data, page, totalPages]);
 
   if (sessionQuery.isLoading || !session) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">
-        {sessionQuery.isError ? "Sesión no encontrada." : "Cargando…"}
-      </div>
-    );
+    return <div className="inventory-count-page"><div className="inventory-count-content"><Button variant="ghost" className="justify-self-start" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="mr-2 h-4 w-4" />Sesiones de conteo</Button>{sessionQuery.isError ? <div role="alert" className="rounded-2xl border bg-card p-8 text-center"><p>No se pudo cargar esta sesión.</p><Button variant="outline" className="mt-3" onClick={() => sessionQuery.refetch()}>Reintentar</Button></div> : <div role="status"><span className="sr-only">Cargando sesión…</span><Skeleton className="h-28 mb-5" /><Skeleton className="h-80" /></div>}</div></div>;
   }
 
   const isDraft = session.status === "DRAFT";
@@ -244,91 +247,29 @@ export default function InventoryCountSessionPage() {
   const cannotSecondApprove =
     pendingSecond && user?.id && session.firstApprovedBy?.id === user.id;
 
+
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/inventario/inventariado")}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Listado
-      </Button>
-
-      <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
-        <div className="flex items-start gap-2 min-w-0">
-          <ClipboardList className="h-7 w-7 text-primary shrink-0 mt-0.5" />
-          <div>
-            <h1 className="text-lg sm:text-2xl font-bold truncate">
-              {session.name?.trim() || `Sesión ${session.id.slice(0, 8)}`}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 mt-1">
-              <Badge variant="secondary">{statusLabel(session.status)}</Badge>
-              {session.progress && (
-                <span className="text-xs text-muted-foreground">
-                  {session.progress.countedLines}/{session.progress.totalLines} con conteo completo (
-                  {session.progress.pct}%)
-                  {doubleCount ? (
-                    <span className="text-amber-800 dark:text-amber-400">
-                      {" "}
-                      — aquí «completo» = columna Contado y Comprobación con número (las dos).
-                    </span>
-                  ) : null}
-                </span>
-              )}
-              {session.totals && (inReview || pendingSecond) && (
-                <span className="text-xs text-muted-foreground">
-                  Valor aprox. diferencias: {fmt(Number(session.totals.valueDeltaApprox) || 0)}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
+    <div className="inventory-count-page"><div className="inventory-count-content">
+      <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="h-4 w-4 mr-2" />Sesiones de conteo</Button>
+      <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
+      <Card><CardContent className="p-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+        <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-4 mt-5 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
+        <div className="lg:border-l lg:pl-6"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-3 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
+      </CardContent></Card>
+      {!isDraft && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[{ label: "Líneas completas", value: session.progress?.countedLines ?? 0, Icon: Package, color: "text-blue-500 bg-blue-500/10" }, { label: "Sin diferencias", value: session.totals?.unchangedLines ?? 0, Icon: Check, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" }, { label: "Con diferencias", value: session.totals?.differenceLines ?? 0, Icon: AlertTriangle, color: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }, { label: "No encontrados", value: session.totals?.notFoundLines ?? 0, Icon: XCircle, color: "text-rose-600 dark:text-rose-400 bg-rose-500/10" }].map(({ label, value, Icon, color }) => <Card key={label}><CardContent className="p-4 flex items-center gap-4"><span className={`rounded-xl p-3 ${color}`}><Icon className="h-5 w-5" /></span><div><strong className="text-2xl">{value}</strong><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
+      </div>}
+      {session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
+      {Boolean(session.totals?.mismatchLines) && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">Hay {session.totals?.mismatchLines} líneas con lecturas distintas. Corrígelas antes de enviar a revisión.</p>}
+      <div className="flex flex-wrap justify-end gap-2">
           {isDraft && session._count?.lines === 0 && canStart && (
             <Button onClick={() => startMut.mutate()} disabled={startMut.isPending}>
               Armar lista y contar
             </Button>
           )}
-          {canExport && session.status !== "DRAFT" && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await downloadInventorySessionReport(sessionId, "pdf");
-                  } catch (e) {
-                    toast({
-                      title: "Error",
-                      description: e instanceof Error ? e.message : "PDF",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              >
-                <Download className="h-4 w-4 mr-1" />
-                PDF
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await downloadInventorySessionReport(sessionId, "csv");
-                  } catch (e) {
-                    toast({
-                      title: "Error",
-                      description: e instanceof Error ? e.message : "CSV",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-              >
-                <FileSpreadsheet className="h-4 w-4 mr-1" />
-                CSV
-              </Button>
-            </>
-          )}
+          {canExport && !isDraft && <Button variant="outline" onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar avance</Button>}
           {inProgress && canSubmit && (
-            <Button onClick={() => setSubmitOpen(true)} disabled={submitMut.isPending}>
+            <Button onClick={() => setSubmitOpen(true)} disabled={submitMut.isPending || (session.progress?.countedLines ?? 0) < (session.progress?.totalLines ?? 0) || Boolean(session.totals?.mismatchLines)}>
               <Send className="h-4 w-4 mr-2" />
               Enviar a revisión
             </Button>
@@ -366,9 +307,7 @@ export default function InventoryCountSessionPage() {
             </Button>
           )}
         </div>
-      </div>
-
-      <Card className="border-dashed">
+      <details className="rounded-2xl border bg-card"><summary className="cursor-pointer p-4 text-sm font-medium">Configuración y historial del conteo</summary><Card className="border-0 shadow-none">
         <CardHeader className="py-3 pb-0">
           <CardTitle className="text-sm font-medium">Cómo se configuró este inventario</CardTitle>
         </CardHeader>
@@ -393,6 +332,8 @@ export default function InventoryCountSessionPage() {
               .filter(Boolean)
               .join(" · ") || "Se contaron todos los productos que aplicaban, sin filtros extra."}
           </p>
+          {session.notes && <p><span className="font-medium text-foreground">Notas: </span>{session.notes}</p>}
+          {session.cancel_reason && <p><span className="font-medium text-foreground">Motivo de cancelación: </span>{session.cancel_reason}</p>}
           {session.submit_reason && (
             <p>
               <span className="font-medium text-foreground">Por qué se mandó a revisión: </span>
@@ -415,6 +356,7 @@ export default function InventoryCountSessionPage() {
         </CardContent>
       </Card>
 
+      </details>
       {isDraft && session._count?.lines === 0 && (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
@@ -427,12 +369,13 @@ export default function InventoryCountSessionPage() {
       {!isDraft && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center gap-2">
+            <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center gap-3">
               <span>Productos a contar</span>
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:ml-auto w-full sm:w-auto">
                 <Input
-                  placeholder="Buscar producto o código…"
-                  className="max-w-xs"
+                  aria-label="Escanear o buscar producto"
+                  placeholder="Escanea o busca por producto / código…"
+                  className="w-full sm:w-72"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -451,13 +394,13 @@ export default function InventoryCountSessionPage() {
                     </SelectContent>
                   </Select>
                 )}
-                {inProgress && doubleCount && (
+                {inProgress && (
                   <label className="flex items-center gap-2 text-xs text-muted-foreground whitespace-nowrap cursor-pointer shrink-0">
                     <Checkbox
                       checked={pendingOnly}
                       onCheckedChange={(c) => setPendingOnly(c === true)}
                     />
-                    Solo lo que falta guardar
+                    Solo pendientes
                   </label>
                 )}
               </div>
@@ -467,7 +410,7 @@ export default function InventoryCountSessionPage() {
                 La columna «En sistema» es la cantidad que tenías al empezar; «Contado» es lo que encontraste.
                 La diferencia es contado menos lo del sistema.
                 {doubleCount
-                  ? " Si ves dos casillas de cantidad, las dos deben guardarse (botón Guardar en cada una, o se copia sola la segunda al guardar la primera si la dejaste vacía)."
+                  ? " Registra y guarda ambas lecturas de forma independiente; deben coincidir para enviar a revisión."
                   : ""}
               </p>
             )}
@@ -478,7 +421,7 @@ export default function InventoryCountSessionPage() {
               !pendingOnly && (
                 <p className="text-xs text-amber-800 dark:text-amber-400">
                   Aún faltan {session.progress.totalLines - session.progress.countedLines} producto(s) sin conteo
-                  completo en el sistema (revisa las dos columnas o usa «Solo lo que falta guardar» arriba).
+                  completo en el sistema (revisa las dos columnas o usa «Solo pendientes» arriba).
                 </p>
               )}
             {pendingOnly && !linesQuery.isLoading && inProgress && (
@@ -488,14 +431,15 @@ export default function InventoryCountSessionPage() {
             )}
           </CardHeader>
           <CardContent>
-            {linesQuery.isLoading && <p className="text-sm text-muted-foreground">Cargando lista…</p>}
-            {!linesQuery.isLoading && pendingOnly && lines.length === 0 && inProgress && (
+            {linesQuery.isLoading && <div role="status"><span className="sr-only">Cargando productos…</span><Skeleton className="h-40" /></div>}
+            {linesQuery.isError && <div role="alert" className="p-6 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => linesQuery.refetch()}>Reintentar</Button></div>}
+            {!linesQuery.isLoading && !linesQuery.isError && pendingOnly && lines.length === 0 && inProgress && (
               <p className="text-sm text-emerald-700 dark:text-emerald-400 py-4 text-center">
                 No quedan filas sin guardar: el conteo completo ya está en el sistema.
               </p>
             )}
-            {!linesQuery.isLoading && !(pendingOnly && lines.length === 0) && (
-              <div className="rounded-md border overflow-x-auto">
+            {!linesQuery.isLoading && !linesQuery.isError && !(pendingOnly && lines.length === 0) && (
+              <div className="auna-data-table-shell overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -510,6 +454,7 @@ export default function InventoryCountSessionPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {!lines.length && <TableRow><TableCell colSpan={doubleCount ? 9 : 8} className="h-28 text-center text-muted-foreground">No hay productos para estos filtros.</TableCell></TableRow>}
                     {lines.map((row) => (
                       <LineRow
                         key={row.id}
@@ -525,37 +470,7 @@ export default function InventoryCountSessionPage() {
                 </Table>
               </div>
             )}
-            {totalPages > 1 && (
-              <div className="mt-3 space-y-2">
-                {inProgress && (
-                  <p className="text-xs text-amber-800 dark:text-amber-400">
-                    Hay {linesTotal} filas en {totalPages} páginas; el porcentaje del encabezado y del listado cuenta
-                    todas, no solo las que ves ahora.
-                  </p>
-                )}
-                <div className="flex justify-between items-center text-sm">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 0}
-                    onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-muted-foreground">
-                    Página {page + 1} de {totalPages} ({linesTotal} líneas)
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages - 1}
-                    onClick={() => setPage((p) => p + 1)}
-                  >
-                    Siguiente
-                  </Button>
-                </div>
-              </div>
-            )}
+            {linesQuery.data && !linesQuery.isError && <Pagination currentPage={page + 1} totalPages={totalPages} onPageChange={value => setPage(value - 1)} totalItems={linesTotal} pageSize={pageSize} count={lines.length} itemLabel="líneas" loading={linesQuery.isFetching} />}
           </CardContent>
         </Card>
       )}
@@ -567,7 +482,7 @@ export default function InventoryCountSessionPage() {
           if (!o) setSubmitReason("");
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>Listo para enviar a revisión</AlertDialogTitle>
             <AlertDialogDescription>
@@ -611,7 +526,7 @@ export default function InventoryCountSessionPage() {
           if (!o) setApproveReason("");
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {pendingSecond
@@ -658,7 +573,7 @@ export default function InventoryCountSessionPage() {
       </AlertDialog>
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar sesión</AlertDialogTitle>
             <AlertDialogDescription>
@@ -694,7 +609,8 @@ export default function InventoryCountSessionPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+      <ExportDialog open={exportOpen} onOpenChange={value => { if (!exportPending) setExportOpen(value) }} title="Exportar conteo" summary="Descarga todas las líneas de esta sesión, con cantidades, ubicaciones y diferencias. Los filtros de la tabla no limitan este informe." formats={["pdf", "csv"]} pending={exportPending} onExport={async ({ format }) => { if (format !== "pdf" && format !== "csv") return; setExportPending(true); try { await downloadInventorySessionReport(sessionId, format); setExportOpen(false) } catch (error) { toast({ title: "No se pudo exportar", description: error instanceof Error ? error.message : "Reintenta la descarga.", variant: "destructive" }) } finally { setExportPending(false) } }} />
+    </div></div>
   );
 }
 
@@ -720,51 +636,37 @@ function LineRow({
     row.qty_counted_secondary != null ? String(row.qty_counted_secondary) : ""
   );
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     setVal(row.qty_counted != null ? String(row.qty_counted) : "");
-    setVal2(row.qty_counted_secondary != null ? String(row.qty_counted_secondary) : "");
-  }, [row.qty_counted, row.qty_counted_secondary, row.id]);
+  }, [row.qty_counted, row.id]);
+  useEffect(() => { setVal2(row.qty_counted_secondary != null ? String(row.qty_counted_secondary) : "") }, [row.qty_counted_secondary, row.id]);
 
   const diff = row.difference;
   const vd = row.valueDifference;
   const mismatch = row.countMismatch;
 
-  const commitPrimary = async () => {
-    const n = val === "" ? NaN : Number(val);
-    if (!Number.isFinite(n) || n < 0) {
+  const commit = async (secondary = false) => {
+    if (locked || savingRef.current) return;
+    const raw = secondary ? val2 : val;
+    const n = raw.trim() === "" ? NaN : Number(raw);
+    if (!Number.isSafeInteger(n) || n < 0) {
+      if (raw.trim()) toast({ title: "Cantidad inválida", description: "Usa un número entero igual o mayor a cero.", variant: "destructive" });
       return;
     }
+    if (n === (secondary ? row.qty_counted_secondary : row.qty_counted)) return;
+    savingRef.current = true;
     setSaving(true);
-    try {
-      await onSavePrimary(n);
-      if (doubleCount && val2.trim() === "" && row.qty_counted_secondary == null) {
-        setVal2(String(n));
-        await onSaveSecondary(n);
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const commitSecondary = async () => {
-    const n = val2 === "" ? NaN : Number(val2);
-    if (!Number.isFinite(n) || n < 0) {
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSaveSecondary(n);
-    } finally {
-      setSaving(false);
-    }
+    try { await (secondary ? onSaveSecondary(n) : onSavePrimary(n)) }
+    catch (error) { toast({ title: "No se guardó el conteo", description: error instanceof Error ? error.message : "Reintenta guardar esta línea.", variant: "destructive" }) }
+    finally { savingRef.current = false; setSaving(false) }
   };
 
   return (
     <TableRow className={mismatch ? "bg-amber-500/10" : undefined}>
-      <TableCell className="font-medium max-w-[180px] truncate" title={row.product.name}>
-        {row.product.name}
-      </TableCell>
+      <TableCell className="font-medium min-w-52" title={row.product.name}><div className="flex items-center gap-3">{row.product.image_url ? <img src={row.product.image_url} alt="" loading="lazy" className="h-10 w-10 rounded-lg border object-cover shrink-0" /> : <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0"><Package className="h-5 w-5 text-primary" /></span>}<span>{row.product.name}</span></div></TableCell>
       <TableCell className="text-xs text-muted-foreground">{row.product.barcode || "—"}</TableCell>
       <TableCell className="text-xs whitespace-nowrap">
         <span className="text-muted-foreground">{row.location.warehouse.name} · </span>
@@ -776,12 +678,14 @@ function LineRow({
           <Input
             type="number"
             min={0}
+            step={1}
+            aria-label={`Cantidad contada de ${row.product.name}`}
             className="w-20 h-8 text-right"
-            disabled={locked}
+            disabled={locked || saving}
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            onBlur={() => commitPrimary()}
-            onKeyDown={(e) => e.key === "Enter" && commitPrimary()}
+            onBlur={() => commit()}
+            onKeyDown={(e) => e.key === "Enter" && commit()}
           />
           {!locked && (
             <Button
@@ -790,9 +694,9 @@ function LineRow({
               size="sm"
               className="h-8 px-2"
               disabled={saving}
-              onClick={() => commitPrimary()}
+              onClick={() => commit()}
             >
-              Guardar
+              {saving ? "Guardando…" : "Guardar"}
             </Button>
           )}
         </div>
@@ -805,12 +709,14 @@ function LineRow({
             <Input
               type="number"
               min={0}
+              step={1}
+              aria-label={`Comprobación de ${row.product.name}`}
               className="w-20 h-8 text-right"
-              disabled={locked}
+              disabled={locked || saving}
               value={val2}
               onChange={(e) => setVal2(e.target.value)}
-              onBlur={() => commitSecondary()}
-              onKeyDown={(e) => e.key === "Enter" && commitSecondary()}
+              onBlur={() => commit(true)}
+              onKeyDown={(e) => e.key === "Enter" && commit(true)}
             />
             {!locked && (
               <Button
@@ -819,9 +725,9 @@ function LineRow({
                 size="sm"
                 className="h-8 px-2"
                 disabled={saving}
-                onClick={() => commitSecondary()}
+                onClick={() => commit(true)}
               >
-                Guardar
+                {saving ? "Guardando…" : "Guardar"}
               </Button>
             )}
           </div>
@@ -830,7 +736,7 @@ function LineRow({
       <TableCell
         className={`text-right tabular-nums ${diff != null && diff < 0 ? "text-amber-700 dark:text-amber-400" : ""} ${diff != null && diff > 0 ? "text-emerald-700 dark:text-emerald-400" : ""}`}
       >
-        {diff != null ? diff : "—"}
+        {diff != null ? (diff > 0 ? `+${diff}` : diff) : "—"}
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">
         {vd != null ? fmt(Number(vd)) : "—"}

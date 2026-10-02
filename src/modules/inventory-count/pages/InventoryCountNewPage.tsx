@@ -4,10 +4,10 @@
  * Crear sesión de inventariado e iniciar conteo.
  */
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ClipboardList } from "lucide-react";
+import { ArrowLeft, ClipboardList, Play, Info, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,8 +16,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { useCategories } from "@/hooks/useCategories";
-import { useAllSuppliers } from "@/hooks/useSuppliers";
+import { useProductCategories } from "@/hooks/useProductCategories";
+import { Pagination } from "@/components/shared/Pagination";
+import { SupplierPicker } from "@/components/shared/SupplierPicker";
+import type { Supplier } from "@/types";
+import { useTenant } from "@/context/useTenant";
+import { Textarea } from "@/components/ui/textarea";
+import "../inventoryCount.css";
 import { createInventorySession, startInventorySession } from "../api/inventoryCountService";
 import type { InventoryCountScope } from "../api/inventoryCountService";
 import { fetchWarehouses } from "@/services/warehouseService";
@@ -34,10 +39,12 @@ type ScopeMode = "full" | "filtered";
 export default function InventoryCountNewPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { branch: currentBranch } = useTenant();
+  const [supplierNames, setSupplierNames] = useState<Record<string, string>>({});
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
   const [warehouseId, setWarehouseId] = useState("all");
-  const { data: warehousesData } = useQuery({ queryKey: ["warehouses"], queryFn: () => fetchWarehouses() });
+  const { data: warehousesData, isError: warehouseError, isLoading: warehouseLoading, refetch: reloadWarehouses } = useQuery({ queryKey: ["warehouses"], queryFn: () => fetchWarehouses() });
   const warehouses = (warehousesData ?? []).filter((w) => w.active);
   const [scopeMode, setScopeMode] = useState<ScopeMode>("full");
   const [selCategories, setSelCategories] = useState<Set<number>>(new Set());
@@ -47,18 +54,17 @@ export default function InventoryCountNewPage() {
   const [doubleCount, setDoubleCount] = useState(false);
   const [dualApproval, setDualApproval] = useState(true);
 
-  const { data: categoriesRaw, isLoading: catLoading } = useCategories();
-  const { data: suppliersRaw, isLoading: supLoading } = useAllSuppliers();
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryQ, setCategoryQ] = useState("");
+  const [categoryPage, setCategoryPage] = useState(1);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setCategoryQ(categorySearch.trim()); setCategoryPage(1) }, 300);
+    return () => window.clearTimeout(timer);
+  }, [categorySearch]);
+  const categoryQuery = useProductCategories({ page: categoryPage, pageSize: 10, search: categoryQ });
+  const { data: categoriesData, isLoading: catLoading, isError: catError, refetch: reloadCategories } = categoryQuery;
+  const categories = categoriesData?.items ?? [];
 
-  const categories = useMemo(() => {
-    const list = categoriesRaw ?? [];
-    return [...list].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  }, [categoriesRaw]);
-
-  const suppliers = useMemo(() => {
-    const list = suppliersRaw ?? [];
-    return [...list].sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  }, [suppliersRaw]);
 
   useEffect(() => {
     if (scopeMode === "full") {
@@ -70,7 +76,7 @@ export default function InventoryCountNewPage() {
   const sampleNum = samplePercentStr.trim() === "" ? NaN : Number(samplePercentStr);
   const sampleOk =
     samplePercentStr.trim() === "" ||
-    (Number.isFinite(sampleNum) && sampleNum > 0 && sampleNum < 100);
+    (Number.isInteger(sampleNum) && sampleNum >= 1 && sampleNum <= 99);
 
   const filteredReady =
     scopeMode === "full" || selCategories.size > 0 || selSuppliers.size > 0;
@@ -130,258 +136,43 @@ export default function InventoryCountNewPage() {
     },
   });
 
-  return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <Button variant="ghost" size="sm" onClick={() => navigate("/inventario/inventariado")}>
-        <ArrowLeft className="h-4 w-4 mr-2" />
-        Volver al listado
-      </Button>
 
-      <div className="flex items-center gap-2">
-        <ClipboardList className="h-6 w-6 text-primary" />
-        <h1 className="text-xl font-bold">Nuevo inventariado</h1>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">¿Qué vamos a contar?</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Puedes contar todo, solo una parte de tu catálogo, o ir por etapas. Las opciones de abajo son
-            opcionales: úsalas si te sirven; si no, déjalas en blanco y listo.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">¿Incluimos todos los productos o solo una parte?</Label>
-            <RadioGroup
-              value={scopeMode}
-              onValueChange={(v) => setScopeMode(v as ScopeMode)}
-              className="grid gap-3"
-            >
-              <label
-                htmlFor="scope-full"
-                className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
-              >
-                <RadioGroupItem value="full" id="scope-full" className="mt-0.5" />
-                <div className="space-y-0.5">
-                  <span className="text-sm font-medium leading-none">Todo lo que tengo en el sistema</span>
-                  <p className="text-xs text-muted-foreground">
-                    Todos los productos activos (los que no están borrados). Más abajo puedes acotar aún más si
-                    quieres.
-                  </p>
-                </div>
-              </label>
-              <label
-                htmlFor="scope-filtered"
-                className="flex cursor-pointer items-start gap-3 rounded-lg border p-3 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"
-              >
-                <RadioGroupItem value="filtered" id="scope-filtered" className="mt-0.5" />
-                <div className="space-y-0.5">
-                  <span className="text-sm font-medium leading-none">Solo algunas categorías o proveedores</span>
-                  <p className="text-xs text-muted-foreground">
-                    Marca las casillas que quieras: solo se listarán productos que coincidan con lo elegido.
-                  </p>
-                </div>
-              </label>
-            </RadioGroup>
-          </div>
-
-          {warehouses.length > 1 && (
-            <div className="space-y-2">
-              <Label>¿Qué almacén vamos a recorrer?</Label>
-              <Select value={warehouseId} onValueChange={setWarehouseId}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toda la sucursal</SelectItem>
-                  {warehouses.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Elegir un almacén deja fuera las ubicaciones de los demás: se cuenta solo lo que hay ahí.
-              </p>
+  return <div className="inventory-count-page inventory-count-new"><div className="inventory-count-content">
+    <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")} disabled={createMut.isPending}><ArrowLeft className="mr-2 h-4 w-4" />Sesiones de conteo</Button>
+    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Nuevo conteo</h1><p className="auna-module-description">Define qué vas a contar y revisa los parámetros antes de comenzar.</p></div></header>
+    <form onSubmit={e => { e.preventDefault(); createMut.mutate() }}>
+      <fieldset disabled={createMut.isPending} className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <div className="min-w-0">
+          <Card><CardHeader className="p-4"><CardTitle className="flex items-center gap-3 text-base"><ClipboardList className="h-5 w-5 text-brand-orange" />Información del conteo</CardTitle></CardHeader><CardContent className="space-y-4 p-4 pt-0">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <div className="space-y-2"><Label>Sucursal</Label><Input value={currentBranch?.name || "Selecciona una sucursal en el encabezado"} readOnly aria-label="Sucursal del conteo" /></div>
+              <div className="space-y-2"><Label htmlFor="count-warehouse">Almacén</Label><Select value={warehouseId} onValueChange={setWarehouseId} disabled={warehouseLoading || warehouseError}><SelectTrigger id="count-warehouse"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los almacenes</SelectItem>{warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>{warehouseError && <p role="alert" className="text-xs text-destructive">No se cargaron los almacenes. <button type="button" className="underline" onClick={() => reloadWarehouses()}>Reintentar</button></p>}</div>
+              <div className="space-y-2 sm:col-span-2 xl:col-span-1"><Label htmlFor="count-name">Nombre / referencia (opcional)</Label><Input id="count-name" value={name} maxLength={200} onChange={e => setName(e.target.value)} placeholder="Ej. Conteo por cierre de mes" /></div>
             </div>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="ic-name">Nombre para reconocer este inventario (opcional)</Label>
-            <Input
-              id="ic-name"
-              placeholder="Ej. Conteo de marzo — bebidas"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="ic-notes">Mensaje para quien va a contar (opcional)</Label>
-            <Input
-              id="ic-notes"
-              placeholder="Ej. Revisar solo pasillo 2 hoy"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-            />
-          </div>
-
-          {scopeMode === "filtered" && (
-            <div className="space-y-2">
-              {!filteredReady && (
-                <p className="text-sm text-amber-700 dark:text-amber-500">
-                  Elige al menos una categoría o un proveedor, o vuelve a «Todo lo que tengo» arriba.
-                </p>
-              )}
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Categorías</Label>
-                  {catLoading ? (
-                    <p className="text-sm text-muted-foreground">Cargando…</p>
-                  ) : (
-                    <ScrollArea className="h-48 rounded border p-2">
-                      <div className="space-y-2 pr-2">
-                        {categories.map((c) => (
-                          <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <Checkbox
-                              checked={selCategories.has(Number(c.id))}
-                              onCheckedChange={(v) => {
-                                const next = new Set(selCategories);
-                                if (v) next.add(Number(c.id));
-                                else next.delete(Number(c.id));
-                                setSelCategories(next);
-                              }}
-                            />
-                            <span className="truncate">{c.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Proveedores</Label>
-                  {supLoading ? (
-                    <p className="text-sm text-muted-foreground">Cargando…</p>
-                  ) : (
-                    <ScrollArea className="h-48 rounded border p-2">
-                      <div className="space-y-2 pr-2">
-                        {suppliers.map((s) => (
-                          <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                            <Checkbox
-                              checked={selSuppliers.has(String(s.id))}
-                              onCheckedChange={(v) => {
-                                const next = new Set(selSuppliers);
-                                if (v) next.add(String(s.id));
-                                else next.delete(String(s.id));
-                                setSelSuppliers(next);
-                              }}
-                            />
-                            <span className="truncate">{s.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </ScrollArea>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
-            <p className="text-sm font-medium">¿Ir por lo que más “pesa” en dinero? (opcional)</p>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              El sistema ordena tus productos según cuánto valen juntos en bodega (cantidad × costo). Así puedes
-              contar por partes sin tener que revisar todo de golpe. Si no marcas nada aquí, no se usa este
-              filtro.
-            </p>
-            <div className="flex flex-wrap gap-x-6 gap-y-2">
-              {(
-                [
-                  { k: "A" as const, label: "Lo más importante (grupo A)" },
-                  { k: "B" as const, label: "Intermedio (grupo B)" },
-                  { k: "C" as const, label: "El resto (grupo C)" },
-                ] as const
-              ).map(({ k, label }) => (
-                <label key={k} className="flex items-center gap-2 text-sm cursor-pointer max-w-[220px]">
-                  <Checkbox
-                    checked={selAbc.has(k)}
-                    onCheckedChange={(v) => {
-                      const next = new Set(selAbc);
-                      if (v) next.add(k);
-                      else next.delete(k);
-                      setSelAbc(next);
-                    }}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-lg border p-4 space-y-3">
-            <Label htmlFor="ic-sample">¿Cuántos productos de la lista vamos a contar? (opcional)</Label>
-            <Input
-              id="ic-sample"
-              type="number"
-              min={1}
-              max={99}
-              placeholder="Vacío = todos los que salgan en la lista"
-              value={samplePercentStr}
-              onChange={(e) => setSamplePercentStr(e.target.value)}
-              className="max-w-xs"
-            />
-            {!sampleOk && (
-              <p className="text-xs text-destructive">Escribe un número del 1 al 99, o deja vacío para contar todos.</p>
-            )}
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Si pones por ejemplo 30, el sistema escoge al azar aproximadamente el 30 % de los productos que
-              cumplan lo de arriba. Sirve cuando la lista es muy larga y quieres una muestra. Si lo dejas vacío,
-              se cuentan todos.
-            </p>
-          </div>
-
-          <div className="space-y-3 rounded-lg border p-4">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <Checkbox
-                checked={doubleCount}
-                onCheckedChange={(v) => setDoubleCount(v === true)}
-                className="mt-0.5"
-              />
-              <span className="text-sm">
-                <span className="font-medium">Pedir dos cantidades por producto y que coincidan</span>
-                <span className="text-muted-foreground block text-xs leading-relaxed mt-0.5">
-                  Cada producto se anota dos veces; los números deben ser iguales antes de mandar el inventario a
-                  revisión. Ayuda a pillar errores al escribir.
-                </span>
-              </span>
-            </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <Checkbox
-                checked={dualApproval}
-                onCheckedChange={(v) => setDualApproval(v === true)}
-                className="mt-0.5"
-              />
-              <span className="text-sm">
-                <span className="font-medium">Que dos personas distintas autoricen el cambio en el stock</span>
-                <span className="text-muted-foreground block text-xs leading-relaxed mt-0.5">
-                  Primero alguien revisa el conteo; después otra persona da el sí final y recién ahí se
-                  actualizan las existencias en el sistema. En cada paso se pide una nota corta del porqué.
-                </span>
-              </span>
-            </label>
-          </div>
-
-          <Button
-            className="w-full sm:w-auto"
-            disabled={createMut.isPending || !filteredReady || !sampleOk}
-            onClick={() => createMut.mutate()}
-          >
-            {createMut.isPending ? "Preparando…" : "Empezar inventario ahora"}
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
+            <div className="space-y-3"><Label>Alcance de productos</Label><RadioGroup value={scopeMode} onValueChange={v => setScopeMode(v as ScopeMode)} className="grid gap-3 sm:grid-cols-2">{[{ value: "full", title: "Todo el inventario", text: "Todos los productos activos del catálogo." }, { value: "filtered", title: "Categorías y proveedores", text: "Cuenta solo los productos que coincidan." }].map(item => <label key={item.value} htmlFor={`scope-${item.value}`} className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 has-[[data-state=checked]]:border-primary has-[[data-state=checked]]:bg-primary/5"><RadioGroupItem id={`scope-${item.value}`} value={item.value} className="mt-1" /><span><strong className="text-sm">{item.title}</strong><span className="block text-xs text-muted-foreground mt-1">{item.text}</span></span></label>)}</RadioGroup></div>
+            {scopeMode === "filtered" && <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2"><Label>Categorías ({selCategories.size})</Label><Input aria-label="Buscar categorías" placeholder="Buscar categoría…" value={categorySearch} onChange={e => setCategorySearch(e.target.value)} /><ScrollArea className="h-40 rounded-xl border p-3">{catLoading ? <p role="status" className="text-sm text-muted-foreground">Cargando categorías…</p> : catError ? <p role="alert" className="text-sm text-destructive">No se cargaron. <button type="button" className="underline" onClick={() => reloadCategories()}>Reintentar</button></p> : categories.length ? <div className="space-y-3">{categories.map(c => <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer"><Checkbox checked={selCategories.has(Number(c.id))} onCheckedChange={checked => { const values = new Set(selCategories); if (checked) values.add(Number(c.id)); else values.delete(Number(c.id)); setSelCategories(values) }} />{c.name}</label>)}</div> : <p className="text-sm text-muted-foreground">Sin categorías.</p>}</ScrollArea>{categoriesData && <Pagination currentPage={categoriesData.page} totalPages={categoriesData.totalPages} onPageChange={setCategoryPage} loading={categoryQuery.isFetching} itemLabel="categorías" />}</div>
+              <div className="space-y-2"><Label>Proveedores ({selSuppliers.size})</Label><SupplierPicker label="Buscar y agregar proveedor…" onSelect={(supplier: Supplier | null) => { if (!supplier) return; setSelSuppliers(previous => new Set([...previous, supplier.id])); setSupplierNames(previous => ({ ...previous, [supplier.id]: supplier.name })) }} /><div className="flex flex-wrap gap-2">{[...selSuppliers].map(id => <span key={id} className="inline-flex items-center gap-2 rounded-lg border bg-muted/30 px-2 py-1 text-xs">{supplierNames[id]}<button type="button" aria-label={`Quitar proveedor ${supplierNames[id]}`} onClick={() => setSelSuppliers(previous => { const values = new Set(previous); values.delete(id); return values })}><X className="h-3 w-3" /></button></span>)}</div><p className="text-xs text-muted-foreground">La búsqueda carga resultados por páginas, no todo el catálogo.</p></div>
+              {!filteredReady && <p role="status" className="sm:col-span-2 text-sm text-amber-700 dark:text-amber-300">Selecciona al menos una categoría o un proveedor.</p>}
+              <p className="sm:col-span-2 text-xs text-muted-foreground">Si eliges ambos, el producto debe pertenecer a una categoría y a un proveedor seleccionados.</p>
+            </div>}
+            <section className="space-y-3 border-t pt-4" aria-labelledby="count-controls-title"><h2 id="count-controls-title" className="text-base font-semibold">Controles del conteo</h2>
+            <div className="grid gap-5 sm:grid-cols-2"><div className="space-y-2"><Label>Prioridad por valor de inventario</Label><div className="flex flex-wrap gap-4">{(["A", "B", "C"] as const).map(k => <label key={k} className="flex items-center gap-2 text-sm cursor-pointer"><Checkbox checked={selAbc.has(k)} onCheckedChange={checked => { const values = new Set(selAbc); if (checked) values.add(k); else values.delete(k); setSelAbc(values) }} />Grupo {k}</label>)}</div><p className="text-xs text-muted-foreground">A: mayor valor · B: intermedio · C: resto. Vacío incluye todos.</p></div><div className="space-y-2"><Label htmlFor="ic-sample">Muestra del catálogo (%)</Label><Input id="ic-sample" type="number" min={1} max={99} step={1} value={samplePercentStr} aria-invalid={!sampleOk} aria-describedby="sample-help" onChange={e => setSamplePercentStr(e.target.value)} placeholder="Vacío = contar el 100%" /><p id="sample-help" className={`text-xs ${sampleOk ? "text-muted-foreground" : "text-destructive"}`}>{sampleOk ? "Opcional. Selección aleatoria reproducible del alcance." : "Usa un número entero del 1 al 99."}</p></div></div>
+            <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><Checkbox checked={doubleCount} onCheckedChange={v => setDoubleCount(v === true)} className="mt-1" /><span><strong className="text-sm">Doble conteo independiente</strong><span className="block text-xs text-muted-foreground mt-1">Registra dos lecturas por línea. Ambas deben coincidir para enviar a revisión.</span></span></label>
+            <label className="flex items-start gap-3 rounded-xl border p-3 cursor-pointer"><Checkbox checked={dualApproval} onCheckedChange={v => setDualApproval(v === true)} className="mt-1" /><span><strong className="text-sm">Requerir dos aprobaciones</strong><span className="block text-xs text-muted-foreground mt-1">Dos personas distintas autorizan. Solo la aprobación final actualiza el stock.</span></span></label>
+            </div></section>
+            <div className="space-y-2"><Label htmlFor="count-notes">Notas (opcional)</Label><Textarea id="count-notes" value={notes} maxLength={2000} onChange={e => setNotes(e.target.value)} placeholder="Indicaciones para el conteo…" rows={2} className="min-h-16" /></div>
+          </CardContent></Card>
+        </div>
+        <Card className="auna-count-summary self-start lg:sticky lg:top-4"><CardHeader className="p-4"><CardTitle className="text-base">Resumen del conteo</CardTitle></CardHeader><CardContent className="p-4 pt-0"><dl>
+          <div><dt>Sucursal</dt><dd>{currentBranch?.name || "Sin seleccionar"}</dd></div><div><dt>Almacén</dt><dd>{warehouses.find(w => w.id === warehouseId)?.name || "Todos los almacenes"}</dd></div>
+          <div><dt>Alcance</dt><dd>{scopeMode === "full" ? "Todo el inventario" : `${selCategories.size} categorías / ${selSuppliers.size} proveedores`}</dd></div>
+          <div><dt>Grupos por valor</dt><dd>{[...selAbc].join(", ") || "Todos"}</dd></div><div><dt>Muestra</dt><dd>{samplePercentStr || "100"}%</dd></div><div><dt>Doble conteo</dt><dd>{doubleCount ? "Sí" : "No"}</dd></div><div><dt>Aprobaciones</dt><dd>{dualApproval ? "Dos personas" : "Una persona"}</dd></div>
+        </dl><p className="mt-3 flex gap-2 rounded-xl border bg-blue-500/5 p-3 text-xs text-muted-foreground"><Info className="h-4 w-4 shrink-0 text-blue-500" />Al comenzar se preparará la lista y se guardará la cantidad del sistema como referencia. El stock no cambia hasta aprobar.</p>
+        <footer className="mt-4 grid gap-2 border-t pt-4"><Button type="submit" className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={createMut.isPending || !filteredReady || !sampleOk || warehouseLoading || warehouseError || !currentBranch}><Play className="h-4 w-4 mr-2" />{createMut.isPending ? "Preparando conteo…" : "Comenzar conteo"}</Button><Button type="button" variant="outline" onClick={() => navigate("/inventario/inventariado")} disabled={createMut.isPending}>Cancelar</Button></footer>
+        </CardContent></Card>
+      </fieldset>
+    </form>
+  </div></div>;
 }
