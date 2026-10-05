@@ -27,10 +27,11 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { fetchAging, fetchReceivables } from '@/modules/receivables/api/receivablesService'
 import type { AnalyticsResponse } from '../api/analyticsService'
-import { buildAnalyticsTabs } from '../analyticsViewModel'
+import { buildAnalyticsTabs, type AnalyticsSectionAccess } from '../analyticsViewModel'
 
 const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
 const COLORS = ['#f97316', '#2563eb', '#22c55e', '#8b5cf6', '#ef4444', '#0ea5e9']
@@ -47,8 +48,7 @@ const TAB_META = {
 type Props = {
   data?: AnalyticsResponse
   isLoading: boolean
-  receivablesEnabled: boolean
-  canViewReceivables: boolean
+  sectionAccess: AnalyticsSectionAccess
   formatCurrency: (value: number) => string
   formatCompactCurrency: (value: number) => string
   formatNumber: (value: number) => string
@@ -90,15 +90,14 @@ function Empty({ children }: { children: ReactNode }) {
 export function AnalyticsDetailTabs({
   data,
   isLoading,
-  receivablesEnabled,
-  canViewReceivables,
+  sectionAccess,
   formatCurrency,
   formatCompactCurrency,
   formatNumber,
   children,
 }: Props) {
   const navigate = useNavigate()
-  const tabs = buildAnalyticsTabs(receivablesEnabled, canViewReceivables)
+  const tabs = buildAnalyticsTabs(sectionAccess)
   const showReceivables = tabs.includes('cartera')
   const receivables = useQuery({
     queryKey: ['analytics', 'receivables'],
@@ -123,17 +122,17 @@ export function AnalyticsDetailTabs({
   return (
     <Tabs defaultValue="resumen" className="space-y-5">
       <div className="overflow-x-auto pb-1" aria-label="Secciones de análisis">
-        <TabsList className="inline-flex h-12 min-w-max rounded-xl border border-border/70 bg-card p-1 shadow-sm dark:bg-[#101f34]">
+        <ModuleTabsList>
           {tabs.map((tab) => {
             const meta = TAB_META[tab as keyof typeof TAB_META]
             const Icon = meta.icon
             return (
-              <TabsTrigger key={tab} value={tab} className="h-10 rounded-lg px-3 text-xs data-[state=active]:bg-brand-orange data-[state=active]:text-white sm:px-4 sm:text-sm">
+              <ModuleTabsTrigger key={tab} value={tab}>
                 <Icon className="mr-2 h-4 w-4" aria-hidden />{meta.label}
-              </TabsTrigger>
+              </ModuleTabsTrigger>
             )
           })}
-        </TabsList>
+        </ModuleTabsList>
       </div>
 
       <TabsContent value="resumen" className="mt-0 space-y-5">{children}</TabsContent>

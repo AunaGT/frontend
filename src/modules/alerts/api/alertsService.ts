@@ -12,7 +12,7 @@ export const resolveAlert = async (id: string) => apiFetch(
   { method: 'PATCH' }
 )
 
-export interface AlertLookup { id: number; name: string }
+export interface AlertLookup { id: number; name: string; moduleCode?: string }
 
 /** Usuarios asignables: requiere alerts.manage, no users.view. */
 export const fetchAssignableAlertUsers = async () =>

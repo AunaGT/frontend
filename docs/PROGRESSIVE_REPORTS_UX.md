@@ -21,11 +21,15 @@ La vista sigue las referencias aprobadas clara y oscura. Se organiza en pestaña
 1. Resumen: ventas, unidades, margen, inventario y tendencias principales.
 2. Ventas: evolución mensual, costo, utilidad, métodos de pago y canales.
 3. Productos: productos más vendidos, participación y rentabilidad por categoría.
-4. Inventario: valor a costo y venta, utilidad potencial, stock bajo, agotados y valor por categoría.
-5. Compras y CxP: compras mensuales, saldos pendientes y principales proveedores.
+4. Inventario: valor a costo y venta, utilidad potencial, stock bajo, agotados y valor por categoría; requiere `inventory` activo y `products.view`.
+5. Compras y CxP: compras mensuales, saldos pendientes y principales proveedores; requiere `merchandise` activo y `merchandise.view`.
 6. Cartera / CxC: saldos por cobrar, vencidos y antigüedad; solo aparece con `receivables` activo y `receivables.view`.
 
-Los datos provienen de los servicios reales de analítica y cartera. El selector permite consultar un año o todo el historial; Inventario y Cartera indican que muestran el estado actual. La pantalla contempla carga, ausencia de datos y error de red.
+Los datos provienen de los servicios reales de analítica y cartera. El backend devuelve `availableSections` y no consulta inventario o mercancía cuando el módulo propietario está inactivo. El frontend cruza esa autoridad con módulos y permisos antes de construir las pestañas. El selector permite consultar un año o todo el historial; Inventario y Cartera indican que muestran el estado actual. La pantalla contempla carga, ausencia de datos y error de red.
+
+## Centro de alertas
+
+Los tipos de alerta declaran en backend el módulo que los respalda. El catálogo, el listado y la creación se filtran con los módulos efectivos de la empresa; una creación con un tipo no disponible se rechaza aunque se intente fuera de la interfaz. Los cuatro tipos actuales (`Stock Bajo`, `Sin Stock`, `Vencimiento` y `Precio`) pertenecen a Inventario. La política ya contempla extensiones de Cartera, Mercancía, Pedidos, Cotizaciones, Cierre de caja y Nómina sin mezclar esa decisión con los componentes visuales.
 
 ## Centro de reportes
 
@@ -43,5 +47,7 @@ Los reportes solo aparecen si sus módulos requeridos están activos. PDF sirve 
 6. Verificar el diseño en tema claro y oscuro, escritorio y móvil.
 7. Desactivar `analytics` y confirmar que desaparezca del inicio y no pueda consumirse su API.
 8. Descargar reportes aplicables en PDF y CSV y verificar tenant y filtros.
+9. Desactivar `merchandise` y confirmar que desaparezca Compras y CxP sin que `/api/analytics/summary` consulte ingresos de mercancía.
+10. Desactivar un módulo asociado a un tipo de alerta y confirmar que ese tipo no aparezca en catálogo, listado ni creación.
 
 Para nuevas pantallas o cambios de datos, seguir `docs/REDESIGN_IMPLEMENTATION_GUIDE.md`.

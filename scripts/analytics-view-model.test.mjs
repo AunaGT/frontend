@@ -21,10 +21,19 @@ test('calcula margen e inventario sin producir valores negativos', async () => {
   assert.equal(viewModel.buildInventorySegments({ productsCount: 1, lowStockCount: 3, outOfStockCount: 2 })[0].value, 0)
 })
 
-test('muestra cartera solo cuando el módulo y el permiso están disponibles', async () => {
+test('muestra únicamente secciones respaldadas por módulos y permisos disponibles', async () => {
   const { buildAnalyticsTabs } = await import(moduleUrl)
 
-  assert.deepEqual(buildAnalyticsTabs(false, false), ['resumen', 'ventas', 'productos', 'inventario', 'compras'])
-  assert.deepEqual(buildAnalyticsTabs(true, false), ['resumen', 'ventas', 'productos', 'inventario', 'compras'])
-  assert.deepEqual(buildAnalyticsTabs(true, true), ['resumen', 'ventas', 'productos', 'inventario', 'compras', 'cartera'])
+  assert.deepEqual(
+    buildAnalyticsTabs({ inventory: false, purchases: false, receivables: false }),
+    ['resumen', 'ventas', 'productos'],
+  )
+  assert.deepEqual(
+    buildAnalyticsTabs({ inventory: true, purchases: false, receivables: true }),
+    ['resumen', 'ventas', 'productos', 'inventario', 'cartera'],
+  )
+  assert.deepEqual(
+    buildAnalyticsTabs({ inventory: true, purchases: true, receivables: true }),
+    ['resumen', 'ventas', 'productos', 'inventario', 'compras', 'cartera'],
+  )
 })

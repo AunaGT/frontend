@@ -74,10 +74,23 @@ const Analytics = () => {
   const currentYear = new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(currentYear)
   const canViewAnalytics = hasPermission('analytics.view')
-  const receivablesEnabled = enabledModuleCodes !== null && isEnabled('receivables')
-  const canViewReceivables = hasPermission('receivables.view')
   const { data: yearMeta } = useAnalyticsFirstSaleYear()
   const { data, isLoading, isError, refetch } = useAnalytics(selectedYear)
+  const modulesReady = enabledModuleCodes !== null
+  const sectionAccess = {
+    inventory: modulesReady
+      && isEnabled('inventory')
+      && hasPermission('products.view')
+      && (data?.availableSections?.inventory ?? true),
+    purchases: modulesReady
+      && isEnabled('merchandise')
+      && hasPermission('merchandise.view')
+      && (data?.availableSections?.purchases ?? true),
+    receivables: modulesReady
+      && isEnabled('receivables')
+      && hasPermission('receivables.view')
+      && (data?.availableSections?.receivables ?? true),
+  }
 
   const firstYear = yearMeta?.firstSaleYear ?? currentYear
   const years = useMemo(
@@ -177,18 +190,17 @@ const Analytics = () => {
           <AnalyticsDetailTabs
             data={data}
             isLoading={isLoading}
-            receivablesEnabled={receivablesEnabled}
-            canViewReceivables={canViewReceivables}
+            sectionAccess={sectionAccess}
             formatCurrency={formatCurrency}
             formatCompactCurrency={formatCompactCurrency}
             formatNumber={formatNumber}
           >
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores principales">
-              {[
+                {[
                 { label: 'Ventas totales', value: formatCurrency(sales), hint: selectedYear === 'all' ? 'Histórico acumulado' : `Año ${selectedYear}`, icon: ChartNoAxesCombined },
                 { label: 'Unidades vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos vendidos`, icon: Package },
                 { label: 'Rentabilidad (margen)', value: `${margin.toFixed(1)}%`, hint: `Utilidad ${formatCurrency(data?.totals.totalProfit ?? 0)}`, icon: Percent },
-                { label: 'Valor del inventario', value: formatCurrency(data?.inventory.stockValue ?? 0), hint: `${formatNumber(data?.inventory.productsCount ?? 0)} productos`, icon: Boxes },
+                  ...(sectionAccess.inventory ? [{ label: 'Valor del inventario', value: formatCurrency(data?.inventory.stockValue ?? 0), hint: `${formatNumber(data?.inventory.productsCount ?? 0)} productos`, icon: Boxes }] : []),
               ].map(({ label, value, hint, icon: Icon }) => (
                 <DashboardCard key={label}>
                   <CardContent className="flex items-start gap-4 p-5">
@@ -216,7 +228,7 @@ const Analytics = () => {
             ) : (
               <>
                 <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-                  <DashboardCard>
+                  {sectionAccess.inventory ? <DashboardCard>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-brand-orange" /> Evolución de ventas</CardTitle>
                       <span className="text-xs text-muted-foreground">Mensual</span>
@@ -235,7 +247,7 @@ const Analytics = () => {
                         </ResponsiveContainer>
                       )}
                     </CardContent>
-                  </DashboardCard>
+                  </DashboardCard> : null}
 
                   <DashboardCard>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Ventas por categoría</CardTitle></CardHeader>

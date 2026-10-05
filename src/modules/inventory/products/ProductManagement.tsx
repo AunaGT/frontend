@@ -22,7 +22,7 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
-    Plus, Search, Filter, ScanLine, Download,
+    Plus, Search, ScanLine, Download,
     QrCode, Upload, LayoutGrid, List, Package,
     ClipboardList, ChevronDown, RotateCcw, CalendarClock, MoveRight, Store,
 } from 'lucide-react'
@@ -48,6 +48,8 @@ import { fetchStockByLocation } from '@/services/stockMoveService'
 import { useTenant } from '@/context/useTenant'
 import { Pagination } from '@/components/shared/Pagination'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 
 // Feature imports
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -107,7 +109,6 @@ const ProductManagement = () => {
     // Filter state
     const [searchTerm, setSearchTerm] = useState('')
     const [categoryFilter, setCategoryFilter] = useState('all')
-    const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(showAdvancedByDefault)
 
     const {
         page: currentPage,
@@ -486,152 +487,29 @@ const ProductManagement = () => {
                 </DialogContent>
             </Dialog>
 
-            {/* Filters */}
-            <Card>
-                <CardContent className="p-4">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                            <Input
-                                placeholder="Buscar por nombre, marca o código..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-10"
-                            />
+            <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
+                <Card className="rounded-2xl border-border/70 shadow-sm">
+                    <CardContent className="p-3">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input placeholder="Buscar por nombre, marca o código..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-12 rounded-xl pl-10" />
                         </div>
-                        <Button
-                            type="button"
-                            variant={advancedFiltersOpen || activeAdvancedFilters > 0 ? 'secondary' : 'outline'}
-                            onClick={() => setAdvancedFiltersOpen((open) => !open)}
-                            className="justify-between md:w-auto"
-                            aria-expanded={advancedFiltersOpen}
-                        >
-                            <span className="flex items-center">
-                                <Filter className="mr-2 h-4 w-4" />
-                                Filtros
-                                {activeAdvancedFilters > 0 && (
-                                    <Badge variant="secondary" className="ml-2 h-5 min-w-5 justify-center px-1.5">
-                                        {activeAdvancedFilters}
-                                    </Badge>
-                                )}
-                            </span>
-                            <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
-                        </Button>
-                        {advancedFiltersOpen && <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                            <SelectTrigger className="w-48">
-                                <Filter className="w-4 h-4 mr-2" />
-                                <SelectValue placeholder="Categoría" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {categories.map(category => (
-                                    <SelectItem key={category} value={category}>
-                                        {category === 'all' ? 'Todas las categorías' : category}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>}
-                        {advancedFiltersOpen && <Select
-                            value={scopeBranch}
-                            onValueChange={(v) => { setScopeBranch(v); setScopeWarehouse('all'); setScopeLocation('all') }}
-                        >
-                            <SelectTrigger className="w-48">
-                                <Store className="w-4 h-4 mr-2" />
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Todas las sucursales</SelectItem>
-                                {branches.map((b) => (
-                                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>}
-                        {advancedFiltersOpen && scopeWarehouses.length > 1 && (
-                            <Select
-                                value={scopeWarehouse}
-                                onValueChange={(v) => { setScopeWarehouse(v); setScopeLocation('all') }}
-                            >
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Almacén" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos los almacenes</SelectItem>
-                                    {scopeWarehouses.map((w) => (
-                                        <SelectItem key={w.id} value={w.id}>
-                                            {scopeBranch === 'all' && w.branch ? `${w.branch.name} · ` : ''}{w.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                        {advancedFiltersOpen && scopeLocations.length > 1 && (
-                            <Select value={scopeLocation} onValueChange={setScopeLocation}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="Ubicación" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todas las ubicaciones</SelectItem>
-                                    {scopeLocations.map((l) => (
-                                        <SelectItem key={l.id} value={l.id}>
-                                            {scopeWarehouse === 'all' ? `${l.warehouse} · ` : ''}{l.code}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                        {advancedFiltersOpen && scopeBranch !== 'all' && (
-                            <div className="flex items-center gap-2 whitespace-nowrap">
-                                <Switch
-                                    id="in-branch-only"
-                                    checked={inBranchOnly}
-                                    onCheckedChange={setInBranchOnly}
-                                />
-                                <Label htmlFor="in-branch-only" className="text-sm font-normal">
-                                    Solo lo que maneja
-                                </Label>
-                            </div>
-                        )}
-                        {advancedFiltersOpen && activeAdvancedFilters > 0 && (
-                            <Button type="button" variant="ghost" onClick={resetAdvancedFilters}>
-                                <RotateCcw className="mr-2 h-4 w-4" />
-                                Limpiar
-                            </Button>
-                        )}
-                    </div>
-                    {!advancedFiltersOpen && activeAdvancedFilters > 0 && (
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Filtrado por {scopeLabel}{categoryFilter !== 'all' ? ` · ${categoryFilter}` : ''}.
-                        </p>
-                    )}
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+                <CompactFilterPanel title="Alcance del inventario" summary="Categoría, sucursal, almacén y ubicación" activeCount={activeAdvancedFilters} defaultOpen={showAdvancedByDefault} onClear={resetAdvancedFilters} contentClassName="flex flex-wrap items-center gap-3">
+                    <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map(category => <SelectItem key={category} value={category}>{category === 'all' ? 'Todas las categorías' : category}</SelectItem>)}</SelectContent></Select>
+                    <Select value={scopeBranch} onValueChange={(v) => { setScopeBranch(v); setScopeWarehouse('all'); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><Store className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas las sucursales</SelectItem>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select>
+                    {scopeWarehouses.length > 1 && <Select value={scopeWarehouse} onValueChange={(v) => { setScopeWarehouse(v); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Almacén" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los almacenes</SelectItem>{scopeWarehouses.map((warehouse) => <SelectItem key={warehouse.id} value={warehouse.id}>{scopeBranch === 'all' && warehouse.branch ? `${warehouse.branch.name} · ` : ''}{warehouse.name}</SelectItem>)}</SelectContent></Select>}
+                    {scopeLocations.length > 1 && <Select value={scopeLocation} onValueChange={setScopeLocation}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Ubicación" /></SelectTrigger><SelectContent><SelectItem value="all">Todas las ubicaciones</SelectItem>{scopeLocations.map((location) => <SelectItem key={location.id} value={location.id}>{scopeWarehouse === 'all' ? `${location.warehouse} · ` : ''}{location.code}</SelectItem>)}</SelectContent></Select>}
+                    {scopeBranch !== 'all' && <div className="flex min-h-10 items-center gap-2 whitespace-nowrap"><Switch id="in-branch-only" checked={inBranchOnly} onCheckedChange={setInBranchOnly} /><Label htmlFor="in-branch-only" className="text-sm font-normal">Solo lo que maneja</Label></div>}
+                </CompactFilterPanel>
+            </div>
 
             {/* Products View (table or cards) */}
             <Card>
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <CardTitle>Productos ({totalItems})</CardTitle>
-                    {/* View mode toggle (solo iconos, igual que /mercancia) */}
-                    <div className="flex items-center border rounded-md bg-background/80">
-                        <Button
-                            type="button"
-                            variant={viewMode === 'table' ? 'default' : 'ghost'}
-                            size="icon"
-                            className="h-8 w-8 rounded-r-none"
-                            onClick={() => setViewMode('table')}
-                            aria-label="Vista de tabla"
-                        >
-                            <List className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            type="button"
-                            variant={viewMode === 'cards' ? 'default' : 'ghost'}
-                            size="icon"
-                            className="h-8 w-8 rounded-l-none"
-                            onClick={() => { setViewMode('cards'); setSelectedIds([]) }}
-                            aria-label="Vista de cuadros"
-                        >
-                            <LayoutGrid className="w-4 h-4" />
-                        </Button>
-                    </div>
+                    <ModuleTabBar items={[{ value: 'table', label: 'Tabla', icon: List }, { value: 'cards', label: 'Cuadros', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de productos" onValueChange={(value) => { setViewMode(value); if (value === 'cards') setSelectedIds([]) }} />
                 </CardHeader>
                 <CardContent>
                     {isLoading && <div className="p-6 text-muted-foreground">Cargando productos...</div>}

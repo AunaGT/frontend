@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { apiFetch } from '@/services/api'
@@ -15,7 +16,7 @@ import type { Alert, AlertPriority, Status } from '@/types'
 import { filterAlerts } from './alertsList.mjs'
 import './alerts.css'
 
-type AlertRow = Alert & { assignedToId?: string; typeName: string; localDate: string; timestampIso: string }
+type AlertRow = Alert & { assignedToId?: string; typeName: string; moduleCode: string; localDate: string; timestampIso: string }
 type RawAlert = {
   id?: string | number
   type?: { name?: string } | null
@@ -31,11 +32,21 @@ type RawAlert = {
   status?: { name?: string } | null
   resolved?: number | boolean
   assignedTo?: { id?: string | number; name?: string } | null
+  moduleCode?: string
 }
 type Filters = { search: string; priority: string; status: string; type: string; from: string; to: string; order: 'newest' | 'oldest' }
 const EMPTY_FILTERS: Filters = { search: '', priority: 'all', status: 'all', type: 'all', from: '', to: '', order: 'newest' }
 const PRIORITY_LABELS: Record<AlertPriority, string> = { critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' }
 const STATUS_LABELS: Record<string, string> = { active: 'Abierta', pending: 'En proceso', resolved: 'Resuelta' }
+const MODULE_LABELS: Record<string, string> = {
+  inventory: 'Inventario',
+  receivables: 'Cartera',
+  merchandise: 'Mercancía',
+  orders: 'Pedidos',
+  quotes: 'Cotizaciones',
+  'cash-closure': 'Cierre de caja',
+  payroll: 'Nómina',
+}
 
 const adaptAlert = (raw: Record<string, unknown>): AlertRow => {
   const item = raw as RawAlert
@@ -47,7 +58,7 @@ const adaptAlert = (raw: Record<string, unknown>): AlertRow => {
   return {
     id: String(item.id ?? ''),
     type: typeName === 'Sin Stock' ? 'stock_out' : typeName === 'Vencimiento' ? 'expiry_soon' : 'stock_low',
-    typeName, priority, status,
+    typeName, moduleCode: item.moduleCode || 'inventory', priority, status,
     title: item.title || 'Alerta', message: item.message || '',
     product: item.product?.name || '', category: item.product?.category?.name || '',
     currentStock: item.current_stock ?? 0, minStock: item.min_stock ?? 0,
@@ -174,6 +185,7 @@ export default function AlertsManagement() {
   }
   const applyFilters = () => { setFilters({ ...draft }); setPage(1) }
   const clearFilters = () => { setDraft(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setPage(1) }
+  const activeFilters = Number(Boolean(filters.search.trim())) + Number(filters.priority !== 'all') + Number(filters.status !== 'all') + Number(filters.type !== 'all') + Number(Boolean(filters.from)) + Number(Boolean(filters.to))
   const filterPriority = (priority: string) => {
     const next = { ...EMPTY_FILTERS, priority }
     setDraft(next); setFilters(next); setPage(1)
@@ -195,7 +207,7 @@ export default function AlertsManagement() {
       </button>)}
     </section>
 
-    <section className="alerts-filter-panel" aria-label="Filtros de alertas">
+    <CompactFilterPanel title="Filtros de alertas" summary="Prioridad, estado, tipo y período" activeCount={activeFilters} onClear={clearFilters} className="mb-[22px]" contentClassName="alerts-filter-panel">
       <label className="alerts-filter-search"><span>Buscar</span><span className="alerts-search-input"><Search className="h-4 w-4" aria-hidden="true" /><Input value={draft.search} onChange={(event) => setDraft({ ...draft, search: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') applyFilters() }} placeholder="ID, título, descripción o producto..." /></span></label>
       <label><span>Prioridad</span><select value={draft.priority} onChange={(event) => setDraft({ ...draft, priority: event.target.value })}><option value="all">Todas</option><option value="critical">Crítica</option><option value="high">Alta</option><option value="medium">Media</option><option value="low">Baja</option></select></label>
       <label><span>Estado</span><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option value="all">Todos</option><option value="active">Abierta</option><option value="pending">En proceso</option><option value="resolved">Resuelta</option></select></label>
@@ -203,8 +215,7 @@ export default function AlertsManagement() {
       <label><span>Fecha desde</span><Input type="date" value={draft.from} onChange={(event) => setDraft({ ...draft, from: event.target.value })} max={draft.to || undefined} /></label>
       <label><span>Fecha hasta</span><Input type="date" value={draft.to} onChange={(event) => setDraft({ ...draft, to: event.target.value })} min={draft.from || undefined} /></label>
       <Button className="alerts-primary alerts-filter-apply" onClick={applyFilters}>Aplicar filtros</Button>
-      <Button variant="link" className="alerts-filter-clear" onClick={clearFilters}>Limpiar</Button>
-    </section>
+    </CompactFilterPanel>
 
     <section className="alerts-list-panel" aria-label="Listado de alertas">
       <div className="alerts-list-heading"><span>Mostrando {pageAlerts.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, visibleAlerts.length)} de {visibleAlerts.length} alertas{alerts.length >= 100 ? ' (entre las 100 más recientes)' : ''}</span><label>Ordenar por <select value={draft.order} onChange={(event) => { const order = event.target.value as Filters['order']; setDraft({ ...draft, order }); setFilters({ ...filters, order }); setPage(1) }}><option value="newest">Fecha (más reciente)</option><option value="oldest">Fecha (más antigua)</option></select></label></div>
@@ -214,7 +225,7 @@ export default function AlertsManagement() {
           <td data-label="ID" className="alerts-id" title={alert.id}>{alert.id.slice(0, 8).toUpperCase()}</td>
           <td data-label="Título"><button type="button" className="alerts-title" onClick={() => setDetailId(alert.id)}>{alert.title}</button><small className="alerts-product">{alert.product}</small></td>
           <td data-label="Descripción" className="alerts-description">{alert.message || '—'}</td>
-          <td data-label="Tipo">{alert.typeName}</td>
+          <td data-label="Tipo">{alert.typeName}<small className="alerts-product">{MODULE_LABELS[alert.moduleCode] || alert.moduleCode}</small></td>
           <td data-label="Prioridad"><span className={`alerts-priority alerts-priority--${alert.priority}`}>{PRIORITY_LABELS[alert.priority]}</span></td>
           <td data-label="Estado"><span className={`alerts-status alerts-status--${alert.status}`}><i />{STATUS_LABELS[alert.status] || alert.status}</span></td>
           <td data-label="Fecha" className="alerts-date">{alert.timestamp || '—'}</td>
@@ -229,7 +240,7 @@ export default function AlertsManagement() {
 
     <Dialog open={newAlertOpen} onOpenChange={(open) => { setNewAlertOpen(open); if (!open) resetNewAlert() }}><DialogContent variant="auna" className="alerts-dialog"><DialogHeader><DialogTitle>Nueva alerta</DialogTitle><DialogDescription>Crea una alerta sobre un producto para que el equipo le dé seguimiento.</DialogDescription></DialogHeader><div className="alerts-form">
       <div><Label>Producto *</Label>{selectedProduct ? <div className="alerts-selected-product"><strong>{selectedProduct.name}</strong><Button variant="ghost" size="sm" onClick={() => setSelectedProduct(null)}>Cambiar</Button></div> : <><Input className="mt-1" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Buscar por nombre o código..." />{productResults.length > 0 && <div className="alerts-product-results">{productResults.map((product) => <button type="button" key={product.id} onClick={() => { setSelectedProduct(product); setProductSearch(''); setProductResults([]) }}>{product.name}</button>)}</div>}</>}</div>
-      <div className="alerts-form-grid"><div><Label>Tipo *</Label><Select value={newTypeId} onValueChange={setNewTypeId}><SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger><SelectContent>{alertTypes.map((type) => <SelectItem key={type.id} value={String(type.id)}>{type.name}</SelectItem>)}</SelectContent></Select></div><div><Label>Prioridad *</Label><Select value={newPriorityId} onValueChange={setNewPriorityId}><SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger><SelectContent>{alertPriorities.map((priority) => <SelectItem key={priority.id} value={String(priority.id)}>{priority.name}</SelectItem>)}</SelectContent></Select></div></div>
+      <div className="alerts-form-grid"><div><Label>Tipo *</Label><Select value={newTypeId} onValueChange={setNewTypeId}><SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger><SelectContent>{alertTypes.map((type) => <SelectItem key={type.id} value={String(type.id)}>{type.name}{type.moduleCode ? ` · ${MODULE_LABELS[type.moduleCode] || type.moduleCode}` : ''}</SelectItem>)}</SelectContent></Select></div><div><Label>Prioridad *</Label><Select value={newPriorityId} onValueChange={setNewPriorityId}><SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar" /></SelectTrigger><SelectContent>{alertPriorities.map((priority) => <SelectItem key={priority.id} value={String(priority.id)}>{priority.name}</SelectItem>)}</SelectContent></Select></div></div>
       <div><Label htmlFor="alert-title">Título *</Label><Input id="alert-title" className="mt-1" maxLength={150} value={newTitle} onChange={(event) => setNewTitle(event.target.value)} /></div><div><Label htmlFor="alert-message">Mensaje</Label><Textarea id="alert-message" className="mt-1" rows={3} value={newMessage} onChange={(event) => setNewMessage(event.target.value)} /></div>
     </div><DialogFooter><Button variant="outline" onClick={() => setNewAlertOpen(false)} disabled={creatingAlert}>Cancelar</Button><Button className="alerts-primary" onClick={() => void handleCreate()} disabled={creatingAlert || !newTypeId || !newPriorityId || !newTitle.trim() || !selectedProduct}>{creatingAlert && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Crear alerta</Button></DialogFooter></DialogContent></Dialog>
   </main>

@@ -11,9 +11,16 @@
 import { apiFetch } from '@/services/api'
 
 export type AnalyticsResponse = {
-  year: number;
+  year: number | 'all';
   /** Año calendario (zona GT) de la venta completada más antigua; si no hay ventas, año actual. */
   firstSaleYear: number;
+  availableSections?: {
+    sales: boolean;
+    products: boolean;
+    inventory: boolean;
+    purchases: boolean;
+    receivables: boolean;
+  };
   totals: {
     totalSales: number; // Ventas netas (con devoluciones restadas)
     totalSalesGross?: number; // Ventas brutas (sin restar devoluciones)

@@ -99,11 +99,11 @@
 /* Filtros en barra superior (usado en /usuarios) */
 .users-filters {
   display: grid;
-  grid-template-columns: minmax(230px, 2.5fr) repeat(3, minmax(145px, 1fr)) auto;
+  grid-template-columns: minmax(230px, 2.5fr) repeat(3, minmax(145px, 1fr));
   gap: 12px;
   align-items: center;
 }
-.users-filters--roles { grid-template-columns: minmax(230px, 2.5fr) repeat(2, minmax(145px, 1fr)) auto; }
+.users-filters--roles { grid-template-columns: minmax(230px, 2.5fr) repeat(2, minmax(145px, 1fr)); }
 
 .users-search {
   display: flex;

@@ -8,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pagination } from '@/components/shared/Pagination'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { listInventorySessions, statusLabel, type InventoryCountSessionStatus } from '../api/inventoryCountService'
@@ -34,17 +35,17 @@ export default function InventoryCountListPage() {
   const sessions = query.data?.data ?? []
   const total = query.data?.total ?? 0
   const pages = Math.max(1, Math.ceil(total / pageSize))
+  const activeFilterCount = Number(Boolean(search.trim())) + Number(status !== 'all')
   useEffect(() => { if (query.data && page > pages) setPage(pages) }, [query.data, page, pages])
   return <div className="inventory-count-page"><div className="inventory-count-content">
     <header className="auna-module-heading">
       <div><p className="auna-module-eyebrow">Inventario</p><h1>Sesiones de conteo</h1><p className="auna-module-description">Gestiona el conteo físico y revisa las diferencias antes de ajustar tus existencias.</p></div>
       {hasPermission('inventory_count.create') && <Button asChild className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong"><Link to="/inventario/inventariado/nuevo"><Plus className="mr-2 h-4 w-4" />Crear sesión</Link></Button>}
     </header>
-    <section className="rounded-2xl border bg-card p-4 flex flex-col md:flex-row gap-3" aria-label="Filtros de conteo">
+    <CompactFilterPanel title="Filtros de conteos" summary="Nombre, sucursal, almacén, responsable y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }} contentClassName="flex flex-col gap-3 md:flex-row">
       <div className="relative flex-1"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Buscar sesiones" placeholder="Buscar por nombre, sucursal, almacén o responsable…" value={search} onChange={e => setSearch(e.target.value)} /></div>
       <Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger aria-label="Estado" className="md:w-60"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem>{statuses.map(s => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}</SelectContent></Select>
-      <Button variant="outline" onClick={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }}>Limpiar</Button>
-    </section>
+    </CompactFilterPanel>
     <section className="auna-data-table-shell" aria-label="Sesiones de inventariado" aria-busy={query.isFetching}>
       {query.isLoading ? <div role="status" className="p-5 space-y-4"><span className="sr-only">Cargando sesiones…</span>{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div> : query.isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar las sesiones.</p><Button variant="outline" className="mt-3" onClick={() => query.refetch()}>Reintentar</Button></div> : <>
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Sesión</TableHead><TableHead>Sucursal / almacén</TableHead><TableHead>Responsable</TableHead><TableHead>Progreso</TableHead><TableHead>Estado</TableHead><TableHead>Fecha de creación</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>

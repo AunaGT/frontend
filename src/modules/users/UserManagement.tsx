@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Plus, Pencil, MoreHorizontal, Shield, FileUp, ArrowUpDown, Search, Crown, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useTenant } from '@/context/useTenant'
@@ -20,6 +21,7 @@ export default function UserManagement() {
   const [sort, setSort] = useState('name')
   const [direction, setDirection] = useState('asc')
   const pageSize = 8
+  const activeFilterCount = Number(Boolean(search.trim())) + Number(Boolean(role)) + Number(Boolean(status))
   const query = useQuery({ queryKey: ['users', company?.id, { page, search, role, status, sort, direction }], queryFn: () => getUsers({ page, pageSize, search, role_id: role ? Number(role) : undefined, status, sort, direction }), enabled: hasPermission('users.view') })
   const roles = useQuery({ queryKey: ['users-role-options', company?.id], queryFn: getRoles, enabled: hasPermission('users.view') })
   function order(key: string) { setSort(key); setDirection(sort === key && direction === 'asc' ? 'desc' : 'asc'); setPage(1) }
@@ -28,13 +30,12 @@ export default function UserManagement() {
     {hasPermission('users.create') && <Button asChild><Link to="/usuarios/nuevo"><Plus size={18} className="mr-2"/>Nuevo usuario</Link></Button>}
   </>}>
     {!hasPermission('users.view') ? <Feedback error={new Error('No tienes permiso para consultar usuarios')}/> : <>
-    <div className="users-filters" aria-label="Filtros de usuarios">
+    <CompactFilterPanel title="Filtros de usuarios" summary="Nombre, correo, rol, empresa y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }} contentClassName="users-filters">
       <label className="users-search"><Search size={19} aria-hidden="true"/><input aria-label="Buscar usuarios" placeholder="Buscar por nombre, correo o rol…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}/></label>
       <select aria-label="Rol" value={role} onChange={e => { setRole(e.target.value); setPage(1) }}><option value="">Todos los roles</option>{roles.data?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
       <select aria-label="Empresa" value={company?.id || ''} onChange={e => setCompany(e.target.value)}><option value="" disabled>Selecciona empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
       <select aria-label="Estado" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}><option value="">Todos los estados</option><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="BLOCKED">Bloqueado</option></select>
-      <Button variant="outline" onClick={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }}>Limpiar</Button>
-    </div>
+    </CompactFilterPanel>
     <section className="users-panel">
       <Feedback loading={query.isLoading} error={query.error} empty={!query.data?.items.length} retry={() => void query.refetch()}/>
       {!query.isLoading && !query.error && !!query.data?.items.length && <div className="overflow-x-auto"><table className="users-table"><thead><tr>

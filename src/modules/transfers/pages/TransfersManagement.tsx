@@ -10,7 +10,6 @@ import {
     Download,
     Eye,
     FileText,
-    Filter,
     LayoutGrid,
     Loader2,
     MoreHorizontal,
@@ -23,6 +22,8 @@ import {
     X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
@@ -248,6 +249,7 @@ export const TransfersManagement = () => {
     const resetPage = <T,>(setter: (value: T) => void, value: T) => { setter(value); setPage(1) }
     const clearFilters = () => { setStatus('all'); setOrigin('all'); setDestination('all'); setSearch(''); setPage(1) }
     const hasFilters = status !== 'all' || origin !== 'all' || destination !== 'all' || Boolean(search)
+    const activeFilterCount = Number(status !== 'all') + Number(origin !== 'all') + Number(destination !== 'all') + Number(Boolean(search.trim()))
     const visibleViews = visibleTransferViews(view)
     const openReceive = (transfer: Transfer) => { setSelected(null); setReceiving(transfer); setReceivedQty({}) }
     const addProduct = (id: string, name: string) => setDraft((rows) => rows.some((row) => row.product_id === id) ? rows : [...rows, { product_id: id, name, qty: 1 }])
@@ -298,10 +300,7 @@ export const TransfersManagement = () => {
                         <p className="auna-module-description">Gestiona movimientos de productos entre sucursales y almacenes.</p>
                     </div>
                     <div className="flex items-center gap-2 self-stretch sm:self-auto">
-                        <div className="flex h-12 rounded-xl border border-border/70 bg-card p-1 shadow-sm dark:bg-[#101f34]" aria-label="Tipo de vista">
-                            <Button type="button" variant="ghost" className={`h-10 rounded-lg px-3 ${view === 'table' ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} aria-label="Vista de tabla" aria-pressed={view === 'table'} onClick={() => setView('table')}><Table2 className="h-4 w-4" /><span className="ml-2 hidden lg:inline">Tabla</span></Button>
-                            <Button type="button" variant="ghost" className={`h-10 rounded-lg px-3 ${view === 'cards' ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} aria-label="Vista de cuadros" aria-pressed={view === 'cards'} onClick={() => setView('cards')}><LayoutGrid className="h-4 w-4" /><span className="ml-2 hidden lg:inline">Cuadros</span></Button>
-                        </div>
+                        <ModuleTabBar items={[{ value: 'table', label: 'Tabla', icon: Table2 }, { value: 'cards', label: 'Cuadros', icon: LayoutGrid }]} value={view} ariaLabel="Vista de traslados" onValueChange={setView} />
                         {canCreate && branch ? (
                             <Button size="lg" className="h-12 flex-1 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong sm:flex-none" onClick={() => setCreateOpen(true)}>
                                 <Plus className="mr-2 h-5 w-5" />Nuevo traslado
@@ -310,7 +309,7 @@ export const TransfersManagement = () => {
                     </div>
                 </header>
 
-                <section className="flex flex-nowrap items-center gap-3 overflow-x-auto rounded-2xl border border-border/70 bg-card p-3 shadow-sm dark:bg-[#101f34]">
+                <CompactFilterPanel title="Filtros de traslados" summary="Folio, producto, origen, destino y estado" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(320px,2fr)_repeat(3,minmax(170px,1fr))]">
                     <div className="relative min-w-[320px] flex-[2_1_480px]">
                         <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" />
                         <Input className="h-12 rounded-xl pl-10" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar por folio, producto, origen o destino…" />
@@ -318,8 +317,7 @@ export const TransfersManagement = () => {
                     <div className="min-w-[180px] flex-1"><Select value={origin} onValueChange={(value) => resetPage(setOrigin, value)}><SelectTrigger className="h-12 w-full rounded-xl"><SelectValue placeholder="Origen" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los orígenes</SelectItem>{branches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="min-w-[180px] flex-1"><Select value={destination} onValueChange={(value) => resetPage(setDestination, value)}><SelectTrigger className="h-12 w-full rounded-xl"><SelectValue placeholder="Destino" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los destinos</SelectItem>{branches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="min-w-[170px] flex-1"><Select value={status} onValueChange={(value) => resetPage(setStatus, value as StatusFilter)}><SelectTrigger className="h-12 w-full rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="EN_TRANSITO">En tránsito</SelectItem><SelectItem value="RECIBIDA">Recibidos</SelectItem><SelectItem value="CANCELADA">Cancelados</SelectItem></SelectContent></Select></div>
-                    <Button variant="outline" className="h-12 min-w-[112px] shrink-0 rounded-xl" onClick={clearFilters} disabled={!hasFilters}><Filter className="mr-2 h-4 w-4" />Limpiar</Button>
-                </section>
+                </CompactFilterPanel>
 
                 {transferQuery.isError ? (
                     <Card className="rounded-2xl border-red-500/30 bg-card dark:bg-[#101f34]"><CardContent className="flex flex-col items-center gap-3 p-12 text-center"><AlertTriangle className="h-9 w-9 text-red-500" /><p className="font-semibold">No pudimos cargar los traslados</p><Button onClick={() => transferQuery.refetch()}>Reintentar</Button></CardContent></Card>

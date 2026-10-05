@@ -24,6 +24,7 @@ import {
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
+import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {
@@ -47,6 +48,19 @@ import {
 import { formatPermissionGroupLabel } from '@/lib/permissionGroups'
 
 const isReadPermission = (code: string) => /^(view(?:_|$)|read$|details$|reports$|export$)/.test(code.split('.').pop() || '')
+
+type UserDetailTab = 'summary' | 'roles' | 'companies' | 'activity' | 'security'
+
+const USER_DETAIL_TABS = [
+  { key: 'summary', label: 'Resumen' },
+  { key: 'roles', label: 'Roles y permisos' },
+  { key: 'companies', label: 'Empresas' },
+  { key: 'activity', label: 'Actividad' },
+  { key: 'security', label: 'Seguridad' },
+] as const satisfies ReadonlyArray<{ key: UserDetailTab; label: string }>
+
+const isUserDetailTab = (value: string | null): value is UserDetailTab =>
+  USER_DETAIL_TABS.some((tab) => tab.key === value)
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -75,9 +89,10 @@ export default function UserDetailPage() {
   const [accessVersion, setAccessVersion] = useState(0)
 
   // Pestaña activa (por defecto 'summary')
-  const [activeTab, setActiveTab] = useState<'summary' | 'roles' | 'companies' | 'activity' | 'security'>(
-    (searchParams.get('tab') as any) || 'summary'
-  )
+  const [activeTab, setActiveTab] = useState<UserDetailTab>(() => {
+    const requestedTab = searchParams.get('tab')
+    return isUserDetailTab(requestedTab) ? requestedTab : 'summary'
+  })
 
   // Modo edición inline
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === '1')
@@ -462,25 +477,7 @@ export default function UserDetailPage() {
         </div>
       </AunaPanel>
 
-      {/* ══════════ PESTAÑAS CON SUBRAYADO NARANJA ══════════ */}
-      <div className="auna-tabs-nav mb-6">
-        {[
-          { key: 'summary', label: 'Resumen' },
-          { key: 'roles', label: 'Roles y permisos' },
-          { key: 'companies', label: 'Empresas' },
-          { key: 'activity', label: 'Actividad' },
-          { key: 'security', label: 'Seguridad' },
-        ].map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setActiveTab(t.key as any)}
-            className={`auna-tab-btn ${activeTab === t.key ? 'active' : ''}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <ModuleTabBar className="mb-6" items={USER_DETAIL_TABS.map((tab) => ({ value: tab.key, label: tab.label }))} value={activeTab} ariaLabel="Secciones del usuario" onValueChange={setActiveTab} />
 
       {/* ══════════ CONTENIDO DE PESTAÑAS ══════════ */}
 

@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/shared/Pagination'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useToast } from '@/hooks/use-toast'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -57,6 +58,7 @@ export default function ReturnsManagement() {
   })
   const mutation = useUpdateReturnStatus()
   const rows = query.data?.items ?? []
+  const activeFilters = Number(Boolean(search.trim())) + Number(status !== 'all') + Number(type !== 'all') + Number(Boolean(reason.trim())) + Number(Boolean(dateFrom)) + Number(Boolean(dateTo))
   const money = (value: number) => formatMoney(Number(value), locale, currencyCode)
   const clear = () => { setSearch(''); setStatus('all'); setType('all'); setReason(''); setDateFrom(''); setDateTo(''); setPage(1) }
   const confirmDecision = async () => {
@@ -77,15 +79,14 @@ export default function ReturnsManagement() {
         {canManage && <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => navigate('/returns/new')}><Plus className="mr-2 h-5 w-5" />Nueva devolución</Button>}
       </header>
 
-      <section aria-label="Filtros de devoluciones" className="grid items-end gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:grid-cols-2 xl:grid-cols-[minmax(260px,2fr)_repeat(3,minmax(140px,1fr))_145px_145px_auto] dark:bg-[#101f34]">
+      <CompactFilterPanel title="Filtros de devoluciones" summary="Venta, estado, motivo y período" activeCount={activeFilters} onClear={clear} contentClassName="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,2fr)_repeat(3,minmax(140px,1fr))_145px_145px]">
         <label className="text-xs font-semibold">Buscar<div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input className="h-12 rounded-xl pl-10" placeholder="Venta, cliente o producto…" value={search} onChange={(event) => setSearch(event.target.value)} /></div></label>
         <label className="text-xs font-semibold">Estado<Select value={status} onValueChange={setStatus}><SelectTrigger className="mt-2 h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="Pendiente">Pendiente</SelectItem><SelectItem value="Aprobada">Aprobada</SelectItem><SelectItem value="Completada">Completada</SelectItem><SelectItem value="Rechazada">Rechazada</SelectItem></SelectContent></Select></label>
         <label className="text-xs font-semibold">Tipo<Select value={type} onValueChange={setType}><SelectTrigger className="mt-2 h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="REFUND">Devolución</SelectItem><SelectItem value="EXCHANGE">Cambio</SelectItem></SelectContent></Select></label>
         <label className="text-xs font-semibold">Motivo<Input className="mt-2 h-12 rounded-xl" placeholder="Cualquier motivo" value={reason} onChange={(event) => setReason(event.target.value)} /></label>
         <label className="text-xs font-semibold">Desde<Input type="date" className="mt-2 h-12 rounded-xl" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
         <label className="text-xs font-semibold">Hasta<Input type="date" className="mt-2 h-12 rounded-xl" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
-        <Button variant="outline" className="h-12 min-w-[105px] rounded-xl border-brand-orange text-brand-orange" onClick={clear}>Limpiar</Button>
-      </section>
+      </CompactFilterPanel>
 
       <section className="auna-data-table-shell" aria-label="Listado de devoluciones">
         {query.isLoading ? <div className="flex min-h-56 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-brand-orange" /><span className="sr-only">Cargando devoluciones</span></div>

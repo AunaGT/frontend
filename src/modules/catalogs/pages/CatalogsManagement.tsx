@@ -11,7 +11,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -129,16 +130,16 @@ export function CatalogsManagement() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <TabsList className="catalogs-tabs">
-            <TabsTrigger value="categories"><Tags className="h-4 w-4" />Categorías</TabsTrigger>
-            <TabsTrigger value="cash-registers"><Wallet className="h-4 w-4" />Cajas</TabsTrigger>
-            <TabsTrigger value="payment-methods" className="text-xs sm:text-sm whitespace-nowrap">
+          <ModuleTabsList>
+            <ModuleTabsTrigger value="categories"><Tags className="h-4 w-4" />Categorías</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="cash-registers"><Wallet className="h-4 w-4" />Cajas</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="payment-methods" className="whitespace-nowrap">
               <CreditCard className="h-4 w-4" />Métodos de pago
-            </TabsTrigger>
-            <TabsTrigger value="payment-terms" className="text-xs sm:text-sm whitespace-nowrap">
+            </ModuleTabsTrigger>
+            <ModuleTabsTrigger value="payment-terms" className="whitespace-nowrap">
               <CalendarDays className="h-4 w-4" />Términos de pago
-            </TabsTrigger>
-          </TabsList>
+            </ModuleTabsTrigger>
+          </ModuleTabsList>
         </div>
 
         <TabsContent value="payment-methods" className="space-y-4 mt-4">

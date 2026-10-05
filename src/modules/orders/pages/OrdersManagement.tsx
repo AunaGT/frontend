@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -119,6 +120,7 @@ export default function OrdersManagement() {
   const fmt = (value: number | string | null | undefined) => formatMoney(num(value), locale, currencyCode)
   const formatDate = (value: string) => new Intl.DateTimeFormat(locale, { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value))
   const hasFilters = Object.entries(draftFilters).some(([key, value]) => key === 'customerId' || key === 'preparation' || key === 'delivery' ? value !== 'all' : Boolean(value))
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => key === 'customerId' || key === 'preparation' || key === 'delivery' ? value !== 'all' : Boolean(value)).length
 
   const applyFilters = () => { setFilters(draftFilters); setPage(1) }
   const clearFilters = () => { setDraftFilters(EMPTY_FILTERS); setFilters(EMPTY_FILTERS); setPage(1) }
@@ -162,16 +164,15 @@ export default function OrdersManagement() {
         <Card className="rounded-2xl"><CardContent className="p-4"><ClockCardIcon icon={<CheckCircle2 />} tone="green" /><strong className="mt-3 block text-2xl">{summary.FULFILLED ?? 0}</strong><span className="text-sm text-muted-foreground">Entregados</span></CardContent></Card>
       </section>
 
-      <section className="flex flex-nowrap items-end gap-3 overflow-x-auto rounded-2xl border border-border/70 bg-card p-4 shadow-sm dark:bg-[#101f34]">
+      <CompactFilterPanel title="Filtros de pedidos" summary="Cliente, período, preparación y entrega" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(250px,2fr)_minmax(180px,1fr)_145px_145px_170px_165px_auto]">
         <div className="min-w-[250px] flex-[2_1_360px]"><label className="mb-2 block text-xs font-semibold">Buscar</label><div className="relative"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input className="h-12 rounded-xl pl-10" placeholder="Número de pedido, cliente…" value={draftFilters.search} onChange={(event) => setDraftFilters((current) => ({ ...current, search: event.target.value }))} /></div></div>
         <div className="min-w-[180px] flex-1"><label className="mb-2 block text-xs font-semibold">Cliente</label><Select value={draftFilters.customerId} onValueChange={(value) => setDraftFilters((current) => ({ ...current, customerId: value }))}><SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los clientes</SelectItem>{(customersQuery.data?.items ?? []).map((customer) => <SelectItem key={customer.id} value={customer.id}>{customer.name}</SelectItem>)}</SelectContent></Select></div>
         <div className="min-w-[145px]"><label className="mb-2 block text-xs font-semibold">Fecha desde</label><Input type="date" className="h-12 rounded-xl" value={draftFilters.dateFrom} onChange={(event) => setDraftFilters((current) => ({ ...current, dateFrom: event.target.value }))} /></div>
         <div className="min-w-[145px]"><label className="mb-2 block text-xs font-semibold">Fecha hasta</label><Input type="date" className="h-12 rounded-xl" value={draftFilters.dateTo} onChange={(event) => setDraftFilters((current) => ({ ...current, dateTo: event.target.value }))} /></div>
         <div className="min-w-[170px]"><label className="mb-2 block text-xs font-semibold">Estado prep.</label><Select value={draftFilters.preparation} onValueChange={(value) => setDraftFilters((current) => ({ ...current, preparation: value }))}><SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="preparing">En preparación</SelectItem><SelectItem value="ready">Listo</SelectItem><SelectItem value="delayed">Retrasado</SelectItem><SelectItem value="cancelled">Cancelado</SelectItem></SelectContent></Select></div>
         <div className="min-w-[165px]"><label className="mb-2 block text-xs font-semibold">Estado entrega</label><Select value={draftFilters.delivery} onValueChange={(value) => setDraftFilters((current) => ({ ...current, delivery: value }))}><SelectTrigger className="h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="transit">En tránsito</SelectItem><SelectItem value="delivered">Entregado</SelectItem><SelectItem value="cancelled">Cancelado</SelectItem></SelectContent></Select></div>
-        <Button variant="outline" className="h-12 min-w-[125px] rounded-xl border-brand-orange text-brand-orange" disabled={!hasFilters && !Object.values(filters).some(Boolean)} onClick={clearFilters}>Limpiar filtros</Button>
-        <Button className="h-12 min-w-[115px] rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={applyFilters}><Filter className="mr-2 h-4 w-4" />Aplicar</Button>
-      </section>
+        <Button className="h-12 min-w-[115px] rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={!hasFilters && activeFilterCount === 0} onClick={applyFilters}><Filter className="mr-2 h-4 w-4" />Aplicar</Button>
+      </CompactFilterPanel>
       {commercialDocSearchHint(draftFilters.search) ? <p className="text-xs text-muted-foreground">{commercialDocSearchHint(draftFilters.search)}</p> : null}
 
       <section className="auna-data-table-shell">
