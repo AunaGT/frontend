@@ -23,6 +23,7 @@ import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { getCompanyNamePublic } from '@/services/settingsService'
 import { generateSaleInvoicePDF } from './documents/generateSaleInvoicePDF'
+import { LoadingState } from '@/components/shared/LoadingState'
 
 const getStatusBadge = (status: SaleStatus) => {
   const badges: Record<string, React.ReactNode> = {
@@ -75,8 +76,9 @@ export const SaleInvoicePage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <p className="text-muted-foreground">Cargando factura...</p>
+      <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
+        <Button variant="ghost" size="sm" onClick={() => navigate('/ventas')}><ArrowLeft className="mr-2 h-4 w-4" />Volver a ventas</Button>
+        <LoadingState variant="detail" message="Cargando factura…" />
       </div>
     )
   }

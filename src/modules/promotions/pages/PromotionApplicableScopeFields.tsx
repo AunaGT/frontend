@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProductCombobox } from '@/components/shared/ProductCombobox'
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useProductCategories } from '@/hooks/useProductCategories'
 import { fetchAllProducts } from '@/services/productService'
 import { X } from 'lucide-react'
@@ -111,7 +112,7 @@ export function PromotionApplicableScopeFields({
       <div className="space-y-2">
         <Label className="text-xs font-medium">Categorías</Label>
         {catLoading ? (
-          <p className="text-xs text-muted-foreground">Cargando categorías…</p>
+          <LoadingIndicator message="Cargando categorías…" />
         ) : (
           <ScrollArea className="h-[180px] rounded-md border p-3">
             <div className="space-y-2">

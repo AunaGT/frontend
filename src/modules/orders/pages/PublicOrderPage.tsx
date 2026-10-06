@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompanyLogo } from "@/components/branding/CompanyLogo";
+import { LoadingState, LoadingIndicator } from "@/components/shared/LoadingState";
 import { applyDocumentBranding } from "@/utils/documentBranding";
 import { formatDateTime, formatMoney } from "@/utils/formatters";
 import { fetchPublicOrder, num } from "@/services/orderService";
@@ -28,7 +29,7 @@ const progressShortLabels = ["Creado", "Conf.", "Prepar.", "Entrega", "Completo"
 
 export default function PublicOrderPage() {
   const { token } = useParams<{ token: string }>();
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isFetching, isError } = useQuery({
     queryKey: ["public-order", token],
     queryFn: () => fetchPublicOrder(token!),
     enabled: Boolean(token),
@@ -44,7 +45,7 @@ export default function PublicOrderPage() {
     });
   }, [data]);
 
-  if (isLoading) return <PublicState message="Cargando seguimiento del pedido…" />;
+  if (isLoading) return <main className="min-h-screen bg-brand-surface/70 p-4 dark:bg-brand-navy sm:p-8"><div className="mx-auto max-w-[1560px] space-y-5"><h1 className="text-xl font-semibold">Seguimiento de pedido</h1><LoadingState variant="detail" message="Cargando seguimiento del pedido…" /></div></main>;
   if (isError || !data) return <PublicState message="Este pedido no está disponible." />;
 
   const fmt = (value: number | string | null | undefined) => formatMoney(num(value), locale, currencyCode);
@@ -62,6 +63,7 @@ export default function PublicOrderPage() {
     </header>
 
     <main className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      {isFetching && <LoadingIndicator message="Actualizando pedido…" />}
       <section>
         <p className="text-sm text-muted-foreground">Pedidos · {data.reference || "Seguimiento"}</p>
         <div className="mt-2 flex flex-wrap items-center gap-3"><h1 className="text-3xl font-bold tracking-tight text-brand-navy dark:text-white sm:text-4xl">Pedido {data.reference || ""}</h1><OrderStatusBadge status={data.status} /></div>

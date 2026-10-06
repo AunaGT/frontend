@@ -210,7 +210,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
               <div className="space-y-1">
                 <Label className="text-xs">Tipo</Label>
                 <Select value={type} onValueChange={(v) => setType(v as AccountType)}>
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Tipo" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Tipo" /></SelectTrigger>
                   <SelectContent>
                     {ACCOUNT_TYPES.map((t) => (
                       <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>
@@ -226,7 +226,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
             <div className="space-y-1">
               <Label className="text-xs">Cuenta padre (opcional)</Label>
               <Select value={parentId || 'none'} onValueChange={(v) => setParentId(v === 'none' ? '' : v)}>
-                <SelectTrigger className="h-9"><SelectValue placeholder="Sin padre" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Sin padre" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">Sin padre</SelectItem>
                   {groups.map((g) => (

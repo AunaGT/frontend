@@ -1,0 +1,22 @@
+.compact-filter-toolbar{min-width:0}
+.compact-filter-search{max-width:640px;flex-basis:240px}
+.compact-filter-search .users-search input{flex:1;min-width:0;width:100%;margin:0}
+.compact-filter-search>div,.compact-filter-search>label{min-width:0!important}
+.compact-filter-popover{width:min(700px,calc(100vw - 24px));max-height:min(620px,var(--radix-popover-content-available-height));overflow:auto;background:hsl(var(--popover));color:hsl(var(--popover-foreground))}
+.compact-filter-fields{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:16px!important;padding:0!important;border:0!important;background:transparent!important}
+.compact-filter-fields>*{min-width:0!important;width:100%!important;grid-column:auto!important}
+.compact-filter-fields label{font-size:12px;font-weight:500}
+.compact-filter-fields input, .compact-filter-fields select, .compact-filter-fields [role=combobox]{width:100%;min-width:0}
+.compact-filter-fields .users-search{display:flex;align-items:center;gap:8px}
+.compact-filter-fields .alerts-filter-search{display:flex;flex-direction:column;gap:6px}
+.compact-filter-fields .alerts-search-input{display:flex;flex-direction:column;gap:6px}
+.compact-filter-search .alerts-search-input{display:flex;align-items:center;gap:8px}
+.metric-strip{display:flex;flex-wrap:wrap;gap:12px 0;border-block:1px solid hsl(var(--border));padding-block:12px}
+.metric-strip-item{display:flex;flex:1 1 170px;min-width:0;flex-direction:column;align-items:flex-start;gap:3px;padding:0 20px;border-inline-start:1px solid hsl(var(--border));text-align:start}
+.metric-strip-item:first-child{border-inline-start:0;padding-inline-start:0}
+.metric-strip-label{font-size:12px;color:hsl(var(--muted-foreground))}
+.metric-strip-value{font-size:20px;line-height:1.4;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.metric-strip-action{border-radius:4px}
+.metric-strip-action:hover .metric-strip-label,.metric-strip-action[aria-pressed=true] .metric-strip-label{color:hsl(var(--foreground));text-decoration:underline;text-underline-offset:4px}
+.metric-strip-action:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:3px}
+@media(max-width:639px){.compact-filter-fields{grid-template-columns:minmax(0,1fr)!important}.metric-strip-item{flex-basis:45%;padding-inline:12px}.metric-strip-item:nth-child(odd){border-inline-start:0;padding-inline-start:0}.metric-strip-value{font-size:18px}}

@@ -4,6 +4,7 @@
  * La asignación de caja a un usuario se hace desde la ficha del usuario.
  */
 
+import { LoadingState, LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { CatalogFilters } from './CatalogFilters'
 import { useCatalogSearch } from './useCatalogSearch'
@@ -64,7 +65,7 @@ export function CashRegistersTab() {
   const [page, setPage] = useState(1)
   useEffect(() => { setPage(1) }, [search, order, status, branch?.id])
 
-  const { data: registers = [], isLoading, error: registersError } = useQuery({
+  const { data: registers = [], isLoading, isFetching, error: registersError } = useQuery({
     queryKey: [...REGISTERS_QUERY_KEY, branch?.id],
     queryFn: () => listCashRegisters(true),
   })
@@ -89,7 +90,7 @@ export function CashRegistersTab() {
   useEffect(() => { setAssignPage(1) }, [assignQuery])
   const [assignSaving, setAssignSaving] = useState(false)
 
-  const { data: usersData, isLoading: isLoadingUsers, error: usersError } = useQuery({
+  const { data: usersData, isLoading: isLoadingUsers, isFetching: isFetchingUsers, error: usersError } = useQuery({
     queryKey: ['users', 'for-register-assign', assignTarget?.branch?.id, assignQuery, assignPage],
     queryFn: () => getUsers({ page: assignPage, pageSize: 20, search: assignQuery, branch_id: assignTarget?.branch?.id }),
     enabled: assignTarget != null,
@@ -236,15 +237,12 @@ export function CashRegistersTab() {
             )}
           </div>
         </CardHeader>
-        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
-        <div className="px-6 pb-4"><select aria-label="Estado de las cajas" value={status} onChange={e => setStatus(e.target.value)} className="h-11 rounded-lg border border-input bg-background px-3 text-sm"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></div>
+        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} onClearExtra={() => {setStatus('all');setPage(1)}} extraFilters={status !== 'all' ? [{label: `Estado: ${status === 'active' ? 'Activas' : 'Inactivas'}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
+          <label className="space-y-1 text-xs">Estado de las cajas<select aria-label="Estado de las cajas" value={status} onChange={e => setStatus(e.target.value)} className="auna-control auna-control-select px-3"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
+        </CatalogFilters>
         <CardContent className="catalog-content">
-          {registersError ? <p role="alert" className="p-6 text-destructive">{registersError.message}</p> : isLoading ? (
-            <div className="flex items-center justify-center py-8 text-muted-foreground">
-              <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              Cargando cajas...
-            </div>
-          ) : visibleRegisters.length === 0 ? (
+          {isFetching && !isLoading && <LoadingIndicator message="Actualizando cajas…" />}
+          {registersError ? <p role="alert" className="p-6 text-destructive">{registersError.message}</p> : !isLoading && visibleRegisters.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground">
               No hay cajas registradas
             </div>
@@ -262,6 +260,7 @@ export function CashRegistersTab() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {isLoading && <TableLoadingRows columns={canManage ? 6 : 5} message="Cargando cajas…" />}
                   {visibleRegisters.map((reg) => (
                     <TableRow key={reg.id} className={!reg.active ? 'opacity-60' : undefined}>
                       <TableCell className="font-medium">
@@ -431,12 +430,9 @@ export function CashRegistersTab() {
                 className="pl-9"
               />
             </div>
-            <div className="max-h-72 overflow-y-auto rounded-md border divide-y">
+            {isFetchingUsers && usersData && <LoadingIndicator message="Actualizando usuarios…" />}<div className="max-h-72 overflow-y-auto rounded-md border divide-y">
               {usersError ? <p role="alert" className="p-4 text-destructive">{usersError.message}</p> : isLoadingUsers ? (
-                <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  Cargando usuarios...
-                </div>
+                <LoadingState variant="cards" message="Cargando usuarios…" />
               ) : filteredUsers.length === 0 ? (
                 <div className="py-8 text-center text-sm text-muted-foreground">
                   No se encontraron usuarios

@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { LoadingState } from '@/components/shared/LoadingState'
 import './users.css'
 
 export function UsersPage({
@@ -274,6 +275,7 @@ export function Feedback({
   retry?: () => void
 }) {
   if (!loading && !error && !empty) return null
+  if (loading) return <LoadingState variant="detail" message="Cargando información…" />
   return (
     <div role={error ? 'alert' : 'status'} className="p-10 text-center users-muted text-sm">
       {loading ? (

@@ -31,9 +31,9 @@ export type ModuleTabItem<T extends string> = {
 }
 
 type ModuleTabBarProps<T extends string> = {
-  items: readonly ModuleTabItem<T>[]
+  items: readonly ModuleTabItem<NoInfer<T>>[]
   value: T
-  onValueChange: (value: T) => void
+  onValueChange: (value: NoInfer<T>) => void
   ariaLabel: string
   className?: string
 }

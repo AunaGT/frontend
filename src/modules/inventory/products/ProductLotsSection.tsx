@@ -2,23 +2,27 @@
  * Sección de lotes con existencia (FEFO) en el detalle de producto.
  * Permite corregir un lote mal ingresado (cantidad / caducidad / código) o eliminarlo.
  */
-import { useCallback, useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
+import { CompactFilterPanel } from "@/components/shared/CompactFilterPanel";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { FormDialog } from "@/components/shared/FormDialog";
+import { Pagination } from "@/components/shared/Pagination";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { CalendarClock, PackageOpen, Pencil, Trash2 } from "lucide-react";
+import { PackageOpen, Pencil, Search, Trash2 } from "lucide-react";
 import { apiFetch } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { useSystemSettings } from "@/hooks/useSystemSettings";
+import { usePersistedListUiState } from "@/hooks/usePersistedListUiState";
 
 type ProductLot = {
   id: string;
@@ -52,16 +56,42 @@ type Props = {
 const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString("es-GT", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" });
 
-const daysToExpiry = (iso: string) => Math.round((new Date(iso).getTime() - Date.now()) / 86400000);
-
 // yyyy-mm-dd para <input type="date"> desde una fecha ISO (que viene como día UTC)
 const toDateInput = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props) {
   const { toast } = useToast();
-  const [lots, setLots] = useState<ProductLot[] | null>(null);
-  const [recon, setRecon] = useState<Reconciliation | null>(null);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const { hasPermission } = useAuthPermissions();
+  const canManage = hasPermission("products.register_incoming");
+  const { timezone } = useSystemSettings();
+  const queryClient = useQueryClient();
+  const query = useQuery<LotsResponse>({
+    queryKey: ["product-lots", productId],
+    queryFn: () => apiFetch<LotsResponse>(`/api/products/${productId}/lots`),
+  });
+  const lots = query.data?.lots ?? [];
+  const recon = query.data?.reconciliation;
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [locationId, setLocationId] = useState("all");
+  const { page, pageSize, setPage } = usePersistedListUiState(`inventario/${productId}/lotes-compactos`, { defaultPageSize: 5 });
+
+  // expiry_date es DATE: se compara con el día del negocio, no con la hora UTC actual.
+  const todayParts = Object.fromEntries(new Intl.DateTimeFormat("en", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  const today = Date.UTC(Number(todayParts.year), Number(todayParts.month) - 1, Number(todayParts.day));
+  const daysToExpiry = (lot: ProductLot) => lot.expiry_date ? Math.round((Date.parse(lot.expiry_date.slice(0, 10)) - today) / 86400000) : null;
+  const locations = [...new Map(lots.flatMap(lot => lot.location ? [[lot.location.id, lot.location] as const] : [])).values()];
+  const term = search.trim().toLocaleLowerCase("es-GT");
+  const filteredLots = lots.filter(lot => {
+    const days = daysToExpiry(lot);
+    return (locationId === "all" || lot.location?.id === locationId) &&
+      (!term || [lot.lot_code, lot.location?.code, lot.location?.warehouse.name].some(value => value?.toLocaleLowerCase("es-GT").includes(term))) &&
+      (status === "all" || (status === "expired" && days != null && days < 0) || (status === "expiring" && days != null && days >= 0 && days <= 30) || (status === "current" && days != null && days > 30) || (status === "undated" && days == null));
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredLots.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visibleLots = filteredLots.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const [editing, setEditing] = useState<ProductLot | null>(null);
   const [editCode, setEditCode] = useState("");
@@ -72,22 +102,10 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
   const [deleting, setDeleting] = useState<ProductLot | null>(null);
   const [deletingBusy, setDeletingBusy] = useState(false);
 
-  const loadLots = useCallback(() => {
-    setLoading(true);
-    return apiFetch<LotsResponse>(`/api/products/${productId}/lots`)
-      .then((data) => { setLots(data.lots); setRecon(data.reconciliation ?? null); })
-      .catch(() => setLots([]))
-      .finally(() => setLoading(false));
-  }, [productId]);
-
-  useEffect(() => {
-    let cancelled = false;
-    apiFetch<LotsResponse>(`/api/products/${productId}/lots`)
-      .then((data) => { if (!cancelled) { setLots(data.lots); setRecon(data.reconciliation ?? null); } })
-      .catch(() => { if (!cancelled) setLots([]); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [productId]);
+  const loadLots = async () => {
+    await query.refetch();
+    for (const key of ["lots-expiring", "products", "stock-by-location"]) void queryClient.invalidateQueries({ queryKey: [key] });
+  };
 
   const openEdit = (lot: ProductLot) => {
     setEditing(lot);
@@ -97,7 +115,7 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
   };
 
   const saveEdit = async () => {
-    if (!editing) return;
+    if (!editing || !canManage || saving || !validEdit) return;
     setSaving(true);
     try {
       await apiFetch(`/api/products/lots/${editing.id}`, {
@@ -124,7 +142,7 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
   };
 
   const confirmDelete = async () => {
-    if (!deleting) return;
+    if (!deleting || !canManage || deletingBusy) return;
     setDeletingBusy(true);
     try {
       await apiFetch(`/api/products/lots/${deleting.id}`, { method: "DELETE" });
@@ -143,159 +161,147 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
     }
   };
 
-  if (!loading && (!lots || lots.length === 0) && !tracksExpiry) return null;
+  const minQuantity = Math.max(1, editing ? editing.qty_received - editing.qty_remaining : 1);
+  const validEdit = Number.isInteger(Number(editQty)) && Number(editQty) >= minQuantity && (!tracksExpiry || Boolean(editExpiry));
+
+  const statusLabels: Record<string, string> = { all: "Todos", expired: "Vencidos", expiring: "Por vencer (≤ 30 días)", current: "Vigentes", undated: "Sin caducidad" };
+  const appliedFilters = [
+    ...(search.trim() ? [{ label: `Búsqueda: ${search}`, onRemove: () => { setSearch(""); setPage(1); } }] : []),
+    ...(status !== "all" ? [{ label: `Estado: ${statusLabels[status]}`, onRemove: () => { setStatus("all"); setPage(1); } }] : []),
+    ...(locationId !== "all" ? [{ label: `Ubicación: ${locations.find(location => location.id === locationId)?.code || "Seleccionada"}`, onRemove: () => { setLocationId("all"); setPage(1); } }] : []),
+  ];
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CalendarClock className="w-5 h-5 text-liquor-amber" />
-          Lotes y caducidad
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {recon && !loading ? (
-          <div
-            className={`mb-4 rounded-md border px-3 py-2 text-sm ${
-              recon.balanced
-                ? 'border-border bg-muted/40'
-                : recon.tracks_expiry
-                  ? 'border-destructive/50 bg-destructive/10 text-destructive'
-                  : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-            }`}
-          >
-            <div className="flex flex-wrap gap-x-6 gap-y-1">
-              <span>Existencia física: <strong>{recon.physical}</strong></span>
-              <span>Con lote: <strong>{recon.lotted}</strong></span>
-              <span>Sin lote: <strong>{recon.unlotted}</strong></span>
-            </div>
-            {!recon.balanced ? (
-              <p className="text-xs mt-1">
-                {recon.tracks_expiry
-                  ? 'Este producto controla caducidad, así que toda unidad debería tener lote. Corré scripts/backfill-lots.js para abrir lotes LEGACY por la diferencia.'
-                  : 'Este producto no controla caducidad: las unidades sin lote son normales (saldos iniciales y ajustes no generan lote).'}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Cargando lotes…</p>
-        ) : !lots || lots.length === 0 ? (
-          <div className="py-6 text-center text-muted-foreground">
-            <PackageOpen className="w-10 h-10 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Sin lotes con existencia registrados.</p>
-            <p className="text-xs mt-1">Se crean al registrar un ingreso de mercancía para este producto.</p>
-          </div>
-        ) : (
+    <section className="min-w-0 space-y-4" aria-labelledby="product-lots-heading">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 id="product-lots-heading" className="text-xl font-semibold tracking-tight">Lotes y caducidades</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Consulta las cantidades y atiende primero los lotes que vencen antes.</p>
+        </div>
+        <Button variant="outline" onClick={() => navigate("/inventario/lotes")}>Ver listado general</Button>
+      </header>
+
+      {recon && !query.isLoading && !query.isError && <>
+        <dl aria-label="Reconciliación de existencias" className="flex flex-wrap gap-x-6 gap-y-2 border-b pb-3 text-sm">
+          {[["Existencia física", recon.physical], ["Con lote", recon.lotted], ["Sin lote", recon.unlotted]].map(([label, value]) => <div key={label} className="flex gap-2"><dt className="text-muted-foreground">{label}:</dt><dd className="font-medium tabular-nums">{value}</dd></div>)}
+        </dl>
+        {!recon.balanced && <p className="border-l-2 border-amber-500 pl-3 text-sm text-muted-foreground">
+          {recon.unlotted < 0
+            ? "La existencia atribuida a los lotes supera la existencia física. Revisa los ingresos y ajustes antes de corregirla."
+            : recon.tracks_expiry
+              ? "Hay unidades sin lote en un producto que controla caducidad. Revisa sus ingresos y ajustes para reconciliar la diferencia."
+              : "Las unidades sin lote pueden corresponder a saldos iniciales o ajustes de un producto que no controla caducidad."}
+        </p>}
+      </>}
+
+      <CompactFilterPanel
+        title="Filtros de lotes del producto"
+        activeCount={appliedFilters.length}
+        appliedFilters={appliedFilters}
+        onClear={() => { setSearch(""); setStatus("all"); setLocationId("all"); setPage(1); }}
+        search={<div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Input aria-label="Buscar lotes del producto" className="pl-9" placeholder="Buscar lote, almacén o ubicación…" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} />
+        </div>}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="product-lot-status">Estado</Label>
+          <Select value={status} onValueChange={value => { setStatus(value); setPage(1); }}>
+            <SelectTrigger id="product-lot-status"><SelectValue /></SelectTrigger>
+            <SelectContent>{Object.entries(statusLabels).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="product-lot-location">Ubicación</Label>
+          <Select value={locationId} onValueChange={value => { setLocationId(value); setPage(1); }}>
+            <SelectTrigger id="product-lot-location"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las ubicaciones</SelectItem>
+              {locations.map(location => <SelectItem key={location.id} value={location.id}>{location.warehouse.name} · {location.code}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </CompactFilterPanel>
+
+      <div className="auna-data-table-shell" aria-busy={query.isFetching}>
+        {query.isFetching && !query.isLoading && <LoadingIndicator message="Actualizando lotes…" className="px-4 py-2" />}
+        {query.isLoading ? <LoadingState columns={['Lote', 'Almacén / ubicación', 'Vencimiento', 'Existencia', 'Estado', ...(canManage ? ['Acciones'] : [])]} message="Cargando lotes…" /> : query.isError ? <div role="alert" className="p-8 text-center">
+          <p>No se pudieron cargar los lotes del producto.</p>
+          <Button variant="outline" className="mt-3" onClick={() => void query.refetch()}>Reintentar</Button>
+        </div> : filteredLots.length === 0 ? <EmptyState
+          icon={PackageOpen}
+          title={lots.length === 0 ? "Este producto no tiene lotes con existencia" : "Sin resultados para estos filtros"}
+          description={lots.length === 0 ? "Los lotes se crean al registrar un ingreso de mercancía para este producto." : "Prueba otra búsqueda o limpia los filtros."}
+        /> : <>
           <div className="overflow-x-auto">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Lote</TableHead>
-                  <TableHead>Ubicación</TableHead>
-                  <TableHead>Caducidad</TableHead>
-                  <TableHead className="text-right">Existencia</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lots.map((lot) => {
-                  const days = lot.expiry_date ? daysToExpiry(lot.expiry_date) : null;
-                  const expired = days != null && days < 0;
-                  const expiringSoon = days != null && days >= 0 && days <= 30;
-                  return (
-                    <TableRow key={lot.id}>
-                      <TableCell>{lot.lot_code || "—"}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {lot.location ? `${lot.location.warehouse.name} · ${lot.location.code}` : "Sin ubicación"}
-                      </TableCell>
-                      <TableCell>{lot.expiry_date ? formatDate(lot.expiry_date) : "—"}</TableCell>
-                      <TableCell className="text-right font-medium">{lot.qty_remaining}</TableCell>
-                      <TableCell>
-                        {expired ? (
-                          <Badge variant="destructive">Vencido</Badge>
-                        ) : expiringSoon ? (
-                          <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15">
-                            Por vencer
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Vigente</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(lot)} aria-label="Editar lote">
-                            <Pencil className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => setDeleting(lot)} aria-label="Eliminar lote">
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
+              <TableHeader><TableRow>
+                <TableHead>Lote</TableHead>
+                <TableHead>Almacén / ubicación</TableHead>
+                <TableHead>Vencimiento</TableHead>
+                <TableHead className="text-right">Existencia</TableHead>
+                <TableHead>Estado</TableHead>
+                {canManage && <TableHead className="text-right">Acciones</TableHead>}
+              </TableRow></TableHeader>
+              <TableBody>{visibleLots.map(lot => {
+                const days = daysToExpiry(lot);
+                const expired = days != null && days < 0;
+                const expiringSoon = days != null && days >= 0 && days <= 30;
+                return <TableRow key={lot.id}>
+                  <TableCell className="font-semibold">{lot.lot_code || "Sin código"}</TableCell>
+                  <TableCell>{lot.location?.warehouse.name || "Sin ubicación"}{lot.location && <p className="mt-1 text-xs text-muted-foreground">{lot.location.code}</p>}</TableCell>
+                  <TableCell className={expired ? "whitespace-nowrap text-red-600 dark:text-red-400" : "whitespace-nowrap"}>{lot.expiry_date ? formatDate(lot.expiry_date) : "Sin caducidad"}<p className="mt-1 text-xs tabular-nums">{days == null ? "—" : days === 0 ? "Vence hoy" : days < 0 ? `Hace ${Math.abs(days)} días` : `${days} días`}</p></TableCell>
+                  <TableCell className="text-right tabular-nums"><strong>{lot.qty_remaining}</strong><p className="mt-1 text-xs text-muted-foreground">Recibido: {lot.qty_received}</p></TableCell>
+                  <TableCell><Badge className={expired ? "border-0 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/10" : expiringSoon ? "border-0 bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/15" : days != null ? "border-0 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/10" : "border-0 bg-muted text-muted-foreground hover:bg-muted"}>{expired ? "Vencido" : expiringSoon ? "Por vencer" : days == null ? "Sin caducidad" : "Vigente"}</Badge></TableCell>
+                  {canManage && <TableCell className="text-right"><div className="flex justify-end gap-2">
+                    <Button variant="outline" size="icon" disabled={query.isFetching || saving || deletingBusy} onClick={() => openEdit(lot)} aria-label={`Editar lote ${lot.lot_code || lot.id}`}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>
+                    <Button variant="outline" size="icon" disabled={query.isFetching || saving || deletingBusy} className="text-destructive" onClick={() => setDeleting(lot)} aria-label={`Eliminar lote ${lot.lot_code || lot.id}`}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>
+                  </div></TableCell>}
+                </TableRow>;
+              })}</TableBody>
             </Table>
           </div>
-        )}
-      </CardContent>
+          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={filteredLots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={query.isFetching} />
+        </>}
+      </div>
 
-      {/* Editar lote */}
-      <Dialog open={editing != null} onOpenChange={(o) => !o && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Corregir lote</DialogTitle>
-            <DialogDescription>
-              Ajusta la cantidad recibida, la caducidad o el código. Cambiar la cantidad ajusta el stock del producto.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="lot-code">Código de lote</Label>
-              <Input id="lot-code" value={editCode} onChange={(e) => setEditCode(e.target.value)} placeholder="Opcional" maxLength={60} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lot-expiry">Caducidad{tracksExpiry ? " *" : ""}</Label>
-              <Input id="lot-expiry" type="date" value={editExpiry} onChange={(e) => setEditExpiry(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="lot-qty">Cantidad recibida</Label>
-              <Input id="lot-qty" type="number" min={1} step={1} value={editQty} onChange={(e) => setEditQty(e.target.value)} />
-              {editing && (
-                <p className="text-xs text-muted-foreground">
-                  Vendido de este lote: {editing.qty_received - editing.qty_remaining}. No puede recibir menos que eso.
-                </p>
-              )}
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Cancelar</Button>
-            <Button onClick={() => void saveEdit()} disabled={saving}>{saving ? "Guardando…" : "Guardar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FormDialog
+        appearance="auna"
+        open={editing !== null}
+        onOpenChange={open => { if (!open && !saving) setEditing(null); }}
+        title="Corregir lote"
+        description="Corrige el código, la caducidad o la cantidad recibida. Cambiar la cantidad ajusta la existencia del producto."
+        onSubmit={saveEdit}
+        loading={saving}
+        submitDisabled={!canManage || !validEdit}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="lot-code">Código de lote</Label>
+          <Input id="lot-code" value={editCode} onChange={event => setEditCode(event.target.value)} placeholder="Opcional" maxLength={60} disabled={saving} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lot-expiry">Caducidad{tracksExpiry ? " *" : ""}</Label>
+          <Input id="lot-expiry" type="date" value={editExpiry} onChange={event => setEditExpiry(event.target.value)} required={tracksExpiry} disabled={saving} />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lot-qty">Cantidad recibida *</Label>
+          <Input id="lot-qty" type="number" min={minQuantity} step={1} required value={editQty} onChange={event => setEditQty(event.target.value)} disabled={saving} aria-describedby="lot-qty-help" />
+          <p id="lot-qty-help" className="text-xs text-muted-foreground">Ya consumido: {editing ? editing.qty_received - editing.qty_remaining : 0}. La cantidad recibida no puede ser menor.</p>
+        </div>
+      </FormDialog>
 
-      {/* Eliminar lote */}
-      <AlertDialog open={deleting != null} onOpenChange={(o) => !o && setDeleting(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este lote?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Se descontará del stock del producto la existencia restante del lote
-              {deleting ? ` (${deleting.qty_remaining})` : ""}. Útil si lo ingresaste en el producto equivocado; luego regístralo en el correcto.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingBusy}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={(e) => { e.preventDefault(); void confirmDelete(); }} disabled={deletingBusy} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              {deletingBusy ? "Eliminando…" : "Eliminar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Card>
+      <ConfirmDialog
+        appearance="auna"
+        variant="destructive"
+        open={deleting !== null}
+        onOpenChange={open => { if (!open && !deletingBusy) setDeleting(null); }}
+        title="¿Eliminar este lote?"
+        description={`Se descontarán del stock las ${deleting?.qty_remaining ?? 0} unidades restantes de este lote. Usa esta corrección si se registró en el producto equivocado; después deberás ingresarlo en el correcto.`}
+        confirmText="Eliminar lote"
+        loading={deletingBusy}
+        onConfirm={confirmDelete}
+      />
+    </section>
   );
 }
 

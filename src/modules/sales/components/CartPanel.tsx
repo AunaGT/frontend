@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label'
 import { Plus, Minus, X, Search, Calculator } from 'lucide-react'
 import type { Product } from '@/types/product'
 import type { CartProduct } from '../types'
+import { LoadingState } from '@/components/shared/LoadingState'
 
 interface CartPanelProps {
     cartItems: CartProduct[]
@@ -69,7 +70,7 @@ export const CartPanel = ({
                 {productSearch && (
                     <div className='mt-2 max-h-40 overflow-y-auto border rounded-lg'>
                         {isLoadingProducts ? (
-                            <div className='p-4 text-center text-muted-foreground'>Cargando productos...</div>
+                            <LoadingState variant="cards" rows={3} message="Cargando productos…" />
                         ) : filteredProducts.length === 0 ? (
                             <div className='p-4 text-center text-muted-foreground'>No se encontraron productos</div>
                         ) : filteredProducts.map(product => (
@@ -130,7 +131,7 @@ export const CartPanel = ({
                 <div className='bg-muted/50 p-4 rounded-lg space-y-3'>
                     <div className='flex justify-between text-lg font-bold'>
                         <span>Total:</span>
-                        <span>Q {cartTotal.toFixed(2)}</span>
+                        <output className="auna-field-value-inline">Q {cartTotal.toFixed(2)}</output>
                     </div>
                     {isCash && (
                         <>
@@ -152,7 +153,7 @@ export const CartPanel = ({
                             {amountReceived && parseFloat(amountReceived) >= cartTotal && (
                                 <div className='flex justify-between text-lg font-bold text-primary'>
                                     <span>Vuelto:</span>
-                                    <span>Q {changeAmount.toFixed(2)}</span>
+                                    <output className="auna-field-value-inline">Q {changeAmount.toFixed(2)}</output>
                                 </div>
                             )}
                         </>

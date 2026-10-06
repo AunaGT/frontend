@@ -85,7 +85,7 @@ export const OpeningBalancesCard = ({ accounts }: { accounts: Account[] }) => {
         <div key={a.id} className="space-y-1">
           <Label className="text-xs truncate block">{a.code} — {a.name}</Label>
           <Input
-            type="number" min={0} step="0.01" className="h-9" placeholder="0.00"
+            type="number" min={0} step="0.01" placeholder="0.00"
             value={amounts[a.id] ?? ''}
             onChange={(e) => setAmounts((prev) => ({ ...prev, [a.id]: e.target.value }))}
           />
@@ -108,7 +108,7 @@ export const OpeningBalancesCard = ({ accounts }: { accounts: Account[] }) => {
       <CardContent className="space-y-4">
         <div className="space-y-1 w-[170px]">
           <Label className="text-xs">Fecha de apertura</Label>
-          <Input type="date" className="h-9" value={date} onChange={(e) => setDate(e.target.value)} />
+          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
         </div>
 
         <div>

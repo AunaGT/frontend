@@ -15,6 +15,20 @@ La implementación debe representar las funciones reales del ERP. No se agregan 
 
 ## Límites de arquitectura
 
+### Controles de formulario globales
+
+Todas las vistas, incluidas las legacy, usan el contrato de `src/components/ui/form-controls.css`, importado una sola vez desde `main.tsx`. Usar Input, Textarea, Select, Checkbox, RadioGroup, Switch, Button e ImageUploadDropzone existentes; no crear versiones locales de sus bordes, colores, foco o tamaños. El inventario y ejemplos están en [FORM_CONTROLS_ADOPTION.md](FORM_CONTROLS_ADOPTION.md).
+
+- HTML directo: `auna-control`, más `auna-control-select` o `auna-control-textarea`; checkbox/radio usan `auna-checkbox` / `auna-radio`.
+- Un buscador con icono usa `auna-control-group` y un Input interior: un solo borde y foco. Los iconos posicionados sobre un Input mantienen su relleno lateral.
+- Altura 40 px en escritorio y 44 px en móvil/diálogos. `data-control-size="compact"` admite 32 px únicamente en paginación o tablas de escritorio. Radio 6 px; texto 14 px, 16 px editable en móvil.
+- Validación real: `aria-invalid`, `aria-describedby`; éxito explícito `data-validation="success"`. Mensajes `auna-field-message` con `data-status="error"` o `success`; nunca inferir éxito por contener texto.
+- Lectura: Input readOnly o `auna-field-value`. Un resultado calculado dentro de un resumen conserva el formato y usa output `auna-field-value-inline`; no transformar tablas/reportes en campos.
+- Los tokens `--auna-control-*` gobiernan ambos temas. Los menús en portales llevan `auna-control-menu`; no dependen de haber visitado otro módulo.
+- Conservar restricciones y validadores de archivo del flujo: el estilo de subida no impone validación exclusiva de imágenes a documentos/importaciones.
+
+La prueba `src/components/ui/form-controls.test.mjs` impide introducir nuevos campos HTML visibles sin contrato. Inputs ocultos, captura interna de terceros y ejemplos no usados quedan fuera de la migración visual.
+
 - Activación comercial, permisos y configuración siguen siendo responsabilidades separadas.
 - Auth, tenant y `hasPermission` se conservan en cada flujo.
 - Cada vista permanece bajo el módulo propietario, con manifiesto y carga mediante `React.lazy`.
@@ -45,3 +59,11 @@ Una migración de base de datos solo se justifica cuando el dato requerido no ex
 ## Decisión vigente: Dashboard y Análisis
 
 `/analisis` es la ruta canónica y el módulo `analytics` es el único propietario del tablero analítico. `/dashboard` existe únicamente como redirección legacy a `/analisis`; no tiene manifiesto, API ni entrada comercial independiente. Las filas históricas `dashboard` de `company_modules` pueden permanecer inertes para evitar una eliminación destructiva de datos.
+
+## Ventas: listado
+
+`/ventas` comparte el encabezado y la búsqueda visible con botón «Filtros» de Cotizaciones. Una sola lista paginada alimenta las pestañas Todas / Completadas / Canceladas, la tabla de escritorio y las tarjetas móviles; no se mezclan cotizaciones ni pedidos. Se reutilizan CompactFilterPanel, MetricStrip, Tabs, ModuleTabBar, Pagination y las cargas híbridas.
+
+Estado y método de pago se filtran en la API antes de paginar. La búsqueda global conserva su mínimo de caracteres y paginación sin conteo; ignora el período, con aviso explícito. El resumen usa `includeSummary=true` para agregar todas las ventas completadas del período por empresa/sucursal, independientemente de la página y de los filtros del listado; utiliza `adjusted_total` incluso cuando es cero por devolución completa. Métodos de pago provienen del catálogo existente.
+
+Este alcance no modifica el punto de venta, el detalle ni la factura. Las pruebas de datos y presentación cubren permisos, errores, carga, paginación y totales; la comparación visual en navegador permanece pendiente hasta habilitar esa revisión.

@@ -8,12 +8,13 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Download, FileBarChart2, Landmark, Store } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -119,20 +120,20 @@ export const StatementsTab = () => {
           <CardDescription>Ingresos, costos y gastos del período (sin asientos de cierre).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
+          <CompactFilterPanel title="Filtros de resultados" activeCount={Number(from !== firstOfYearISO())+Number(to !== todayISO())+Number(Boolean(branchFilter))} onClear={() => {setFrom(firstOfYearISO());setTo(todayISO());setBranchFilter('');}} appliedFilters={[...(from !== firstOfYearISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfYearISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : []),...(branchFilter ? [{label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`,onRemove: () => setBranchFilter('')}] : [])]}>
+          <div className="space-y-1">
               <Label className="text-xs">Desde</Label>
-              <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
             </div>
-            <div className="space-y-1">
+          <div className="space-y-1">
               <Label className="text-xs">Hasta</Label>
-              <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
+              <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
             </div>
-            {branches.length > 1 && (
+          {branches.length > 1 && (
               <div className="space-y-1">
                 <Label className="text-xs">Sucursal</Label>
                 <Select value={branchFilter || 'all'} onValueChange={(v) => setBranchFilter(v === 'all' ? '' : v)}>
-                  <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Toda la empresa" /></SelectTrigger>
+                  <SelectTrigger className="w-[170px]"><SelectValue placeholder="Toda la empresa" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Toda la empresa</SelectItem>
                     <SelectItem value="company">Solo empresa</SelectItem>
@@ -143,9 +144,10 @@ export const StatementsTab = () => {
                 </Select>
               </div>
             )}
-          </div>
+        </CompactFilterPanel>
+        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
           {loadingPnl ? (
-            <div className="space-y-2">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+            <LoadingState variant="detail" message="Cargando estado financiero…" />
           ) : pnl && (
             <div className="space-y-4">
               <div>
@@ -192,10 +194,10 @@ export const StatementsTab = () => {
         <CardContent className="space-y-4">
           <div className="space-y-1 w-[170px]">
             <Label className="text-xs">Al</Label>
-            <Input type="date" className="h-9" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
+            <Input type="date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
           </div>
           {loadingBs ? (
-            <div className="space-y-2">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}</div>
+            <LoadingState variant="detail" message="Cargando estado financiero…" />
           ) : bs && (
             <div className="space-y-4">
               <div>

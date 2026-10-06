@@ -15,6 +15,7 @@
  * - Cliente: historial de compras (ventas vinculadas por nombre o ID fiscal).
  */
 import { useMemo, useState, useEffect } from 'react'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -141,6 +142,7 @@ export default function SupplierDetailPage() {
   const {
     data: rawSupplier,
     isLoading: supplierLoading,
+    isFetching: supplierFetching,
     isError: supplierError,
     refetch: refetchSupplier,
   } = useSupplier(id ?? undefined)
@@ -160,7 +162,7 @@ export default function SupplierDetailPage() {
   const canViewCustomerSales = hasPermission('sales.view')
   const canViewSaleInvoice = hasPermission('sales.view_invoice')
   const canViewSaleDetail = hasPermission('sales.view_detail')
-  const { data: merchData, isLoading: merchLoading } = useIncomingMerchandise({
+  const { data: merchData, isLoading: merchLoading, isFetching: merchFetching } = useIncomingMerchandise({
     supplier_id: id ?? undefined,
     page: merchPage,
     pageSize: merchPageSize,
@@ -180,7 +182,7 @@ export default function SupplierDetailPage() {
   const showSalesHistoryTab = !isSupplierParty && canViewCustomerSales
   const hasSecondaryTab = showMerchTab || showSalesHistoryTab
 
-  const { data: customerSalesData, isLoading: customerSalesLoading } = useCustomerSales(id, {
+  const { data: customerSalesData, isLoading: customerSalesLoading, isFetching: customerSalesFetching } = useCustomerSales(id, {
     page: salesPage,
     pageSize: salesPageSize,
     enabled:
@@ -436,10 +438,8 @@ export default function SupplierDetailPage() {
   if (supplierLoading || !supplier) {
     return (
       <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-64 bg-muted rounded" />
-        </div>
+        <Button variant="ghost" onClick={() => navigate('/contactos')}><ArrowLeft className="mr-2 h-4 w-4" />Contactos</Button>
+        <LoadingState variant="detail" message="Cargando contacto…" />
       </div>
     )
   }
@@ -449,6 +449,7 @@ export default function SupplierDetailPage() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
+      {supplierFetching && <LoadingIndicator message="Actualizando contacto…" />}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate('/contactos')}>
@@ -1041,7 +1042,7 @@ export default function SupplierDetailPage() {
                                 value={editDefaultPaymentTermId}
                                 onValueChange={setEditDefaultPaymentTermId}
                               >
-                                <SelectTrigger className="mt-1 h-9">
+                                <SelectTrigger className="mt-1">
                                   <SelectValue placeholder="Elegir" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1341,8 +1342,9 @@ export default function SupplierDetailPage() {
               </p>
             </CardHeader>
             <CardContent>
+              {merchFetching && !merchLoading && <LoadingIndicator message="Actualizando entradas…" className="mb-3" />}
               {merchLoading ? (
-                <div className="py-12 text-center text-muted-foreground">Cargando registros...</div>
+                <LoadingState columns={['Fecha', 'Registrado por', 'Productos', 'Total']} message="Cargando entradas…" />
               ) : records.length === 0 ? (
                 <div className="py-12 text-center">
                   <Package className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
@@ -1402,7 +1404,7 @@ export default function SupplierDetailPage() {
                           value={String(merchPageSize)}
                           onValueChange={(v) => { setMerchPageSize(Number(v)); setMerchPage(1); }}
                         >
-                          <SelectTrigger className="w-[72px] h-9">
+                          <SelectTrigger className="w-[72px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -1442,8 +1444,9 @@ export default function SupplierDetailPage() {
                 </p>
               </CardHeader>
               <CardContent>
+                {customerSalesFetching && !customerSalesLoading && <LoadingIndicator message="Actualizando ventas…" className="mb-3" />}
                 {customerSalesLoading ? (
-                  <div className="py-12 text-center text-muted-foreground">Cargando ventas...</div>
+                  <LoadingState columns={['Fecha', 'Referencia', 'Total', 'Ítems', 'Estado']} message="Cargando ventas…" />
                 ) : saleRows.length === 0 ? (
                   <div className="py-12 text-center">
                     <Receipt className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
@@ -1503,7 +1506,7 @@ export default function SupplierDetailPage() {
                               setSalesPage(1)
                             }}
                           >
-                            <SelectTrigger className="w-[72px] h-9">
+                            <SelectTrigger className="w-[72px]">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1591,7 +1594,7 @@ export default function SupplierDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="py-8 text-center text-muted-foreground">Cargando detalle...</div>
+            <LoadingState variant="detail" message="Cargando detalle…" />
           )}
         </DialogContent>
       </Dialog>

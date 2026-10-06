@@ -59,6 +59,7 @@ import { useToast } from '@/hooks/use-toast'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useTenant } from '@/context/useTenant'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/services/api'
 import { generatePromotionTicketsPDF } from './generatePromotionTicketsPDF'
@@ -74,7 +75,6 @@ import {
     Gift,
     Sparkles,
     TicketPercent,
-    Loader2,
     Copy,
     Shuffle,
     X,
@@ -156,7 +156,7 @@ const PromotionsManagement = () => {
     const [searchTerm, setSearchTerm] = useState('')
     const [codesDialog, setCodesDialog] = useState<CodesDialogState>({ open: false })
 
-    const { data: promotions = [], isLoading } = usePromotions()
+    const { data: promotions = [], isLoading, isFetching } = usePromotions()
 
     // Filter promotions
     const filteredPromotions = useMemo(() => {
@@ -274,10 +274,9 @@ const PromotionsManagement = () => {
                     </div>
 
                     {/* Table */}
+                    {isFetching && !isLoading && <LoadingIndicator message="Actualizando promociones…" className="mb-3" />}
                     {isLoading ? (
-                        <div className='flex justify-center py-8'>
-                            <Loader2 className='w-6 h-6 animate-spin text-muted-foreground' />
-                        </div>
+                        <LoadingState columns={['Códigos', 'Nombre', 'Tipo', 'Valor', 'Sucursales', 'Usos', 'Estado', 'Acciones']} message="Cargando promociones…" />
                     ) : filteredPromotions.length === 0 ? (
                         <div className='text-center py-8 text-muted-foreground'>
                             {searchTerm ? 'No se encontraron promociones' : 'No hay promociones creadas'}
@@ -497,7 +496,6 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
                                 value={termsText}
                                 onChange={e => setTermsText(e.target.value)}
                                 rows={2}
-                                className='text-sm'
                             />
                         </div>
 

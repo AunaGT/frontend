@@ -110,23 +110,6 @@
   align-items: center;
   gap: 11px;
   min-width: 0;
-  height: 48px;
-  padding-left: 16px;
-  border: 1px solid hsl(var(--input));
-  border-radius: 8px;
-  background: hsl(var(--card));
-  color: hsl(var(--muted-foreground));
-}
-
-.users-search input {
-  border: 0;
-  background: transparent;
-  height: 100%;
-  padding-left: 0;
-}
-
-.users-search:focus-within {
-  border-color: hsl(var(--brand-orange, 24 95% 53%));
 }
 
 .users-filters input,
@@ -134,28 +117,9 @@
 .users-select,
 .auna-input {
   min-width: 0;
-  height: 42px;
-  border: 1px solid hsl(var(--input));
-  border-radius: 8px;
-  padding: 0 12px;
-  background: hsl(var(--card));
-  color: inherit;
   width: 100%;
-  font-size: 13px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-
-.users-filters input:focus,
-.users-filters select:focus,
-.users-select:focus,
-.auna-input:focus {
-  outline: none;
-  border-color: hsl(var(--brand-orange, 24 95% 53%));
-  box-shadow: 0 0 0 1px hsl(var(--brand-orange, 24 95% 53%));
-}
-
-.users-search input:focus { box-shadow: none; }
-.users-filters > select, .users-filters > button { height: 48px; }
+ .users-filters > button { height: 48px; }
 
 /* Tablas estándar y AUNA */
 .users-table, .auna-table {
@@ -417,55 +381,6 @@
   color: #f97316;
   border-bottom-color: #f97316;
   font-weight: 600;
-}
-
-/* Botones principales AUNA */
-.btn-auna-primary {
-  background-color: #f97316;
-  color: #ffffff;
-  font-weight: 500;
-  border-radius: 8px;
-  padding: 8px 16px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  transition: background-color 0.15s ease;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-auna-primary:hover:not(:disabled) {
-  background-color: #ea580c;
-}
-
-.btn-auna-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-auna-outline {
-  border: 1px solid #f97316;
-  color: #f97316;
-  background-color: transparent;
-  font-weight: 500;
-  border-radius: 8px;
-  padding: 6px 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  transition: all 0.15s ease;
-  cursor: pointer;
-}
-
-.btn-auna-outline:hover:not(:disabled) {
-  background-color: rgba(249, 115, 22, 0.1);
-}
-
-.btn-auna-outline:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Grids auxiliares */

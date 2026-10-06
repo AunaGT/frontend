@@ -71,6 +71,7 @@ import {
 } from "@/components/ui/command";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
 
 const SuppliersManagement = () => {
   const navigate = useNavigate();
@@ -95,7 +96,7 @@ const SuppliersManagement = () => {
   const canViewCli = hasPermission("contacts.clients.view");
   const showPartyTabs = canViewSup && canViewCli;
 
-  const { data: suppliersData, isLoading, isError } = useSuppliers({
+  const { data: suppliersData, isLoading, isFetching, isError } = useSuppliers({
     page: currentPage,
     pageSize,
     search: searchTerm || undefined,
@@ -312,9 +313,7 @@ const SuppliersManagement = () => {
       </div>
 
       {/* Filtros */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
             {showPartyTabs && (
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -377,12 +376,11 @@ const SuppliersManagement = () => {
             </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
       {/* Lista de contactos */}
+      {isFetching && !isLoading && <LoadingIndicator message="Actualizando contactos…" />}
       {isLoading && (
-        <div className="p-6 text-muted-foreground">Cargando contactos...</div>
+        <LoadingState variant={viewMode === "table" ? "table" : "cards"} columns={['Nombre', 'Tipo', 'Categoría', 'Contacto', 'Teléfono', 'Email', 'Dirección', 'Estado']} message="Cargando contactos…" />
       )}
       {isError && !isLoading && (
         <div className="p-6 text-destructive">Error al cargar contactos.</div>
@@ -546,7 +544,7 @@ const SuppliersManagement = () => {
                   value={String(pageSize)}
                   onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}
                 >
-                  <SelectTrigger className="w-[72px] h-9">
+                  <SelectTrigger className="w-[72px]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -562,7 +560,7 @@ const SuppliersManagement = () => {
                 onPageChange={(page) => setCurrentPage(page)}
                 hasNextPage={suppliersData?.nextPage !== null}
                 hasPrevPage={suppliersData?.prevPage !== null}
-                loading={isLoading}
+                loading={isFetching}
               />
             </div>
           )}
@@ -760,7 +758,7 @@ const SuppliersManagement = () => {
                           value={editDefaultPaymentTermId}
                           onValueChange={setEditDefaultPaymentTermId}
                         >
-                          <SelectTrigger className="mt-1 h-9">
+                          <SelectTrigger className="mt-1">
                             <SelectValue placeholder="Elegir" />
                           </SelectTrigger>
                           <SelectContent>

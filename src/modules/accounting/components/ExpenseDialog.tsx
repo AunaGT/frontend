@@ -104,12 +104,12 @@ export const ExpenseDialog = ({ open, onOpenChange, accounts, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs">Fecha</Label>
-              <Input type="date" className="h-9" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="space-y-1">
               <Label className="text-xs">Monto (Q)</Label>
               <Input
-                type="number" min={0.01} step="0.01" className="h-9" placeholder="0.00"
+                type="number" min={0.01} step="0.01" placeholder="0.00"
                 value={amount} onChange={(e) => setAmount(e.target.value)}
               />
             </div>
@@ -117,7 +117,7 @@ export const ExpenseDialog = ({ open, onOpenChange, accounts, onSaved }: {
           <div className="space-y-1">
             <Label className="text-xs">Categoría (cuenta de gasto)</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar cuenta de gasto" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Seleccionar cuenta de gasto" /></SelectTrigger>
               <SelectContent>
                 {expenseAccounts.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>{a.code} — {a.name}</SelectItem>
@@ -128,7 +128,7 @@ export const ExpenseDialog = ({ open, onOpenChange, accounts, onSaved }: {
           <div className="space-y-1">
             <Label className="text-xs">Pagado desde</Label>
             <Select value={effectivePay} onValueChange={setPayAccountId}>
-              <SelectTrigger className="h-9"><SelectValue placeholder="Caja / Bancos" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Caja / Bancos" /></SelectTrigger>
               <SelectContent>
                 {payAccounts.map((a) => (
                   <SelectItem key={a.id} value={String(a.id)}>{a.code} — {a.name}</SelectItem>
@@ -139,7 +139,7 @@ export const ExpenseDialog = ({ open, onOpenChange, accounts, onSaved }: {
           <div className="space-y-1">
             <Label className="text-xs">Descripción</Label>
             <Input
-              className="h-9" placeholder="Ej. Sueldo de junio — Juan Pérez" maxLength={255}
+              placeholder="Ej. Sueldo de junio — Juan Pérez" maxLength={255}
               value={description} onChange={(e) => setDescription(e.target.value)}
             />
           </div>

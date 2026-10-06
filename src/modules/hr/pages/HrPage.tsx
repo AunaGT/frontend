@@ -9,25 +9,42 @@
  */
 
 /** RRHH: expediente, asistencia y anticipos en tres pestañas. */
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import EmployeesManagement from './EmployeesManagement'
 import AttendanceSheet from './AttendanceSheet'
 import AdvancesManagement from './AdvancesManagement'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Plus } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import './hr.css'
 
-export const HrPage = () => (
-  <div className="space-y-4 p-4">
-    <h1 className="text-2xl font-semibold">Recursos Humanos</h1>
-    <Tabs defaultValue="empleados">
-      <TabsList>
-        <TabsTrigger value="empleados">Empleados</TabsTrigger>
-        <TabsTrigger value="asistencia">Asistencia</TabsTrigger>
-        <TabsTrigger value="anticipos">Anticipos</TabsTrigger>
-      </TabsList>
-      <TabsContent value="empleados"><EmployeesManagement /></TabsContent>
-      <TabsContent value="asistencia"><AttendanceSheet /></TabsContent>
-      <TabsContent value="anticipos"><AdvancesManagement /></TabsContent>
+export const HrPage = () => {
+  const { hasPermission } = useAuthPermissions()
+  const canEmployees = hasPermission('hr.employees.view')
+  const canAttendance = hasPermission('hr.attendance.view')
+  const canAdvances = hasPermission('hr.advances.view')
+  const [tab, setTab] = useState(canEmployees ? 'empleados' : canAttendance ? 'asistencia' : 'anticipos')
+  const navigate = useNavigate()
+  return (
+  <div className="hr-record-page">
+  <div className="hr-record-container space-y-5">
+    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">PERSONAS</p><h1>{tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos'}</h1><p className="auna-module-description">{tab === 'empleados' ? 'Gestiona el talento que impulsa tu empresa.' : 'Gestiona la asistencia y los anticipos de tu equipo.'}</p></div>{tab === 'empleados' && hasPermission('hr.employees.create') && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => navigate('/rrhh/empleados/nuevo')}><Plus className="mr-2 h-4 w-4" />Nuevo empleado</Button>}</header>
+    <Tabs value={tab} onValueChange={setTab}>
+      <div className="overflow-x-auto"><ModuleTabsList>
+        {canEmployees && <ModuleTabsTrigger value="empleados">Empleados</ModuleTabsTrigger>}
+        {canAttendance && <ModuleTabsTrigger value="asistencia">Asistencia</ModuleTabsTrigger>}
+        {canAdvances && <ModuleTabsTrigger value="anticipos">Anticipos</ModuleTabsTrigger>}
+      </ModuleTabsList></div>
+      {canEmployees && <TabsContent value="empleados"><EmployeesManagement /></TabsContent>}
+      {canAttendance && <TabsContent value="asistencia"><AttendanceSheet /></TabsContent>}
+      {canAdvances && <TabsContent value="anticipos"><AdvancesManagement /></TabsContent>}
     </Tabs>
   </div>
+  </div>
 )
+}
 
 export default HrPage

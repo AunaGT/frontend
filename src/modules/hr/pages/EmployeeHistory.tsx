@@ -1,0 +1,13 @@
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { Button } from '@/components/ui/button'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { fetchEmployeeHistory } from '@/services/hrService'
+
+const events: Record<string, string> = { EMPLOYEE_CREATED: 'Alta de empleado', EMPLOYEE_UPDATED: 'Actualización del expediente', EMPLOYEE_TERMINATED: 'Baja de empleado', PHOTO_UPDATED: 'Fotografía actualizada', DOCUMENT_UPLOADED: 'Documento cargado', DOCUMENT_ARCHIVED: 'Documento archivado', DOCUMENT_RESTORED: 'Documento restaurado' }
+export function EmployeeHistory({ employeeId, compact = false }: { employeeId: string; compact?: boolean }) {
+  const [page, setPage] = useState(1)
+  const query = useQuery({ queryKey: ['hr-employee-history', employeeId, page], queryFn: () => fetchEmployeeHistory(employeeId, page) })
+  return <section className="space-y-3"><div className="auna-data-table-shell">{query.isFetching && query.data && <LoadingIndicator message="Actualizando historial…" />}<Table><TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Movimiento</TableHead>{!compact && <TableHead>Registrado por</TableHead>}</TableRow></TableHeader><TableBody>{query.isPending && <TableLoadingRows columns={compact ? 2 : 3} message="Cargando historial…" />}{(compact ? query.data?.items.slice(0, 3) : query.data?.items)?.map(item => <TableRow key={item.id}><TableCell className="whitespace-nowrap">{new Date(item.created_at).toLocaleDateString('es-GT')}</TableCell><TableCell>{events[item.event] || 'Movimiento del expediente'}</TableCell>{!compact && <TableCell>{item.actor?.name || 'Sistema'}</TableCell>}</TableRow>)}{!query.isPending && !query.data?.items.length && <TableRow><TableCell colSpan={compact ? 2 : 3} className="py-6 text-center text-muted-foreground">{query.isError ? 'No se pudo cargar el historial.' : 'Sin movimientos registrados. Los cambios anteriores no se reconstruyen.'}</TableCell></TableRow>}</TableBody></Table></div>{query.isError && <Button variant="outline" onClick={() => query.refetch()}>Reintentar</Button>}{!compact && query.data && <div className="flex items-center justify-between text-sm"><span>{query.data.totalItems} movimientos</span><div className="flex items-center gap-3"><Button variant="outline" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage(page - 1)}>Anterior</Button><span>{query.data.page} / {query.data.totalPages}</span><Button variant="outline" size="sm" disabled={page >= query.data.totalPages || query.isFetching} onClick={() => setPage(page + 1)}>Siguiente</Button></div></div>}</section>
+}

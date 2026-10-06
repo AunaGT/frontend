@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/hooks/use-toast'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/services/api'
 import { getFriendlyTypeName } from './getFriendlyTypeName'
@@ -148,7 +149,7 @@ export default function PromotionEditPage() {
   const [branchIds, setBranchIds] = useState<string[]>([])
   const [active, setActive] = useState(true)
 
-  const { data: promotion, isLoading: loadingPromotion, error: errorPromotion } = useQuery({
+  const { data: promotion, isLoading: loadingPromotion, isFetching: fetchingPromotion, error: errorPromotion } = useQuery({
     queryKey: ['promotion', id],
     queryFn: () => apiFetch<Promotion>(`/promotions/${id}`),
     enabled: !!id
@@ -318,8 +319,9 @@ export default function PromotionEditPage() {
 
   if (loadingPromotion || !promotion) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      <div className="mx-auto max-w-[1560px] space-y-5 p-6">
+        <Button variant="ghost" onClick={() => navigate('/promociones')}><ArrowLeft className="mr-2 h-4 w-4" />Promociones</Button>
+        <LoadingState variant="detail" message="Cargando promoción…" />
       </div>
     )
   }
@@ -328,6 +330,7 @@ export default function PromotionEditPage() {
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
       <header className="auna-module-heading"><div><button type="button" className="mb-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-orange" onClick={() => navigate('/promociones')}><ArrowLeft className="h-4 w-4" />Promociones</button><p className="auna-module-eyebrow">Ventas</p><h1>Editar promoción</h1><p className="auna-module-description">Modifica los detalles, reglas, alcance y productos de esta promoción.</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-lg px-3 py-2 text-xs font-semibold ${active ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'}`}>{active ? 'Habilitada' : 'Desactivada'}</span><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-edit-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar cambios</Button></div></header>
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
+      {fetchingPromotion && <LoadingIndicator message="Actualizando promoción…" />}
       <form id="promotion-edit-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
         <Card>

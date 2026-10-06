@@ -27,6 +27,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { fetchAging, fetchReceivables } from '@/modules/receivables/api/receivablesService'
@@ -147,7 +148,7 @@ export function AnalyticsDetailTabs({
         <AnalyticsCard>
           <CardHeader><CardTitle className="text-base">Ventas, costo y utilidad por mes</CardTitle></CardHeader>
           <CardContent className="h-80">
-            {isLoading ? <Skeleton className="h-full w-full" /> : (
+            {isLoading ? <LoadingState variant="chart" message="Cargando gráfico…" /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthly}>
                   <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
@@ -279,7 +280,7 @@ export function AnalyticsDetailTabs({
                 <AnalyticsCard>
                   <CardHeader><CardTitle className="text-base">Antigüedad de saldos</CardTitle></CardHeader>
                   <CardContent className="h-72">
-                    {aging.isLoading ? <Skeleton className="h-full w-full" /> : (
+                    {aging.isLoading ? <LoadingState variant="chart" message="Cargando gráfico…" /> : (
                       <ResponsiveContainer width="100%" height="100%"><BarChart data={[
                         { label: 'Corriente', value: aging.data?.totales.corriente ?? 0 },
                         { label: '1-30 días', value: aging.data?.totales.d1_30 ?? 0 },

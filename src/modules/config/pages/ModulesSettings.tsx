@@ -1,3 +1,4 @@
+import { TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState } from 'react'
 import { AlertCircle, Boxes, Info, Loader2, Search } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
@@ -36,7 +37,6 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
     }
   }
 
-  if (isLoading) return <div className="flex min-h-[180px] items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
   if (isError) return <div className="config-note text-destructive"><AlertCircle className="h-5 w-5" /> No se pudo cargar el catálogo de módulos.</div>
 
   const counts = {
@@ -56,7 +56,7 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
   return (
     <section className="config-modules" aria-label="Configuración de módulos">
       <div className="config-module-toolbar">
-        <label className="config-search"><Search className="h-4 w-4" aria-hidden="true" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar módulo..." aria-label="Buscar módulo" /></label>
+        <label className="auna-control-group config-search"><Search className="h-4 w-4" aria-hidden="true" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar módulo..." aria-label="Buscar módulo" /></label>
         <div className="config-filter-list" role="group" aria-label="Filtrar módulos por estado">
           {([['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ['trial', 'En prueba']] as const).map(([value, label]) => (
             <button key={value} type="button" className="config-filter" data-active={filter === value} onClick={() => { setFilter(value); setPage(1) }} aria-pressed={filter === value}>
@@ -64,11 +64,12 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
             </button>
           ))}
         </div>
-        <label className="config-sort"><span>Ordenar por</span><select value={order} onChange={(event) => setOrder(event.target.value as 'asc' | 'desc')} aria-label="Ordenar módulos"><option value="asc">Nombre (A - Z)</option><option value="desc">Nombre (Z - A)</option></select></label>
+        <label className="config-sort"><span>Ordenar por</span><select className="auna-control auna-control-select" value={order} onChange={(event) => setOrder(event.target.value as 'asc' | 'desc')} aria-label="Ordenar módulos"><option value="asc">Nombre (A - Z)</option><option value="desc">Nombre (Z - A)</option></select></label>
       </div>
       <div className="config-module-table-wrap"><table className="config-module-table">
         <thead><tr><th>Módulo</th><th>Descripción</th><th>Estado</th><th>Dependencias</th><th>Activación</th></tr></thead>
         <tbody>
+          {isLoading && <TableLoadingRows columns={5} message="Cargando módulos…" />}
           {visible.map((module) => {
             const ownEnabled = module.status === 'ACTIVE' || module.status === 'TRIAL'
             const status = statusOf(module)
@@ -82,7 +83,7 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
               <td className={`config-module-toggle config-module-toggle--${status}`}>{savingCode === module.code ? <Loader2 className="h-4 w-4 animate-spin" /> : <Switch checked={ownEnabled} disabled={!canManage || module.protected || savingCode !== null} onCheckedChange={(checked) => toggle(module.code, checked)} aria-label={`${ownEnabled ? 'Desactivar' : 'Activar'} ${module.name}`} />}</td>
             </tr>
           })}
-          {!visible.length && <tr><td colSpan={5} className="config-empty">No hay módulos que coincidan con estos filtros.</td></tr>}
+          {!isLoading && !visible.length && <tr><td colSpan={5} className="config-empty">No hay módulos que coincidan con estos filtros.</td></tr>}
         </tbody>
       </table></div>
       <div className="config-module-footer"><span>Mostrando {visible.length ? (currentPage - 1) * 8 + 1 : 0}–{Math.min(currentPage * 8, filtered.length)} de {filtered.length} {filtered.length === 1 ? 'módulo' : 'módulos'}</span>{pageCount > 1 && <div className="config-pages" aria-label="Paginación de módulos"><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior">‹</button>{Array.from({ length: pageCount }, (_, index) => <button type="button" key={index} data-active={currentPage === index + 1} onClick={() => setPage(index + 1)} aria-label={`Página ${index + 1}`} aria-current={currentPage === index + 1 ? 'page' : undefined}>{index + 1}</button>)}<button type="button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} aria-label="Página siguiente">›</button></div>}</div>

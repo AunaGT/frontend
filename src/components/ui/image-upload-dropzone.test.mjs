@@ -26,7 +26,18 @@ try {
   assert.match(html, /XLSX, XLS o CSV · máx\. 10 MB/)
   assert.match(html, /aria-label="Seleccionar archivo"/)
   assert.match(html, /Elegir archivo/)
-  assert.match(html, /border-dashed/)
+  assert.match(html, /auna-file-dropzone/)
+  assert.match(html, /accept=".xlsx,.xls,.csv"/)
+  assert.match(html, /class="sr-only"/)
+
+  const pdfHtml = renderToStaticMarkup(createElement(ImageUploadDropzone, {
+    onFileSelect() {}, accept: '.pdf,.jpg,.png', maxSizeBytes: 5 * 1024 * 1024,
+    fileLabel: 'documento', formatsLabel: 'PDF, JPG o PNG',
+    validateFile: file => file.type === 'application/pdf' ? null : 'Formato inválido',
+  }))
+  assert.match(pdfHtml, /accept=".pdf,.jpg,.png"/)
+  assert.match(pdfHtml, /PDF, JPG o PNG · máx\. 5 MB/)
+  assert.match(pdfHtml, /auna-file-dropzone/)
 
   const imageHtml = renderToStaticMarkup(createElement(ImageUploadDropzone, { onFileSelect() {} }))
   assert.match(imageHtml, /Arrastra una imagen o haz clic aquí/)

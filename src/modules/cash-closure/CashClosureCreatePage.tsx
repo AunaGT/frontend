@@ -2,6 +2,7 @@
  * Registro de un nuevo cierre de caja (wizard completo).
  */
 
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -322,7 +323,7 @@ export function CashClosureCreatePage() {
             <div className="bg-muted/50 border rounded-lg p-4">
               {effectiveScope === 'mine' ? (
                 mineClosureGate.loading ? (
-                  <p className="text-sm text-muted-foreground">Cargando datos de la caja…</p>
+                  <LoadingState variant="detail" size="sm" message="Cargando datos de la caja…" />
                 ) : (
                   <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -398,16 +399,16 @@ export function CashClosureCreatePage() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground mb-0.5">Horario del período</p>
-                      <p className="text-sm font-medium tabular-nums">
+                      <div className="text-sm font-medium tabular-nums">
                         {form.startDate && form.endDate ? (
                           <>
                             {form.startDate.split('T')[1]?.substring(0, 8) || '00:00:00'} —{' '}
                             {form.endDate.split('T')[1]?.substring(0, 8) || '23:59:59'}
                           </>
                         ) : (
-                          'Cargando...'
+                          <LoadingIndicator message="Cargando…" />
                         )}
-                      </p>
+                      </div>
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground mt-3 pt-3 border-t">

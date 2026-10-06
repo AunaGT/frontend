@@ -1,3 +1,5 @@
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -16,7 +18,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Search, Users, Wallet, CircleMinus, CreditCard, Building2, Eye, ChevronLeft, ChevronRight, Printer } from 'lucide-react'
+import { Loader2, Search, Eye, ChevronLeft, ChevronRight, Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -52,7 +54,7 @@ export const PayrollRunDetail = () => {
     window.print()
   }
 
-  const { data: run, isLoading, isError, error, refetch } = useQuery({
+  const { data: run, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['payroll-runs', id],
     queryFn: () => fetchPayrollRun(id),
     enabled: Boolean(id),
@@ -82,7 +84,7 @@ export const PayrollRunDetail = () => {
   const busy = recalc.isPending || confirm.isPending || pay.isPending || cancel.isPending
 
   if (isLoading) {
-    return <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
+    return <div className="space-y-4"><Link to="/nomina" className="text-sm text-muted-foreground">← Nómina</Link><h1 className="text-xl font-semibold">Detalle de planilla</h1><LoadingState variant="detail" message="Cargando planilla…" /></div>
   }
   if (isError || !run) return <div role="alert" className="space-y-3 p-6"><p>No se pudo cargar la nómina. {error instanceof Error ? error.message : ''}</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
 
@@ -92,7 +94,7 @@ export const PayrollRunDetail = () => {
 
   return (
     <div className="mx-auto max-w-[1520px] space-y-5 p-4 md:p-6">
-      <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Personas</p><h1>Detalle de nómina</h1><p className="auna-module-description">Revisa los empleados, importes y recibos de esta corrida.</p><nav className="mt-2 text-sm text-muted-foreground" aria-label="Ruta"><Link className="hover:text-foreground" to="/nomina">Nómina</Link><span className="mx-2">›</span>{run.name}</nav></div></header>
+      {isFetching && <LoadingIndicator message="Actualizando planilla…" />}<header className="auna-module-heading"><div><p className="auna-module-eyebrow">Personas</p><h1>Detalle de nómina</h1><p className="auna-module-description">Revisa los empleados, importes y recibos de esta corrida.</p><nav className="mt-2 text-sm text-muted-foreground" aria-label="Ruta"><Link className="hover:text-foreground" to="/nomina">Nómina</Link><span className="mx-2">›</span>{run.name}</nav></div></header>
       <Card className="border-border/70 bg-card/90"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div>
           <div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-bold">{run.name}</h2><Badge variant="outline" className={run.status === 'PAGADA' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : run.status === 'ANULADA' ? 'border-red-500/30 bg-red-500/15 text-red-700 dark:text-red-300' : run.status === 'CONFIRMADA' ? 'border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300' : 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'}>{PAYROLL_STATUS_LABELS[run.status]}</Badge></div>
           <p className="mt-1 text-sm text-muted-foreground"><span className="font-mono">{run.code}</span> · {PAYROLL_TYPE_LABELS[run.type]} · {run.period_start.slice(0, 10)} a {run.period_end.slice(0, 10)} · pago {run.pay_date.slice(0, 10)}{run.branch ? ` · ${run.branch.name}` : ''}</p>
@@ -114,15 +116,7 @@ export const PayrollRunDetail = () => {
         </div>
       </CardContent></Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          { label: 'Empleados', value: run.payslips.length, icon: Users },
-          { label: 'Total bruto', value: money(run.total_earnings), icon: Wallet },
-          { label: 'Deducciones', value: money(run.total_deductions), icon: CircleMinus },
-          { label: 'Total neto', value: money(run.total_net), icon: CreditCard },
-          { label: 'Costo patronal', value: money(run.total_employer_cost), icon: Building2 },
-        ].map(({ label, value, icon: Icon }) => <Card key={label} className="border-border/70 bg-card/90"><CardContent className="flex items-center gap-3 p-4"><span className="rounded-xl bg-orange-500/15 p-3 text-orange-500"><Icon className="h-5 w-5" /></span><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-lg font-bold tabular-nums">{value}</p></div></CardContent></Card>)}
-      </div>
+      <MetricStrip label="Resumen de nómina" items={[{label:'Empleados',value:run.payslips.length},{label:'Total bruto',value:money(run.total_earnings)},{label:'Deducciones',value:money(run.total_deductions)},{label:'Total neto',value:money(run.total_net)},{label:'Costo patronal',value:money(run.total_employer_cost)}]} />
 
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Empleados ({run.payslips.length})</h2><div className="relative w-full sm:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar empleados" placeholder="Buscar empleado, código o puesto..." className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></div></div>
       <Card className="auna-data-table-shell"><CardContent className="p-0"><div className="overflow-x-auto"><Table className="auna-data-table min-w-[900px]"><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Empleado</TableHead><TableHead>Puesto</TableHead><TableHead className="text-right">Días</TableHead><TableHead className="text-right">Bruto</TableHead><TableHead className="text-right">Deducciones</TableHead><TableHead className="text-right">Neto</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>

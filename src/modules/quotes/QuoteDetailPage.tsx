@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, ExternalLink, FileDown, FileText, Link2, Loader2, Mail, PackagePlus, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LoadingState, LoadingIndicator } from "@/components/shared/LoadingState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CommercialPaymentFields, type CommercialPaymentTerms } from "@/components/shared/CommercialPaymentFields";
@@ -51,7 +52,7 @@ export default function QuoteDetailPage() {
   useEffect(() => { if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: "smooth" }); }, [location.hash]);
   const ordersEnabled = isEnabled("orders");
 
-  const { data: quote, isLoading, isError } = useQuery({
+  const { data: quote, isLoading, isFetching, isError } = useQuery({
     queryKey: ["quote", id],
     queryFn: () => fetchQuoteById(id!),
     enabled: Boolean(id),
@@ -146,7 +147,7 @@ export default function QuoteDetailPage() {
   };
 
   if (isLoading) {
-    return <p className="p-6 text-muted-foreground">Cargando cotización…</p>;
+    return <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8"><Button variant="link" onClick={() => navigate("/cotizaciones")}><ArrowLeft className="mr-2 h-4 w-4" />Cotizaciones</Button><LoadingState variant="detail" message="Cargando cotización…" /></div>;
   }
   if (isError || !quote) {
     return <p className="p-6 text-destructive">Cotización no encontrada.</p>;
@@ -162,6 +163,7 @@ export default function QuoteDetailPage() {
   const publicUrl = quote.public_token ? `${window.location.origin}/q/${quote.public_token}` : "";
   const shareable = ["SENT", "ACCEPTED"].includes(quote.status);
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+    {isFetching && <LoadingIndicator message="Actualizando cotización…" />}
     <header className="auna-module-heading"><div><Button variant="link" className="mb-3 h-auto p-0 text-muted-foreground" onClick={() => navigate("/cotizaciones")}><ArrowLeft className="mr-2 h-4 w-4" />Cotizaciones</Button><p className="auna-module-eyebrow">Ventas</p><div className="flex flex-wrap items-center gap-3"><h1>{quote.reference || quote.id.slice(0, 8)}</h1><QuoteStatusBadge status={quote.status} /></div><p className="auna-module-description">Creada el {formatDateTime(quote.created_at, undefined, locale)} por {quote.createdBy?.name || "usuario del sistema"}</p></div>
       <div className="flex flex-wrap gap-2">{shareable && <Button variant="outline" onClick={() => void handleEmailLink()}><Mail className="mr-2 h-4 w-4" />Enviar por correo</Button>}{canConvert && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={convertMutation.isPending} onClick={() => convertMutation.mutate()}>{convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}Convertir a pedido</Button>}</div>
     </header>

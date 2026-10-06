@@ -17,8 +17,12 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Plus, Calendar, Calculator, PauseCircle } from 'lucide-react'
+import { Plus, Calculator, PauseCircle, Table2, LayoutGrid } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Label } from '@/components/ui/label'
+import { ModuleTabBar } from '@/components/shared/ModuleTabs'
+import { usePaymentMethods } from '@/hooks/usePaymentMethods'
 import { useToast } from '@/hooks/use-toast'
 import { Sale, SaleStatus } from '@/types'
 import { updateSaleStatus as apiUpdateSaleStatus } from '@/services/salesService'
@@ -46,10 +50,10 @@ import { hasNewSaleDraft } from '@/services/saleDraftStorage'
 const API_URL = getApiBaseUrl()
 
 interface SalesManagementProps {
-    onSectionChange?: (section: string) => void;
+    onSectionChange?: (section: string) => void
 }
 
-const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
+const SalesManagement = (_props: SalesManagementProps) => {
     const navigate = useNavigate()
     const location = useLocation()
     const { isAuthenticated, user } = useAuth()
@@ -69,6 +73,7 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
     const { locale, currencyCode } = useSystemSettings()
 
     const salesData = useSalesData()
+    const paymentMethods = usePaymentMethods()
 
     // UI state
     const [isViewSaleOpen, setIsViewSaleOpen] = useState(false)
@@ -155,64 +160,39 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
     }
 
     return (
-        <div className='p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in'>
+        <div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
             {/* Header */}
-            <div className='flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between'>
+            <header className="auna-module-heading">
                 <div className='min-w-0'>
-                    <h2 className='text-lg sm:text-2xl font-bold text-foreground'>Ventas</h2>
-                    <p className='text-xs sm:text-sm text-muted-foreground'>Control de transacciones</p>
+                    <p className="auna-module-eyebrow">Ventas</p>
+                    <h1>Ventas</h1>
+                    <p className="auna-module-description">Consulta las ventas, sus pagos y devoluciones desde un solo lugar.</p>
                 </div>
-                <div className='flex gap-2 overflow-x-auto pb-1 -mx-3 px-3 sm:mx-0 sm:px-0 sm:overflow-visible'>
-                    <div className='flex items-center gap-2 shrink-0'>
-                        <span className='text-sm text-muted-foreground hidden sm:inline'>Items por página:</span>
-                        <Select
-                            value={String(salesData.pageSize)}
-                            onValueChange={(v) => {
-                                salesData.setPageSize(Number(v))
-                                salesData.setPageFor('completed', 1)
-                                salesData.setPageFor('cancelled', 1)
-                            }}
-                        >
-                            <SelectTrigger className='w-[72px] h-9'><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                                {[5, 10, 25, 50].map((n) => (
-                                    <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <Select value={salesData.filters.period} onValueChange={salesData.setPeriod}>
-                        <SelectTrigger className='w-28 sm:w-36 shrink-0'><Calendar className='w-4 h-4 mr-1 sm:mr-2' /><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value='today'>Hoy</SelectItem>
-                            <SelectItem value='week'>Semana</SelectItem>
-                            <SelectItem value='month'>Mes</SelectItem>
-                        </SelectContent>
-                    </Select>
+                <div className="flex flex-wrap items-center gap-2">
                     {canAccessCashClosure && (
                         <Button
                             variant='outline'
                             onClick={handleCashClosure}
                             disabled={isValidatingClosure}
-                            className='border-green-600 text-green-600 whitespace-nowrap shrink-0 text-xs sm:text-sm'
+                            className="h-12 rounded-xl px-4"
                         >
-                            <Calculator className='w-4 h-4 sm:mr-2' />
-                            <span className='hidden sm:inline'>
+                            <Calculator className="h-4 w-4" aria-hidden="true" />
+                            <span>
                                 {isValidatingClosure ? 'Validando...' : 'Cierre de Caja'}
                             </span>
                         </Button>
                     )}
                     {canCreateSale && (
                         <Button
-                            className='bg-primary hover:bg-primary/90 whitespace-nowrap shrink-0 text-xs sm:text-sm'
+                            className="h-12 rounded-xl bg-brand-orange px-6 text-white hover:bg-brand-orange/90"
                             onClick={() => navigate('/ventas/nueva')}
                         >
-                            <Plus className='w-4 h-4 sm:mr-2' />
-                            <span className='hidden sm:inline'>Nueva Venta</span>
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            Nueva venta
                         </Button>
                     )}
                 </div>
-            </div>
+            </header>
 
             {canCreateSale && hasPendingSaleDraft && (
                 <Alert className="border-amber-500/50 bg-amber-500/5">
@@ -236,7 +216,8 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
                 </Alert>
             )}
 
-            {/* KPI Cards */}
+            {/* Resumen compacto del período completo */}
+            <p className="text-xs text-muted-foreground">Ventas completadas · {({ today: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Todo el historial' } as Record<string, string>)[salesData.filters.period]}</p>
             <SalesKPICards
                 totalSalesToday={salesData.totalSalesToday}
                 transactionCountToday={salesData.transactionCountToday}
@@ -244,7 +225,10 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
                 preferredPaymentMethod={salesData.preferredPaymentMethod}
                 locale={locale}
                 currencyCode={currencyCode}
+                loading={salesData.summaryLoading}
+                error={salesData.summaryError}
             />
+            {salesData.summaryError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">No se pudo cargar el resumen del período.<Button variant="outline" size="sm" onClick={salesData.refreshSales}>Reintentar</Button></div>}
 
             {/* Filters */}
             <SalesFilters
@@ -256,19 +240,36 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
                 onPaymentChange={salesData.setPaymentFilter}
                 isGlobalSearch={salesData.filters.isGlobalSearch}
                 searchHint={salesData.filters.searchHint}
+                period={salesData.filters.period}
+                onPeriodChange={salesData.setPeriod}
+                paymentMethods={paymentMethods.data ?? []}
+                paymentMethodsLoading={paymentMethods.isLoading}
+                showStatusFilter={false}
             />
+            {paymentMethods.isError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">No se pudieron cargar los métodos de pago.<Button variant="outline" size="sm" onClick={() => void paymentMethods.refetch()}>Reintentar</Button></div>}
 
-            {/* Sales Tables (solo Completadas y Canceladas) */}
-            <div className='space-y-6'>
-                {(['completed', 'cancelled'] as const).map(key => (
+            <Tabs value={salesData.filters.statusFilter} onValueChange={(value) => salesData.setStatusFilter(value as SaleStatusKey | 'all')}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="max-w-full overflow-x-auto"><TabsList variant="detail" aria-label="Estado de las ventas"><TabsTrigger value="all">Todas</TabsTrigger><TabsTrigger value="completed">Completadas</TabsTrigger><TabsTrigger value="cancelled">Canceladas</TabsTrigger></TabsList></div>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <div className="flex items-center gap-2"><Label className="text-xs text-muted-foreground">Filas por página</Label><Select value={String(salesData.pageSize)} onValueChange={(value) => salesData.setPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Filas por página"><SelectValue /></SelectTrigger><SelectContent>{[5, 10, 25, 50].map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="hidden md:block"><ModuleTabBar<'table' | 'cards'> value={salesData.viewMode ?? 'table'} onValueChange={salesData.setViewMode!} ariaLabel="Vista de ventas" items={[{value: 'table', label: '', icon: Table2}, {value: 'cards', label: '', icon: LayoutGrid}]} /></div>
+                    </div>
+                </div>
+                <TabsContent value={salesData.filters.statusFilter} className="mt-4">
                     <SalesStatusTable
-                        key={key}
-                        statusKey={key}
-                        sales={salesData.salesByStatus[key]}
-                        pageInfo={salesData.pageInfoByStatus[key]}
-                        isLoading={salesData.isLoadingByStatus[key]}
+                        statusKey={salesData.filters.statusFilter === 'all' ? undefined : salesData.filters.statusFilter}
+                        viewMode={salesData.viewMode ?? 'table'}
+                        pageSize={salesData.pageSize}
+                        sales={salesData.sales}
+                        pageInfo={salesData.pageInfo}
+                        isLoading={salesData.isLoading}
+                        isFetching={salesData.isFetching}
+                        error={salesData.error}
+                        emptyMessage={salesData.filters.searchHint}
+                        onRetry={salesData.refreshSales}
                         updatingSaleIds={updatingSaleIds}
-                        onPageChange={(page) => salesData.setPageFor(key, page)}
+                        onPageChange={salesData.setPage}
                         canChangeStatus={canChangeSaleStatus}
                         onStatusChange={updateSaleStatus}
                         onViewSale={handleViewSale}
@@ -278,8 +279,8 @@ const SalesManagement = ({ onSectionChange }: SalesManagementProps) => {
                         locale={locale}
                         currencyCode={currencyCode}
                     />
-                ))}
-            </div>
+                </TabsContent>
+            </Tabs>
 
             <SaleDetailDialog
                 open={isViewSaleOpen}

@@ -1,13 +1,12 @@
 /**
- * Vista de detalle de producto: información, edición inline, imagen en columna 40/60.
+ * Detalle de producto organizado por tareas, con edición agrupada.
  */
 import { useMemo, useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Edit, QrCode, Check, ChevronDown, ChevronsUpDown, Settings2, Trash2 } from 'lucide-react'
+import { ArrowLeft, Edit, MoreHorizontal, Check, ChevronsUpDown, Trash2, CalendarDays, Warehouse, Info, Boxes, Banknote } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -17,7 +16,6 @@ import { adaptApiProduct, fetchProductById, type ApiProduct } from '@/services/p
 import { Input } from '@/components/ui/input'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { Textarea } from '@/components/ui/textarea'
-import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { useSuppliers } from '@/hooks/useSuppliers'
 import { SUPPLIERS_DROPDOWN_PARAMS } from '@/services/supplierService'
@@ -42,7 +40,12 @@ import { useTenant } from '@/context/useTenant'
 import { ProductKitSection } from './ProductKitSection'
 import { ProductLotsSection } from './ProductLotsSection'
 import { ProductLocationsSection } from './ProductLocationsSection'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import { ProductDetailSummary } from './ProductDetailSummary'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import '@/components/shared/recordEditLayout.css'
 
 type CategoryItem = { id: number | string; name: string }
 
@@ -51,12 +54,12 @@ const getStatusBadge = (product: Product) => {
     return <Badge variant="outline">Kit / combo</Badge>
   }
   if (product.stock === 0 || product.status === 'out_of_stock') {
-    return <Badge variant="destructive">Sin Stock</Badge>
+    return <Badge variant="destructive">Sin stock</Badge>
   }
   if (product.stock <= product.minStock || product.status === 'low_stock') {
-    return <Badge className="bg-liquor-amber text-liquor-bronze">Stock Bajo</Badge>
+    return <Badge className="border-0 bg-amber-500/15 text-amber-800 dark:text-amber-300">Stock bajo</Badge>
   }
-  return <Badge className="bg-liquor-gold text-liquor-bronze">Disponible</Badge>
+  return <Badge className="border-0 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300">Disponible</Badge>
 }
 
 export default function ProductDetailPage() {
@@ -64,7 +67,6 @@ export default function ProductDetailPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const { showAdvancedByDefault } = useExperienceProfile()
   const canEdit = hasPermission('products.edit')
   const canDelete = hasPermission('products.delete')
   const canViewCost = hasPermission('products.create')
@@ -92,7 +94,6 @@ export default function ProductDetailPage() {
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false)
-  const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   useEffect(() => {
     const load = async () => {
@@ -126,6 +127,7 @@ export default function ProductDetailPage() {
   )
 
   const [isEditing, setIsEditing] = useState(false)
+  const [detailTab, setDetailTab] = useState('information')
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editPriceWholesale, setEditPriceWholesale] = useState('')
@@ -199,10 +201,8 @@ export default function ProductDetailPage() {
   if (isLoading && !product) {
     return (
       <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 w-48 bg-muted rounded" />
-          <div className="h-64 bg-muted rounded" />
-        </div>
+        <Button variant="ghost" onClick={() => navigate('/inventario')}><ArrowLeft className="mr-2 h-4 w-4" />Inventario</Button>
+        <LoadingState variant="detail" message="Cargando producto…" />
       </div>
     )
   }
@@ -316,41 +316,37 @@ export default function ProductDetailPage() {
   }
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{product.name}</h1>
-            <p className="text-sm text-muted-foreground">Detalle del producto</p>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2 justify-end">
-          {canEdit && !isEditing && (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              <Edit className="w-4 h-4 mr-2" />
-              Editar
-            </Button>
-          )}
-          {canDelete && !isEditing && branches.length > 1 && (
-            <Button variant="outline" onClick={() => setIsBranchDialogOpen(true)}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Quitar de esta sucursal
-            </Button>
-          )}
-          {canDelete && !isEditing && (
-            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              {branches.length > 1 ? 'Eliminar de la empresa' : 'Eliminar'}
-            </Button>
-          )}
-        </div>
-      </div>
-
+    <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-4 px-4 py-5 sm:px-8">
+      <header className="space-y-4">
+        <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground" onClick={() => navigate('/inventario')}>
+          <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />Volver a Inventario
+        </Button>
+        <ProductDetailSummary product={product} category={categoryLabel} status={getStatusBadge(product)} actions={
+          !isEditing && <>
+            {canEdit && <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => setIsEditing(true)}>
+              <Edit className="mr-2 h-4 w-4" aria-hidden="true" />Editar
+            </Button>}
+            {canDelete && <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline"><MoreHorizontal className="mr-2 h-4 w-4" aria-hidden="true" />Más acciones</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {branches.length > 1 && <DropdownMenuItem onSelect={() => setIsBranchDialogOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />Quitar de esta sucursal
+                </DropdownMenuItem>}
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setIsDeleteDialogOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />{branches.length > 1 ? 'Eliminar de la empresa' : 'Eliminar'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>}
+          </>
+        } />
+        {!isEditing && <MetricStrip label="Precio y existencias" items={[
+          { label: 'Precio de venta', value: fmt(product.price) },
+          { label: 'Stock actual', value: `${product.stock} unidades` },
+          { label: 'Stock mínimo', value: `${product.minStock} unidades` },
+        ]} />}
+      </header>
       <AlertDialog open={isBranchDialogOpen} onOpenChange={setIsBranchDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Quitar de {branch?.name || 'esta sucursal'}?</AlertDialogTitle>
             <AlertDialogDescription>
@@ -374,7 +370,7 @@ export default function ProductDetailPage() {
       </AlertDialog>
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {branches.length > 1 ? '¿Eliminar el producto de toda la empresa?' : '¿Eliminar producto?'}
@@ -415,32 +411,149 @@ export default function ProductDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className={isEditing && canEdit ? 'ring-2 ring-liquor-amber/30' : ''}>
-        <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle>Información del producto</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">Datos principales para vender y controlar existencias.</p>
+      {isEditing && canEdit ? <div className="record-edit">
+        <div><h2 className="text-lg font-semibold">Editar producto</h2><p className="text-sm text-muted-foreground">Los cambios se aplican al guardar.</p></div>
+        <fieldset className="record-edit-panel">
+          <legend className="sr-only">Identificación</legend>
+          <h3 className="record-edit-heading" aria-hidden="true"><Info />Identificación</h3>
+          <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+            <div className="space-y-1.5">
+              <Label>Fotografía</Label>
+              <div className="flex items-start gap-3">
+              {(editImageUrl || product.imageUrl) && <img src={editImageUrl ?? product.imageUrl} alt={product.name} width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border object-contain p-2" />}
+              <ImageUploadDropzone
+                className="min-w-0 flex-1"
+                onFileSelect={file => void handleEditProductImageFile(file)}
+                onReject={message => toast({ title: 'Archivo no válido', description: message, variant: 'destructive' })}
+                disabled={isUploadingImage || isSaving} isUploading={isUploadingImage}
+                helperText="Máx. 5 MB. Guarda los cambios para aplicar la imagen."
+              />
+              </div>
+            </div>
+            <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {[
+                { id: 'edit-name', label: 'Nombre', value: editName, set: setEditName },
+                { id: 'edit-brand', label: 'Marca', value: editBrand, set: setEditBrand },
+                { id: 'edit-size', label: 'Presentación', value: editSize, set: setEditSize },
+                { id: 'edit-barcode', label: 'Código de barras', value: editBarcode, set: setEditBarcode },
+              ].map(field => <div key={field.id} className="min-w-0 space-y-1.5">
+                <Label htmlFor={field.id}>{field.label}</Label>
+                <Input id={field.id} value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
+              </div>)}
+                    <div>
+                      <Label id="edit-category-label" className="text-muted-foreground">Categoría</Label>
+                      {isEditing && canEdit ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" role="combobox" aria-labelledby="edit-category-label" disabled={isSaving} className="w-full justify-between mt-1">
+                              {categoryLabel || 'Seleccionar categoría'}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Buscar categoría..." />
+                              <CommandEmpty>No se encontraron categorías.</CommandEmpty>
+                              <CommandList>
+                                <CommandGroup>
+                                  <ScrollArea className="h-48">
+                                    {categories.map((category) => (
+                                      <CommandItem key={String(category.id)} value={String(category.name)} onSelect={() => setEditCategoryId(String(category.id))}>
+                                        <Check className={`mr-2 h-4 w-4 ${String(category.id) === String(editCategoryId) ? 'opacity-100' : 'opacity-0'}`} />
+                                        {category.name}
+                                      </CommandItem>
+                                    ))}
+                                  </ScrollArea>
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <p className="text-foreground font-medium mt-1">{categoryLabel}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <Label id="edit-supplier-label" className="text-muted-foreground">Proveedor</Label>
+                      {isEditing && canEdit ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" role="combobox" aria-labelledby="edit-supplier-label" disabled={isSaving} className="w-full justify-between mt-1">
+                              {supplierLabel || 'Seleccionar proveedor'}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[320px] p-0">
+                            <Command>
+                              <CommandInput placeholder="Buscar proveedor..." />
+                              <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
+                              <CommandList>
+                                <CommandGroup>
+                                  <ScrollArea className="h-48">
+                                    {suppliers.map((supplier) => (
+                                      <CommandItem key={String(supplier.id)} value={supplier.name} onSelect={() => setEditSupplierId(String(supplier.id))}>
+                                        <Check className={`mr-2 h-4 w-4 ${String(supplier.id) === String(editSupplierId) ? 'opacity-100' : 'opacity-0'}`} />
+                                        {supplier.name}
+                                      </CommandItem>
+                                    ))}
+                                  </ScrollArea>
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <p className="text-foreground font-medium mt-1">{supplierLabel}</p>
+                      )}
+                    </div>
+
+              <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
+                <Label htmlFor="edit-description">Descripción</Label>
+                <Textarea id="edit-description" value={editDescription} onChange={event => setEditDescription(event.target.value)} rows={2} disabled={isSaving} />
+              </div>
+            </div>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setAdvancedOpen((open) => !open)}
-            aria-expanded={advancedOpen}
-          >
-            <Settings2 className="mr-2 h-4 w-4" />
-            {advancedOpen ? 'Ocultar detalles' : 'Ver más detalles'}
-            <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {isEditing && canEdit && (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Button variant="outline" onClick={() => { setIsEditing(false); resetEditState(); }} disabled={isSaving}>
-                Cancelar cambios
-              </Button>
-              <Button
-                className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-                disabled={isSaving}
+        </fieldset>
+        <div className="record-edit-columns">
+        <fieldset className="record-edit-panel">
+          <legend className="sr-only">Precios</legend>
+          <h3 className="record-edit-heading" aria-hidden="true"><Banknote />Precios</h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              { id: 'edit-price', label: 'Precio de venta', value: editPrice, set: setEditPrice },
+              { id: 'edit-wholesale', label: 'Precio mayoreo', value: editPriceWholesale, set: setEditPriceWholesale },
+              { id: 'edit-promotion', label: 'Precio promoción', value: editPricePromotion, set: setEditPricePromotion },
+              ...(canViewCost ? [{ id: 'edit-cost', label: 'Costo', value: editCost, set: setEditCost }] : []),
+            ].map(field => <div key={field.id} className="space-y-1.5">
+              <Label htmlFor={field.id}>{field.label}</Label>
+              <Input id={field.id} type="number" value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
+            </div>)}
+            <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="edit-promotion-until">Promoción hasta</Label>
+              <Input id="edit-promotion-until" type="datetime-local" value={editPromotionUntil} onChange={event => setEditPromotionUntil(event.target.value)} disabled={isSaving} />
+            </div>
+          </div>
+        </fieldset>
+        <fieldset className="record-edit-panel">
+          <legend className="sr-only">Control de inventario</legend>
+          <h3 className="record-edit-heading" aria-hidden="true"><Boxes />Control de inventario</h3>
+          <div className="grid items-start gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual</Label><Input id="edit-stock" type="number" value={editStock} onChange={event => setEditStock(event.target.value)} disabled={isSaving} /></div>
+            <div className="space-y-1.5"><Label htmlFor="edit-min-stock">Stock mínimo</Label><Input id="edit-min-stock" type="number" value={editMinStock} onChange={event => setEditMinStock(event.target.value)} disabled={isSaving} /></div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3"><Label htmlFor="edit-available-sale">Disponible para la venta</Label><Switch id="edit-available-sale" checked={editAvailableForSale} onCheckedChange={setEditAvailableForSale} disabled={isSaving} /></div>
+              <p className="text-xs text-muted-foreground">Si lo desactivas, no aparecerá al registrar ventas.</p>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3"><Label htmlFor="edit-tracks-expiry">Control de caducidad</Label><Switch id="edit-tracks-expiry" checked={editTracksExpiry} onCheckedChange={setEditTracksExpiry} disabled={isSaving} /></div>
+              <p className="text-xs text-muted-foreground">Exige fecha de caducidad en cada ingreso de mercancía.</p>
+            </div>
+          </div>
+        </fieldset>
+        </div>
+        <div className="record-edit-actions">
+          <Button variant="outline" onClick={() => { setIsEditing(false); resetEditState(); }} disabled={isSaving || isUploadingImage}>Cancelar cambios</Button>
+          <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={isSaving || isUploadingImage}
                 onClick={async () => {
                   if (!product || !rawProduct) return
                   try {
@@ -483,275 +596,57 @@ export default function ProductDetailPage() {
                     })
                   }
                 }}
-              >
-                {isSaving ? 'Guardando...' : 'Guardar cambios'}
-              </Button>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className={advancedOpen ? 'lg:col-span-2' : 'hidden'}>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Imagen</p>
-              <div className="rounded-md overflow-hidden border border-border bg-muted flex flex-col items-center justify-center p-4 gap-4 min-h-[220px]">
-                {editImageUrl || product.imageUrl ? (
-                  <img src={editImageUrl ?? product.imageUrl} alt={product.name} className="w-full max-h-64 object-contain" />
-                ) : (
-                  <div className="flex items-center justify-center text-muted-foreground text-sm py-8">Sin imagen</div>
-                )}
-                {isEditing && canEdit && (
-                  <ImageUploadDropzone
-                    onFileSelect={(f) => {
-                      void handleEditProductImageFile(f)
-                    }}
-                    onReject={(msg) =>
-                      toast({ title: 'Archivo no válido', description: msg, variant: 'destructive' })
-                    }
-                    disabled={isUploadingImage || isSaving}
-                    isUploading={isUploadingImage}
-                    helperText="Máx 5MB. Se guardará al pulsar «Guardar cambios»."
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className={`${advancedOpen ? 'lg:col-span-3' : 'lg:col-span-5'} space-y-6`}>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Datos del producto</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-muted-foreground">Nombre</Label>
-                      {isEditing && canEdit ? <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.name}</p>}
-                    </div>
-                    {advancedOpen && <div>
-                      <Label className="text-muted-foreground">Marca</Label>
-                      {isEditing && canEdit ? <Input value={editBrand} onChange={(e) => setEditBrand(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.brand}</p>}
-                    </div>}
-                    {advancedOpen && <div>
-                      <Label className="text-muted-foreground">Tamaño</Label>
-                      {isEditing && canEdit ? <Input value={editSize} onChange={(e) => setEditSize(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.size}</p>}
-                    </div>}
-                    <div>
-                      <Label className="text-muted-foreground">Precio de venta</Label>
-                      {isEditing && canEdit ? <Input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{fmt(product.price)}</p>}
-                    </div>
-                    {advancedOpen && <div>
-                      <Label className="text-muted-foreground">Precio mayoreo</Label>
-                      {isEditing && canEdit ? (
-                        <Input type="number" value={editPriceWholesale} onChange={(e) => setEditPriceWholesale(e.target.value)} className="mt-1" placeholder="Opcional" />
-                      ) : (
-                        <p className="text-foreground font-medium">
-                          {product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : '—'}
-                        </p>
-                      )}
-                    </div>}
-                    {advancedOpen && <div>
-                      <Label className="text-muted-foreground">Precio promoción</Label>
-                      {isEditing && canEdit ? (
-                        <Input type="number" value={editPricePromotion} onChange={(e) => setEditPricePromotion(e.target.value)} className="mt-1" placeholder="Opcional" />
-                      ) : (
-                        <p className="text-foreground font-medium">
-                          {product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : '—'}
-                        </p>
-                      )}
-                    </div>}
-                    {advancedOpen && <div>
-                      <Label className="text-muted-foreground">Promoción hasta</Label>
-                      {isEditing && canEdit ? (
-                        <Input type="datetime-local" value={editPromotionUntil} onChange={(e) => setEditPromotionUntil(e.target.value)} className="mt-1" />
-                      ) : (
-                        <p className="text-foreground font-medium">
-                          {product.promotionValidUntil
-                            ? new Date(product.promotionValidUntil).toLocaleString(locale || 'es-GT')
-                            : '—'}
-                        </p>
-                      )}
-                    </div>}
-                    {advancedOpen && canViewCost && (
-                      <div>
-                        <Label className="text-muted-foreground">Costo</Label>
-                        {isEditing && canEdit ? <Input type="number" value={editCost} onChange={(e) => setEditCost(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{fmt(product.cost)}</p>}
-                      </div>
-                    )}
-                    <div>
-                      <Label className="text-muted-foreground">Stock actual</Label>
-                      {isEditing && canEdit ? <Input type="number" value={editStock} onChange={(e) => setEditStock(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.stock} unidades</p>}
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Stock mínimo</Label>
-                      {isEditing && canEdit ? <Input type="number" value={editMinStock} onChange={(e) => setEditMinStock(e.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{product.minStock} unidades</p>}
-                    </div>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-muted-foreground">Categoría</Label>
-                      {isEditing && canEdit ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" className="w-full justify-between mt-1">
-                              {categoryLabel || 'Seleccionar categoría'}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[320px] p-0">
-                            <Command>
-                              <CommandInput placeholder="Buscar categoría..." />
-                              <CommandEmpty>No se encontraron categorías.</CommandEmpty>
-                              <CommandList>
-                                <CommandGroup>
-                                  <ScrollArea className="h-48">
-                                    {categories.map((category) => (
-                                      <CommandItem key={String(category.id)} value={String(category.name)} onSelect={() => setEditCategoryId(String(category.id))}>
-                                        <Check className={`mr-2 h-4 w-4 ${String(category.id) === String(editCategoryId) ? 'opacity-100' : 'opacity-0'}`} />
-                                        {category.name}
-                                      </CommandItem>
-                                    ))}
-                                  </ScrollArea>
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <p className="text-foreground font-medium mt-1">{categoryLabel}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Estado</Label>
-                      <div className="mt-1">{getStatusBadge(product)}</div>
-                    </div>
-                    {advancedOpen && <div className="md:col-span-2">
-                      <Label htmlFor="edit-available-sale" className="text-muted-foreground">
-                        Disponible para la venta (POS)
-                      </Label>
-                      {isEditing && canEdit ? (
-                        <div className="mt-2 flex items-center gap-3">
-                          <Switch
-                            id="edit-available-sale"
-                            checked={editAvailableForSale}
-                            onCheckedChange={setEditAvailableForSale}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            Si lo desactivas, el producto no aparece al registrar ventas.
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-foreground font-medium mt-1">
-                          {product.availableForSale !== false ? 'Sí, aparece en ventas' : 'No (solo inventario)'}
-                        </p>
-                      )}
-                    </div>}
-                    {advancedOpen && <div className="md:col-span-2">
-                      <Label htmlFor="edit-tracks-expiry" className="text-muted-foreground">
-                        Controla caducidad (lotes)
-                      </Label>
-                      {isEditing && canEdit ? (
-                        <div className="mt-2 flex items-center gap-3">
-                          <Switch
-                            id="edit-tracks-expiry"
-                            checked={editTracksExpiry}
-                            onCheckedChange={setEditTracksExpiry}
-                          />
-                          <span className="text-sm text-muted-foreground">
-                            Si lo activas, cada ingreso de mercancía exigirá fecha de caducidad.
-                          </span>
-                        </div>
-                      ) : (
-                        <p className="text-foreground font-medium mt-1">
-                          {product.tracksExpiry === true ? 'Sí, exige fecha de caducidad al ingresar' : 'No'}
-                        </p>
-                      )}
-                    </div>}
-                    <div>
-                      <Label className="text-muted-foreground">Proveedor</Label>
-                      {isEditing && canEdit ? (
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" className="w-full justify-between mt-1">
-                              {supplierLabel || 'Seleccionar proveedor'}
-                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[320px] p-0">
-                            <Command>
-                              <CommandInput placeholder="Buscar proveedor..." />
-                              <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
-                              <CommandList>
-                                <CommandGroup>
-                                  <ScrollArea className="h-48">
-                                    {suppliers.map((supplier) => (
-                                      <CommandItem key={String(supplier.id)} value={supplier.name} onSelect={() => setEditSupplierId(String(supplier.id))}>
-                                        <Check className={`mr-2 h-4 w-4 ${String(supplier.id) === String(editSupplierId) ? 'opacity-100' : 'opacity-0'}`} />
-                                        {supplier.name}
-                                      </CommandItem>
-                                    ))}
-                                  </ScrollArea>
-                                </CommandGroup>
-                              </CommandList>
-                            </Command>
-                          </PopoverContent>
-                        </Popover>
-                      ) : (
-                        <p className="text-foreground font-medium mt-1">{supplierLabel}</p>
-                      )}
-                    </div>
-                    <div>
-                      <Label className="text-muted-foreground">Código de barras</Label>
-                      {isEditing && canEdit ? <Input value={editBarcode} onChange={(e) => setEditBarcode(e.target.value)} className="mt-1" /> : (
-                        <div className="flex items-center gap-2 mt-1">
-                          <code className="bg-muted px-2 py-1 rounded text-sm">{product.barcode || '—'}</code>
-                          <QrCode className="w-5 h-5 text-muted-foreground" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {advancedOpen && canViewCost && (
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">Margen de ganancia:</span>
-                      <div className="font-medium">{fmt(product.price - product.cost)} ({product.price > 0 ? (((product.price - product.cost) / product.price) * 100).toFixed(1) : '0'}%)</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">Valor de inventario:</span>
-                      <div className="font-medium">{fmt(product.stock * product.cost)}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {advancedOpen && <Separator />}
-
-              {advancedOpen && <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Descripción</p>
-                {isEditing && canEdit ? (
-                  <Textarea value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Descripción del producto..." rows={4} className="resize-none" />
-                ) : (
-                  <p className="text-muted-foreground">{product.description || 'Sin descripción'}</p>
-                )}
-              </div>}
-            </div>
+          >{isSaving ? 'Guardando…' : 'Guardar cambios'}</Button>
+        </div>
+      </div> : <Tabs value={detailTab} onValueChange={setDetailTab}>
+        <div className="overflow-x-auto">
+          <TabsList variant="detail" aria-label="Detalles del producto">
+            <TabsTrigger value="information"><Info className="mr-2 h-4 w-4" aria-hidden="true" />Información y precios</TabsTrigger>
+            {product.kind !== 'KIT' && <TabsTrigger value="lots"><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />Lotes y caducidades</TabsTrigger>}
+            <TabsTrigger value="locations"><Warehouse className="mr-2 h-4 w-4" aria-hidden="true" />Ubicaciones</TabsTrigger>
+            {(product.kind === 'KIT' || canEdit) && <TabsTrigger value="kit"><Boxes className="mr-2 h-4 w-4" aria-hidden="true" />Kit / combo</TabsTrigger>}
+          </TabsList>
+        </div>
+        {product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
+          <div className="rounded-xl border bg-card p-4 sm:p-5"><ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} /></div>
+        </TabsContent>}
+        <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} /></TabsContent>
+        <TabsContent value="information" forceMount hidden={detailTab !== 'information'} className="mt-5 data-[state=inactive]:hidden">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <section className="min-w-0 space-y-4 rounded-xl border bg-card p-5" aria-labelledby="product-information-heading">
+              <h2 id="product-information-heading" className="text-lg font-semibold">Información del producto</h2>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ['Categoría', categoryLabel || 'Sin categoría'],
+                  ['Proveedor', supplierLabel || 'Sin proveedor'],
+                  ['Código de barras', product.barcode || '—'],
+                  ['Disponible para venta', product.availableForSale !== false ? 'Sí' : 'No'],
+                  ['Control de caducidad', product.tracksExpiry ? 'Sí' : 'No'],
+                ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>)}
+              </dl>
+              <div className="border-t pt-4"><h3 className="text-sm font-medium">Descripción</h3><p className="mt-2 whitespace-pre-line break-words text-sm text-muted-foreground">{product.description || 'Sin descripción'}</p></div>
+            </section>
+            <section className="min-w-0 space-y-4 rounded-xl border bg-card p-5" aria-labelledby="product-prices-heading">
+              <h2 id="product-prices-heading" className="text-lg font-semibold">Precios y rentabilidad</h2>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ['Precio mayoreo', product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : 'No configurado'],
+                  ['Precio promoción', product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : 'No configurado'],
+                  ['Promoción hasta', product.promotionValidUntil ? new Date(product.promotionValidUntil).toLocaleString(locale || 'es-GT') : 'Sin fecha'],
+                  ...(canViewCost ? [
+                    ['Costo', fmt(product.cost)],
+                    ['Margen de ganancia', `${fmt(product.price - product.cost)} (${product.price > 0 ? (((product.price - product.cost) / product.price) * 100).toFixed(1) : '0'}%)`],
+                    ['Valor de inventario', fmt(product.stock * product.cost)],
+                  ] : []),
+                ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium tabular-nums">{value}</dd></div>)}
+              </dl>
+            </section>
           </div>
-        </CardContent>
-      </Card>
-
-      {advancedOpen && product && id && (
-        <ProductKitSection
-          product={product}
-          productId={id}
-          canEdit={canEdit}
-          onUpdated={() => void reloadProduct()}
-        />
-      )}
-
-      {advancedOpen && product && id && <ProductLocationsSection productId={id} />}
-
-      {advancedOpen && product && id && product.kind !== 'KIT' && (
-        <ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
-      )}
+        </TabsContent>
+        {(product.kind === 'KIT' || canEdit) && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
+          <ProductKitSection product={product} productId={id} canEdit={canEdit} onUpdated={() => void reloadProduct()} />
+        </TabsContent>}
+      </Tabs>}
     </div>
   )
 }

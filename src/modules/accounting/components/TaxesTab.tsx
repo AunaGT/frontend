@@ -18,7 +18,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -99,7 +99,7 @@ export const TaxesTab = () => {
           <div className="space-y-1 w-[140px]">
             <Label className="text-xs">Año</Label>
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
@@ -111,7 +111,7 @@ export const TaxesTab = () => {
         </div>
 
         {loading ? (
-          <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          <LoadingState variant="detail" message="Cargando impuestos…" />
         ) : !data ? (
           <p className="py-10 text-center text-muted-foreground">No se pudo cargar el reporte.</p>
         ) : !hasMovements ? (

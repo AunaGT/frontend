@@ -19,7 +19,8 @@ import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Loader2, Landmark, Star, User as UserIcon, AlertCircle } from 'lucide-react'
+import { Landmark, Star, User as UserIcon, AlertCircle } from 'lucide-react'
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -85,11 +86,9 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
         </p>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="h-8 w-8 animate-spin mr-3" />
-          Cargando cajas…
-        </div>
+      {loading && registers.length > 0 && <LoadingIndicator message="Actualizando cajas…" />}
+      {loading && registers.length === 0 ? (
+        <LoadingState variant="cards" message="Cargando cajas…" />
       ) : error ? (
         <div className="space-y-4">
           <div className="flex items-center gap-2 text-destructive text-sm">

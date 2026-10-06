@@ -1,0 +1,19 @@
+/* Only applied by the product and employee detail edit branches. Controls keep their global theme. */
+.record-edit { display:grid; gap:12px; min-width:0; }
+.record-edit-columns, .record-edit-identity { display:grid; gap:12px; min-width:0; align-items:start; }
+.record-edit .record-edit-panel, .record-edit .hr-panel, .record-edit-actions {
+  min-width:0; border:1px solid #d5e2f4; border-radius:10px; background:#fff; box-shadow:none;
+}
+.dark .record-edit .record-edit-panel, .dark .record-edit .hr-panel, .dark .record-edit-actions {
+  border-color:#263b55; background:#142237;
+}
+.record-edit-panel { padding:16px; }
+.record-edit-heading { display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:18px; font-weight:600; }
+.record-edit-heading > svg { width:22px; height:22px; color:#ff790f; flex-shrink:0; }
+.record-edit .hr-panel > div:first-child { padding:16px 16px 12px; }
+.record-edit .hr-panel > div:last-child { padding:0 16px 16px; }
+.record-edit-actions { position:sticky; bottom:0; z-index:10; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; padding:12px; }
+@media(min-width:1280px) {
+  .record-edit-columns { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .record-edit-identity { grid-template-columns:minmax(0,1fr) minmax(280px,.65fr); }
+}

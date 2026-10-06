@@ -139,6 +139,13 @@ Todos los colores DEBEN ser HSL.
   }
 }
 
+/* Selectores nativos compartidos: no dependen del CSS de un módulo lazy. */
+.auna-receipt-select {
+  display: block;
+  width: 100%;
+}
+.auna-receipt-select:disabled { cursor: not-allowed; }
+
 /* Encabezados y tablas opt-in: solo vistas ya migradas al diseño Auna. */
 .auna-app-content {
   min-width: 0;
@@ -169,12 +176,7 @@ header.auna-module-heading {
 
 /* Cotizaciones reutiliza el lienzo, tarjetas y controles de las vistas migradas. */
 .quotes-page :is([class*="bg-card"], .auna-data-table-shell) { border-radius: 1rem; }
-.quotes-page :is(input, [role="combobox"], textarea) { border-radius: .75rem; }
-.quotes-page :is(input, [role="combobox"]) { min-height: 44px; }
-.quotes-page input:disabled { opacity: .7; }
 .dark .quotes-page { --background: var(--brand-navy); }
-.receivables-page :is(input, [role="combobox"], textarea) { border-radius: .75rem; }
-.receivables-page :is(input, [role="combobox"]) { min-height: 44px; }
 .dark .receivables-page { --background: var(--brand-navy); }
 header.auna-module-heading > div:first-child { min-width: 0; }
 header.auna-module-heading .auna-module-eyebrow {
@@ -287,21 +289,6 @@ table.auna-data-table tbody > tr > td button[aria-label] { border-radius: 8px; }
   .alerts-page table.alerts-table tbody > tr > td { padding: 0; border: 0; font-size: 12px; }
 }
 
-@keyframes auna-loading-breathe {
-  0%, 100% { opacity: .78; transform: translateY(3px) scale(.985); }
-  50% { opacity: 1; transform: translateY(-3px) scale(1); }
-}
-
-@keyframes auna-loading-slide {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(300%); }
-}
-
-.auna-loading-logo { animation: auna-loading-breathe 2s ease-in-out infinite; }
-.auna-loading-glow { animation: auna-loading-breathe 2s ease-in-out infinite; }
-.auna-loading-progress { animation: auna-loading-slide 1.35s ease-in-out infinite; }
-.auna-loading-content { min-height: 55vh; }
-
 .auna-not-found-inner { width: 100%; max-width: 72rem; margin-inline: auto; }
 .auna-not-found-main { grid-template-columns: minmax(0, 1fr); }
 .auna-not-found-title { font-size: clamp(2.5rem, 4vw, 4rem); }
@@ -316,9 +303,4 @@ table.auna-data-table tbody > tr > td button[aria-label] { border-radius: 8px; }
 
 @media (min-width: 1024px) {
   .auna-not-found-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .auna-loading-logo, .auna-loading-glow, .auna-loading-progress { animation: none; }
-  .auna-loading-progress { width: 100%; }
 }

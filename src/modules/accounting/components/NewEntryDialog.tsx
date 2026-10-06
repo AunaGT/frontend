@@ -112,7 +112,7 @@ export const NewEntryDialog = ({ open, onOpenChange, accounts, onSaved }: {
           {lines.map((line, i) => (
             <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_36px] gap-2 items-center">
               <Select value={line.account_id} onValueChange={(v) => setLine(i, { account_id: v })}>
-                <SelectTrigger className="h-9">
+                <SelectTrigger>
                   <SelectValue placeholder="Seleccionar cuenta" />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,12 +124,12 @@ export const NewEntryDialog = ({ open, onOpenChange, accounts, onSaved }: {
                 </SelectContent>
               </Select>
               <Input
-                type="number" min="0" step="0.01" placeholder="0.00" className="h-9"
+                type="number" min="0" step="0.01" placeholder="0.00"
                 value={line.debit}
                 onChange={(e) => setLine(i, { debit: e.target.value, ...(e.target.value ? { credit: '' } : {}) })}
               />
               <Input
-                type="number" min="0" step="0.01" placeholder="0.00" className="h-9"
+                type="number" min="0" step="0.01" placeholder="0.00"
                 value={line.credit}
                 onChange={(e) => setLine(i, { credit: e.target.value, ...(e.target.value ? { debit: '' } : {}) })}
               />

@@ -2,6 +2,7 @@
  * Pestaña de métodos de pago en Datos maestros (ventas y cierre de caja).
  */
 
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -71,7 +72,7 @@ export function PaymentMethodsTab() {
   const { search, setSearch, query } = useCatalogSearch()
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [query, order])
-  const { data, isLoading, error } = usePaymentMethodsCatalog({
+  const { data, isLoading, isFetching, error } = usePaymentMethodsCatalog({
     page: currentPage,
     pageSize,
     search: query, order,
@@ -125,11 +126,8 @@ export function PaymentMethodsTab() {
         </CardHeader>
         <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
         <CardContent className="catalog-content">
-          {error ? <p role="alert" className="p-6 text-destructive">{catalogApiErrorMessage(error, 'No se pudieron cargar los métodos de pago')}</p> : isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin" />
-            </div>
-          ) : (
+          {isFetching && data && <LoadingIndicator message="Actualizando métodos de pago…" />}
+          {error ? <p role="alert" className="p-6 text-destructive">{catalogApiErrorMessage(error, 'No se pudieron cargar los métodos de pago')}</p> : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -142,7 +140,7 @@ export function PaymentMethodsTab() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.length === 0 ? (
+                {isLoading ? <TableLoadingRows columns={6} message="Cargando métodos de pago…" /> : items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
                       No hay métodos de pago registrados

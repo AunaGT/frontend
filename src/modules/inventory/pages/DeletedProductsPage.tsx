@@ -32,6 +32,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/shared/Pagination'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useToast } from '@/hooks/use-toast'
 import { useDeletedProducts, useRestoreProduct } from '@/hooks/useProducts'
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
@@ -46,7 +47,7 @@ export default function DeletedProductsPage() {
     { defaultPage: 1, defaultPageSize: 20 }
   )
 
-  const { data: allDeletedProducts = [], isLoading, isError, refetch } = useDeletedProducts()
+  const { data: allDeletedProducts = [], isLoading, isFetching, isError, refetch } = useDeletedProducts()
 
   const totalPages = Math.max(1, Math.ceil(allDeletedProducts.length / pageSize))
   const startIndex = (currentPage - 1) * pageSize
@@ -103,12 +104,11 @@ export default function DeletedProductsPage() {
           <CardDescription>Productos marcados como eliminados en el sistema</CardDescription>
         </CardHeader>
         <CardContent className="p-4 sm:p-6 pt-0">
+          {isFetching && !isLoading && <LoadingIndicator message="Actualizando productos eliminados…" className="mb-3" />}
           {isError ? (
             <p className="text-center text-destructive py-8 text-sm">Error al cargar productos eliminados</p>
           ) : isLoading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-            </div>
+            <LoadingState columns={['Nombre', 'Categoría', 'Marca', 'Stock', 'Proveedor', 'Acciones']} message="Cargando productos eliminados…" />
           ) : products.length === 0 ? (
             <p className="text-center text-muted-foreground py-8 text-sm">No hay productos eliminados</p>
           ) : (
@@ -173,7 +173,7 @@ export default function DeletedProductsPage() {
                     onPageChange={setCurrentPage}
                     hasNextPage={currentPage < totalPages}
                     hasPrevPage={currentPage > 1}
-                    loading={isLoading}
+                    loading={isFetching}
                   />
                 </div>
               )}

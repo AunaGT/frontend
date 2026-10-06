@@ -22,7 +22,7 @@ import Login from "@/pages/Login";
 import HomePage from "./pages/HomePage";
 import AuthProvider from "@/context/AuthProvider";
 import TenantProvider from "@/context/TenantProvider";
-import { BrandLoading } from "@/components/branding/BrandLoading";
+import { HomeLoadingPage } from "@/components/layout/HomeLoadingPage";
 
 // Layout
 import { MainLayout } from "@/components/layout";
@@ -133,7 +133,7 @@ const App = () => (
       <AuthProvider>
        <TenantProvider>
         <BrowserRouter>
-          <Suspense fallback={<BrandLoading fullScreen message="Preparando tu espacio…" />}>
+          <Suspense fallback={<HomeLoadingPage />}>
           <Routes>
             {/* Public routes (only when NOT authenticated) */}
             <Route element={<PublicRoute />}>

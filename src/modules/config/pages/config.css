@@ -49,9 +49,6 @@
 .dark .config-panel { background: linear-gradient(125deg, hsl(var(--card)), hsl(216 45% 15%)); box-shadow: 0 8px 28px hsl(220 80% 4% / .24); }
 .config-panel [class*="CardHeader"] { padding-bottom: 12px; }
 .config-panel h3 { font-size: 18px; letter-spacing: -.02em; }
-.config-panel input, .config-panel [role="combobox"], .config-sort, .config-search { border-color: hsl(var(--border)); background: hsl(var(--background) / .45); color: hsl(var(--foreground)); }
-.dark .config-panel input, .dark .config-panel [role="combobox"], .dark .config-sort, .dark .config-search { background: hsl(216 42% 16%); }
-.config-panel button:not([role="switch"]):not([role="combobox"])[class*="bg-primary"] { background: hsl(var(--brand-orange)); color: white; }
 .config-company-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); gap: 20px 28px; align-items: start; }
 .config-name-field { grid-column: 1; grid-row: 1; }
 .config-currency-field { grid-column: 1; grid-row: 2; }
@@ -80,13 +77,11 @@
 .config-fiscal-grid > :last-child { justify-self: start; }
 .config-denominations-list { display: grid; gap: 8px; }
 .config-denomination-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid hsl(var(--border)); border-radius: 8px; }
-.config-denomination-row select { height: 36px; border: 1px solid hsl(var(--border)); border-radius: 6px; background: hsl(var(--background)); color: hsl(var(--foreground)); padding: 0 12px; }
 
 .config-modules { display: flex; flex-direction: column; gap: 18px; }
 .config-section-heading { display: flex; align-items: flex-end; justify-content: flex-end; flex-wrap: wrap; gap: 16px; }
 .config-section-heading h2 { font-size: clamp(24px, 2vw, 32px); }
-.config-search { display: flex; align-items: center; gap: 10px; min-width: min(100%, 300px); height: 42px; padding: 0 12px; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--muted-foreground)); }
-.config-search input { height: 100%; border: 0; background: transparent; box-shadow: none; padding: 0; }
+.config-search { display: flex; align-items: center; gap: 10px; min-width: min(100%, 300px); }
 .config-module-toolbar { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
 .config-module-toolbar .config-search { grid-column: 2; grid-row: 1; }
 .config-module-toolbar .config-filter-list { grid-column: 1; grid-row: 2; }
@@ -94,9 +89,7 @@
 .config-filter-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .config-filter { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--muted-foreground)); background: hsl(var(--card)); font-size: 13px; }
 .config-filter[data-active="true"] { background: hsl(var(--brand-orange)); border-color: hsl(var(--brand-orange)); color: white; box-shadow: 0 3px 14px hsl(var(--brand-orange) / .22); }
-.config-sort { display: flex; align-items: center; gap: 8px; height: 40px; border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 0 12px; font-size: 13px; }
-.config-sort select { background: transparent; color: hsl(var(--foreground)); font-weight: 650; outline: none; }
-.config-sort option { background: hsl(var(--card)); }
+.config-sort { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .config-module-table-wrap { overflow-x: auto; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); }
 .config-module-table { width: 100%; min-width: 880px; border-collapse: collapse; text-align: left; }
 .config-module-table th { padding: 15px 16px; border-bottom: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
@@ -137,6 +130,7 @@
   .config-search { width: 100%; }
   .config-sort { width: 100%; justify-content: space-between; }
   .config-module-toolbar { grid-template-columns: 1fr; }
-  .config-module-toolbar .config-search, .config-module-toolbar .config-filter-list, .config-module-toolbar .config-sort { grid-column: 1; grid-row: auto; }
+   .config-module-toolbar .config-filter-list,  .config-module-toolbar .config-sort { grid-column: 1; grid-row: auto; }
+  .config-module-toolbar .config-search { grid-column: 1; grid-row: auto; }
   .config-module-footer { flex-direction: column; align-items: flex-start; }
 }

@@ -10,15 +10,15 @@
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
-import { BrandLoading } from "@/components/branding/BrandLoading";
+import { HomeLoadingPage } from "@/components/layout/HomeLoadingPage";
 
 const PrivateRoute = () => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
 
-  // Show loading spinner while checking auth state
+  // Keep the entry layout stable, without mounting private content before /auth/me resolves.
   if (isLoading) {
-    return <BrandLoading fullScreen message="Verificando tu sesión…" />;
+    return <HomeLoadingPage />;
   }
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;

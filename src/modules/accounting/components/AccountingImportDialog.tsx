@@ -12,6 +12,7 @@
  * AccountingImportDialog - Importación masiva de contabilidad (cuentas o asientos).
  * Mismo flujo que catálogos: plantilla Excel + dropzone → página de mapeo.
  */
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useCallback, useRef } from 'react'
 import { getApiBaseUrl } from '@/services/api'
 import { useNavigate } from 'react-router-dom'
@@ -19,7 +20,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react'
+import { Upload, Download, FileSpreadsheet } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 
@@ -119,7 +120,7 @@ export function AccountingImportDialog({ open, onOpenChange, type }: AccountingI
 
         {parsing ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+            <LoadingIndicator message="Procesando archivo…" className="mb-4" />
             <p className="font-medium">Procesando archivo...</p>
           </div>
         ) : (
@@ -138,7 +139,7 @@ export function AccountingImportDialog({ open, onOpenChange, type }: AccountingI
             </div>
 
             <div
-              className={`relative border-2 border-dashed rounded-lg p-12 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer ${
+              className={`auna-file-dropzone relative p-12 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer ${
                 isDragging ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
               }`}
               onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragging(true) }}

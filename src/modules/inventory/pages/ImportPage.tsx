@@ -17,6 +17,7 @@
  * - Preview of first row data per column
  * - Real-time validation feedback
  */
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useMemo } from 'react'
 import { ApiError, apiFetch, getApiBaseUrl, getAuthToken } from '@/services/api'
 import { useQuery } from '@tanstack/react-query'
@@ -601,7 +602,7 @@ export default function ImportPage() {
         onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
         progress={importStream.progress} onCancel={importStream.cancel}
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
-        options={<div className="auna-import-options"><p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
+        options={<div className="auna-import-options"><p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select className="auna-control auna-control-select" value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
         rowResolutionActions={row => resolutionHints.filter(hint => hint.rowIndexes.includes(row)).map(hint => <div key={`${hint.kind}:${hint.value}`} className="mt-2 text-foreground"><Button type="button" size="sm" variant="outline" disabled={isTesting} onClick={() => approveCreateCatalogValue(hint)}>Crear valor: {hint.value}</Button></div>)}
         resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
     />
@@ -692,7 +693,7 @@ export default function ImportPage() {
                                             <div className="space-y-1">
                                                 <Label className="text-xs text-muted-foreground">Ubicación:</Label>
                                                 <Select value={importLocation} onValueChange={setImportLocation}>
-                                                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                                                    <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="default">Ubicación de recepción por defecto</SelectItem>
                                                         {importLocations.map((l) => (
@@ -863,7 +864,7 @@ export default function ImportPage() {
                                                                     value={mapping.systemField || '__none__'}
                                                                     onValueChange={(value) => updateMapping(mapping.excelColumn, value === '__none__' ? null : value)}
                                                                 >
-                                                                    <SelectTrigger className={!mapping.systemField ? 'border-orange-300 text-orange-600' : ''}>
+                                                                <SelectTrigger data-validation={!mapping.systemField ? 'warning' : undefined}>
                                                                         <SelectValue placeholder="Para importar, seleccione un campo..." />
                                                                     </SelectTrigger>
                                                                     <SelectContent>
@@ -1040,7 +1041,7 @@ export default function ImportPage() {
                 <Card className="max-w-md w-full">
                     <CardContent className="py-12">
                         <div className="flex flex-col items-center gap-6">
-                            <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                            <LoadingIndicator message={step === 'validating' ? 'Validando datos…' : 'Importando productos…'} />
                             <div className="text-center space-y-2">
                                 <p className="font-medium">
                                     {step === 'validating' ? 'Validando datos...' : 'Importando productos...'}

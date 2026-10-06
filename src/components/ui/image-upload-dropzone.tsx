@@ -134,12 +134,10 @@ export function ImageUploadDropzone({
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false)
         }}
         onDrop={onDrop}
+        data-dragging={isDragging}
+        aria-disabled={blocked}
         className={cn(
-          'group relative flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center outline-none transition-all',
-          'focus-visible:ring-2 focus-visible:ring-liquor-amber/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-          isDragging && 'scale-[1.01] border-liquor-amber bg-liquor-amber/10 shadow-sm',
-          !isDragging && 'border-muted-foreground/20 bg-background/50 hover:border-liquor-amber/45 hover:bg-muted/30',
-          blocked && 'cursor-not-allowed opacity-60 hover:border-muted-foreground/20 hover:bg-background/50'
+          'auna-file-dropzone group relative flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-2 px-4 py-5 text-center'
         )}
       >
         {isUploading ? (
@@ -188,7 +186,7 @@ export function ImageUploadDropzone({
         </div>
       ) : null}
 
-      {helperText ? <p className="text-xs text-muted-foreground text-center leading-relaxed">{helperText}</p> : null}
+      {helperText ? <p className="auna-field-message text-center">{helperText}</p> : null}
     </div>
   )
 }

@@ -12,22 +12,11 @@
  * useSalesData - Custom hook for managing sales data and filters
  */
 import { useState, useMemo, useEffect } from 'react'
-import { useSalesByStatus } from '@/hooks/useSales'
-import { readListUiPersisted, writeListUiPersisted } from '@/hooks/usePersistedListUiState'
+import { useSales } from '@/hooks/useSales'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { Sale, PaymentMethod, SaleStatus } from '@/types'
-import type { SaleStatusKey, SaleFilters } from '../types'
+import { STATUS_DB_NAMES, type SaleStatusKey } from '../types'
 import { isSalesSearchReady, salesSearchHint, SALES_MIN_TEXT_SEARCH_LEN } from '../salesSearchUtils'
-
-interface PaginatedSales {
-    items: Sale[]
-    page: number
-    pageSize: number
-    totalPages: number | null
-    totalItems: number | null
-    nextPage?: number | null
-    prevPage?: number | null
-    hasMore?: boolean
-}
 
 const mapStatusNameToKey = (name?: string): SaleStatusKey => {
     if (!name) return 'completed'
@@ -38,18 +27,6 @@ const mapStatusNameToKey = (name?: string): SaleStatusKey => {
 }
 
 const SALES_LIST_KEY = 'ventas/list'
-
-function readSalesPagesState(): Record<SaleStatusKey, number> {
-    const s = readListUiPersisted(SALES_LIST_KEY)
-    const sp = s.salesPages as Record<string, unknown> | undefined
-    if (sp && typeof sp === 'object') {
-        return {
-            completed: Math.max(1, Number(sp.completed) || 1),
-            cancelled: Math.max(1, Number(sp.cancelled) || 1),
-        }
-    }
-    return { completed: 1, cancelled: 1 }
-}
 
 export const normalizeRawSale = (raw: unknown): Sale => {
     const r = raw as Record<string, unknown>
@@ -209,167 +186,66 @@ export const normalizeRawSale = (raw: unknown): Sale => {
     } as Sale
 }
 
-interface UseSalesDataReturn {
-    // Filters
-    filters: SaleFilters
-    setSearchTerm: (term: string) => void
-    setStatusFilter: (status: SaleStatus | 'all') => void
-    setPaymentFilter: (payment: PaymentMethod | 'all') => void
-    setPeriod: (period: string) => void
-    // Data
-    salesByStatus: Record<SaleStatusKey, Sale[]>
-    pageInfoByStatus: Record<SaleStatusKey, { page: number; totalPages: number | null; hasMore: boolean }>
-    isLoadingByStatus: Record<SaleStatusKey, boolean>
-    // KPIs
-    totalSalesToday: number
-    transactionCountToday: number
-    averageTicketToday: number
-    preferredPaymentMethod: string
-    // Pagination
-    setPageFor: (key: SaleStatusKey, page: number) => void
-    pageSize: number
-    setPageSize: (size: number) => void
-    // Actions
-    refreshSales: () => void
-}
-
-export const useSalesData = (): UseSalesDataReturn => {
-    // Filters state
-    const [searchTerm, setSearchTerm] = useState('')
+export const useSalesData = () => {
+    const [searchTerm, updateSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
-    const [statusFilter, setStatusFilter] = useState<SaleStatus | 'all'>('all')
-    const [paymentFilter, setPaymentFilter] = useState<PaymentMethod | 'all'>('all')
-    const [period, setPeriod] = useState('today')
+    const [statusFilter, updateStatusFilter] = useState<SaleStatusKey | 'all'>('all')
+    const [paymentFilter, updatePaymentFilter] = useState('all')
+    const [period, updatePeriod] = useState('today')
+    const { page, setPage, pageSize, setPageSize: updatePageSize, viewMode, setViewMode } = usePersistedListUiState(SALES_LIST_KEY, { defaultPageSize: 10, defaultView: 'table' })
 
     useEffect(() => {
         const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 400)
         return () => window.clearTimeout(timer)
     }, [searchTerm])
 
-    const isGlobalSearch = isSalesSearchReady(debouncedSearch)
+    const isGlobalSearch = isSalesSearchReady(searchTerm)
     const searchHint = salesSearchHint(searchTerm)
+    const searchPending = !searchHint && Boolean(searchTerm.trim()) && searchTerm.trim() !== debouncedSearch
+    const listEnabled = !searchTerm.trim() || (isGlobalSearch && !searchPending)
 
-    const [pages, setPages] = useState<Record<SaleStatusKey, number>>(readSalesPagesState)
-
-    const [pageSize, setPageSize] = useState(() => {
-        const s = readListUiPersisted(SALES_LIST_KEY)
-        const n = Number(s.salesPageSize)
-        return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 10
-    })
-
-    useEffect(() => {
-        writeListUiPersisted(SALES_LIST_KEY, {
-            salesPages: { completed: pages.completed, cancelled: pages.cancelled },
-            salesPageSize: pageSize,
-        })
-    }, [pages, pageSize])
-
-    useEffect(() => {
-        setPages({ completed: 1, cancelled: 1 })
-    }, [debouncedSearch, period, pageSize])
-
-    const listQueryParams = {
+    const listQuery = useSales({
+        status: statusFilter === 'all' ? undefined : STATUS_DB_NAMES[statusFilter],
+        payment: paymentFilter === 'all' ? undefined : paymentFilter,
         period: isGlobalSearch ? undefined : period,
         search: isGlobalSearch ? debouncedSearch : undefined,
         pageSize,
-    }
-
-    // Listados por estado (búsqueda global o periodo)
-    const completedQuery = useSalesByStatus('Completada', { ...listQueryParams, page: pages.completed }, {
-        enabled: !searchTerm.trim() || isGlobalSearch,
+        page,
+    }, {
+        enabled: listEnabled,
     })
-    const cancelledQuery = useSalesByStatus('Cancelada', { ...listQueryParams, page: pages.cancelled }, {
-        enabled: !searchTerm.trim() || isGlobalSearch,
-    })
-
-    // KPIs siempre según periodo (no mezclar con resultados de búsqueda)
-    const kpiCompletedQuery = useSalesByStatus('Completada', { period, page: 1, pageSize: 500 })
-
-    const completedData = completedQuery.data as PaginatedSales | undefined
-    const cancelledData = cancelledQuery.data as PaginatedSales | undefined
+    // El resumen corresponde al período completo, no a la página ni a la búsqueda global.
+    const summaryQuery = useSales({ status: 'Completada', period, page: 1, pageSize: 1, includeSummary: true })
+    const summary = summaryQuery.data?.summary
 
     const refreshSales = () => {
-        completedQuery.refetch?.()
-        cancelledQuery.refetch?.()
-        kpiCompletedQuery.refetch?.()
+        if (listEnabled) listQuery.refetch()
+        summaryQuery.refetch()
     }
-
-    // Filtros locales (pago y estado en UI); la búsqueda la resuelve el API
-    const filterClient = (items: Sale[] = []) => items.filter(sale => {
-        const matchesPayment = paymentFilter === 'all' || sale.payment === paymentFilter
-        const matchesStatus = statusFilter === 'all' || sale.status === statusFilter
-        return matchesPayment && matchesStatus
-    })
-
-    const salesByStatus: Record<SaleStatusKey, Sale[]> = useMemo(() => ({
-        completed: filterClient((completedData?.items ?? []).map(normalizeRawSale)),
-        cancelled: filterClient((cancelledData?.items ?? []).map(normalizeRawSale)),
-    }), [completedData, cancelledData, paymentFilter, statusFilter])
-
-    const pageInfoByStatus: Record<SaleStatusKey, { page: number; totalPages: number | null; hasMore: boolean }> = {
-        completed: {
-            page: completedData?.page ?? pages.completed,
-            totalPages: completedData?.totalPages ?? null,
-            hasMore: completedData?.hasMore ?? false,
-        },
-        cancelled: {
-            page: cancelledData?.page ?? pages.cancelled,
-            totalPages: cancelledData?.totalPages ?? null,
-            hasMore: cancelledData?.hasMore ?? false,
-        },
-    }
-
-    const isLoadingByStatus: Record<SaleStatusKey, boolean> = {
-        completed: completedQuery.isLoading,
-        cancelled: cancelledQuery.isLoading,
-    }
-
-    const setPageFor = (key: SaleStatusKey, newPage: number) =>
-        setPages(prev => ({ ...prev, [key]: newPage }))
-
-    // KPIs (ventas completadas del periodo seleccionado)
-    const completedTodaySales = useMemo(
-        () => (kpiCompletedQuery.data?.items ?? []).map(normalizeRawSale),
-        [kpiCompletedQuery.data]
-    )
-
-    const totalSalesToday = useMemo(
-        () => completedTodaySales.reduce((sum, sale) => sum + (sale.adjustedTotal || sale.total || 0), 0),
-        [completedTodaySales]
-    )
-
-    const transactionCountToday =
-        kpiCompletedQuery.data?.totalItems ?? completedTodaySales.length
-
-    const averageTicketToday = transactionCountToday > 0
-        ? totalSalesToday / transactionCountToday
-        : 0
-
-    const preferredPaymentMethod = useMemo(() => {
-        const count: Record<string, number> = {}
-        completedTodaySales.forEach(sale => {
-            const method = sale.payment || 'Desconocido'
-            count[method] = (count[method] || 0) + 1
-        })
-        return Object.entries(count).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Desconocido'
-    }, [completedTodaySales])
+    const sales = useMemo(() => (listQuery.data?.items ?? []).map(normalizeRawSale), [listQuery.data])
 
     return {
         filters: { searchTerm, statusFilter, paymentFilter, period, isGlobalSearch, searchHint, minSearchLength: SALES_MIN_TEXT_SEARCH_LEN },
-        setSearchTerm,
-        setStatusFilter,
-        setPaymentFilter,
-        setPeriod,
-        salesByStatus,
-        pageInfoByStatus,
-        isLoadingByStatus,
-        totalSalesToday,
-        transactionCountToday,
-        averageTicketToday,
-        preferredPaymentMethod,
-        setPageFor,
+        setSearchTerm: (value: string) => { updateSearchTerm(value); setPage(1) },
+        setStatusFilter: (value: SaleStatusKey | 'all') => { updateStatusFilter(value); setPage(1) },
+        setPaymentFilter: (value: string) => { updatePaymentFilter(value); setPage(1) },
+        setPeriod: (value: string) => { updatePeriod(value); setPage(1) },
+        sales: searchHint || searchPending ? [] : sales,
+        pageInfo: { page: listQuery.data?.page ?? page, totalPages: listEnabled ? listQuery.data?.totalPages ?? null : null, totalItems: listEnabled ? listQuery.data?.totalItems ?? null : null, hasMore: listEnabled && (listQuery.data?.hasMore ?? false) },
+        isLoading: searchPending || listQuery.isLoading,
+        isFetching: listQuery.isFetching,
+        error: listQuery.isError ? listQuery.error?.message || 'No se pudieron cargar las ventas.' : null,
+        summaryLoading: summaryQuery.isLoading,
+        summaryError: summaryQuery.isError || (!summaryQuery.isLoading && !summary),
+        totalSalesToday: summary?.totalSales ?? 0,
+        transactionCountToday: summary?.transactionCount ?? 0,
+        averageTicketToday: summary?.averageTicket ?? 0,
+        preferredPaymentMethod: summary?.preferredPaymentMethod ?? '—',
+        setPage,
         pageSize,
-        setPageSize,
+        setPageSize: (value: number) => { updatePageSize(value); setPage(1) },
+        viewMode,
+        setViewMode,
         refreshSales,
     }
 }

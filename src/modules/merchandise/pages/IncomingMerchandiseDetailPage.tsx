@@ -21,6 +21,7 @@ import {
 import '../merchandise.css'
 import { PaymentStatusBadge } from '../components/PaymentStatusBadge'
 import { Pagination } from '@/components/shared/Pagination'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
@@ -98,6 +99,7 @@ export default function IncomingMerchandiseDetailPage() {
   const {
     data: detailData,
     isLoading,
+    isFetching,
     isError,
     error,
   } = useIncomingMerchandiseById(id)
@@ -320,8 +322,9 @@ export default function IncomingMerchandiseDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-[40vh]">
-        <div className="text-muted-foreground">Cargando detalle…</div>
+      <div className="merchandise-page mx-auto max-w-[1560px] space-y-5 p-6">
+        <Button variant="ghost" asChild><Link to="/mercancia"><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Link></Button>
+        <LoadingState variant="detail" message="Cargando entrada de mercancía…" />
       </div>
     )
   }
@@ -366,6 +369,7 @@ export default function IncomingMerchandiseDetailPage() {
   return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
     <Button variant="ghost" className="-ml-3" onClick={() => navigate('/mercancia')}><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Button>
     <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Entrada de mercadería</h1><p className="auna-module-description">Registro {detailData.id.slice(0,8).toUpperCase()} · {formatDateShort(detailData.date)}</p></div><PaymentStatusBadge status={detailData.payment_status} /></header>
+    {isFetching && <LoadingIndicator message="Actualizando entrada de mercancía…" />}
     <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Proveedor</p><p className="flex items-center gap-2 font-semibold"><Building2 className="h-4 w-4 text-brand-orange" />{detailData.supplier.name}</p><p className="text-sm text-muted-foreground">{[detailData.supplier.contact, detailData.supplier.phone, detailData.supplier.email].filter(Boolean).join(' · ')}</p></div>
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Recepción</p><p className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-brand-orange" />{formatDate(detailData.date)}</p><p className="text-sm text-muted-foreground">{detailData.items.length} productos recibidos</p></div>
@@ -545,7 +549,7 @@ export default function IncomingMerchandiseDetailPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {!supplierDetailForEdit ? (
-                  <p className="text-sm text-muted-foreground">Cargando términos del proveedor…</p>
+                  <LoadingIndicator message="Cargando términos del proveedor…" />
                 ) : paymentTermsForEdit.length === 0 ? (
                   <p className="text-sm text-muted-foreground">
                     Sin términos de pago en Datos maestros para este proveedor. Solo puedes editar notas de referencia si

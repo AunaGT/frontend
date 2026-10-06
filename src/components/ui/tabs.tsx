@@ -15,14 +15,18 @@ import { cn } from "@/lib/utils"
 
 const Tabs = TabsPrimitive.Root
 
+// Estilo del expediente de empleados, compartido por las fichas de detalle.
+const detailListClasses = 'h-12 w-full min-w-max justify-start rounded-none border-b border-[#d5e2f4] bg-transparent p-0 dark:border-[#263b55] [&>button]:h-12 [&>button]:rounded-none [&>button]:border-b-[3px] [&>button]:border-transparent [&>button]:px-6 [&>button[data-state=active]]:border-[#ff790f] [&>button[data-state=active]]:bg-transparent [&>button[data-state=active]]:text-[#ff790f] [&>button[data-state=active]]:shadow-none'
+
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { variant?: 'default' | 'detail' }
+>(({ className, variant = 'default', ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
     className={cn(
       "inline-flex h-10 items-center justify-center rounded-md bg-muted p-1 text-muted-foreground",
+      variant === 'detail' && detailListClasses,
       className
     )}
     {...props}

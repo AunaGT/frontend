@@ -16,6 +16,7 @@
  * - Excel template download
  * - Navigate to import page after file upload
  */
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useCallback, useRef } from 'react'
 import { getApiBaseUrl } from '@/services/api'
 import { useNavigate } from 'react-router-dom'
@@ -28,12 +29,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import {
-    Upload,
-    Download,
-    FileSpreadsheet,
-    Loader2,
-} from 'lucide-react'
+import { Upload, Download, FileSpreadsheet } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { ImportWizardSteps } from '@/components/shared/ImportWizardSteps'
 
@@ -181,7 +177,7 @@ export function CatalogImportDialog({ open, onOpenChange, type }: CatalogImportD
         if (step === 'parsing') {
             return (
                 <div className="flex flex-col items-center justify-center py-12">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+                    <LoadingIndicator message="Procesando archivo…" className="mb-4" />
                     <p className="font-medium">Procesando archivo...</p>
                 </div>
             )
@@ -219,7 +215,7 @@ export function CatalogImportDialog({ open, onOpenChange, type }: CatalogImportD
                 {/* Dropzone */}
                 <div
                     className={`
-                        relative border-2 border-dashed rounded-lg p-12
+                        auna-file-dropzone relative p-12
                         flex flex-col items-center justify-center gap-4
                         transition-colors cursor-pointer
                         ${isDragging

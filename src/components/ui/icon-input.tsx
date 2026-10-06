@@ -18,7 +18,7 @@ export const IconInput = React.forwardRef<HTMLInputElement, IconInputProps>(
 
     return (
       <div className="space-y-2">
-        <label htmlFor={inputId} className="text-sm font-medium text-brand-navy dark:text-foreground">
+        <label htmlFor={inputId} className="auna-control-label">
           {label}
         </label>
         <div className="relative">
@@ -32,9 +32,8 @@ export const IconInput = React.forwardRef<HTMLInputElement, IconInputProps>(
             aria-invalid={Boolean(error)}
             aria-describedby={errorId}
             className={cn(
-              'h-12 rounded-xl bg-white pl-10 text-sm shadow-sm transition-shadow focus-visible:ring-brand-orange dark:bg-background',
+              'pl-10',
               endAdornment && 'pr-11',
-              error && 'border-destructive focus-visible:ring-destructive',
               className,
             )}
             {...props}
@@ -44,7 +43,7 @@ export const IconInput = React.forwardRef<HTMLInputElement, IconInputProps>(
           )}
         </div>
         {error && (
-          <p id={errorId} role="alert" className="text-sm text-destructive">
+          <p id={errorId} role="alert" className="auna-field-message" data-status="error">
             {error}
           </p>
         )}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
-import { ChevronsUpDown, Loader2 } from 'lucide-react'
+import { ChevronsUpDown } from 'lucide-react'
+import { LoadingIndicator, LoadingState } from './LoadingState'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Command, CommandInput, CommandList, CommandItem, CommandGroup } from '@/components/ui/command'
@@ -32,7 +33,7 @@ export function SupplierPicker({ label, onSelect, allowAll = false }: { label: s
           {allowAll && <CommandItem value="all" onSelect={() => { onSelect(null); setOpen(false) }}>Todos los proveedores</CommandItem>}
           {suppliers.map(supplier => <CommandItem key={supplier.id} value={supplier.id} onSelect={() => { onSelect(supplier); setOpen(false) }}><span><strong className="block">{supplier.name}</strong><small className="text-muted-foreground">{supplier.phone || supplier.email || supplier.contact}</small></span></CommandItem>)}
         </CommandGroup>
-        {query.isFetching && <div role="status" className="flex justify-center p-4"><Loader2 className="h-4 w-4 animate-spin" /></div>}
+        {query.isFetching && (suppliers.length ? <LoadingIndicator message="Actualizando proveedores…" /> : <LoadingState size="sm" message="Buscando proveedores…" />)}
         {query.isError && <p role="alert" className="p-4 text-sm text-destructive">No se pudieron cargar los proveedores.</p>}
         {!query.isFetching && !query.isError && !suppliers.length && <p className="p-4 text-sm text-muted-foreground">Sin proveedores para esta búsqueda.</p>}
         {query.hasNextPage && <Button type="button" variant="ghost" className="w-full" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>Cargar más resultados</Button>}

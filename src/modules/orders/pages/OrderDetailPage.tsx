@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Pagination } from "@/components/shared/Pagination";
+import { LoadingState, LoadingIndicator } from "@/components/shared/LoadingState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -122,7 +123,7 @@ export default function OrderDetailPage() {
     notes: "",
   });
 
-  const { data: order, isLoading, isError } = useQuery({
+  const { data: order, isLoading, isFetching, isError } = useQuery({
     queryKey: ["order", id],
     queryFn: () => fetchOrderById(id!),
     enabled: Boolean(id),
@@ -288,7 +289,7 @@ export default function OrderDetailPage() {
     onError: (error: Error) => toast({ title: 'No se pudo revertir la entrega', description: error.message, variant: 'destructive' }),
   });
 
-  if (isLoading) return <p className="p-6 text-muted-foreground">Cargando pedido…</p>;
+  if (isLoading) return <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8"><Button variant="link" onClick={() => navigate("/pedidos")}><ArrowLeft className="mr-2 h-4 w-4" />Pedidos</Button><LoadingState variant="detail" message="Cargando pedido…" /></div>;
   if (isError || !order) return <p className="p-6 text-destructive">Pedido no encontrado.</p>;
 
   const isCash =
@@ -378,6 +379,7 @@ export default function OrderDetailPage() {
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
       <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        {isFetching && <LoadingIndicator message="Actualizando pedido…" />}
         <header className="space-y-4">
           <button type="button" className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground" onClick={() => navigate("/pedidos")}>
             <ArrowLeft className="h-4 w-4" /> Pedidos
@@ -405,13 +407,13 @@ export default function OrderDetailPage() {
         </header>
 
         <section className="flex flex-wrap items-end gap-2 rounded-2xl border border-border/70 bg-card p-3 shadow-sm dark:bg-[#101f34] print:hidden">
-          {canManage ? <div className="min-w-[210px] space-y-1"><Label htmlFor="order-status">Estado del pedido</Label><Select value={order.status} onValueChange={changeStatus} disabled={confirmMutation.isPending || cancelMutation.isPending || statusOptions.length === 1}><SelectTrigger id="order-status" className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status === "DRAFT" ? "Borrador" : status === "CONFIRMED" ? "Confirmado" : status === "CANCELLED" ? "Cancelado" : status}</SelectItem>)}</SelectContent></Select></div> : null}
+          {canManage ? <div className="min-w-[210px] space-y-1"><Label htmlFor="order-status">Estado del pedido</Label><Select value={order.status} onValueChange={changeStatus} disabled={confirmMutation.isPending || cancelMutation.isPending || statusOptions.length === 1}><SelectTrigger id="order-status"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status === "DRAFT" ? "Borrador" : status === "CONFIRMED" ? "Confirmado" : status === "CANCELLED" ? "Cancelado" : status}</SelectItem>)}</SelectContent></Select></div> : null}
           {order.fulfillment_mode === 'SEPARATE' && <OrderOperations order={order} />}
           {canRegisterSale && canManage && canSell ? <>
             <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/ventas/nueva?pedido=${encodeURIComponent(order.reference ?? order.id)}`)}><ShoppingCart className="mr-2 h-4 w-4" />Abrir en POS</Button>
             <Button className="rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={openSaleDialog} disabled={noUsableCashRegister} title={noUsableCashRegister ? "No tenés un turno de caja abierto. Abrí caja desde Abrir en POS primero." : undefined}><Receipt className="mr-2 h-4 w-4" />Registrar venta</Button>
           </> : null}
-          {confirmMutation.isPending || cancelMutation.isPending ? <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> : null}
+          {confirmMutation.isPending || cancelMutation.isPending ? <LoadingIndicator message="Actualizando estado…" /> : null}
         </section>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(500px,1.55fr)_minmax(280px,0.9fr)]">
@@ -458,7 +460,7 @@ export default function OrderDetailPage() {
               <InfoRow label="Creado por" value={order.createdBy?.name || "—"} />
               <InfoRow label="Vigencia" value={order.valid_until ? formatDateTime(order.valid_until, undefined, locale) : "—"} />
               {order.confirmed_at ? <InfoRow label="Confirmado" value={formatDateTime(order.confirmed_at, undefined, locale)} /> : null}
-              {order.status === "DRAFT" && canManage && branches.length > 1 ? <div className="space-y-2 pt-2"><Label htmlFor="order-branch">Sucursal</Label><Select value={order.branch?.id ?? ""} onValueChange={(value) => branchMutation.mutate(value)} disabled={branchMutation.isPending}><SelectTrigger id="order-branch" className="rounded-xl"><SelectValue /></SelectTrigger><SelectContent>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">Moverlo cambia su correlativo.</p></div> : <InfoRow label="Sucursal" value={order.branch?.name || "—"} />}
+              {order.status === "DRAFT" && canManage && branches.length > 1 ? <div className="space-y-2 pt-2"><Label htmlFor="order-branch">Sucursal</Label><Select value={order.branch?.id ?? ""} onValueChange={(value) => branchMutation.mutate(value)} disabled={branchMutation.isPending}><SelectTrigger id="order-branch"><SelectValue /></SelectTrigger><SelectContent>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">Moverlo cambia su correlativo.</p></div> : <InfoRow label="Sucursal" value={order.branch?.name || "—"} />}
             </CardContent>
           </Card>
         </div>
@@ -474,7 +476,7 @@ export default function OrderDetailPage() {
                 </Table>
               </div>
               <div className="space-y-3 p-4 sm:hidden">{paginatedLines.items.map((line) => <article key={line.id} className="rounded-xl border border-border/70 p-4"><div className="flex justify-between gap-3"><div><strong>{line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="rounded-lg bg-muted p-2">Pedido<strong className="block text-sm">{line.qty}</strong></span><span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{Number(line.qty_fulfilled || 0)}</strong></span><span className="rounded-lg bg-orange-500/10 p-2 text-brand-orange">Pendiente<strong className="block text-sm">{pendingOrderLineQty(line)}</strong></span></div></article>)}</div>
-              {paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="h-9 w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}
+              {paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}
               <div className="ml-auto w-full max-w-sm space-y-2 border-t border-border/70 p-5 text-sm"><InfoRow label="Subtotal" value={fmt(num(order.subtotal))} />{num(order.discount_total) > 0 ? <InfoRow label="Descuento" value={`-${fmt(num(order.discount_total))}`} /> : null}<div className="flex items-center justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{fmt(total)}</span></div></div>
             </CardContent>
           </Card>
@@ -520,7 +522,7 @@ export default function OrderDetailPage() {
             <div className="space-y-2"><Label htmlFor="delivery-dispatched">Fecha de salida</Label><Input id="delivery-dispatched" type="datetime-local" value={adminDraft.delivery_dispatched_at} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_dispatched_at: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="delivery-estimated">Entrega estimada</Label><Input id="delivery-estimated" type="datetime-local" value={adminDraft.delivery_estimated_at} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_estimated_at: event.target.value }))} /></div>
             <div className="space-y-2 sm:col-span-2"><Label htmlFor="delivery-address">Dirección de entrega</Label><Input id="delivery-address" maxLength={500} value={adminDraft.delivery_address} onChange={(event) => setAdminDraft((current) => ({ ...current, delivery_address: event.target.value }))} /></div>
-            <div className="space-y-2 sm:col-span-2"><Label htmlFor="order-admin-notes">Notas</Label><textarea id="order-admin-notes" rows={4} maxLength={5000} className="flex w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring" value={adminDraft.notes} onChange={(event) => setAdminDraft((current) => ({ ...current, notes: event.target.value }))} /></div>
+            <div className="space-y-2 sm:col-span-2"><Label htmlFor="order-admin-notes">Notas</Label><textarea id="order-admin-notes" rows={4} maxLength={5000} className="auna-control auna-control-textarea flex w-full px-3 py-2" value={adminDraft.notes} onChange={(event) => setAdminDraft((current) => ({ ...current, notes: event.target.value }))} /></div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setAdminDetailsOpen(false)}>Cancelar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={adminDetailsMutation.isPending} onClick={() => adminDetailsMutation.mutate()}>{adminDetailsMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit3 className="mr-2 h-4 w-4" />}Guardar cambios</Button></DialogFooter>
         </DialogContent>

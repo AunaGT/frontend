@@ -18,7 +18,8 @@ import {
   CommandItem,
   CommandList
 } from '@/components/ui/command'
-import { ChevronsUpDown, Check, Loader2 } from 'lucide-react'
+import { ChevronsUpDown, Check } from 'lucide-react'
+import { LoadingState } from './LoadingState'
 import { useQuery } from '@tanstack/react-query'
 import { fetchAllProducts } from '@/services/productService'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -98,9 +99,7 @@ export const ProductCombobox = ({ value, onChange, placeholder, label, icon }: P
             />
             <CommandList>
               {isLoading ? (
-                <div className="flex justify-center py-6">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </div>
+                <LoadingState size="sm" message="Buscando productos…" />
               ) : filteredProducts.length === 0 ? (
                 <CommandEmpty>No se encontraron productos</CommandEmpty>
               ) : (

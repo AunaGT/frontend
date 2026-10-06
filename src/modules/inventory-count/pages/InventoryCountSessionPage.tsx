@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { CountStatusBadge } from "../components/CountStatusBadge";
 import { Pagination } from "@/components/shared/Pagination";
 import { ExportDialog } from "@/components/shared/ExportDialog";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
 import "../inventoryCount.css";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -234,7 +234,7 @@ export default function InventoryCountSessionPage() {
   useEffect(() => { if (linesQuery.data && page >= totalPages) setPage(totalPages - 1) }, [linesQuery.data, page, totalPages]);
 
   if (sessionQuery.isLoading || !session) {
-    return <div className="inventory-count-page"><div className="inventory-count-content"><Button variant="ghost" className="justify-self-start" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="mr-2 h-4 w-4" />Sesiones de conteo</Button>{sessionQuery.isError ? <div role="alert" className="rounded-2xl border bg-card p-8 text-center"><p>No se pudo cargar esta sesión.</p><Button variant="outline" className="mt-3" onClick={() => sessionQuery.refetch()}>Reintentar</Button></div> : <div role="status"><span className="sr-only">Cargando sesión…</span><Skeleton className="h-28 mb-5" /><Skeleton className="h-80" /></div>}</div></div>;
+    return <div className="inventory-count-page"><div className="inventory-count-content"><Button variant="ghost" className="justify-self-start" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="mr-2 h-4 w-4" />Sesiones de conteo</Button>{sessionQuery.isError ? <div role="alert" className="rounded-2xl border bg-card p-8 text-center"><p>No se pudo cargar esta sesión.</p><Button variant="outline" className="mt-3" onClick={() => sessionQuery.refetch()}>Reintentar</Button></div> : <LoadingState variant="detail" message="Cargando sesión…" />}</div></div>;
   }
 
   const isDraft = session.status === "DRAFT";
@@ -252,6 +252,7 @@ export default function InventoryCountSessionPage() {
     <div className="inventory-count-page"><div className="inventory-count-content">
       <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="h-4 w-4 mr-2" />Sesiones de conteo</Button>
       <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
+      {sessionQuery.isFetching && <LoadingIndicator message="Actualizando sesión…" />}
       <Card><CardContent className="p-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
         <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-4 mt-5 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
         <div className="lg:border-l lg:pl-6"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-3 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
@@ -431,7 +432,8 @@ export default function InventoryCountSessionPage() {
             )}
           </CardHeader>
           <CardContent>
-            {linesQuery.isLoading && <div role="status"><span className="sr-only">Cargando productos…</span><Skeleton className="h-40" /></div>}
+            {linesQuery.isFetching && !linesQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
+            {linesQuery.isLoading && <LoadingState columns={['Producto', 'Código', 'Ubicación', 'En sistema', 'Contado', ...(doubleCount ? ['Comprobación'] : []), 'Diferencia', 'Valor aprox.']} message="Cargando productos…" />}
             {linesQuery.isError && <div role="alert" className="p-6 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => linesQuery.refetch()}>Reintentar</Button></div>}
             {!linesQuery.isLoading && !linesQuery.isError && pendingOnly && lines.length === 0 && inProgress && (
               <p className="text-sm text-emerald-700 dark:text-emerald-400 py-4 text-center">
@@ -680,7 +682,7 @@ function LineRow({
             min={0}
             step={1}
             aria-label={`Cantidad contada de ${row.product.name}`}
-            className="w-20 h-8 text-right"
+            className="w-20 text-right"
             disabled={locked || saving}
             value={val}
             onChange={(e) => setVal(e.target.value)}
@@ -711,7 +713,7 @@ function LineRow({
               min={0}
               step={1}
               aria-label={`Comprobación de ${row.product.name}`}
-              className="w-20 h-8 text-right"
+              className="w-20 text-right"
               disabled={locked || saving}
               value={val2}
               onChange={(e) => setVal2(e.target.value)}

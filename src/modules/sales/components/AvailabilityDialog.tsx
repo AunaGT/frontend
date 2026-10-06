@@ -71,7 +71,7 @@ export const AvailabilityDialog = ({
                             value={additionalQty}
                             onChange={(e) => onAdditionalQtyChange(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && onConfirm()}
-                            className="text-center text-lg"
+                            className="text-center"
                             autoFocus
                         />
                         <p className="text-xs text-muted-foreground">

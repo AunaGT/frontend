@@ -4,6 +4,7 @@
  * This source code is licensed under a Proprietary License.
  */
 
+import { LoadingState } from '@/components/shared/LoadingState'
 import { useState, useEffect, useMemo } from 'react'
 import { format as formatDate } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -28,6 +29,7 @@ import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import { Banknote, Building2, FileText, Loader2, Save, Settings2, Trash2, UsersRound } from 'lucide-react'
 import { ModulesSettings } from './ModulesSettings'
+import { HrDocumentsSettings } from './HrDocumentsSettings'
 import './config.css'
 import {
   EXPERIENCE_PROFILES,
@@ -351,9 +353,7 @@ export default function ConfigManagement() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[300px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <main className="config-page space-y-5"><header className="auna-module-heading"><h1>Configuración</h1></header><LoadingState variant="page" message="Cargando configuración…" /></main>
     )
   }
 
@@ -372,8 +372,10 @@ export default function ConfigManagement() {
           <TabsTrigger value="fiscal"><FileText className="h-4 w-4" /> Datos fiscales</TabsTrigger>
           <TabsTrigger value="denominations"><Banknote className="h-4 w-4" /> Cierre de caja</TabsTrigger>
           <TabsTrigger value="modules"><UsersRound className="h-4 w-4" /> Módulos</TabsTrigger>
+          <TabsTrigger value="hr-documents"><FileText className="h-4 w-4" /> Expedientes de empleados</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="hr-documents" className="config-tab-content"><HrDocumentsSettings /></TabsContent>
         <TabsContent value="general" className="config-tab-content">
           <Card className="config-panel">
             <CardHeader>
@@ -831,7 +833,7 @@ export default function ConfigManagement() {
                       placeholder="Valor"
                     />
                     <select
-                      className="h-9 rounded-md border border-input bg-background px-3"
+                      className="auna-control auna-control-select px-3"
                       value={d.type}
                       onChange={(e) => updateDenomination(i, 'type', e.target.value)}
                       disabled={!canManage}

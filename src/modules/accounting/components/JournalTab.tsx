@@ -8,6 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -178,19 +179,19 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <CompactFilterPanel title="Filtros de diario" activeCount={Number(from !== '')+Number(to !== '')+Number(Boolean(source))+Number(Boolean(branchFilter))} onClear={() => {setFrom('');setTo('');setSource('');setBranchFilter('');}} appliedFilters={[...(from ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom('')}] : []),...(to ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo('')}] : []),...(source ? [{label: `Origen: ${SOURCE_LABELS[source] || source}`,onRemove: () => setSource('')}] : []),...(branchFilter ? [{label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`,onRemove: () => setBranchFilter('')}] : [])]}>
           <div className="space-y-1">
             <Label className="text-xs">Desde</Label>
-            <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Hasta</Label>
-            <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Origen</Label>
             <Select value={source || 'all'} onValueChange={(v) => setSource(v === 'all' ? '' : v)}>
-              <SelectTrigger className="w-[160px] h-9"><SelectValue placeholder="Todos" /></SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Todos" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 {Object.entries(SOURCE_LABELS).map(([value, label]) => (
@@ -203,7 +204,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
             <div className="space-y-1">
               <Label className="text-xs">Sucursal</Label>
               <Select value={branchFilter || 'all'} onValueChange={(v) => setBranchFilter(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[170px] h-9"><SelectValue placeholder="Todas" /></SelectTrigger>
+                <SelectTrigger className="w-[170px]"><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="company">Solo empresa</SelectItem>
@@ -214,12 +215,11 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
               </Select>
             </div>
           )}
-        </div>
+        </CompactFilterPanel>
+        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
 
         {loading ? (
-          <div className="space-y-2">
-            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
-          </div>
+          <LoadingState message="Cargando asientos…" columns={['Número', 'Fecha', 'Descripción', 'Sucursal', 'Origen', 'Total', 'Acciones']} />
         ) : items.length === 0 ? (
           <p className="py-10 text-center text-muted-foreground">No hay asientos en el rango seleccionado.</p>
         ) : (

@@ -8,12 +8,13 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Download, Scale } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
@@ -73,19 +74,20 @@ export const TrialBalanceTab = () => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
+        <CompactFilterPanel title="Filtros de balanza" activeCount={Number(from !== firstOfMonthISO())+Number(to !== todayISO())} onClear={() => {setFrom(firstOfMonthISO());setTo(todayISO());}} appliedFilters={[...(from !== firstOfMonthISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfMonthISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : [])]}>
           <div className="space-y-1">
             <Label className="text-xs">Desde</Label>
-            <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Hasta</Label>
-            <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
-        </div>
+        </CompactFilterPanel>
+        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
 
         {loading ? (
-          <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          <LoadingState message="Cargando balance…" columns={['Código', 'Cuenta', 'Tipo', 'Saldo inicial', 'Debe', 'Haber', 'Saldo final']} />
         ) : !data || data.rows.length === 0 ? (
           <p className="py-10 text-center text-muted-foreground">Sin movimientos en el rango seleccionado.</p>
         ) : (

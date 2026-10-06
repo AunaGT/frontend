@@ -56,6 +56,7 @@ export interface StockMovement {
 }
 
 export interface MovementFilters {
+  search?: string;
   product_id?: string;
   location_id?: string;
   group_id?: string;
@@ -64,6 +65,23 @@ export interface MovementFilters {
   to?: string;
   limit?: number;
 }
+
+export interface MovementPage {
+  items: StockMovement[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  nextPage: number | null;
+  prevPage: number | null;
+}
+
+export const fetchMovementPage = (filters: MovementFilters & { page: number; pageSize: number }) => {
+  const qs = new URLSearchParams(
+    Object.entries(filters).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
+  ).toString();
+  return apiFetch<MovementPage>(`/api/stock/moves?${qs}`, { method: 'GET' });
+};
 
 export const fetchMovements = (filters: MovementFilters = {}) => {
   const qs = new URLSearchParams(

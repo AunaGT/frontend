@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useModules } from '@/context/useModules'
@@ -75,7 +76,7 @@ const Analytics = () => {
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(currentYear)
   const canViewAnalytics = hasPermission('analytics.view')
   const { data: yearMeta } = useAnalyticsFirstSaleYear()
-  const { data, isLoading, isError, refetch } = useAnalytics(selectedYear)
+  const { data, isLoading, isFetching, isError, refetch } = useAnalytics(selectedYear)
   const modulesReady = enabledModuleCodes !== null
   const sectionAccess = {
     inventory: modulesReady
@@ -151,7 +152,7 @@ const Analytics = () => {
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
       <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="auna-module-heading">
+        {isFetching && data && <LoadingIndicator message="Actualizando analítica…" />}<header className="auna-module-heading">
           <div>
             <p className="auna-module-eyebrow">Analítica</p>
             <h1>Dashboard analítico</h1>
@@ -159,7 +160,7 @@ const Analytics = () => {
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(value === 'all' ? 'all' : Number(value))}>
-              <SelectTrigger className="h-12 min-w-56 rounded-xl bg-card">
+              <SelectTrigger className="min-w-56">
                 <CalendarDays className="mr-2 h-5 w-5 text-brand-orange" />
                 <SelectValue />
               </SelectTrigger>
@@ -234,7 +235,7 @@ const Analytics = () => {
                       <span className="text-xs text-muted-foreground">Mensual</span>
                     </CardHeader>
                     <CardContent className="h-[330px] pt-3">
-                      {isLoading ? <Skeleton className="h-full w-full" /> : (
+                      {isLoading ? <LoadingState variant="chart" message="Cargando gráfico…" /> : (
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart data={monthly} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
                             <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
@@ -252,7 +253,7 @@ const Analytics = () => {
                   <DashboardCard>
                     <CardHeader className="pb-2"><CardTitle className="text-base">Ventas por categoría</CardTitle></CardHeader>
                     <CardContent className="grid min-h-[330px] gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                      {isLoading ? <Skeleton className="h-64 w-full" /> : (
+                      {isLoading ? <LoadingState variant="chart" message="Cargando categorías…" /> : (
                         <div className="relative h-56">
                           <ResponsiveContainer width="100%" height="100%">
                             <PieChart>

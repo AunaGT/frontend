@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/command'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChevronsUpDown, Loader2, UserPlus } from 'lucide-react'
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { cn } from '@/lib/utils'
 import { fetchSuppliers } from '@/services/supplierService'
 import type { Supplier } from '@/types'
@@ -145,11 +146,9 @@ export function SavedCustomerMany2One({
               onValueChange={setInputValue}
             />
             <CommandList>
+              {isFetching && !isFetchingNextPage && flatRows.length > 0 && <LoadingIndicator message="Actualizando clientes…" className="px-3 py-2" />}
               {isFetching && !isFetchingNextPage && flatRows.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Buscando…
-                </div>
+                <LoadingIndicator message="Buscando clientes…" className="px-3 py-4" />
               ) : isError ? (
                 <div className="py-6 px-3 text-sm text-destructive text-center">
                   No se pudieron cargar los clientes.

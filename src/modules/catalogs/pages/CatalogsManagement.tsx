@@ -8,6 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -216,7 +217,7 @@ function PaymentTermsTab({
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
   
-  const { data: paymentTermsData, isLoading, error: termsError } = usePaymentTerms({
+  const { data: paymentTermsData, isLoading, isFetching, error: termsError } = usePaymentTerms({
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
@@ -309,11 +310,8 @@ function PaymentTermsTab({
       </CardHeader>
       <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
       <CardContent className="catalog-content">
-        {termsError ? <p role="alert" className="p-6 text-destructive">{termsError.message}</p> : isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        ) : (
+        {isFetching && paymentTermsData && <LoadingIndicator message="Actualizando términos de pago…" />}
+        {termsError ? <p role="alert" className="p-6 text-destructive">{termsError.message}</p> : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -326,7 +324,7 @@ function PaymentTermsTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paymentTerms?.length === 0 ? (
+              {isLoading ? <TableLoadingRows columns={6} message="Cargando términos de pago…" /> : paymentTerms?.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
                     No hay términos de pago registrados
@@ -471,7 +469,7 @@ function ProductCategoriesTab({
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
   
-  const { data: categoriesData, isLoading, error: categoriesError } = useProductCategories({
+  const { data: categoriesData, isLoading, isFetching, error: categoriesError } = useProductCategories({
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
@@ -564,11 +562,8 @@ function ProductCategoriesTab({
       </CardHeader>
       <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
       <CardContent className="catalog-content">
-        {categoriesError ? <p role="alert" className="p-6 text-destructive">{categoriesError.message}</p> : isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin" />
-          </div>
-        ) : (
+        {isFetching && categoriesData && <LoadingIndicator message="Actualizando categorías…" />}
+        {categoriesError ? <p role="alert" className="p-6 text-destructive">{categoriesError.message}</p> : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -580,7 +575,7 @@ function ProductCategoriesTab({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {categories?.length === 0 ? (
+              {isLoading ? <TableLoadingRows columns={5} message="Cargando categorías…" /> : categories?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
                     No hay categorías registradas

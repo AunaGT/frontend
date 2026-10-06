@@ -15,6 +15,8 @@
  * elegir nada; el reparto manual está detrás de un switch porque es la
  * excepción («este cheque es de la factura tal»), no lo de todos los días.
  */
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -311,8 +313,9 @@ export const CustomerStatementPage = () => {
 
   if (isLoading) {
     return (
-      <div className='flex min-h-[50vh] items-center justify-center'>
-        <Loader2 className='h-6 w-6 animate-spin text-muted-foreground' />
+      <div className="receivables-page mx-auto max-w-[1560px] space-y-5 p-8">
+        <Button variant="ghost" onClick={() => navigate('/cartera')}><ArrowLeft className="mr-2 h-4 w-4" />Cuentas por cobrar</Button>
+        <LoadingState variant="detail" message="Cargando estado de cuenta…" />
       </div>
     )
   }
@@ -359,15 +362,14 @@ export const CustomerStatementPage = () => {
         {puedeAjustar && resumen.saldo > 0 && <Button variant="outline" onClick={() => setAjusteAbierto(true)}><Scissors className="mr-2 h-4 w-4" />Ajustar deuda</Button>}
         {puedeCobrar && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => setCobroAbierto(true)}><Plus className="mr-2 h-4 w-4" />Registrar cobro</Button>}
       </div></header>
+      {history.isFetching && !history.isFetchingNextPage && <LoadingIndicator message="Actualizando estado de cuenta…" />}
       <section className="space-y-5 rounded-2xl border bg-card p-5">
-        <div className="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1.7fr_1fr_1fr_1fr_1fr_auto]">
-          <div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customer.id} linkedDisplayName={customer.name} onPick={c => navigate('/cartera/' + c.id)} onClear={() => navigate('/cartera')} /></div>
+        <CompactFilterPanel title="Filtros del estado de cuenta" activeCount={Number(Boolean(filters.from))+Number(Boolean(filters.to))+Number(filters.kind !== 'ALL')+Number(filters.state !== 'ALL')} onApply={() => {setFilters({from,to,kind,state});setPage(1)}} applyDisabled={Boolean(from && to && from > to)} onClear={() => {setFrom('');setTo('');setKind('ALL');setState('ALL');setFilters({from:'',to:'',kind:'ALL',state:'ALL'});setPage(1)}} appliedFilters={Object.entries(filters).filter(([key,value]) => ['kind','state'].includes(key) ? value !== 'ALL' : Boolean(value)).map(([key,value]) => ({label: `${({from:'Desde',to:'Hasta',kind:'Documento',state:'Estado'} as Record<string,string>)[key]}: ${key === 'kind' ? value === 'SALE' ? 'Facturas' : PAYMENT_KIND_LABELS[value as keyof typeof PAYMENT_KIND_LABELS] || value : key === 'state' ? value === 'OVERDUE' ? 'Vencidas' : SALE_PAYMENT_STATUS_LABELS[value as keyof typeof SALE_PAYMENT_STATUS_LABELS] || value : value}`,onRemove: () => {setFilters(current=>({...current,[key]:['kind','state'].includes(key)?'ALL':''}));if(key==='from')setFrom('');if(key==='to')setTo('');if(key==='kind')setKind('ALL');if(key==='state')setState('ALL');setPage(1)}}))} search={<div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customer.id} linkedDisplayName={customer.name} onPick={c => navigate('/cartera/' + c.id)} onClear={() => navigate('/cartera')} /></div>}>
           <div className="space-y-2"><Label htmlFor="statement-from">Desde</Label><Input id="statement-from" type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
           <div className="space-y-2"><Label htmlFor="statement-to">Hasta</Label><Input id="statement-to" type="date" min={from} value={to} onChange={e => setTo(e.target.value)} /></div>
           <div className="space-y-2"><Label>Documento</Label><Select value={kind} onValueChange={setKind}><SelectTrigger aria-label="Tipo de documento"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="SALE">Facturas</SelectItem>{Object.entries(PAYMENT_KIND_LABELS).map(([value, label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-2"><Label>Estado</Label><Select value={state} onValueChange={setState}><SelectTrigger aria-label="Estado de factura"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="OVERDUE">Vencidas</SelectItem>{Object.entries(SALE_PAYMENT_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
-          <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={Boolean(from && to && from > to)} onClick={() => { setFilters({ from, to, kind, state }); setPage(1) }}>Consultar</Button>
-        </div>
+        </CompactFilterPanel>
         {from && to && from > to && <p role="alert" className="text-sm text-destructive">La fecha final debe ser posterior a la inicial.</p>}
         <div className="grid gap-4 rounded-xl border bg-muted/20 p-4 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><div><h2 className="font-bold">{customer.name}</h2><p className="mt-1 text-sm text-muted-foreground">{[customer.tax_id && 'NIT ' + customer.tax_id, customer.contact, customer.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</p>{customer.address && <p className="mt-1 text-sm text-muted-foreground">{customer.address}</p>}</div><div><p className="text-sm text-muted-foreground">Límite de crédito</p><strong>{customer.credit_limit == null ? 'Sin límite' : money(customer.credit_limit)}</strong><p className="text-xs text-muted-foreground">{resumen.disponible == null ? '' : 'Disponible: ' + money(resumen.disponible)}</p></div><div><p className="text-sm text-muted-foreground">Días de crédito</p><strong>{customer.payment_term?.net_days ?? 'Sin plazo definido'}</strong></div><div><p className="text-sm text-muted-foreground">Condición de pago</p><strong>{customer.payment_term?.name || 'Sin condición definida'}</strong></div></div>
       </section>
@@ -460,7 +462,7 @@ export const CustomerStatementPage = () => {
                       step='0.01'
                       min='0'
                       max={v.saldo}
-                      className='h-8 w-28'
+                      className="w-28"
                       placeholder='0.00'
                       value={reparto[v.id] ?? ''}
                       aria-label={`Aplicar a factura ${v.reference || v.id.slice(0, 8)}`}

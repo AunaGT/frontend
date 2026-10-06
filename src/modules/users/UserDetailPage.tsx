@@ -12,6 +12,7 @@
  *  - Fila 1: Roles asignados (Asignar rol) + Empresas asignadas (Asignar empresa)
  *  - Fila 2: Permisos del usuario (Buscador + Filtro + Tabla) + Actividad reciente (Ver toda + Tabla) + Acciones de seguridad (Lista + Eliminar)
  */
+import { LoadingState, LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTenant } from '@/context/useTenant'
@@ -227,12 +228,7 @@ export default function UserDetailPage() {
 
   if (isLoading && !user) {
     return (
-      <main className="users-page space-y-4 animate-pulse">
-        <div className="h-5 w-24 bg-muted rounded" />
-        <div className="h-8 w-64 bg-muted rounded" />
-        <div className="h-44 bg-muted rounded-xl" />
-        <div className="h-96 bg-muted rounded-xl" />
-      </main>
+      <main className="users-page space-y-4"><Link className="users-muted text-sm" to="/usuarios">← Usuarios</Link><h1 className="text-xl font-semibold">Detalle de usuario</h1><LoadingState variant="detail" message="Cargando usuario…" /></main>
     )
   }
 
@@ -265,6 +261,7 @@ export default function UserDetailPage() {
 
   return (
     <main className="users-page">
+      {isLoading && <LoadingIndicator message="Actualizando usuario…" />}
       {/* Breadcrumb */}
       <Link to="/usuarios" className="text-xs users-muted hover:text-foreground transition-colors inline-flex items-center gap-1 mb-2">
         <span>←</span> Usuarios
@@ -358,18 +355,18 @@ export default function UserDetailPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs users-muted block mb-1">Nombre</label>
-                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="auna-input text-xs" />
+                      <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="auna-input" />
                     </div>
                     <div>
                       <label className="text-xs users-muted block mb-1">Correo electrónico</label>
-                      <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="auna-input text-xs" />
+                      <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} className="auna-input" />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs users-muted block mb-1">Rol</label>
                       <Select value={editRoleId} onValueChange={setEditRoleId}>
-                        <SelectTrigger className="auna-input text-xs">
+                        <SelectTrigger className="auna-input">
                           <SelectValue placeholder="Seleccionar rol" />
                         </SelectTrigger>
                         <SelectContent className="users-overlay text-xs">
@@ -384,7 +381,7 @@ export default function UserDetailPage() {
                     <div>
                       <label className="text-xs users-muted block mb-1">Caja POS</label>
                       <Select value={editCashRegisterId || 'none'} onValueChange={(v) => setEditCashRegisterId(v === 'none' ? '' : v)}>
-                        <SelectTrigger className="auna-input text-xs">
+                        <SelectTrigger className="auna-input">
                           <SelectValue placeholder="Sin asignar" />
                         </SelectTrigger>
                         <SelectContent className="users-overlay text-xs">
@@ -596,10 +593,10 @@ export default function UserDetailPage() {
                     value={permissionSearch}
                     onChange={(e) => setPermissionSearch(e.target.value)}
                     placeholder="Buscar permisos..."
-                    className="auna-input pl-8 h-8 text-xs"
+                    className="auna-control auna-input pl-8"
                   />
                 </div>
-                <select aria-label="Filtrar permisos" className="users-select w-28 h-8 text-xs" value={permissionLevel} onChange={e => setPermissionLevel(e.target.value)}><option value="all">Todos</option><option value="read">Lectura</option><option value="write">Acciones</option></select>
+                <select aria-label="Filtrar permisos" className="auna-control auna-control-select users-select w-28" value={permissionLevel} onChange={e => setPermissionLevel(e.target.value)}><option value="all">Todos</option><option value="read">Lectura</option><option value="write">Acciones</option></select>
               </div>
 
               <div className="overflow-x-auto -mx-5 -mb-5">
@@ -653,7 +650,7 @@ export default function UserDetailPage() {
                 </thead>
                 <tbody>
   {(activity.data?.items || []).slice(0, 5).map(e => <tr key={e.id}><td>{dateLabel(e.created_at)}</td><td>{e.action}</td><td>{e.description || '—'}</td></tr>)}
-  {!activity.data?.items.length && <tr><td colSpan={3} className="users-muted p-5">{activity.isLoading ? 'Cargando actividad…' : activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
+  {activity.isLoading && <TableLoadingRows columns={3} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={3} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
 </tbody>
               </table>
             </AunaPanel>
@@ -789,7 +786,7 @@ export default function UserDetailPage() {
               </thead>
               <tbody>
   {(activity.data?.items || []).map(e => <tr key={e.id}><td>{dateLabel(e.created_at)}</td><td>{e.action}</td><td>{e.actor_name || 'No registrado'}</td><td>{company?.name || 'Empresa activa'}</td><td>{e.description || '—'}</td></tr>)}
-  {!activity.data?.items.length && <tr><td colSpan={5} className="users-muted p-5">{activity.isLoading ? 'Cargando actividad…' : activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
+  {activity.isLoading && <TableLoadingRows columns={5} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={5} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
 </tbody>
             </table>
           </div>
@@ -836,11 +833,11 @@ export default function UserDetailPage() {
                 </p>
                 <div>
                   <label className="text-xs users-muted block mb-1">Nueva contraseña</label>
-                  <Input type="password" value={resetPwd} onChange={(e) => setResetPwd(e.target.value)} className="auna-input text-xs" />
+                  <Input type="password" value={resetPwd} onChange={(e) => setResetPwd(e.target.value)} className="auna-input" />
                 </div>
                 <div>
                   <label className="text-xs users-muted block mb-1">Confirmar contraseña</label>
-                  <Input type="password" value={resetConfirmPwd} onChange={(e) => setResetConfirmPwd(e.target.value)} className="auna-input text-xs" />
+                  <Input type="password" value={resetConfirmPwd} onChange={(e) => setResetConfirmPwd(e.target.value)} className="auna-input" />
                 </div>
                 <button
                   type="button"

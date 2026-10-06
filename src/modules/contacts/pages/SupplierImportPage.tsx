@@ -14,6 +14,7 @@
  * - Categoría / términos desconocidos: validación falla hasta Crear en Datos maestros u Omitir filas
  * - importOptions: createCategories, createPaymentTerms, skipRowIndexes
  */
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useMemo } from 'react'
 import { getApiBaseUrl } from '@/services/api'
 import { useNavigate } from 'react-router-dom'
@@ -581,7 +582,7 @@ export default function SupplierImportPage() {
         onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
         progress={importStream.progress} onCancel={importStream.cancel}
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
-        options={<div className="auna-import-options"><label className="auna-import-field">Términos de pago vacíos<select value={paymentTermsWhenEmpty} onChange={event => { setPaymentTermsWhenEmpty(event.target.value as 'default' | 'require'); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}><option value="default">Usar término por defecto</option><option value="require">Exigir valor en cada fila</option></select></label></div>}
+        options={<div className="auna-import-options"><label className="auna-import-field">Términos de pago vacíos<select className="auna-control auna-control-select" value={paymentTermsWhenEmpty} onChange={event => { setPaymentTermsWhenEmpty(event.target.value as 'default' | 'require'); setHasTestedOnce(false); setValidationErrors([]); setResolutionHints([]); setCreateCategories([]); setCreatePaymentTerms([]); setSkipRowIndexes([]) }}><option value="default">Usar término por defecto</option><option value="require">Exigir valor en cada fila</option></select></label></div>}
         rowResolutionActions={row => resolutionHints.filter(hint => hint.rowIndexes.includes(row)).map(hint => <div key={`${hint.kind}:${hint.value}`} className="mt-2 text-foreground"><Button type="button" size="sm" variant="outline" disabled={isTesting} onClick={() => approveCreateCatalogValue(hint)}>Crear valor: {hint.value}</Button></div>)}
         resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
     />
@@ -637,7 +638,7 @@ export default function SupplierImportPage() {
                 <ImportWizardSteps current={3} fileName={file?.name} />
                 <Card className="max-w-md">
                     <CardContent className="p-8 text-center">
-                        <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
+                        <LoadingIndicator message={step === 'validating' ? 'Validando datos…' : 'Importando contactos…'} className="justify-center mb-4" />
                         <h3 className="text-xl font-semibold mb-2">Importando contactos...</h3>
                         <Progress value={importProgress} className="mt-4" />
                         <p className="text-sm text-muted-foreground mt-2">{importProgress}%</p>
@@ -760,7 +761,7 @@ export default function SupplierImportPage() {
                                             setResolutionHints([])
                                         }}
                                     >
-                                        <SelectTrigger className="text-xs h-8">
+                                        <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -884,7 +885,7 @@ export default function SupplierImportPage() {
                                                                 value={mapping.systemField || 'no-mapear'}
                                                                 onValueChange={(val) => handleMappingChange(mapping.excelColumn, val === 'no-mapear' ? null : val)}
                                                             >
-                                                                <SelectTrigger className={errorCount > 0 ? 'border-destructive' : ''}>
+                                                                <SelectTrigger aria-invalid={errorCount > 0}>
                                                                     <SelectValue placeholder="No importar" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>

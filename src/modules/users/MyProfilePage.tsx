@@ -9,6 +9,7 @@
  * Fila 2: Tarjeta Seguridad (Contraseña, 2FA, Métodos de recuperación) | Tarjeta Sesiones activas (Cerrar todas + Dispositivos)
  * Fila 3: Tarjeta Preferencias (Tema, Idioma, Zona horaria, Formatos) | Tarjeta Información (Soporte + Watermark AUNA)
  */
+import { LoadingState } from '@/components/shared/LoadingState'
 import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -396,7 +397,7 @@ export default function MyProfilePage() {
             }
           >
             <div className="divide-y divide-border/40">
-              {sessionsQuery.isLoading && <p role="status" className="users-muted py-4">Cargando sesiones…</p>}
+              {sessionsQuery.isLoading && <LoadingState variant="cards" message="Cargando sesiones…" />}
               {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <button onClick={() => void sessionsQuery.refetch()}>Reintentar</button></p>}
               {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <p className="users-muted py-4">No hay sesiones registradas.</p>}
               {displayedSessions.map((session) => {
@@ -462,7 +463,7 @@ export default function MyProfilePage() {
                   </div>
                 </div>
                 <Select value={resolvedTheme || theme || 'dark'} onValueChange={setTheme}>
-                  <SelectTrigger className="w-44 h-8 auna-input text-xs">
+                  <SelectTrigger className="w-44 auna-input">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="users-overlay text-xs">

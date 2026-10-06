@@ -1,7 +1,8 @@
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useDeferredValue, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { ChevronDown, Eye, Loader2, MoreHorizontal, Pencil, Plus, Search, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { Eye, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -9,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/shared/Pagination'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useToast } from '@/hooks/use-toast'
@@ -41,7 +43,6 @@ export default function PromotionsListPage() {
   const [scope, setScope] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [moreOpen, setMoreOpen] = useState(false)
   const [page, setPage] = useState(1)
   const [codesDialog, setCodesDialog] = useState<CodesDialogState>({ open: false })
   const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null)
@@ -96,23 +97,17 @@ export default function PromotionsListPage() {
         {canManage && <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => navigate('/promociones/nueva')}><Plus className="mr-2 h-5 w-5" />Nueva promoción</Button>}
       </header>
 
-      <section aria-label="Filtros de promociones" className="space-y-3">
-        <div className="grid gap-3 md:grid-cols-[minmax(260px,2.2fr)_minmax(150px,1fr)_minmax(150px,1fr)_auto]">
-          <div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar promociones" className="h-12 rounded-xl pl-12" placeholder="Buscar por nombre, código o descripción…" value={search} onChange={(event) => changeFilter(setSearch, event.target.value)} /></div>
-          <Select value={type} onValueChange={(value) => changeFilter(setType, value)}><SelectTrigger className="h-12 rounded-xl" aria-label="Tipo de promoción"><SelectValue placeholder="Todos los tipos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los tipos</SelectItem>{typesQuery.data?.map((item) => <SelectItem key={item.id} value={String(item.id)}>{getFriendlyTypeName(item.name)}</SelectItem>)}</SelectContent></Select>
-          <Select value={status} onValueChange={(value) => changeFilter(setStatus, value)}><SelectTrigger className="h-12 rounded-xl" aria-label="Estado de promoción"><SelectValue placeholder="Todos los estados" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="active">Activas</SelectItem><SelectItem value="scheduled">Programadas</SelectItem><SelectItem value="ended">Finalizadas</SelectItem><SelectItem value="inactive">Inactivas</SelectItem></SelectContent></Select>
-          <Button variant="outline" className="h-12 rounded-xl px-5" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)}><SlidersHorizontal className="mr-2 h-4 w-4" />Más filtros<ChevronDown className="ml-2 h-4 w-4" /></Button>
-        </div>
-        {moreOpen && <div className="grid gap-3 rounded-xl border bg-card p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
+      <CompactFilterPanel title="Filtros de promociones" activeCount={Number(Boolean(search.trim()))+Number(type!=='all')+Number(status!=='all')+Number(scope!=='all')+Number(Boolean(dateFrom))+Number(Boolean(dateTo))} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => changeFilter(setSearch,'')}] : []),...(type !== 'all' ? [{label: `Tipo: ${getFriendlyTypeName(typesQuery.data?.find(t => String(t.id) === type)?.name)}`,onRemove: () => changeFilter(setType,'all')}] : []),...(status !== 'all' ? [{label: `Estado: ${label(status)}`,onRemove: () => changeFilter(setStatus,'all')}] : []),...(scope !== 'all' ? [{label: `Alcance: ${scope === 'specific' ? 'Sucursales específicas' : 'Todas las sucursales'}`,onRemove: () => changeFilter(setScope,'all')}] : []),...(dateFrom ? [{label: `Desde: ${dateFrom}`,onRemove: () => changeFilter(setDateFrom,'')}] : []),...(dateTo ? [{label: `Hasta: ${dateTo}`,onRemove: () => changeFilter(setDateTo,'')}] : [])]} onClear={() => {setSearch('');setType('all');setStatus('all');setScope('all');setDateFrom('');setDateTo('');setPage(1)}} search={<div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar promociones" className="pl-12" placeholder="Buscar por nombre, código o descripción…" value={search} onChange={(event) => changeFilter(setSearch, event.target.value)} /></div>}>
+          <Select value={type} onValueChange={(value) => changeFilter(setType, value)}><SelectTrigger aria-label="Tipo de promoción"><SelectValue placeholder="Todos los tipos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los tipos</SelectItem>{typesQuery.data?.map((item) => <SelectItem key={item.id} value={String(item.id)}>{getFriendlyTypeName(item.name)}</SelectItem>)}</SelectContent></Select>
+          <Select value={status} onValueChange={(value) => changeFilter(setStatus, value)}><SelectTrigger aria-label="Estado de promoción"><SelectValue placeholder="Todos los estados" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="active">Activas</SelectItem><SelectItem value="scheduled">Programadas</SelectItem><SelectItem value="ended">Finalizadas</SelectItem><SelectItem value="inactive">Inactivas</SelectItem></SelectContent></Select>
           <Select value={scope} onValueChange={(value) => changeFilter(setScope, value)}><SelectTrigger aria-label="Alcance por sucursal"><SelectValue placeholder="Todas las sucursales" /></SelectTrigger><SelectContent><SelectItem value="all">Cualquier alcance</SelectItem><SelectItem value="specific">Sucursales específicas</SelectItem><SelectItem value="global">Todas las sucursales</SelectItem></SelectContent></Select>
           <label className="text-xs text-muted-foreground">Inicio desde<Input type="date" className="mt-1" value={dateFrom} onChange={(event) => changeFilter(setDateFrom, event.target.value)} /></label>
           <label className="text-xs text-muted-foreground">Inicio hasta<Input type="date" className="mt-1" value={dateTo} onChange={(event) => changeFilter(setDateTo, event.target.value)} /></label>
-          <Button variant="ghost" className="self-end" onClick={() => { setSearch(''); setType('all'); setStatus('all'); setScope('all'); setDateFrom(''); setDateTo(''); setPage(1) }}>Limpiar</Button>
-        </div>}
-      </section>
+      </CompactFilterPanel>
 
-      <section className="auna-data-table-shell" aria-label="Listado de promociones">
-        {listQuery.isLoading ? <div className="flex min-h-56 items-center justify-center"><Loader2 className="h-7 w-7 animate-spin text-brand-orange" /><span className="sr-only">Cargando promociones</span></div>
+      <section className="auna-data-table-shell" aria-label="Listado de promociones" aria-busy={listQuery.isFetching}>
+        {listQuery.isFetching && !listQuery.isLoading && <LoadingIndicator message="Actualizando promociones…" className="px-4 py-2" />}
+        {listQuery.isLoading ? <LoadingState columns={['Promoción', 'Tipo', 'Vigencia', 'Alcance', 'Estado', 'Uso', 'Acciones']} message="Cargando promociones…" />
           : listQuery.isError ? <div className="p-8 text-center"><p>No se pudieron cargar las promociones.</p><Button variant="outline" className="mt-3" onClick={() => listQuery.refetch()}>Reintentar</Button></div>
           : rows.length === 0 ? <div className="p-12 text-center text-muted-foreground">{listQuery.data?.totalItems === 0 && !deferredSearch && type === 'all' && status === 'all' ? 'Aún no hay promociones creadas.' : 'No hay promociones para estos filtros.'}</div>
           : <div className="overflow-x-auto"><Table className="auna-data-table min-w-[940px]"><TableHeader><TableRow><TableHead>Promoción</TableHead><TableHead>Tipo</TableHead><TableHead>Vigencia</TableHead><TableHead>Alcance</TableHead><TableHead>Estado</TableHead><TableHead>Uso</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>{rows.map((promo) => {

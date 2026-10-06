@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Plus, Pencil, MoreHorizontal, Shield, FileUp, ArrowUpDown, Search, Crown, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useTenant } from '@/context/useTenant'
@@ -30,18 +31,19 @@ export default function UserManagement() {
     {hasPermission('users.create') && <Button asChild><Link to="/usuarios/nuevo"><Plus size={18} className="mr-2"/>Nuevo usuario</Link></Button>}
   </>}>
     {!hasPermission('users.view') ? <Feedback error={new Error('No tienes permiso para consultar usuarios')}/> : <>
-    <CompactFilterPanel title="Filtros de usuarios" summary="Nombre, correo, rol, empresa y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }} contentClassName="users-filters">
-      <label className="users-search"><Search size={19} aria-hidden="true"/><input aria-label="Buscar usuarios" placeholder="Buscar por nombre, correo o rol…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}/></label>
-      <select aria-label="Rol" value={role} onChange={e => { setRole(e.target.value); setPage(1) }}><option value="">Todos los roles</option>{roles.data?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
-      <select aria-label="Empresa" value={company?.id || ''} onChange={e => setCompany(e.target.value)}><option value="" disabled>Selecciona empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
-      <select aria-label="Estado" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}><option value="">Todos los estados</option><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="BLOCKED">Bloqueado</option></select>
+<CompactFilterPanel title="Filtros de usuarios" summary="Nombre, correo, rol, empresa y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }} contentClassName="users-filters" search={<label className="auna-control-group users-search"><Search size={19} aria-hidden="true"/><input className="auna-control" aria-label="Buscar usuarios" placeholder="Buscar por nombre, correo o rol…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}/></label>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`, onRemove: () => {setSearch('');setPage(1)}}] : []), ...(role ? [{label: `Rol: ${roles.data?.find(r => String(r.id) === String(role))?.name || role}`,onRemove: () => {setRole('');setPage(1)}}] : []), ...(status ? [{label: `Estado: ${({ACTIVE:'Activo',INACTIVE:'Inactivo',BLOCKED:'Bloqueado'} as Record<string,string>)[status] || status}`,onRemove: () => {setStatus('');setPage(1)}}] : [])]}>
+
+      <select className="auna-control auna-control-select" aria-label="Rol" value={role} onChange={e => { setRole(e.target.value); setPage(1) }}><option value="">Todos los roles</option>{roles.data?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
+      <select className="auna-control auna-control-select" aria-label="Empresa" value={company?.id || ''} onChange={e => setCompany(e.target.value)}><option value="" disabled>Selecciona empresa</option>{companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+      <select className="auna-control auna-control-select" aria-label="Estado" value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}><option value="">Todos los estados</option><option value="ACTIVE">Activo</option><option value="INACTIVE">Inactivo</option><option value="BLOCKED">Bloqueado</option></select>
     </CompactFilterPanel>
     <section className="users-panel">
-      <Feedback loading={query.isLoading} error={query.error} empty={!query.data?.items.length} retry={() => void query.refetch()}/>
-      {!query.isLoading && !query.error && !!query.data?.items.length && <div className="overflow-x-auto"><table className="users-table"><thead><tr>
+      {query.isFetching && query.data && <LoadingIndicator message="Actualizando usuarios…" className="px-4 py-2" />}
+      {!query.isLoading && <Feedback error={query.error} empty={!query.data?.items.length} retry={() => void query.refetch()}/>}
+      {!query.error && <div className="overflow-x-auto"><table className="users-table"><thead><tr>
         <th aria-sort={sort === 'name' ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="flex items-center gap-2" onClick={() => order('name')}>Usuario <ArrowUpDown size={12}/></button></th>
         <th aria-sort={sort === 'email' ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="flex items-center gap-2" onClick={() => order('email')}>Correo <ArrowUpDown size={12}/></button></th><th>Rol</th><th>Empresa</th><th>Estado</th><th>Último acceso</th><th>Acciones</th>
-      </tr></thead><tbody>{query.data.items.map(u => <tr key={u.id}>
+      </tr></thead><tbody>{query.isLoading ? <TableLoadingRows columns={7} message="Cargando usuarios…" /> : query.data?.items.map(u => <tr key={u.id}>
         <td><Link className="flex items-center gap-3 font-semibold whitespace-nowrap" to={`/usuarios/${u.id}`}><UserAvatar name={u.name} photo={u.photo_url}/>{u.name}</Link></td>
         <td className="users-email">{u.email}</td><td><span className="users-role-chip" data-kind={u.role?.name?.toLowerCase() === 'admin' ? 'admin' : /gerente|manager|supervisor/i.test(u.role?.name || '') ? 'manager' : 'default'}>{u.role?.name?.toLowerCase() === 'admin' ? <Crown size={15}/> : /gerente|manager|supervisor/i.test(u.role?.name || '') ? <Users size={15}/> : <Shield size={15}/>} {u.role?.name || 'Sin rol'}</span></td>
         <td>{u.companies?.length ? u.companies.map(c => <span key={c.id} className="users-company-chip">{c.name}</span>) : <span className="users-muted">No asignada</span>}</td><td><AccessBadge status={u.access_status}/></td><td className="users-muted whitespace-nowrap text-xs">{dateLabel(u.last_login_at)}</td>

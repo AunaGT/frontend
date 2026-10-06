@@ -4,6 +4,7 @@
  */
 
 /** Alta de usuario: mantiene la composición de la referencia sin simular permisos ni empresas adicionales. */
+import { LoadingState } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, Link } from 'react-router-dom'
@@ -153,7 +154,7 @@ export default function UserCreatePage() {
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
                   placeholder="Juan"
-                  className="auna-input text-xs"
+                  className="auna-input"
                 />
               </div>
               <div>
@@ -164,7 +165,7 @@ export default function UserCreatePage() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Pérez García"
-                  className="auna-input text-xs"
+                  className="auna-input"
                 />
               </div>
 
@@ -177,7 +178,7 @@ export default function UserCreatePage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="juan.perez@auna.com"
-                  className="auna-input text-xs"
+                  className="auna-input"
                 />
               </div>
               <div>
@@ -188,7 +189,7 @@ export default function UserCreatePage() {
                   disabled title="Se administra en RRHH" value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="Se administra en RRHH"
-                  className="auna-input text-xs"
+                  className="auna-input"
                 />
               </div>
 
@@ -200,7 +201,7 @@ export default function UserCreatePage() {
                   disabled title="Se administra en RRHH" value={position}
                   onChange={(e) => setPosition(e.target.value)}
                   placeholder="Se administra en RRHH"
-                  className="auna-input text-xs"
+                  className="auna-input"
                 />
               </div>
               <div>
@@ -208,7 +209,7 @@ export default function UserCreatePage() {
                   Departamento
                 </label>
                 <Select disabled value={department} onValueChange={setDepartment}>
-                  <SelectTrigger className="auna-input text-xs">
+                  <SelectTrigger className="auna-input">
                     <SelectValue placeholder="Operaciones" />
                   </SelectTrigger>
                   <SelectContent className="users-overlay text-xs">
@@ -250,7 +251,7 @@ export default function UserCreatePage() {
                   <label className="text-xs font-medium users-muted block mb-1">
                     Tipo de acceso
                   </label>
-                  <div className="auna-input flex items-center text-xs users-muted">Definido por el rol</div>
+                  <div className="auna-field-value">Definido por el rol</div>
                 </div>
               </div>
 
@@ -266,7 +267,7 @@ export default function UserCreatePage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="auna-input pr-8 text-xs"
+                      className="auna-input pr-8"
                     />
                     <button
                       type="button"
@@ -346,7 +347,7 @@ export default function UserCreatePage() {
                 value={companySearch}
                 onChange={(e) => setCompanySearch(e.target.value)}
                 placeholder="Buscar empresas..."
-                className="auna-input pl-8 h-8 text-xs"
+                className="auna-control auna-input pl-8"
               />
             </div>
 
@@ -397,7 +398,7 @@ export default function UserCreatePage() {
                 value={roleSearch}
                 onChange={(e) => setRoleSearch(e.target.value)}
                 placeholder="Buscar roles..."
-                className="auna-input pl-8 h-8 text-xs"
+                className="auna-control auna-input pl-8"
               />
             </div>
 
@@ -429,7 +430,7 @@ export default function UserCreatePage() {
         </div>
 
         <AunaPanel title="Permisos del rol" subtitle="Los permisos se heredan del rol; la activación comercial de módulos es independiente." icon={Shield}>
-          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <p className="users-muted text-sm">Cargando permisos…</p> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
+          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <LoadingState variant="cards" message="Cargando permisos…" /> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
           <Link className="text-orange-500 text-sm inline-block mt-3" to="/usuarios/roles-permisos">Consultar roles y permisos</Link>
         </AunaPanel>
 

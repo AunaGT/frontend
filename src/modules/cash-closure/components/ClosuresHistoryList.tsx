@@ -11,6 +11,7 @@
 /**
  * ClosuresHistoryList - List of historical cash closures
  */
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -50,7 +51,7 @@ export const ClosuresHistoryList = ({
 }: ClosuresHistoryListProps) => {
     const { currencyCode, locale } = useSystemSettings()
     if (isLoading) {
-        return <p className="text-center text-muted-foreground py-8">Cargando...</p>
+        return <LoadingState variant="cards" message="Cargando cierres…" />
     }
 
     if (!Array.isArray(closures) || closures.length === 0) {

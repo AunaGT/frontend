@@ -47,7 +47,7 @@ const Header = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Buscar productos, códigos, proveedores..."
-              className="pl-10 bg-background border-border focus:ring-primary"
+              className="pl-10"
             />
           </div>
         </div>

@@ -4,13 +4,14 @@
  * Listado e historial de cierres de caja. El registro de un nuevo cierre está en /cierre-caja/nuevo.
  */
 
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ChevronDown, FileText, Filter, Plus, Calculator, X } from 'lucide-react'
+import { FileText, Plus, Calculator } from 'lucide-react'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -18,13 +19,11 @@ import { useCashClosureForm, useCashClosureAPI, useMineClosureGate, canRegisterM
 import { ClosuresHistoryList } from './components'
 import { CASH_CLOSURE_CREATE_PATH } from './CashClosureCreatePage'
 import { readListUiPersisted } from '@/hooks/usePersistedListUiState'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 const CashClosureManagement = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { hasPermission } = useAuthPermissions()
-  const { showAdvancedByDefault } = useExperienceProfile()
   const { timezone } = useSystemSettings()
 
   const form = useCashClosureForm()
@@ -48,7 +47,6 @@ const CashClosureManagement = () => {
   const [historyStatus, setHistoryStatus] = useState('')
   const [historyStartDate, setHistoryStartDate] = useState('')
   const [historyEndDate, setHistoryEndDate] = useState('')
-  const [historyFiltersOpen, setHistoryFiltersOpen] = useState(showAdvancedByDefault)
   const activeHistoryFilters = [historyStatus, historyStartDate, historyEndDate].filter(Boolean).length
 
   const clearHistoryFilters = () => {
@@ -172,68 +170,12 @@ const CashClosureManagement = () => {
                 Haz clic en un cierre para ver el detalle, descargar PDF o aprobar / rechazar según tu rol.
               </p>
             </div>
-            {!form.isSeller && (
-              <div className="flex items-center gap-2">
-                {activeHistoryFilters > 0 && (
-                  <Button type="button" variant="ghost" size="sm" onClick={clearHistoryFilters}>
-                    <X className="mr-1 h-4 w-4" />
-                    Limpiar
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant={historyFiltersOpen || activeHistoryFilters > 0 ? 'secondary' : 'outline'}
-                  size="sm"
-                  onClick={() => setHistoryFiltersOpen((open) => !open)}
-                  aria-expanded={historyFiltersOpen}
-                >
-                  <Filter className="mr-1 h-4 w-4" />
-                  Filtros{activeHistoryFilters > 0 ? ` (${activeHistoryFilters})` : ''}
-                  <ChevronDown className={`ml-2 h-4 w-4 transition-transform ${historyFiltersOpen ? 'rotate-180' : ''}`} />
-                </Button>
-              </div>
-            )}
+
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {!form.isSeller && historyFiltersOpen && (
-                <div className="flex flex-wrap items-end gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Estado</Label>
-                    <Select
-                      value={historyStatus || 'all'}
-                      onValueChange={(v) => setHistoryStatus(v === 'all' ? '' : v)}
-                    >
-                      <SelectTrigger className="w-[140px] h-9">
-                        <SelectValue placeholder="Todos" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="Pendiente">Pendiente</SelectItem>
-                        <SelectItem value="Aprobado">Aprobado</SelectItem>
-                        <SelectItem value="Rechazado">Rechazado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Desde</Label>
-                    <input
-                      type="date"
-                      className="flex h-9 w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                      value={historyStartDate}
-                      onChange={(e) => setHistoryStartDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Hasta</Label>
-                    <input
-                      type="date"
-                      className="flex h-9 w-[140px] rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
-                      value={historyEndDate}
-                      onChange={(e) => setHistoryEndDate(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
+              {!form.isSeller && (
+                <CompactFilterPanel title="Filtros de cierres" activeCount={activeHistoryFilters} onClear={clearHistoryFilters} appliedFilters={[...(historyStatus ? [{label: `Estado: ${historyStatus}`,onRemove: () => setHistoryStatus('')}] : []),...(historyStartDate ? [{label: `Desde: ${historyStartDate}`,onRemove: () => setHistoryStartDate('')}] : []),...(historyEndDate ? [{label: `Hasta: ${historyEndDate}`,onRemove: () => setHistoryEndDate('')}] : [])]} search={<div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Por página:</span>
                     <Select
                       value={String(api.pageSize)}
@@ -251,7 +193,7 @@ const CashClosureManagement = () => {
                         api.fetchClosures(1, form.isSeller, n, f)
                       }}
                     >
-                      <SelectTrigger className="w-[72px] h-9">
+                      <SelectTrigger className="w-[72px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -262,8 +204,43 @@ const CashClosureManagement = () => {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>}>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Estado</Label>
+                    <Select
+                      value={historyStatus || 'all'}
+                      onValueChange={(v) => setHistoryStatus(v === 'all' ? '' : v)}
+                    >
+                      <SelectTrigger className="w-[140px]">
+                        <SelectValue placeholder="Todos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="Pendiente">Pendiente</SelectItem>
+                        <SelectItem value="Aprobado">Aprobado</SelectItem>
+                        <SelectItem value="Rechazado">Rechazado</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Desde</Label>
+                    <input
+                      type="date"
+                      className="auna-control flex w-[140px] px-3 py-1"
+                      value={historyStartDate}
+                      onChange={(e) => setHistoryStartDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Hasta</Label>
+                    <input
+                      type="date"
+                      className="auna-control flex w-[140px] px-3 py-1"
+                      value={historyEndDate}
+                      onChange={(e) => setHistoryEndDate(e.target.value)}
+                    />
+                  </div>
+                </CompactFilterPanel>
               )}
               <ClosuresHistoryList
                 closures={api.closures}

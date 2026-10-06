@@ -57,14 +57,14 @@ export const ExportDialog = ({ open, onOpenChange, title, summary, columns, defa
       <div className={`auna-export-grid ${columns?.length ? '' : 'auna-export-grid--simple'}`}>
         {columns && columns.length > 0 && <section className="auna-export-panel" aria-label="Columnas a exportar">
           <div className="auna-export-panel-title"><strong>Columnas</strong><span>{selected.length} de {columns.length} seleccionadas</span></div>
-          <label className="auna-export-search"><Search size={16} /><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar columnas…" aria-label="Buscar columnas" /></label>
+          <label className="auna-control-group auna-export-search"><Search size={16} /><input className="auna-control" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar columnas…" aria-label="Buscar columnas" /></label>
           <div className="auna-export-columns">{visibleColumns.map(column => <label key={column.id}><Checkbox checked={selected.includes(column.id)} onCheckedChange={() => toggle(column.id)} /><span>{column.label}</span></label>)}{visibleColumns.length === 0 && <p className="auna-export-note">No hay columnas que coincidan.</p>}</div>
           <label className="auna-export-select-all"><Checkbox checked={selected.length === columns.length} onCheckedChange={checked => setSelected(checked ? columns.map(column => column.id) : [])} />Seleccionar todas</label>
           {presets && <div className="auna-export-presets">{presets.map(preset => <Button key={preset.label} type="button" size="sm" variant="outline" onClick={() => setSelected(preset.columns)}>{preset.label}</Button>)}</div>}
         </section>}
         <section className="auna-export-panel" aria-label="Opciones de exportación">
           <div className="auna-export-panel-title"><strong>Opciones de exportación</strong></div>
-          {fileName !== undefined && <label className="auna-export-name">Nombre de archivo<div><input value={name} onChange={event => setName(event.target.value)} aria-label="Nombre de archivo" /><span>.{activeFormat}</span></div></label>}
+          {fileName !== undefined && <label className="auna-export-name">Nombre de archivo<div className="auna-control-group"><input className="auna-control" value={name} onChange={event => setName(event.target.value)} aria-label="Nombre de archivo" /><span>.{activeFormat}</span></div></label>}
           {children && <div className="auna-export-options">{children}</div>}
           {extras && <div className="auna-export-options">{extras}</div>}
           <div className="auna-export-info"><Info size={18} /><div><strong>Información de exportación</strong><p>{summary}</p>{columns && <p>{selected.length} columnas seleccionadas</p>}</div></div>

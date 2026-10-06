@@ -1,30 +1,33 @@
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- * 
+ *
  * This source code is licensed under a Proprietary License.
  * Unauthorized copying, modification, distribution, or use of this file,
  * via any medium, is strictly prohibited without express written permission.
- * 
+ *
  * For licensing inquiries: GitHub @dpatzan2
  */
-
-/**
- * SalesStatusTable - Table displaying sales for a specific status
- */
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Eye, FileText, ChevronLeft, ChevronRight, AlertTriangle } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Eye, FileText, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Sale, SaleStatus } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils'
 import { SaleStatusKey, STATUS_LABELS } from '../types'
+import { LoadingState, LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
+import { Pagination } from '@/components/shared/Pagination'
 
 interface SalesStatusTableProps {
-    statusKey: SaleStatusKey
+    statusKey?: SaleStatusKey
+    viewMode?: 'table' | 'cards'
     sales: Sale[]
-    pageInfo: { page: number; totalPages: number | null; hasMore: boolean }
+    pageSize?: number
+    pageInfo: { page: number; totalPages: number | null; hasMore: boolean; totalItems?: number | null }
     isLoading: boolean
+    isFetching?: boolean
+    error?: string | null
+    emptyMessage?: string | null
+    onRetry?: () => void
     updatingSaleIds: Set<string>
     onPageChange: (page: number) => void
     canChangeStatus: boolean
@@ -37,200 +40,79 @@ interface SalesStatusTableProps {
     currencyCode?: string
 }
 
-const getStatusBadge = (status: SaleStatus) => {
-    const badges: Record<string, React.ReactNode> = {
-        completed: <Badge className='bg-green-500 text-white'>Completado</Badge>,
-        cancelled: <Badge variant='destructive'>Cancelado</Badge>,
-    }
-    return badges[status] || <Badge variant='outline'>Desconocido</Badge>
-}
+const getStatusBadge = (status: SaleStatus) => <Badge
+    variant={status === 'cancelled' ? 'destructive' : 'outline'}
+    className={status === 'completed' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : undefined}
+>{({ completed: 'Completado', cancelled: 'Cancelado', paid: 'Pagado', pending: 'Pendiente' })[status] ?? 'Desconocido'}</Badge>
 
 export const SalesStatusTable = ({
-    statusKey,
-    sales,
-    pageInfo,
-    isLoading,
-    updatingSaleIds,
-    onPageChange,
-    canChangeStatus,
-    onStatusChange,
-    onViewSale,
-    onViewInvoice,
-    canViewDetail,
-    canViewInvoice,
-    locale,
-    currencyCode
+    statusKey, viewMode = 'table', sales, pageSize = 10, pageInfo, isLoading, isFetching, error, emptyMessage, onRetry,
+    updatingSaleIds, onPageChange, canChangeStatus, onStatusChange,
+    onViewSale, onViewInvoice, canViewDetail, canViewInvoice, locale, currencyCode
 }: SalesStatusTableProps) => {
-    return (
-        <Card className='animate-slide-up'>
-            <CardHeader>
-                <CardTitle className='flex items-center justify-between'>
-                    <div className='flex items-center gap-3'>
-                        {getStatusBadge(statusKey as SaleStatus)}
-                        <span>{STATUS_LABELS[statusKey]} ({sales.length})</span>
-                    </div>
-                    <div className='text-sm text-muted-foreground'>
-                        {isLoading
-                            ? 'Cargando...'
-                            : pageInfo.totalPages != null
-                              ? `Página ${pageInfo.page}/${pageInfo.totalPages}`
-                              : `Página ${pageInfo.page}${pageInfo.hasMore ? '+' : ''}`}
-                    </div>
-                </CardTitle>
-            </CardHeader>
-            <CardContent>
-                {sales.length === 0 ? (
-                    <div className='text-center py-8 text-muted-foreground'>
-                        No hay ventas {STATUS_LABELS[statusKey].toLowerCase()}
-                    </div>
-                ) : (
-                    <div className='overflow-x-auto'>
-                        <table className='w-full'>
-                            <thead>
-                                <tr className='border-b border-border'>
-                                    <th className='text-left p-3 font-medium text-muted-foreground'>ID Venta</th>
-                                    <th className='text-left p-3 font-medium text-muted-foreground'>Fecha/Hora</th>
-                                    <th className='text-left p-3 font-medium text-muted-foreground'>Cliente</th>
-                                    <th className='text-center p-3 font-medium text-muted-foreground'>Items</th>
-                                    <th className='text-right p-3 font-medium text-muted-foreground'>Total</th>
-                                    <th className='p-3 font-medium text-muted-foreground w-[7rem]'>
-                                        <div className='flex justify-center'>Pago</div>
-                                    </th>
-                                    <th className='p-3 font-medium text-muted-foreground w-[8.5rem]'>
-                                        <div className='flex justify-center'>Estado</div>
-                                    </th>
-                                    <th className='text-center p-3 font-medium text-muted-foreground'>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sales.map((sale, index) => (
-                                    <tr
-                                        key={sale.id}
-                                        className='border-b border-border hover:bg-muted transition-colors animate-slide-up'
-                                        style={{ animationDelay: `${index * 50}ms` }}
-                                    >
-                                        <td className='p-3'>
-                                            <div className='flex items-center gap-2'>
-                                                <span className='font-medium text-primary'>{sale.reference ?? sale.id}</span>
-                                                {sale.hasReturns && (
-                                                    <span title='Tiene devoluciones'>
-                                                        <AlertTriangle className='w-4 h-4 text-orange-500' />
-                                                    </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className='p-3'>
-                                            <div className='text-sm text-foreground'>{formatDateTime(sale.date, undefined, locale)}</div>
-                                        </td>
-                                        <td className='p-3'>
-                                            <div className='font-medium text-foreground'>{sale.customer}</div>
-                                            <div className='text-xs text-muted-foreground'>
-                                                {sale.isFinalConsumer ? 'CF' : sale.customerNit}
-                                            </div>
-                                        </td>
-                                        <td className='p-3 text-center'>
-                                            <span className='text-foreground'>{sale.items}</span>
-                                        </td>
-                                        <td className='p-3 text-right'>
-                                            <div className='flex flex-col items-end'>
-                                                {sale.hasReturns ? (
-                                                    <>
-                                                        <span className='font-medium text-green-700'>
-                                                            {formatMoney(sale.adjustedTotal || sale.total, locale, currencyCode)}
-                                                        </span>
-                                                        <span className='text-xs text-muted-foreground line-through'>
-                                                            {formatMoney(sale.total, locale, currencyCode)}
-                                                        </span>
-                                                    </>
-                                                ) : (
-                                                    <span className='font-medium text-foreground'>{formatMoney(sale.total, locale, currencyCode)}</span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className='p-3 w-[7rem]'>
-                                            <div className='flex justify-center'>
-                                                <Badge variant='outline'>{sale.payment}</Badge>
-                                            </div>
-                                        </td>
-                                        <td className='p-3 w-[8.5rem]'>
-                                            <div className='flex justify-center'>
-                                                <Select
-                                                    value={sale.status}
-                                                    onValueChange={(v: SaleStatus) => onStatusChange(sale.reference ?? sale.id, v)}
-                                                    disabled={updatingSaleIds.has(sale.reference ?? sale.id) || !canChangeStatus}
-                                                >
-                                                    <SelectTrigger className='w-32'>
-                                                    {updatingSaleIds.has(sale.reference ?? sale.id)
-                                                        ? '...'
-                                                        : getStatusBadge(sale.status)}
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value='completed'>Completado</SelectItem>
-                                                    <SelectItem value='cancelled'>Cancelado</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            </div>
-                                        </td>
-                                        <td className='p-3 text-center'>
-                                            <div className='flex justify-center gap-1'>
-                                                {canViewDetail && (
-                                                    <Button
-                                                        variant='ghost'
-                                                        size='sm'
-                                                        onClick={() => onViewSale(sale)}
-                                                        title='Ver detalle'
-                                                    >
-                                                        <Eye className='w-4 h-4' />
-                                                    </Button>
-                                                )}
-                                                {canViewInvoice && (
-                                                    <Button
-                                                        variant='ghost'
-                                                        size='sm'
-                                                        onClick={() => onViewInvoice(sale)}
-                                                        title='Ver factura'
-                                                    >
-                                                        <FileText className='w-4 h-4' />
-                                                    </Button>
-                                                )}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </CardContent>
-            {/* Pagination */}
-            <div className='flex justify-end items-center gap-2 p-4'>
-                <span className='text-sm text-muted-foreground mr-2'>
-                    {pageInfo.totalPages != null
-                        ? `Página ${pageInfo.page} de ${pageInfo.totalPages}`
-                        : `Página ${pageInfo.page}`}
-                </span>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPageChange(Math.max(1, pageInfo.page - 1))}
-                    disabled={pageInfo.page <= 1 || isLoading}
-                >
-                    <ChevronLeft className='w-4 h-4' />
-                </Button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onPageChange(pageInfo.page + 1)}
-                    disabled={
-                        isLoading ||
-                        (pageInfo.totalPages != null
-                            ? pageInfo.page >= pageInfo.totalPages
-                            : !pageInfo.hasMore)
-                    }
-                >
-                    <ChevronRight className='w-4 h-4' />
-                </Button>
-            </div>
-        </Card>
-    )
+    const title = statusKey ? `Ventas ${STATUS_LABELS[statusKey].toLowerCase()}` : 'Ventas'
+    const initialLoading = isLoading && sales.length === 0
+    const busy = isLoading || isFetching
+    const total = (sale: Sale) => <div className="flex flex-col items-end tabular-nums">
+        <strong className="font-semibold">{formatMoney(sale.adjustedTotal ?? sale.total, locale, currencyCode)}</strong>
+        {sale.hasReturns && <span className="text-xs text-muted-foreground line-through">{formatMoney(sale.total, locale, currencyCode)}</span>}
+    </div>
+    const actions = (sale: Sale) => {
+        const reference = sale.reference ?? sale.id
+        const updating = updatingSaleIds.has(reference)
+        return <div className="flex flex-wrap items-center justify-end gap-1">
+            {canViewDetail && <Button type="button" variant="ghost" size="icon" aria-label={`Ver detalle de ${reference}`} title="Ver detalle" onClick={() => onViewSale(sale)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>}
+            {canViewInvoice && <Button type="button" variant="ghost" size="icon" aria-label={`Ver factura de ${reference}`} title="Ver factura" onClick={() => onViewInvoice(sale)}><FileText className="h-4 w-4" aria-hidden="true" /></Button>}
+            {canChangeStatus && <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" disabled={updating} aria-label={`Más acciones de ${reference}`} title="Más acciones"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+                <DropdownMenuItem disabled={updating} onSelect={() => onStatusChange(reference, 'completed')}>Marcar como completado</DropdownMenuItem>
+                <DropdownMenuItem disabled={updating} onSelect={() => onStatusChange(reference, 'cancelled')}>Marcar como cancelado</DropdownMenuItem>
+            </DropdownMenuContent></DropdownMenu>}
+        </div>
+    }
+    const cards = <div className={viewMode === 'table' ? 'p-4 md:hidden' : 'p-4'}>
+        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{sales.map(sale => <article key={sale.id} className="min-w-0 rounded-lg border border-border bg-card p-4">
+            <header className="flex flex-wrap items-center justify-between gap-2"><strong className="break-all text-sm">{sale.reference ?? sale.id}</strong>{getStatusBadge(sale.status)}</header>
+            <div className="mt-3"><p className="break-words font-medium">{sale.customer}</p><p className="text-xs text-muted-foreground">NIT: {sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p></div>
+            <dl className="mt-3 space-y-1 text-xs text-muted-foreground">
+                <div className="flex justify-between gap-2"><dt>Fecha</dt><dd className="text-right">{formatDateTime(sale.date, undefined, locale)}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Vendedor</dt><dd className="break-words text-right">{sale.createdByName ?? '—'}</dd></div>
+                <div className="flex justify-between gap-2"><dt>Pago</dt><dd>{sale.isCredit ? 'A crédito' : sale.payment}</dd></div>
+            </dl>
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3"><span className="text-sm text-muted-foreground">Total neto</span>{total(sale)}</div>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{sale.items} artículos</span>{sale.hasReturns && <span>Con devolución</span>}</div>
+            <footer className="mt-3 border-t border-border pt-2">{actions(sale)}</footer>
+        </article>)}</div>}
+    </div>
+
+    return <section className="auna-data-table-shell" aria-label={title} aria-busy={busy || undefined}>
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <h2 className="text-sm font-semibold">{title}{pageInfo.totalItems != null ? ` (${pageInfo.totalItems})` : ''}</h2>
+            {isFetching && !initialLoading && <LoadingIndicator message="Actualizando ventas…" />}
+        </header>
+        {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><p className="text-sm text-destructive">{error}</p>{onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={busy}>Reintentar</Button>}</div>}
+        {viewMode === 'table' && <div className="hidden overflow-x-auto md:block">
+            <table className="auna-data-table min-w-[960px]">
+                <thead><tr>{['ID Venta', 'Fecha/Hora', 'Cliente', 'Vendedor', 'Pago', 'Total neto', 'Estado', 'Acciones'].map(heading => <th key={heading} scope="col">{heading}</th>)}</tr></thead>
+                <tbody>{initialLoading ? <TableLoadingRows columns={8} message="Cargando ventas…" /> : sales.map(sale => <tr key={sale.id}>
+                    <td><span className="font-medium">{sale.reference ?? sale.id}</span><div className="text-xs text-muted-foreground">{sale.items} artículos{sale.hasReturns && ' · Con devolución'}</div></td>
+                    <td className="whitespace-nowrap">{formatDateTime(sale.date, undefined, locale)}</td>
+                    <td><p className="font-medium">{sale.customer}</p><p className="text-xs text-muted-foreground">{sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p></td>
+                    <td>{sale.createdByName ?? '—'}</td>
+                    <td><Badge variant="outline">{sale.isCredit ? 'A crédito' : sale.payment}</Badge></td>
+                    <td>{total(sale)}</td>
+                    <td>{getStatusBadge(sale.status)}</td>
+                    <td>{actions(sale)}</td>
+                </tr>)}</tbody>
+            </table>
+        </div>}
+        {(initialLoading || sales.length > 0) && cards}
+        {!initialLoading && !error && sales.length === 0 && <div className="px-4 py-12 text-center text-sm text-muted-foreground">{emptyMessage || `No hay ventas${statusKey ? ` ${STATUS_LABELS[statusKey].toLowerCase()}` : ''} para los filtros seleccionados.`}</div>}
+        {pageInfo.totalPages != null ? <Pagination currentPage={pageInfo.page} totalPages={Math.max(1, pageInfo.totalPages)} totalItems={pageInfo.totalItems ?? undefined} pageSize={pageSize} count={sales.length} itemLabel="ventas" loading={busy} onPageChange={onPageChange} /> : <footer className="auna-data-table-pagination">
+            <span className="text-sm text-muted-foreground">Página {pageInfo.page}</span>
+            <nav className="flex items-center gap-2" aria-label="Paginación de ventas">
+                <Button type="button" variant="outline" size="sm" onClick={() => onPageChange(pageInfo.page - 1)} disabled={pageInfo.page <= 1 || busy} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>
+                <Button type="button" variant="outline" size="sm" onClick={() => onPageChange(pageInfo.page + 1)} disabled={!pageInfo.hasMore || busy} aria-label="Página siguiente"><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button>
+            </nav>
+        </footer>}
+    </section>
 }

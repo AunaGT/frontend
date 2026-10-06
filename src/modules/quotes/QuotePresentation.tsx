@@ -21,9 +21,9 @@ export function QuoteProductImage({ src, name }: { src?: string | null; name: st
 
 export function QuoteSummary({ subtotal, discount, total, money }: { subtotal?: number | string | null; discount?: number | string | null; total: number | string; money: (value: number) => string }) {
   return <Card><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ReceiptText className="h-5 w-5 text-brand-orange" />Resumen de cotización</CardTitle></CardHeader><CardContent className="space-y-4">
-    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Subtotal</span><strong>{money(num(subtotal ?? total))}</strong></div>
-    {num(discount) > 0 && <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Descuento total</span><strong className="text-emerald-600 dark:text-emerald-300">− {money(num(discount))}</strong></div>}
-    <div className="flex flex-wrap justify-between gap-3 border-t pt-4 text-xl font-bold"><span>Total</span><span className="text-brand-orange">{money(num(total))}</span></div>
+    <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Subtotal</span><output className="auna-field-value-inline">{money(num(subtotal ?? total))}</output></div>
+    {num(discount) > 0 && <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Descuento total</span><output className="auna-field-value-inline text-emerald-600 dark:text-emerald-300">− {money(num(discount))}</output></div>}
+    <div className="flex flex-wrap justify-between gap-3 border-t pt-4 text-xl font-bold"><span>Total</span><output className="auna-field-value-inline text-brand-orange">{money(num(total))}</output></div>
     <p className="rounded-xl bg-muted/50 p-3 text-sm leading-relaxed text-muted-foreground">Los precios y la disponibilidad se verifican al confirmar el pedido. Esta cotización no es una factura.</p>
   </CardContent></Card>
 }

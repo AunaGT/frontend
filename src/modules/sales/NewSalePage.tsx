@@ -47,7 +47,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, ChevronRight, PauseCircle, RotateCcw, Loader2, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, ChevronRight, PauseCircle, RotateCcw, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal } from 'lucide-react'
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useToast } from '@/hooks/use-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWarehouses } from '@/services/warehouseService'
@@ -1316,8 +1317,7 @@ export default function NewSalePage() {
   if (!cashCheckDone) {
     return (
       <div className="px-4 sm:px-8 lg:px-14 py-16 w-full flex flex-col items-center justify-center gap-4 min-h-[50vh]">
-        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" aria-hidden />
-        <p className="text-sm text-muted-foreground">Comprobando turno de caja…</p>
+        <LoadingState variant="detail" message="Comprobando turno de caja…" />
         <Button variant="outline" size="sm" onClick={() => setSelectedRegisterId(null)}>
           <ArrowLeft className="w-4 h-4 mr-2" />
           Cambiar de caja
@@ -1565,7 +1565,7 @@ export default function NewSalePage() {
                   <AlertDescription>
                     Selecciona un cliente registrado y confirma su vencimiento.
                     <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
-                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="h-11 w-full rounded-xl border border-input bg-background px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
                     <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
                   </AlertDescription>
                 </Alert>
@@ -1595,7 +1595,7 @@ export default function NewSalePage() {
                     value={amountReceived}
                     onChange={(e) => setAmountReceived(e.target.value)}
                     step="0.01"
-                    className="h-12 text-lg font-semibold"
+                    className="font-semibold"
                   />
                   {amountReceived && parseFloat(amountReceived) >= displayTotal && (
                     <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
@@ -1674,7 +1674,7 @@ export default function NewSalePage() {
                               setPickedCustomerId('__none__')
                             }
                           }}
-                          className="rounded"
+                          className="auna-checkbox"
                         />
                         <Label htmlFor="cf">Consumidor final (CF)</Label>
                       </div>
@@ -1734,7 +1734,7 @@ export default function NewSalePage() {
                                 type="checkbox"
                                 checked={creditOverride}
                                 onChange={(e) => setCreditOverride(e.target.checked)}
-                                className="h-3.5 w-3.5"
+                                className="auna-checkbox w-3.5"
                               />
                               Autorizar de todas formas
                             </label>
@@ -1824,7 +1824,8 @@ export default function NewSalePage() {
                         <Input
                           type="number"
                           min={1}
-                          className="w-14 h-7 px-2 text-center text-sm"
+                          className="w-14 px-2 text-center"
+                          data-control-size="compact"
                           value={item.qty}
                           onChange={(e) => {
                             const val = parseInt(e.target.value || '0', 10)
@@ -2042,10 +2043,9 @@ export default function NewSalePage() {
                   </p>
                 </div>
               ) : null}
+              {productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
               {productsQuery.isLoading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-8 text-center text-muted-foreground">
-                  Cargando productos...
-                </div>
+                <LoadingState variant="cards" message="Cargando productos…" />
               ) : showCategoryPicker ? (
                 categorySummaries.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground">
@@ -2101,7 +2101,7 @@ export default function NewSalePage() {
                         value={String(productPageSize)}
                         onValueChange={(v) => { setProductPageSize(Number(v)); setProductPage(1); }}
                       >
-                        <SelectTrigger className="w-[72px] h-9"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {[9, 18, 36, 54].map((n) => (
                             <SelectItem key={n} value={String(n)}>{n}</SelectItem>

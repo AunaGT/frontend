@@ -1,0 +1,28 @@
+.hr-record-page { min-height:calc(100vh - 4rem); background:#f7faff; color:#13294d; }
+.hr-record-page .text-muted-foreground { color:#607899; }
+.dark .hr-record-page .text-muted-foreground { color:#a5b8d0; }
+.dark .hr-record-page { background:#0d1522; color:#eef4ff; }
+.hr-record-container { max-width:1560px; margin:0 auto; padding:24px 32px; }
+.hr-create-grid { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:16px; align-items:start; }
+.hr-panel { border:1px solid #d5e2f4; background:#fff; box-shadow:none; border-radius:10px; }
+.dark .hr-panel { border-color:#263b55; background:#142237; }
+.hr-panel > div:first-child { padding:18px 18px 12px; }
+.hr-panel > div:first-child h3 { display:flex; align-items:center; gap:12px; font-size:18px; letter-spacing:-.02em; }
+.hr-panel > div:first-child h3 svg { width:24px; height:24px; color:#ff790f; }
+.hr-panel > div:last-child { padding:0 18px 18px; }
+.hr-fields-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px; }
+.hr-record-page label { font-size:14px; }
+.hr-fields-grid input, .hr-native-select { margin-top:4px; width:100%; }
+.hr-document-row { border:1px dashed #cbdcf1; border-radius:8px; padding:12px; }
+.dark .hr-document-row { border-color:#36516e; background:#17293f; }
+.hr-document-dropzone { display:flex; align-items:center; justify-content:center; gap:14px; width:100%; margin-top:10px; }
+.hr-record-page button:disabled { opacity:.6; }
+.hr-summary-link { display:flex; gap:14px; align-items:center; text-align:left; width:100%; border:1px solid #d5e2f4; border-radius:8px; padding:14px; font-size:13px; }
+.dark .hr-summary-link { border-color:#263b55; background:#1b2e46; }
+.hr-summary-link > svg { width:28px; height:28px; color:#ff790f; flex-shrink:0; }
+.hr-summary-link strong,.hr-summary-link small { display:block; }
+.hr-summary-link strong { font-size:20px; margin-top:3px; }
+.hr-summary-link small { font-size:11px; margin-top:3px; }
+.hr-summary-link:focus-visible { outline:2px solid #ff790f; outline-offset:2px; }
+@media(max-width:1023px){.hr-create-grid{grid-template-columns:1fr}.hr-create-aside{display:contents}.hr-create-aside>.hr-photo-picker{order:-1}.hr-create-aside>*+*{margin-top:0!important}.hr-fields-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:639px){.hr-record-container{padding:20px 16px}.hr-fields-grid{grid-template-columns:1fr}}

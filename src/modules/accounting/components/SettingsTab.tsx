@@ -197,7 +197,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
             <div className="space-y-1 w-full max-w-md">
               <Label className="text-xs">Régimen</Label>
               <Select value={vatRegime} onValueChange={(v) => void handleSaveRegime(v as 'general' | 'pequeno')} disabled={savingRegime}>
-                <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">Régimen general — desglosa IVA débito/crédito ({ivaRate}%)</SelectItem>
                   <SelectItem value="pequeno">Pequeño contribuyente — {pequenoRate}% sobre ventas brutas</SelectItem>
@@ -206,11 +206,11 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
             </div>
             <div className="space-y-1 w-[150px]">
               <Label className="text-xs">Tasa IVA general (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" className="h-9" value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} />
+              <Input type="number" min={0} max={99} step="0.5" value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} />
             </div>
             <div className="space-y-1 w-[190px]">
               <Label className="text-xs">Tarifa pequeño contribuyente (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" className="h-9" value={pequenoRate} onChange={(e) => setPequenoRate(e.target.value)} />
+              <Input type="number" min={0} max={99} step="0.5" value={pequenoRate} onChange={(e) => setPequenoRate(e.target.value)} />
             </div>
             <Button variant="outline" onClick={handleSaveRates} disabled={savingRates}>
               {savingRates ? 'Guardando…' : 'Guardar tasas'}
@@ -243,7 +243,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
                   value={defaults[key] ?? ''}
                   onValueChange={(v) => setDefaults((prev) => ({ ...prev, [key]: v }))}
                 >
-                  <SelectTrigger className="h-9"><SelectValue placeholder="Seleccionar cuenta" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar cuenta" /></SelectTrigger>
                   <SelectContent>
                     {postables.map((a) => (
                       <SelectItem key={a.id} value={a.code}>{a.code} — {a.name}</SelectItem>
@@ -274,7 +274,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           <div className="space-y-1 w-[140px]">
             <Label className="text-xs">Año</Label>
             <Select value={String(periodYear)} onValueChange={(v) => setPeriodYear(Number(v))}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
@@ -321,7 +321,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           <div className="space-y-1 w-[140px]">
             <Label className="text-xs">Ejercicio</Label>
             <Select value={String(closingYear)} onValueChange={(v) => setClosingYear(Number(v))}>
-              <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>

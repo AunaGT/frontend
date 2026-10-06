@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CalendarRange, ChevronDown, Download, FileSpreadsheet, SlidersHorizontal } from 'lucide-react'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
@@ -479,11 +480,7 @@ const ReportsManagement = () => {
           <p className="text-sm text-muted-foreground">Los que un dueño o encargado consulta con más frecuencia.</p>
         </div>
         {enabledModuleCodes === null ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => (
-              <Card key={index}><CardContent className="h-44 animate-pulse bg-muted/40" /></Card>
-            ))}
-          </div>
+          <LoadingState variant="cards" rows={4} message="Cargando reportes disponibles…" />
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {everydayReports.map((report) => (

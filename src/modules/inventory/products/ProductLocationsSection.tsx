@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { useTenant } from "@/context/useTenant";
 import { fetchStockByLocation, setLocationMin } from "@/services/stockMoveService";
+import { Pagination } from "@/components/shared/Pagination";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
 
 export const ProductLocationsSection = ({ productId }: { productId: string }) => {
   const { toast } = useToast();
@@ -24,12 +27,19 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
   const { hasPermission } = useAuthPermissions();
   const canMove = hasPermission("stock_moves.create");
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
 
-  const { data: rows = [] } = useQuery({
+  const query = useQuery({
     queryKey: ["stock-by-location", productId, branch?.id],
     queryFn: () => fetchStockByLocation(productId),
     enabled: Boolean(branch && productId),
   });
+  const rows = query.data ?? [];
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const visibleRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const minMutation = useMutation({
     mutationFn: setLocationMin,
@@ -42,32 +52,34 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
       toast({ title: "No se pudo guardar", description: e.message, variant: "destructive" }),
   });
 
-  if (!branch || rows.length === 0) return null;
-
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Warehouse className="h-4 w-4" /> Existencias por ubicación
+    <Card className="min-w-0 rounded-2xl">
+      <CardHeader className="p-4">
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Warehouse className="h-4 w-4" aria-hidden="true" /> Existencias por ubicación
         </CardTitle>
         <CardDescription>
-          Suman el stock de {branch.name}. El mínimo es del anaquel: cuando baja de ahí, se repone
-          desde otra ubicación en vez de comprar.
+          {branch ? `${branch.name} · El mínimo interno indica cuándo reponer desde otra ubicación.` : "Selecciona una sucursal para consultar sus ubicaciones."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="overflow-x-auto">
+      <CardContent className="space-y-3 px-4 pb-4">
+        {query.isFetching && !query.isLoading && <LoadingIndicator message="Actualizando ubicaciones…" />}
+        {!branch ? <EmptyState icon={Warehouse} title="Selecciona una sucursal" description="Las existencias por ubicación pertenecen a una sucursal." />
+          : query.isLoading ? <LoadingState columns={['Ubicación', 'Existencia', 'Mínimo interno', 'Reposición']} message="Cargando ubicaciones…" />
+          : query.isError ? <div role="alert" className="py-6 text-center"><p>No se pudieron cargar las ubicaciones.</p><Button variant="outline" className="mt-3" onClick={() => void query.refetch()}>Reintentar</Button></div>
+          : rows.length === 0 ? <EmptyState icon={Warehouse} title="Sin existencias por ubicación" description="Todavía no hay existencias registradas en ubicaciones para este producto en la sucursal seleccionada." />
+          : <div className="auna-data-table-shell" aria-busy={query.isFetching}>
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Ubicación</TableHead>
                 <TableHead className="text-right">Existencia</TableHead>
                 <TableHead className="text-right">Mínimo interno</TableHead>
-                <TableHead />
+                <TableHead><span className="sr-only">Reposición</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((r) => {
+              {visibleRows.map((r) => {
                 const key = r.location.id;
                 const value = edits[key] ?? String(r.min_stock);
                 const dirty = Number(value) !== r.min_stock;
@@ -87,6 +99,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
                           <Input
                             type="number"
                             min={0}
+                            aria-label={`Mínimo interno de ${r.location.code}`}
                             className="w-20 text-right"
                             value={value}
                             onChange={(e) => setEdits((s) => ({ ...s, [key]: e.target.value }))}
@@ -122,8 +135,9 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
               })}
             </TableBody>
           </Table>
-        </div>
-        {canMove && (
+          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={rows.length} pageSize={pageSize} count={visibleRows.length} itemLabel="ubicaciones" onPageChange={setPage} />
+        </div>}
+        {branch && canMove && (
           <Button variant="outline" size="sm" onClick={() => navigate("/inventario/movimientos")}>
             <MoveRight className="mr-2 h-4 w-4" /> Mover entre ubicaciones
           </Button>

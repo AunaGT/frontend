@@ -9,6 +9,7 @@
  */
 
 import { cn } from "@/lib/utils"
+import '@/components/shared/loading.css'
 
 function Skeleton({
   className,
@@ -16,7 +17,7 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn("auna-skeleton motion-safe:animate-pulse rounded-md", className)}
       {...props}
     />
   )

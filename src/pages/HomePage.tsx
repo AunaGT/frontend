@@ -27,6 +27,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
 import { AunaBrand } from '@/components/branding/AunaBrand'
+import { HomeModuleLoading } from '@/components/layout/HomeLoadingPage'
 
 const MONTHS = [
     'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -180,7 +181,7 @@ export const HomePage = () => {
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
                             placeholder="Buscar módulos, reportes, contactos..."
-                            className="h-12 border-0 bg-transparent pl-12 pr-12 shadow-none focus-visible:ring-brand-orange"
+                            className="pl-12 pr-12"
                             autoComplete="off"
                         />
                         {search ? (
@@ -201,11 +202,7 @@ export const HomePage = () => {
                 <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
                     <div className="min-w-0">
                         {isLoading ? (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                {Array.from({ length: 9 }, (_, index) => (
-                                    <div key={index} className="h-36 animate-pulse rounded-2xl bg-muted" />
-                                ))}
-                            </div>
+                            <HomeModuleLoading />
                         ) : isError ? (
                             <div className="rounded-2xl border border-destructive/30 bg-card px-6 py-14 text-center shadow-sm">
                                 <p className="text-lg font-semibold">No pudimos cargar los módulos</p>

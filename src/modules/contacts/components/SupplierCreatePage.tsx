@@ -463,7 +463,7 @@ export default function SupplierCreatePage() {
                     <div>
                       <Label className="text-xs text-muted-foreground">Predeterminado</Label>
                       <Select value={newDefaultPaymentTermId} onValueChange={setNewDefaultPaymentTermId}>
-                        <SelectTrigger className="mt-1 h-9">
+                        <SelectTrigger className="mt-1">
                           <SelectValue placeholder="Elegir" />
                         </SelectTrigger>
                         <SelectContent>

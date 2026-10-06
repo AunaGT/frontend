@@ -25,6 +25,7 @@ import {
     Plus, Search, ScanLine, Download,
     QrCode, Upload, LayoutGrid, List, Package,
     ClipboardList, ChevronDown, RotateCcw, CalendarClock, MoveRight, Store,
+    Table2,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -47,6 +48,7 @@ import { fetchWarehouses } from '@/services/warehouseService'
 import { fetchStockByLocation } from '@/services/stockMoveService'
 import { useTenant } from '@/context/useTenant'
 import { Pagination } from '@/components/shared/Pagination'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { ModuleTabBar } from '@/components/shared/ModuleTabs'
@@ -57,7 +59,6 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { useNavigate } from 'react-router-dom'
 import { formatMoney } from '@/utils'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 
 /** Dónde está lo que hay de un producto. Se consulta al abrir, no antes. */
 const StockBreakdownRow = ({ productId }: { productId: string }) => {
@@ -70,7 +71,7 @@ const StockBreakdownRow = ({ productId }: { productId: string }) => {
         <tr className="border-b border-border bg-muted/40">
             <td colSpan={6} className="px-3 py-2">
                 {isLoading ? (
-                    <span className="text-xs text-muted-foreground">Cargando ubicaciones…</span>
+                    <LoadingIndicator message="Cargando ubicaciones…" />
                 ) : !data?.length ? (
                     <span className="text-xs text-muted-foreground">Sin existencias en ninguna ubicación.</span>
                 ) : (
@@ -102,7 +103,6 @@ const ProductManagement = () => {
     const queryClient = useQueryClient()
     const { branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
-    const { showAdvancedByDefault } = useExperienceProfile()
     const { locale, currencyCode } = useSystemSettings()
     const fmt = (n: number) => formatMoney(n, locale, currencyCode)
 
@@ -169,7 +169,7 @@ const ProductManagement = () => {
     }
 
     // Data hooks
-    const { data: productsData, isLoading, isError } = useProducts({
+    const { data: productsData, isLoading, isFetching, isError } = useProducts({
         page: currentPage,
         pageSize: pageSize,
         search: searchTerm || undefined,
@@ -492,11 +492,11 @@ const ProductManagement = () => {
                     <CardContent className="p-3">
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                            <Input placeholder="Buscar por nombre, marca o código..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="h-12 rounded-xl pl-10" />
+                            <Input placeholder="Buscar por nombre, marca o código..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
                         </div>
                     </CardContent>
                 </Card>
-                <CompactFilterPanel title="Alcance del inventario" summary="Categoría, sucursal, almacén y ubicación" activeCount={activeAdvancedFilters} defaultOpen={showAdvancedByDefault} onClear={resetAdvancedFilters} contentClassName="flex flex-wrap items-center gap-3">
+                <CompactFilterPanel title="Alcance del inventario" summary="Categoría, sucursal, almacén y ubicación" activeCount={activeAdvancedFilters} onClear={resetAdvancedFilters} appliedFilters={[...(categoryFilter !== 'all' ? [{label: `Categoría: ${categoryFilter}`,onRemove: () => setCategoryFilter('all')}] : []),...(scopeBranch !== 'all' ? [{label: `Sucursal: ${branches.find(b => b.id === scopeBranch)?.name || 'Seleccionada'}`,onRemove: () => {setScopeBranch('all');setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeWarehouse !== 'all' ? [{label: `Almacén: ${scopeWarehouses.find(w => w.id === scopeWarehouse)?.name || 'Seleccionado'}`,onRemove: () => {setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeLocation !== 'all' ? [{label: `Ubicación: ${scopeLocations.find(l => l.id === scopeLocation)?.code || 'Seleccionada'}`,onRemove: () => setScopeLocation('all')}] : [])]} contentClassName="flex flex-wrap items-center gap-3">
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map(category => <SelectItem key={category} value={category}>{category === 'all' ? 'Todas las categorías' : category}</SelectItem>)}</SelectContent></Select>
                     <Select value={scopeBranch} onValueChange={(v) => { setScopeBranch(v); setScopeWarehouse('all'); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><Store className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas las sucursales</SelectItem>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select>
                     {scopeWarehouses.length > 1 && <Select value={scopeWarehouse} onValueChange={(v) => { setScopeWarehouse(v); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Almacén" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los almacenes</SelectItem>{scopeWarehouses.map((warehouse) => <SelectItem key={warehouse.id} value={warehouse.id}>{scopeBranch === 'all' && warehouse.branch ? `${warehouse.branch.name} · ` : ''}{warehouse.name}</SelectItem>)}</SelectContent></Select>}
@@ -509,10 +509,11 @@ const ProductManagement = () => {
             <Card>
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <CardTitle>Productos ({totalItems})</CardTitle>
-                    <ModuleTabBar items={[{ value: 'table', label: 'Tabla', icon: List }, { value: 'cards', label: 'Cuadros', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de productos" onValueChange={(value) => { setViewMode(value); if (value === 'cards') setSelectedIds([]) }} />
+                    <ModuleTabBar items={[{ value: 'table', label: '', icon: Table2 }, { value: 'cards', label: '', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de productos" onValueChange={(value) => { setViewMode(value); if (value === 'cards') setSelectedIds([]) }} />
                 </CardHeader>
                 <CardContent>
-                    {isLoading && <div className="p-6 text-muted-foreground">Cargando productos...</div>}
+                    {isLoading && <LoadingState variant={viewMode === 'table' ? 'table' : 'cards'} columns={['Selección', 'Producto', 'Categoría', 'Stock', 'Precio', 'Estado']} message="Cargando productos…" />}
+                    {isFetching && !isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
                     {isError && !isLoading && <div className="p-6 text-destructive">Error al cargar productos.</div>}
                     {!isLoading && !isError && (
                         <div className="space-y-4">
@@ -755,7 +756,7 @@ const ProductManagement = () => {
                                         value={String(pageSize)}
                                         onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}
                                     >
-                                        <SelectTrigger className="w-[72px] h-9">
+                                        <SelectTrigger className="w-[72px]">
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -772,7 +773,7 @@ const ProductManagement = () => {
                                         onPageChange={setCurrentPage}
                                         hasNextPage={productsData.nextPage !== null}
                                         hasPrevPage={productsData.prevPage !== null}
-                                        loading={isLoading}
+                                        loading={isFetching}
                                     />
                                 )}
                             </div>

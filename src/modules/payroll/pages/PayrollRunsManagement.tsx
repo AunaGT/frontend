@@ -1,3 +1,6 @@
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -12,12 +15,12 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Loader2, Search, Eye, ChevronLeft, ChevronRight, Wallet, Users, CircleMinus, CreditCard } from 'lucide-react'
+import { Plus, Loader2, Search, Eye, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -59,7 +62,7 @@ export const PayrollRunsManagement = () => {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<PayrollRunPayload>({ type: 'ORDINARIA', pay_date: today() })
 
-  const { data, isLoading, isError, error, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['payroll-runs', year],
     queryFn: () => fetchPayrollRuns({ year }),
   })
@@ -89,28 +92,18 @@ export const PayrollRunsManagement = () => {
         {canCreate && <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nueva corrida</Button>}
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Última corrida activa">
-        {[
-          { label: 'Empleados · última corrida', value: latest?._count?.payslips ?? 0, icon: Users },
-          { label: 'Total bruto', value: money(latest?.total_earnings ?? 0), icon: Wallet },
-          { label: 'Deducciones', value: money(latest?.total_deductions ?? 0), icon: CircleMinus },
-          { label: 'Total neto', value: money(latest?.total_net ?? 0), icon: CreditCard },
-        ].map(({ label, value, icon: Icon }) => <Card key={label} className="border-border/70 bg-card/90"><CardContent className="flex items-center gap-4 p-5"><span className="rounded-xl bg-orange-500/15 p-3 text-orange-500"><Icon className="h-5 w-5" /></span><div><p className="text-sm text-muted-foreground">{label}</p><p className="text-xl font-bold tabular-nums">{value}</p></div></CardContent></Card>)}
-      </div>
+      <MetricStrip loading={isLoading} label="Última corrida activa" items={[{label:'Empleados · última corrida',value:latest?._count?.payslips ?? 0},{label:'Total bruto',value:money(latest?.total_earnings ?? 0)},{label:'Deducciones',value:money(latest?.total_deductions ?? 0)},{label:'Total neto',value:money(latest?.total_net ?? 0)}]} />
 
-      <Card className="border-border/70 bg-card/90"><CardContent className="grid gap-3 p-4 md:grid-cols-[120px_150px_170px_minmax(210px,1fr)_auto] md:items-end">
+      <CompactFilterPanel title="Filtros de nómina" activeCount={Number(Boolean(search.trim())) + Number(Boolean(month)) + Number(Boolean(status)) + Number(year !== String(new Date().getFullYear()))} onClear={() => {setYear(String(new Date().getFullYear()));setMonth('');setStatus('');setSearch('');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(month ? [{label: `Mes: ${new Intl.DateTimeFormat('es-GT',{month:'long'}).format(new Date(2026,Number(month)-1,1))}`,onRemove: () => {setMonth('');setPage(1)}}] : []),...(status ? [{label: `Estado: ${PAYROLL_STATUS_LABELS[status as PayrollStatus]}`,onRemove: () => {setStatus('');setPage(1)}}] : []),...(year !== String(new Date().getFullYear()) ? [{label: `Año: ${year}`,onRemove: () => {setYear(String(new Date().getFullYear()));setPage(1)}}] : [])]} search={<label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" /><Input aria-label="Buscar corridas" className="pl-9" placeholder="Buscar por período, descripción o código..." value={search} onChange={(e) => update(setSearch)(e.target.value)} /></div></label>}>
         <label className="space-y-1 text-xs text-muted-foreground">Año<Input aria-label="Año" type="number" min="2000" max="2100" value={year} onChange={(e) => { setYear(e.target.value); setPage(1) }} /></label>
-        <label className="space-y-1 text-xs text-muted-foreground">Mes<select aria-label="Mes" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={month} onChange={(e) => update(setMonth)(e.target.value)}><option value="">Todos</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{new Intl.DateTimeFormat('es-GT', { month: 'long' }).format(new Date(2026, i, 1))}</option>)}</select></label>
-        <label className="space-y-1 text-xs text-muted-foreground">Estado<select aria-label="Estado" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground" value={status} onChange={(e) => update(setStatus)(e.target.value)}><option value="">Todos</option>{(Object.keys(PAYROLL_STATUS_LABELS) as PayrollStatus[]).map((item) => <option key={item} value={item}>{PAYROLL_STATUS_LABELS[item]}</option>)}</select></label>
-        <label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" /><Input aria-label="Buscar corridas" className="pl-9" placeholder="Buscar por período, descripción o código..." value={search} onChange={(e) => update(setSearch)(e.target.value)} /></div></label>
-        <Button variant="outline" onClick={() => { setMonth(''); setStatus(''); setSearch(''); setPage(1) }}>Limpiar</Button>
-      </CardContent></Card>
+        <label className="space-y-1 text-xs text-muted-foreground">Mes<select aria-label="Mes" className="auna-control auna-control-select flex w-full px-3" value={month} onChange={(e) => update(setMonth)(e.target.value)}><option value="">Todos</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{new Intl.DateTimeFormat('es-GT', { month: 'long' }).format(new Date(2026, i, 1))}</option>)}</select></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Estado<select aria-label="Estado" className="auna-control auna-control-select flex w-full px-3" value={status} onChange={(e) => update(setStatus)(e.target.value)}><option value="">Todos</option>{(Object.keys(PAYROLL_STATUS_LABELS) as PayrollStatus[]).map((item) => <option key={item} value={item}>{PAYROLL_STATUS_LABELS[item]}</option>)}</select></label>
+      </CompactFilterPanel>
 
       <Card className="auna-data-table-shell">
         <CardContent className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-          ) : isError ? (
+          {isFetching && data && <LoadingIndicator message="Actualizando corridas…" className="px-4 py-2" />}
+          {isError ? (
             <div role="alert" className="space-y-3 p-6 text-center"><p>No se pudieron cargar las corridas. {error instanceof Error ? error.message : ''}</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
           ) : (
             <div className="overflow-x-auto">
@@ -129,6 +122,7 @@ export const PayrollRunsManagement = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
+                {isLoading ? <TableLoadingRows columns={9} message="Cargando corridas…" /> : <>
                 {pageItems(visibleRuns, currentPage, 10).map((run) => (
                   <TableRow key={run.id}>
                     <TableCell className="whitespace-nowrap text-sm">{run.period_start.slice(0, 10)}<span className="block text-muted-foreground">a {run.period_end.slice(0, 10)}</span></TableCell>
@@ -145,6 +139,7 @@ export const PayrollRunsManagement = () => {
                 {visibleRuns.length === 0 && (
                   <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No hay corridas para estos filtros.</TableCell></TableRow>
                 )}
+                </>}
               </TableBody>
             </Table>
             </div>

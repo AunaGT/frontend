@@ -13,6 +13,7 @@
  * type = 'accounts' (catálogo de cuentas) | 'journal' (asientos por referencia).
  * Mismo flujo que CatalogImportPage: hoja → mapeo → probar → importar.
  */
+import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useMemo } from 'react'
 import { getApiBaseUrl } from '@/services/api'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -22,7 +23,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Progress } from '@/components/ui/progress'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -105,7 +105,6 @@ export default function AccountingImportPage() {
   const [selectedSheet, setSelectedSheet] = useState('')
   const [useFirstRowAsHeader, setUseFirstRowAsHeader] = useState(true)
   const [columnMappings, setColumnMappings] = useState<ColumnMapping[]>([])
-  const [importProgress, setImportProgress] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   const [importResult, setImportResult] = useState<{ created: number; skipped?: number; message?: string } | null>(null)
   const importStream = useImportStream()
@@ -334,10 +333,8 @@ export default function AccountingImportPage() {
         <ImportWizardSteps current={3} fileName={file?.name} />
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
-            <Loader2 className="h-16 w-16 animate-spin text-primary mx-auto mb-4" />
+            <LoadingIndicator message="Importando archivo…" className="justify-center mb-4" />
             <h3 className="text-xl font-semibold mb-2">Importando {itemName}...</h3>
-            <Progress value={importProgress} className="mt-4" />
-            <p className="text-sm text-muted-foreground mt-2">{importProgress}%</p>
           </CardContent>
         </Card>
       </div>
@@ -472,7 +469,7 @@ export default function AccountingImportPage() {
                                 value={mapping.systemField || 'no-mapear'}
                                 onValueChange={(val) => handleMappingChange(mapping.excelColumn, val === 'no-mapear' ? null : val)}
                               >
-                                <SelectTrigger className={errs.length > 0 ? 'border-destructive' : ''}>
+                                <SelectTrigger aria-invalid={errs.length > 0}>
                                   <SelectValue placeholder="No importar" />
                                 </SelectTrigger>
                                 <SelectContent>

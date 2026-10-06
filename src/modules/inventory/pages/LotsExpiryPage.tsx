@@ -9,13 +9,19 @@
  */
 
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { Pagination } from '@/components/shared/Pagination'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import {
   Select,
   SelectContent,
@@ -31,11 +37,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { ArrowLeft, CalendarClock, PackageOpen, Trash2 } from 'lucide-react'
+import { ArrowLeft, Eye, PackageOpen, Search, Trash2 } from 'lucide-react'
 import { apiFetch } from '@/services/api'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -49,6 +51,7 @@ interface ExpiringLot {
   qty_remaining: number
   days_to_expiry: number
   received_at: string
+  branch?: { id: string; name: string; code: string } | null
   location?: { id: string; code: string; name: string | null } | null
   product: {
     id: string
@@ -56,6 +59,7 @@ interface ExpiringLot {
     brand?: string | null
     size?: string | null
     barcode?: string | null
+    image_url?: string | null
     stock: number
     lotted: number
     unlotted: number
@@ -72,19 +76,31 @@ const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString('es-GT', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })
 
 export const LotsExpiryPage = () => {
-  const navigate = useNavigate()
   const [status, setStatus] = useState<LotStatusFilter>('all')
   const [days, setDays] = useState('30')
+  const [search, setSearch] = useState('')
+  const [locationId, setLocationId] = useState('all')
+  const { page, pageSize, setPage } = usePersistedListUiState('inventario/lotes', { defaultPageSize: 10 })
 
   const effectiveDays = Math.min(365, Math.max(1, Number(days) || 30))
-  const { data, isLoading } = useQuery<LotsExpiringResponse, Error>({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery<LotsExpiringResponse, Error>({
     queryKey: ['lots-expiring', effectiveDays, status],
     queryFn: () =>
       apiFetch<LotsExpiringResponse>(`/api/products/lots/expiring?days=${effectiveDays}&status=${status}`),
     staleTime: 60 * 1000,
   })
 
-  const lots = data?.lots ?? []
+  const loadedLots = data?.lots ?? []
+  const locations = [...new Map(loadedLots.filter(l => l.location).map(l => [l.location!.id, l.location!])).values()]
+  // ponytail: el endpoint actual devuelve toda la ventana; paginar en servidor si crece el volumen.
+  const term = search.trim().toLocaleLowerCase('es-GT')
+  const lots = loadedLots.filter(lot =>
+    (locationId === 'all' || lot.location?.id === locationId) &&
+    (!term || [lot.product.name, lot.product.brand, lot.product.size, lot.product.barcode, lot.lot_code, lot.location?.code, lot.location?.name].some(value => value?.toLocaleLowerCase('es-GT').includes(term)))
+  )
+  const totalPages = Math.max(1, Math.ceil(lots.length / pageSize))
+  const safePage = Math.min(page, totalPages)
+  const visibleLots = lots.slice((safePage - 1) * pageSize, safePage * pageSize)
   const expired = lots.filter((l) => l.days_to_expiry < 0)
   const expiredCount = expired.length
   const expiringCount = lots.length - expiredCount
@@ -119,177 +135,147 @@ export const LotsExpiryPage = () => {
 
   const unitsToWriteOff = (confirming ?? []).reduce((s, l) => s + l.qty_remaining, 0)
 
+  const appliedFilters = [
+    ...(search.trim() ? [{ label: `Búsqueda: ${search}`, onRemove: () => { setSearch(''); setPage(1) } }] : []),
+    ...(status !== 'all' ? [{ label: `Estado: ${status === 'expired' ? 'Vencidos' : 'Por vencer'}`, onRemove: () => { setStatus('all'); setPage(1) } }] : []),
+    ...(effectiveDays !== 30 ? [{ label: `Ventana: ${effectiveDays} días`, onRemove: () => { setDays('30'); setPage(1) } }] : []),
+    ...(locationId !== 'all' ? [{ label: `Ubicación: ${locations.find(l => l.id === locationId)?.code || 'Seleccionada'}`, onRemove: () => { setLocationId('all'); setPage(1) } }] : []),
+  ]
+
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+    <div className="mx-auto grid w-full max-w-[1560px] min-w-0 gap-5 px-4 py-6 sm:px-8">
+      <Button asChild variant="link" className="h-auto justify-self-start p-0 text-muted-foreground">
+        <Link to="/inventario"><ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />Volver a Inventario</Link>
+      </Button>
+      <header className="auna-module-heading">
         <div>
-          <h2 className="text-lg sm:text-2xl font-bold text-foreground flex items-center gap-2">
-            <CalendarClock className="w-6 h-6 text-liquor-amber" />
-            Lotes y caducidades
-          </h2>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Lotes con existencia próximos a vencer o ya vencidos
-          </p>
+          <p className="auna-module-eyebrow">Inventario</p>
+          <h1>Lotes y caducidades</h1>
+          <p className="auna-module-description">Consulta los vencimientos y la existencia disponible de cada lote.</p>
         </div>
-      </div>
+        {canWriteOff && !isError && !isLoading && expiredCount > 0 && (
+          <Button variant="destructive" disabled={isFetching || writeOffMutation.isPending} onClick={() => setConfirming(expired)}>
+            <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+            Dar de baja {expiredCount} {expiredCount === 1 ? 'vencido' : 'vencidos'}
+          </Button>
+        )}
+      </header>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:justify-between">
-            <CardTitle className="text-base">
-              {isLoading
-                ? 'Cargando…'
-                : `${lots.length} lote${lots.length === 1 ? '' : 's'} · ${expiredCount} vencido${expiredCount === 1 ? '' : 's'} · ${expiringCount} por vencer`}
-            </CardTitle>
-            <div className="flex items-end gap-3">
-              {canWriteOff && expiredCount > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setConfirming(expired)}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Dar de baja los {expiredCount} vencidos
-                </Button>
-              )}
-              <div>
-                <Label htmlFor="lots-days" className="text-xs text-muted-foreground">
-                  Ventana (días)
-                </Label>
-                <Input
-                  id="lots-days"
-                  type="number"
-                  min={1}
-                  max={365}
-                  className="mt-1 w-24"
-                  value={days}
-                  onChange={(e) => setDays(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="lots-status" className="text-xs text-muted-foreground">
-                  Estado
-                </Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as LotStatusFilter)}>
-                  <SelectTrigger id="lots-status" className="mt-1 w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="expiring">Por vencer</SelectItem>
-                    <SelectItem value="expired">Vencidos</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+      <CompactFilterPanel
+        title="Filtros de lotes"
+        activeCount={appliedFilters.length}
+        appliedFilters={appliedFilters}
+        onClear={() => { setSearch(''); setStatus('all'); setDays('30'); setLocationId('all'); setPage(1) }}
+        search={<div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <Input aria-label="Buscar productos o lotes" placeholder="Buscar producto, código de barras o lote…" className="pl-9" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+        </div>}
+      >
+        <div className="space-y-1">
+          <Label htmlFor="lots-days">Ventana (días)</Label>
+          <Input id="lots-days" type="number" min={1} max={365} value={days} onChange={e => { setDays(e.target.value); setPage(1) }} />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="lots-status">Estado de vencimiento</Label>
+          <Select value={status} onValueChange={(value: LotStatusFilter) => { setStatus(value); setPage(1) }}>
+            <SelectTrigger id="lots-status"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos en la ventana</SelectItem>
+              <SelectItem value="expiring">Por vencer</SelectItem>
+              <SelectItem value="expired">Vencidos</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="lots-location">Ubicación</Label>
+          <Select value={locationId} onValueChange={value => { setLocationId(value); setPage(1) }}>
+            <SelectTrigger id="lots-location"><SelectValue placeholder="Todas las ubicaciones" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas las ubicaciones</SelectItem>
+              {locations.map(location => <SelectItem key={location.id} value={location.id}>{location.code}{location.name ? ` · ${location.name}` : ''}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </CompactFilterPanel>
+
+      <p className="text-xs text-muted-foreground">Ventana de {effectiveDays} días · Solo lotes con existencia vencidos o próximos a vencer. La búsqueda y la ubicación se aplican a esta consulta.</p>
+      {!isError && <MetricStrip loading={isLoading} label="Resumen de los lotes consultados" items={[
+        { label: 'Lotes consultados', value: isLoading ? '—' : lots.length },
+        { label: 'Vencidos', value: isLoading ? '—' : expiredCount, alert: expiredCount > 0 },
+        { label: 'Por vencer', value: isLoading ? '—' : expiringCount },
+      ]} />}
+
+      <section className="auna-data-table-shell min-w-0" aria-label="Lotes con existencia" aria-busy={isFetching}>
+        {isFetching && !isLoading && <LoadingIndicator message="Actualizando lotes…" className="px-4 py-2" />}
+        {isLoading ? <LoadingState columns={['Producto', 'Código de barras', 'Lote', 'Vencimiento', 'Días restantes', 'Existencia del lote', 'Stock (sin lote)', 'Estado', 'Ubicación', 'Acciones']} message="Cargando lotes…" /> : isError ? <div role="alert" className="p-8 text-center">
+          <p>No se pudieron cargar los lotes.</p>
+          <Button variant="outline" className="mt-3" onClick={() => void refetch()}>Reintentar</Button>
+        </div> : !lots.length ? <EmptyState
+          icon={PackageOpen}
+          title="No hay lotes para esta consulta."
+          description="Revisa los filtros. Los lotes se crean al registrar ingresos de mercancía con fecha de caducidad."
+        /> : <>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Producto</TableHead>
+                <TableHead>Código de barras</TableHead>
+                <TableHead>Lote</TableHead>
+                <TableHead>Vencimiento</TableHead>
+                <TableHead className="text-right">Días restantes</TableHead>
+                <TableHead className="text-right">Existencia del lote</TableHead>
+                <TableHead className="text-right">Stock (sin lote)</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead>Ubicación</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{visibleLots.map(lot => {
+                const isExpired = lot.days_to_expiry < 0
+                return <TableRow key={lot.id}>
+                  <TableCell>
+                    <div className="flex min-w-48 items-center gap-3">
+                      {lot.product.image_url
+                        ? <img src={lot.product.image_url} alt="" loading="lazy" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg border bg-background object-contain" />
+                        : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border bg-muted"><PackageOpen className="h-5 w-5 text-muted-foreground" aria-hidden="true" /></span>}
+                      <div>
+                        <Link to={`/inventario/${lot.product.id}`} className="font-semibold hover:text-brand-orange focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{lot.product.name}</Link>
+                        <p className="mt-1 text-xs text-muted-foreground">{[lot.product.brand, lot.product.size].filter(Boolean).join(' · ')}</p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs">{lot.product.barcode || '—'}</TableCell>
+                  <TableCell className="whitespace-nowrap font-medium">{lot.lot_code || 'Sin código'}</TableCell>
+                  <TableCell className={isExpired ? 'whitespace-nowrap text-red-600 dark:text-red-400' : 'whitespace-nowrap'}>{formatDate(lot.expiry_date)}</TableCell>
+                  <TableCell className={isExpired ? 'text-right tabular-nums text-red-600 dark:text-red-400' : 'text-right tabular-nums'}>{isExpired ? `Hace ${Math.abs(lot.days_to_expiry)} días` : lot.days_to_expiry === 0 ? 'Vence hoy' : `${lot.days_to_expiry} días`}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">{lot.qty_remaining}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{lot.product.stock} ({lot.product.unlotted})</TableCell>
+                  <TableCell><Badge className={isExpired ? 'border-0 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/10' : 'border-0 bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/15'}>{isExpired ? 'Vencido' : 'Por vencer'}</Badge></TableCell>
+                  <TableCell><span>{lot.location?.code || 'Sin ubicación'}</span>{lot.branch && <p className="mt-1 text-xs text-muted-foreground">{lot.branch.name}</p>}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button asChild variant="outline" size="icon"><Link to={`/inventario/${lot.product.id}`} aria-label={`Ver producto ${lot.product.name}`}><Eye className="h-4 w-4" aria-hidden="true" /></Link></Button>
+                      {canWriteOff && isExpired && <Button variant="outline" size="icon" className="text-destructive" aria-label={`Dar de baja lote ${lot.lot_code || lot.id}`} disabled={isFetching || writeOffMutation.isPending} onClick={() => setConfirming([lot])}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              })}</TableBody>
+            </Table>
           </div>
-        </CardHeader>
-        <CardContent>
-          {!isLoading && lots.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
-              <PackageOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
-              <p>No hay lotes {status === 'expired' ? 'vencidos' : 'por vencer'} en esta ventana.</p>
-              <p className="text-xs mt-1">
-                Los lotes se crean al registrar ingresos de mercancía con fecha de caducidad.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Producto</TableHead>
-                    <TableHead>Lote</TableHead>
-                    <TableHead>Ubicación</TableHead>
-                    <TableHead>Caducidad</TableHead>
-                    <TableHead className="text-right">Días</TableHead>
-                    <TableHead className="text-right">Cant. en lote</TableHead>
-                    <TableHead className="text-right">Stock (sin lote)</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lots.map((lot) => {
-                    const isExpired = lot.days_to_expiry < 0
-                    return (
-                      <TableRow
-                        key={lot.id}
-                        className="cursor-pointer"
-                        onClick={() => navigate(`/inventario/${lot.product.id}`)}
-                      >
-                        <TableCell>
-                          <p className="font-medium text-foreground">{lot.product.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {[lot.product.brand, lot.product.size].filter(Boolean).join(' • ')}
-                          </p>
-                        </TableCell>
-                        <TableCell>{lot.lot_code || '—'}</TableCell>
-                        <TableCell className="text-muted-foreground">{lot.location?.code || '—'}</TableCell>
-                        <TableCell>{formatDate(lot.expiry_date)}</TableCell>
-                        <TableCell className="text-right">
-                          {isExpired ? `hace ${Math.abs(lot.days_to_expiry)}` : lot.days_to_expiry}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">{lot.qty_remaining}</TableCell>
-                        <TableCell className="text-right text-muted-foreground">
-                          {lot.product.stock} ({lot.product.unlotted})
-                        </TableCell>
-                        <TableCell>
-                          {isExpired ? (
-                            <Badge variant="destructive">Vencido</Badge>
-                          ) : (
-                            <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15">
-                              Por vencer
-                            </Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {canWriteOff && isExpired && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); setConfirming([lot]) }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={lots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={isFetching} />
+        </>}
+      </section>
 
-      <AlertDialog open={confirming !== null} onOpenChange={(o) => !o && setConfirming(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              ¿Dar de baja {confirming?.length === 1 ? 'este lote' : `${confirming?.length ?? 0} lotes`}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Salen {unitsToWriteOff} unidad(es) del inventario, de la ubicación donde está cada
-              lote. Queda anotado en el libro como ajuste por lote vencido y no se puede deshacer
-              con un botón: habría que volver a ingresarlas.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={writeOffMutation.isPending}
-              onClick={() => writeOffMutation.mutate((confirming ?? []).map((l) => l.id))}
-            >
-              {writeOffMutation.isPending ? 'Dando de baja…' : 'Dar de baja'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        appearance="auna"
+        variant="destructive"
+        open={confirming !== null}
+        onOpenChange={open => { if (!open && !writeOffMutation.isPending) setConfirming(null) }}
+        title={`¿Dar de baja ${confirming?.length === 1 ? 'este lote' : `${confirming?.length ?? 0} lotes`}?`}
+        description={`Salen ${unitsToWriteOff} unidad(es) del inventario de la ubicación de cada lote. Esta acción abarca los lotes indicados, aunque estén en otras páginas. Queda registrado como ajuste por lote vencido y no puede deshacerse con un botón: habría que volver a ingresar las unidades.`}
+        confirmText="Dar de baja"
+        loading={writeOffMutation.isPending}
+        onConfirm={() => writeOffMutation.mutate((confirming ?? []).map(l => l.id))}
+      />
     </div>
   )
 }

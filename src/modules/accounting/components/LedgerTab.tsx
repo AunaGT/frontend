@@ -8,11 +8,12 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -65,11 +66,10 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="space-y-1">
+        <CompactFilterPanel title="Filtros de mayor" activeCount={Number(from !== '')+Number(to !== '')} onClear={() => {setFrom('');setTo('');}} appliedFilters={[...(from ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom('')}] : []),...(to ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo('')}] : [])]} search={<div className="space-y-1">
             <Label className="text-xs">Cuenta</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger className="w-[280px] h-9">
+              <SelectTrigger aria-label="Cuenta del mayor" className="w-[280px]">
                 <SelectValue placeholder="Seleccionar cuenta" />
               </SelectTrigger>
               <SelectContent>
@@ -78,21 +78,22 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          </div>}>
           <div className="space-y-1">
             <Label className="text-xs">Desde</Label>
-            <Input type="date" className="h-9 w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Hasta</Label>
-            <Input type="date" className="h-9 w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
+            <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
-        </div>
+        </CompactFilterPanel>
+        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
 
         {!accountId ? (
           <p className="py-10 text-center text-muted-foreground">Seleccione una cuenta para ver su mayor.</p>
         ) : loading ? (
-          <div className="space-y-2">{[...Array(6)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          <LoadingState message="Cargando mayor…" columns={['Fecha', 'Asiento', 'Descripción', 'Debe', 'Haber', 'Saldo']} />
         ) : data && (
           <div className="rounded-md border overflow-x-auto">
             <table className="w-full text-sm">

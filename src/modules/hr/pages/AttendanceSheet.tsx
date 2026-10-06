@@ -13,7 +13,9 @@
  * Un clic cicla el estado de la celda. Las horas extra se editan en el diálogo
  * y son lo único que la nómina lee de aquí.
  */
+import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState } from 'react'
+import { Pagination } from '@/components/shared/Pagination'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -24,21 +26,14 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import {
-  fetchAttendance, fetchEmployees, saveAttendance,
-  ATTENDANCE_STATUS_LABELS, type AttendanceStatus, type Employee,
+  fetchAttendance, fetchEmployeeDirectory, saveAttendance,
+  ATTENDANCE_STATUS_LABELS, type AttendanceStatus, type DirectoryEmployee,
 } from '@/services/hrService'
 
-const initials = (employee: Employee) =>
+const initials = (employee: DirectoryEmployee) =>
   `${employee.first_name.charAt(0)}${employee.last_name.charAt(0)}`.toUpperCase()
 
-const EmployeeAvatar = ({ employee }: { employee: Employee }) =>
-  employee.photo_url ? (
-    <img
-      src={employee.photo_url}
-      alt={`${employee.first_name} ${employee.last_name}`}
-      className="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-border"
-    />
-  ) : (
+const EmployeeAvatar = ({ employee }: { employee: DirectoryEmployee }) => (
     <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-liquor-amber/15 text-[10px] font-semibold text-liquor-amber ring-1 ring-liquor-amber/25">
       {initials(employee)}
     </div>
@@ -93,14 +88,16 @@ export const AttendanceSheet = () => {
 
   const [detail, setDetail] = useState<{ employeeId: string; date: string } | null>(null)
   const [overtime, setOvertime] = useState(0)
+  const [page, setPage] = useState(1)
 
-  const { data: employees } = useQuery({
-    queryKey: ['hr-employees', 'ACTIVO'],
-    queryFn: () => fetchEmployees({ status: 'ACTIVO' }),
+  const { data: employees, isLoading: employeesLoading, isFetching: employeesFetching, isError: employeesError, refetch: reloadEmployees } = useQuery({
+    queryKey: ['hr-employees', 'attendance', page],
+    queryFn: () => fetchEmployeeDirectory('attendance', { page, pageSize: 10 }),
   })
-  const { data: attendance, isLoading } = useQuery({
-    queryKey: ['hr-attendance', from, to],
-    queryFn: () => fetchAttendance({ from, to }),
+  const { data: attendance, isLoading, isFetching } = useQuery({
+    queryKey: ['hr-attendance', from, to, employees?.items.map(e => e.id).join(',')],
+    queryFn: () => fetchAttendance({ from, to, employee_ids: (employees?.items ?? []).map(e => e.id).join(',') }),
+    enabled: !!employees,
   })
 
   const byKey = new Map(
@@ -130,7 +127,7 @@ export const AttendanceSheet = () => {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-4">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
         <CardTitle>Asistencia</CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-1">
@@ -144,14 +141,13 @@ export const AttendanceSheet = () => {
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-          <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="w-40" aria-label="Ir a un mes" />
+          <Input type="month" value={month} onChange={(e) => { if (/^\d{4}-\d{2}$/.test(e.target.value)) setMonth(e.target.value) }} className="w-40" aria-label="Ir a un mes" />
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-        ) : (
-          <div className="overflow-x-auto">
+        {(isFetching && attendance || employeesFetching && employees) && <LoadingIndicator message="Actualizando asistencia…" />}
+        {employeesError ? <div role="alert" className="p-6 text-center"><p>No se pudo cargar el equipo.</p><Button variant="outline" onClick={() => void reloadEmployees()}>Reintentar</Button></div> : (
+          <div className="overflow-x-auto auna-data-table-shell">
             {/* Los chips son idénticos a las celdas: la leyenda se lee mirando, no traduciendo. */}
             <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/30 px-3 py-2">
               {CYCLE.map((status) => (
@@ -181,6 +177,7 @@ export const AttendanceSheet = () => {
                   </tr>
                 </thead>
                 <tbody>
+                  {isLoading || employeesLoading ? <TableLoadingRows columns={daysInMonth + 2} message="Cargando asistencia…" /> : <>
                   {(employees?.items ?? []).map((employee) => {
                     let totalOvertime = 0
                     const cells = Array.from({ length: daysInMonth }, (_, i) => {
@@ -191,6 +188,7 @@ export const AttendanceSheet = () => {
                         <td key={date} className="p-0.5 text-center">
                           <button
                             type="button"
+                            disabled={!canManage || save.isPending}
                             title={`${mark ? ATTENDANCE_STATUS_LABELS[mark.status] : 'Sin marca'} · clic para cambiar, shift+clic para horas extra`}
                             className={`h-6 w-6 rounded-md text-[10px] font-medium transition-transform hover:scale-105 ${mark ? CELL_CLASS[mark.status] : 'bg-muted hover:bg-muted-foreground/10'} ${!canManage ? 'cursor-default' : ''}`}
                             onClick={(event) => {
@@ -230,6 +228,7 @@ export const AttendanceSheet = () => {
                       </td>
                     </tr>
                   )}
+                  </>}
                 </tbody>
               </table>
             </div>
@@ -241,9 +240,10 @@ export const AttendanceSheet = () => {
           </div>
         )}
       </CardContent>
+      {employees && <Pagination currentPage={employees.page} totalPages={employees.totalPages} totalItems={employees.totalItems} count={employees.items.length} pageSize={10} onPageChange={setPage} itemLabel="empleados" />}
 
       <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
-        <DialogContent className="max-w-sm">
+        <DialogContent variant="auna" className="max-w-sm">
           <DialogHeader>
             <DialogTitle>Horas extra del {detail?.date}</DialogTitle>
             <DialogDescription className="sr-only">

@@ -41,16 +41,16 @@ export const DenominationsCounter = ({
                     Opcional. El total calculado actualiza automáticamente el efectivo contado.
                 </p>
                 {openingFloat > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="auna-field-message mt-1">
                         Incluya el fondo inicial ({formatCurrency(openingFloat, currencyCode, locale)}) y las ventas en
                         efectivo del turno.
                         {expectedCashInDrawer != null && expectedCashInDrawer > 0 && (
                             <>
                                 {' '}
                                 Teórico en caja:{' '}
-                                <span className="font-medium text-foreground">
+                                <output className="auna-field-value-inline font-medium text-foreground">
                                     {formatCurrency(expectedCashInDrawer, currencyCode, locale)}
-                                </span>
+                                </output>
                             </>
                         )}
                     </p>
@@ -71,18 +71,18 @@ export const DenominationsCounter = ({
                                 <div className="text-sm text-muted-foreground">{denom.type}</div>
                                 <Input
                                     type="number"
+                                    data-control-size="compact"
                                     min="0"
                                     value={denom.quantity || ''}
                                     onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 0)}
                                     placeholder="0"
-                                    className="h-8"
                                 />
                                 <div className="font-semibold">{formatCurrency(denom.subtotal, currencyCode, locale)}</div>
                             </div>
                         ))}
                         <div className="border-t pt-3 mt-3 flex justify-between items-center">
                             <span className="font-semibold">Total Efectivo Contado:</span>
-                            <span className="text-xl font-bold">{formatCurrency(cashTotal, currencyCode, locale)}</span>
+                            <output className="auna-field-value-inline text-xl font-bold">{formatCurrency(cashTotal, currencyCode, locale)}</output>
                         </div>
                     </div>
                 </CardContent>

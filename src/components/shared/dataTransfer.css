@@ -9,21 +9,21 @@
 .auna-export-tabs { display: flex; gap: 6px; margin-top: 20px; border-bottom: 1px solid hsl(var(--border)); }
 .auna-export-tabs button { display: inline-flex; min-width: 135px; align-items: center; justify-content: center; gap: 9px; min-height: 46px; padding: 0 14px; color: hsl(var(--muted-foreground)); border-bottom: 3px solid transparent; font-weight: 600; }
 .auna-export-tabs button.is-active { color: hsl(var(--brand-orange, 24 95% 53%)); border-color: hsl(var(--brand-orange, 24 95% 53%)); }
-.auna-export-tabs button:focus-visible, .auna-export-search:focus-within, .auna-export-name:focus-within { outline: 2px solid hsl(var(--brand-orange, 24 95% 53%)); outline-offset: 2px; }
+.auna-export-tabs button:focus-visible,  .auna-export-name:focus-within { outline: 2px solid hsl(var(--brand-orange, 24 95% 53%)); outline-offset: 2px; }
 .auna-export-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; margin-top: 18px; }
 .auna-export-grid--simple { grid-template-columns: 1fr; }
 .auna-export-panel { min-width: 0; padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 10px; background: hsl(var(--card)); }
 .auna-export-panel-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 14px; font-size: 14px; }
 .auna-export-panel-title span, .auna-export-note { color: hsl(var(--muted-foreground)); font-size: 12px; }
-.auna-export-search { display: flex; align-items: center; gap: 9px; height: 39px; padding: 0 11px; border: 1px solid hsl(var(--input)); border-radius: 7px; color: hsl(var(--muted-foreground)); }
-.auna-export-search input { flex: 1; width: 100%; background: transparent; border: 0; outline: 0; color: hsl(var(--foreground)); font-size: 13px; }
+.auna-export-search { display: flex; align-items: center; gap: 9px; }
+.auna-export-search input { flex: 1; width: 100%; }
 .auna-export-columns { min-height: 90px; max-height: 260px; overflow-y: auto; padding: 10px 2px; }
-.auna-export-columns label, .auna-export-select-all { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 13px; cursor: pointer; }
-.auna-export-select-all { border-top: 1px solid hsl(var(--border)); padding-top: 9px; font-weight: 600; }
+.auna-export-columns label { display: flex; align-items: center; gap: 10px; min-height: 32px; font-size: 13px; cursor: pointer; }
+ .auna-export-select-all { display: flex; align-items: center; gap: 10px; cursor: pointer; }
 .auna-export-presets { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 9px; }
 .auna-export-name { display: block; margin: 8px 0 18px; font-size: 13px; font-weight: 500; }
-.auna-export-name div { display: flex; height: 40px; margin-top: 8px; border: 1px solid hsl(var(--input)); border-radius: 7px; overflow: hidden; }
-.auna-export-name input { min-width: 0; flex: 1; padding: 0 11px; outline: 0; background: transparent; color: inherit; }
+.auna-export-name div { display: flex; margin-top: 8px; overflow: hidden; }
+.auna-export-name input { min-width: 0; flex: 1; }
 .auna-export-name span { display: grid; place-items: center; min-width: 55px; border-left: 1px solid hsl(var(--input)); background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
 .auna-export-options { margin: 10px 0 16px; }
 .auna-export-info { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; padding: 15px; border-radius: 8px; background: hsl(210 90% 58% / .09); color: hsl(var(--foreground)); font-size: 13px; }
@@ -71,8 +71,6 @@
 .auna-import-dialog > .auna-import-steps-wrap { margin: 8px 0 2px; }
 .auna-import-dialog .auna-import-steps { padding: 10px 12px; gap: 6px; }
 .auna-import-dialog .auna-import-steps li { flex-basis: 120px; font-size: 11px; }
-.auna-import-dialog [class*='border-dashed'] { border-color: hsl(var(--brand-orange, 24 95% 53%) / .55); background: hsl(var(--brand-orange, 24 95% 53%) / .035); }
-.auna-import-dialog [class*='border-dashed']:hover { border-color: hsl(var(--brand-orange, 24 95% 53%)); }
 .auna-import-title { margin: 8px 0 4px; font-size: clamp(24px, 2.5vw, 32px); font-weight: 700; letter-spacing: -.035em; }
 .auna-import-subtitle { margin-bottom: 22px; color: hsl(var(--muted-foreground)); font-size: 14px; }
 .auna-import-upload-panel { border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); overflow: hidden; }
@@ -111,8 +109,8 @@
 .auna-import-panel .auna-import-upload-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 20px; }
 .auna-import-fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .auna-import-field { display: block; min-width: 0; color: hsl(var(--foreground)); font-size: 13px; }
-.auna-import-field select { display: block; width: 100%; height: 42px; margin-top: 8px; padding: 0 12px; border: 1px solid hsl(var(--input)); border-radius: 8px; background: hsl(var(--card)); color: hsl(var(--foreground)); font-size: 13px; }
-.auna-import-field select:focus-visible, .auna-import-workbench button:focus-visible, .auna-import-workbench a:focus-visible { outline: 2px solid hsl(var(--brand-orange, 24 95% 53%)); outline-offset: 2px; }
+.auna-import-field select { display: block; width: 100%; margin-top: 8px; }
+ .auna-import-workbench button:focus-visible,  .auna-import-workbench a:focus-visible { outline: 2px solid hsl(var(--brand-orange, 24 95% 53%)); outline-offset: 2px; }
 .auna-import-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .auna-import-totals div { display: flex; flex-direction: column; gap: 4px; padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 9px; }
 .auna-import-totals strong { font-size: 24px; }

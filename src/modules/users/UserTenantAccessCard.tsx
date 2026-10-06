@@ -14,6 +14,7 @@
  * (dónde vende, dónde tiene stock). Solo se editan las empresas a las que el
  * administrador que está viendo la ficha también pertenece.
  */
+import { LoadingState } from '@/components/shared/LoadingState'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -218,9 +219,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
                         <Store className="h-3.5 w-3.5" /> Sucursales en {company?.name ?? 'la empresa activa'}
                     </p>
                     {loading ? (
-                        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-                        </p>
+                        <LoadingState variant="cards" size="sm" message="Cargando sucursales…" />
                     ) : !belongsToActive ? (
                         <p className="text-sm text-muted-foreground">
                             El usuario no pertenece a esta empresa. Actívala arriba para asignarle sucursales.

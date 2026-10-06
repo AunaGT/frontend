@@ -17,7 +17,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { ArrowLeft, Download, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { useAuth } from '@/context/useAuth'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -111,9 +111,7 @@ export const ClosureDetailPage = () => {
     return (
       <div className="p-6 space-y-6">
         {BackButton}
-        <Skeleton className="h-9 w-64" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-40 w-full" />
+        <h1 className="text-xl font-semibold">Detalle del cierre</h1><LoadingState variant="detail" message="Cargando cierre…" />
       </div>
     )
   }
