@@ -87,20 +87,17 @@ export const PayrollRunsManagement = () => {
 
   return (
     <div className="mx-auto max-w-[1520px] space-y-5 p-4 md:p-6">
-      <header className="auna-module-heading">
-        <div><p className="auna-module-eyebrow">Personas</p><h1>Corridas de nómina</h1><p className="auna-module-description">Gestiona y consulta las corridas de nómina por período.</p></div>
-        {canCreate && <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nueva corrida</Button>}
-      </header>
+      <h1 className="sr-only">Corridas de nómina</h1>
 
       <MetricStrip loading={isLoading} label="Última corrida activa" items={[{label:'Empleados · última corrida',value:latest?._count?.payslips ?? 0},{label:'Total bruto',value:money(latest?.total_earnings ?? 0)},{label:'Deducciones',value:money(latest?.total_deductions ?? 0)},{label:'Total neto',value:money(latest?.total_net ?? 0)}]} />
 
-      <CompactFilterPanel title="Filtros de nómina" activeCount={Number(Boolean(search.trim())) + Number(Boolean(month)) + Number(Boolean(status)) + Number(year !== String(new Date().getFullYear()))} onClear={() => {setYear(String(new Date().getFullYear()));setMonth('');setStatus('');setSearch('');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(month ? [{label: `Mes: ${new Intl.DateTimeFormat('es-GT',{month:'long'}).format(new Date(2026,Number(month)-1,1))}`,onRemove: () => {setMonth('');setPage(1)}}] : []),...(status ? [{label: `Estado: ${PAYROLL_STATUS_LABELS[status as PayrollStatus]}`,onRemove: () => {setStatus('');setPage(1)}}] : []),...(year !== String(new Date().getFullYear()) ? [{label: `Año: ${year}`,onRemove: () => {setYear(String(new Date().getFullYear()));setPage(1)}}] : [])]} search={<label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" /><Input aria-label="Buscar corridas" className="pl-9" placeholder="Buscar por período, descripción o código..." value={search} onChange={(e) => update(setSearch)(e.target.value)} /></div></label>}>
+      <CompactFilterPanel actions={<>{canCreate && <Button className="bg-orange-600 text-white hover:bg-orange-700" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nueva corrida</Button>}</>} title="Filtros de nómina" activeCount={Number(Boolean(search.trim())) + Number(Boolean(month)) + Number(Boolean(status)) + Number(year !== String(new Date().getFullYear()))} onClear={() => {setYear(String(new Date().getFullYear()));setMonth('');setStatus('');setSearch('');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(month ? [{label: `Mes: ${new Intl.DateTimeFormat('es-GT',{month:'long'}).format(new Date(2026,Number(month)-1,1))}`,onRemove: () => {setMonth('');setPage(1)}}] : []),...(status ? [{label: `Estado: ${PAYROLL_STATUS_LABELS[status as PayrollStatus]}`,onRemove: () => {setStatus('');setPage(1)}}] : []),...(year !== String(new Date().getFullYear()) ? [{label: `Año: ${year}`,onRemove: () => {setYear(String(new Date().getFullYear()));setPage(1)}}] : [])]} search={<label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" /><Input aria-label="Buscar corridas" className="pl-9" placeholder="Buscar por período, descripción o código..." value={search} onChange={(e) => update(setSearch)(e.target.value)} /></div></label>}>
         <label className="space-y-1 text-xs text-muted-foreground">Año<Input aria-label="Año" type="number" min="2000" max="2100" value={year} onChange={(e) => { setYear(e.target.value); setPage(1) }} /></label>
         <label className="space-y-1 text-xs text-muted-foreground">Mes<select aria-label="Mes" className="auna-control auna-control-select flex w-full px-3" value={month} onChange={(e) => update(setMonth)(e.target.value)}><option value="">Todos</option>{Array.from({ length: 12 }, (_, i) => <option key={i} value={String(i + 1).padStart(2, '0')}>{new Intl.DateTimeFormat('es-GT', { month: 'long' }).format(new Date(2026, i, 1))}</option>)}</select></label>
         <label className="space-y-1 text-xs text-muted-foreground">Estado<select aria-label="Estado" className="auna-control auna-control-select flex w-full px-3" value={status} onChange={(e) => update(setStatus)(e.target.value)}><option value="">Todos</option>{(Object.keys(PAYROLL_STATUS_LABELS) as PayrollStatus[]).map((item) => <option key={item} value={item}>{PAYROLL_STATUS_LABELS[item]}</option>)}</select></label>
       </CompactFilterPanel>
 
-      <Card className="auna-data-table-shell">
+      <><Card className="auna-data-table-shell">
         <CardContent className="p-0">
           {isFetching && data && <LoadingIndicator message="Actualizando corridas…" className="px-4 py-2" />}
           {isError ? (
@@ -144,9 +141,10 @@ export const PayrollRunsManagement = () => {
             </Table>
             </div>
           )}
-          <div className="auna-data-table-pagination"><span>Mostrando {visibleRuns.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, visibleRuns.length)} de {visibleRuns.length} corridas</span><nav aria-label="Paginación de corridas"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div>
+
         </CardContent>
       </Card>
+<div className="auna-pagination-outside"><div className="auna-data-table-pagination"><span>Mostrando {visibleRuns.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, visibleRuns.length)} de {visibleRuns.length} corridas</span><nav aria-label="Paginación de corridas"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div></div></>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent variant="auna" className="max-w-sm">

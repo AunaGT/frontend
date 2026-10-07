@@ -70,15 +70,15 @@
 
 /* Paneles / Tarjetas heredados y compatibles */
 .users-panel, .auna-panel {
-  border: 1px solid hsl(var(--border));
+  border: 1px solid hsl(var(--auna-surface-border));
   border-radius: 12px;
-  background: linear-gradient(120deg, hsl(var(--card)), hsl(var(--card) / 0.86));
+  background: hsl(var(--auna-surface-card));
   overflow: hidden;
-  box-shadow: 0 2px 10px -2px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .dark .users-panel, .dark .auna-panel {
-  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+  box-shadow: none;
 }
 
 .users-panel-heading, .auna-panel-header {

@@ -53,7 +53,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
   });
 
   return (
-    <Card className="min-w-0 rounded-2xl">
+    <><Card className="auna-surface min-w-0 rounded-2xl">
       <CardHeader className="p-4">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Warehouse className="h-4 w-4" aria-hidden="true" /> Existencias por ubicación
@@ -68,7 +68,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
           : query.isLoading ? <LoadingState columns={['Ubicación', 'Existencia', 'Mínimo interno', 'Reposición']} message="Cargando ubicaciones…" />
           : query.isError ? <div role="alert" className="py-6 text-center"><p>No se pudieron cargar las ubicaciones.</p><Button variant="outline" className="mt-3" onClick={() => void query.refetch()}>Reintentar</Button></div>
           : rows.length === 0 ? <EmptyState icon={Warehouse} title="Sin existencias por ubicación" description="Todavía no hay existencias registradas en ubicaciones para este producto en la sucursal seleccionada." />
-          : <div className="auna-data-table-shell" aria-busy={query.isFetching}>
+          : <div className="auna-data-table-shell auna-table-embedded overflow-x-auto" aria-busy={query.isFetching}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -135,7 +135,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
               })}
             </TableBody>
           </Table>
-          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={rows.length} pageSize={pageSize} count={visibleRows.length} itemLabel="ubicaciones" onPageChange={setPage} />
+
         </div>}
         {branch && canMove && (
           <Button variant="outline" size="sm" onClick={() => navigate("/inventario/movimientos")}>
@@ -144,6 +144,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
         )}
       </CardContent>
     </Card>
+      {branch && !query.isLoading && !query.isError && rows.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={rows.length} pageSize={pageSize} count={visibleRows.length} itemLabel="ubicaciones" onPageChange={setPage} /></div>}</>
   );
 };
 

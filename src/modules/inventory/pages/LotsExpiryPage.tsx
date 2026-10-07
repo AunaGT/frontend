@@ -144,24 +144,15 @@ export const LotsExpiryPage = () => {
 
   return (
     <div className="mx-auto grid w-full max-w-[1560px] min-w-0 gap-5 px-4 py-6 sm:px-8">
-      <Button asChild variant="link" className="h-auto justify-self-start p-0 text-muted-foreground">
-        <Link to="/inventario"><ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />Volver a Inventario</Link>
-      </Button>
-      <header className="auna-module-heading">
-        <div>
-          <p className="auna-module-eyebrow">Inventario</p>
-          <h1>Lotes y caducidades</h1>
-          <p className="auna-module-description">Consulta los vencimientos y la existencia disponible de cada lote.</p>
-        </div>
-        {canWriteOff && !isError && !isLoading && expiredCount > 0 && (
+
+      <h1 className="sr-only">Lotes y caducidades</h1>
+
+      <CompactFilterPanel actions={<>{canWriteOff && !isError && !isLoading && expiredCount > 0 && (
           <Button variant="destructive" disabled={isFetching || writeOffMutation.isPending} onClick={() => setConfirming(expired)}>
             <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
             Dar de baja {expiredCount} {expiredCount === 1 ? 'vencido' : 'vencidos'}
           </Button>
-        )}
-      </header>
-
-      <CompactFilterPanel
+        )}</>}
         title="Filtros de lotes"
         activeCount={appliedFilters.length}
         appliedFilters={appliedFilters}
@@ -205,7 +196,7 @@ export const LotsExpiryPage = () => {
         { label: 'Por vencer', value: isLoading ? '—' : expiringCount },
       ]} />}
 
-      <section className="auna-data-table-shell min-w-0" aria-label="Lotes con existencia" aria-busy={isFetching}>
+      <><section className="auna-data-table-shell min-w-0" aria-label="Lotes con existencia" aria-busy={isFetching}>
         {isFetching && !isLoading && <LoadingIndicator message="Actualizando lotes…" className="px-4 py-2" />}
         {isLoading ? <LoadingState columns={['Producto', 'Código de barras', 'Lote', 'Vencimiento', 'Días restantes', 'Existencia del lote', 'Stock (sin lote)', 'Estado', 'Ubicación', 'Acciones']} message="Cargando lotes…" /> : isError ? <div role="alert" className="p-8 text-center">
           <p>No se pudieron cargar los lotes.</p>
@@ -261,9 +252,10 @@ export const LotsExpiryPage = () => {
               })}</TableBody>
             </Table>
           </div>
-          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={lots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={isFetching} />
+
         </>}
       </section>
+      {!isLoading && !isError && lots.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={lots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={isFetching} /></div>}</>
 
       <ConfirmDialog
         appearance="auna"

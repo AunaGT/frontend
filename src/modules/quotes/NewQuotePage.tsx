@@ -362,8 +362,8 @@ export default function NewQuotePage() {
   };
 
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-4 p-4 sm:px-8 sm:py-4">
-    <header className="auna-module-heading"><div><Button variant="link" className="mb-1 min-h-11 p-0 text-muted-foreground" onClick={() => navigate("/cotizaciones")}><ArrowLeft className="mr-2 h-4 w-4" />Cotizaciones</Button><p className="auna-module-eyebrow">Ventas</p><h1>Nueva cotización</h1><p className="auna-module-description">Crea una propuesta comercial para tu cliente de forma rápida y sencilla.</p></div></header>
-    <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-brand-orange" />Cliente y condiciones</CardTitle></CardHeader><CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,.85fr)]">
+    <h1 className="sr-only">Nueva cotización</h1>
+    <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-brand-orange" />Cliente y condiciones</CardTitle></CardHeader><CardContent className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,.85fr)]">
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5 sm:col-span-2"><Label>Buscar cliente</Label><SavedCustomerMany2One valueId={pickedCustomerId} linkedDisplayName={customer} onPick={handlePickCustomer} onClear={handleClearCustomer} /></div>
         <div className="space-y-1.5"><Label htmlFor="customer">Nombre del cliente</Label><Input id="customer" value={customer} onChange={(e) => setCustomer(e.target.value)} /></div>
@@ -381,17 +381,17 @@ export default function NewQuotePage() {
       </div>
     </CardContent></Card>
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Card className="min-w-0"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Productos y servicios</CardTitle></CardHeader><CardContent className="space-y-3">
+      <Card className="auna-surface min-w-0"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Productos y servicios</CardTitle></CardHeader><CardContent className="space-y-3">
           <ProductPicker branchId={branch?.id} money={fmt} onPick={addProduct} />
           {!cartItems.length ? <div className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">Busca un producto para agregarlo a la cotización.</div>
-            : <section className="auna-data-table-shell"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
+            : <section className="auna-data-table-shell auna-table-embedded overflow-x-auto"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
               <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || "Sin código"} · Disponible: {getAvailableQty(line.product)}</p></div></div></TableCell>
               <TableCell><Input type="number" className="w-24" aria-label={`Cantidad de ${line.name}`} min={1} max={getAvailableQty(line.product)} step={1} value={line.qty} onChange={(e) => updateQty(line.id, Number(e.target.value))} /></TableCell><TableCell className="text-right">{fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{fmt(line.price * line.qty)}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id, 0)}><Trash2 className="h-4 w-4" /></Button></TableCell>
             </TableRow>)}</TableBody></Table></section>}
         </CardContent></Card>
       <aside className="space-y-4 xl:sticky xl:top-4">
         <QuoteSummary subtotal={cartTotal} total={cartTotal} money={fmt} />
-        <Card><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas</CardTitle></CardHeader><CardContent><Label htmlFor="notes" className="sr-only">Notas adicionales</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condiciones, entrega o información para el cliente…" /></CardContent></Card>
+        <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas</CardTitle></CardHeader><CardContent><Label htmlFor="notes" className="sr-only">Notas adicionales</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condiciones, entrega o información para el cliente…" /></CardContent></Card>
         <div className="space-y-3"><Button variant="outline" className="h-12 w-full" disabled={isSaving || !cartItems.length} onClick={() => void handleSave()}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar borrador</Button>{canManage && <Button className="h-12 w-full bg-brand-orange text-white hover:bg-brand-orange/90" disabled={isSaving || !cartItems.length} onClick={() => void handleSave(true)}><FileText className="mr-2 h-4 w-4" />Generar cotización</Button>}<Button variant="ghost" className="w-full" disabled={isSaving} onClick={() => navigate("/cotizaciones")}>Cancelar</Button></div>
       </aside>
     </div>

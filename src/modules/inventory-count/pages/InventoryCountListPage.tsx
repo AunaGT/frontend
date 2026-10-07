@@ -38,15 +38,12 @@ export default function InventoryCountListPage() {
   const activeFilterCount = Number(Boolean(search.trim())) + Number(status !== 'all')
   useEffect(() => { if (query.data && page > pages) setPage(pages) }, [query.data, page, pages])
   return <div className="inventory-count-page"><div className="inventory-count-content">
-    <header className="auna-module-heading">
-      <div><p className="auna-module-eyebrow">Inventario</p><h1>Sesiones de conteo</h1><p className="auna-module-description">Gestiona el conteo físico y revisa las diferencias antes de ajustar tus existencias.</p></div>
-      {hasPermission('inventory_count.create') && <Button asChild className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong"><Link to="/inventario/inventariado/nuevo"><Plus className="mr-2 h-4 w-4" />Crear sesión</Link></Button>}
-    </header>
-<CompactFilterPanel title="Filtros de conteos" summary="Nombre, sucursal, almacén, responsable y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }} contentClassName="flex flex-col gap-3 md:flex-row" search={<div className="relative flex-1"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Buscar sesiones" placeholder="Buscar por nombre, sucursal, almacén o responsable…" value={search} onChange={e => setSearch(e.target.value)} /></div>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setQ('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${statusLabel(status as InventoryCountSessionStatus)}`,onRemove: () => {setStatus('all');setPage(1)}}] : [])]}>
+    <h1 className="sr-only">Sesiones de conteo</h1>
+<CompactFilterPanel actions={<>{hasPermission('inventory_count.create') && <Button asChild className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong"><Link to="/inventario/inventariado/nuevo"><Plus className="mr-2 h-4 w-4" />Crear sesión</Link></Button>}</>} title="Filtros de conteos" summary="Nombre, sucursal, almacén, responsable y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }} contentClassName="flex flex-col gap-3 md:flex-row" search={<div className="relative flex-1"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" aria-label="Buscar sesiones" placeholder="Buscar por nombre, sucursal, almacén o responsable…" value={search} onChange={e => setSearch(e.target.value)} /></div>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setQ('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${statusLabel(status as InventoryCountSessionStatus)}`,onRemove: () => {setStatus('all');setPage(1)}}] : [])]}>
 
       <Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger aria-label="Estado" className="md:w-60"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem>{statuses.map(s => <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>)}</SelectContent></Select>
     </CompactFilterPanel>
-    <section className="auna-data-table-shell" aria-label="Sesiones de inventariado" aria-busy={query.isFetching}>
+    <><section className="auna-data-table-shell" aria-label="Sesiones de inventariado" aria-busy={query.isFetching}>
       {query.isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar las sesiones.</p><Button variant="outline" className="mt-3" onClick={() => query.refetch()}>Reintentar</Button></div> : <>
         {query.isFetching && !query.isLoading && <LoadingIndicator message="Actualizando sesiones…" className="px-4 py-2" />}
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Sesión</TableHead><TableHead>Sucursal / almacén</TableHead><TableHead>Responsable</TableHead><TableHead>Progreso</TableHead><TableHead>Estado</TableHead><TableHead>Fecha de creación</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>
@@ -61,8 +58,9 @@ export default function InventoryCountListPage() {
           </TableRow>)}
           {!query.isLoading && !sessions.length && <TableRow><TableCell colSpan={7} className="h-40 text-center text-muted-foreground">No hay sesiones para estos filtros.</TableCell></TableRow>}
         </TableBody></Table></div>
-        {!query.isLoading && <Pagination currentPage={page} totalPages={pages} onPageChange={setPage} totalItems={total} pageSize={pageSize} count={sessions.length} itemLabel="sesiones" loading={query.isFetching} />}
+
       </>}
     </section>
+{query.isError ? null : <div className="auna-pagination-outside">{!query.isLoading && <Pagination currentPage={page} totalPages={pages} onPageChange={setPage} totalItems={total} pageSize={pageSize} count={sessions.length} itemLabel="sesiones" loading={query.isFetching} />}</div>}</>
   </div></div>
 }

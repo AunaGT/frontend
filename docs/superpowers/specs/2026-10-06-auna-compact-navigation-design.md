@@ -1,6 +1,6 @@
 # Auna: navegación y acciones compactas en vistas migradas
 
-Fecha: 2026-10-06. Estado: distribución aprobada en conversación; especificación pendiente de revisión del usuario. No se ha iniciado la implementación de este cambio.
+Fecha: 2026-10-06. Estado: distribución y plan aprobados; implementación aplicada en las carpetas originales, sin commit. Pruebas y compilación aprobadas; revisión independiente interrumpida por límite de uso (hallazgo recibido corregido) y comparación visual real pendiente.
 
 ## Propósito
 
@@ -102,6 +102,6 @@ El catálogo de manifests y las rutas existentes es la fuente del inventario. Co
 9. No abrir navegador/localhost bajo la restricción vigente. Las pruebas estáticas/SSR/CSS y la fixture no certifican el render visual; consignar revisión visual real pendiente.
 10. Trabajar en las mismas carpetas sin reemplazar cambios existentes, sin backend, migraciones, datos de prueba, nueva infraestructura ni publicación.
 
-## Próximo paso
+## Entrega
 
-Revisión y aprobación de esta especificación; después, plan de implementación basado en las rutas y componentes reales. La aprobación de la distribución en conversación no significa que este documento o el plan posterior ya hayan sido revisados.
+La matriz de rutas, variantes, exclusiones y evidencia está en `docs/COMPACT_NAVIGATION_ADOPTION.md`. Se conservan los cambios anteriores y la implementación permanece sin publicar.

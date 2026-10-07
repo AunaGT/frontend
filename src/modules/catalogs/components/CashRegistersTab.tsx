@@ -219,25 +219,14 @@ export function CashRegistersTab() {
 
   return (
     <>
-      <Card className="auna-data-table-shell">
-        <CardHeader className="p-3 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-            <div>
-              <CardTitle className="text-base sm:text-lg">Cajas registradoras</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Gestiona las cajas y sus usuarios en {branch?.name ?? 'la sucursal activa'}.
-                Cambia de sucursal en el selector superior para administrar otra sede.
-              </CardDescription>
-            </div>
-            {canManage && (
+      <><Card className="auna-data-table-shell">
+
+        <CatalogFilters actions={<>{canManage && (
               <Button onClick={openCreate} size="sm" className="h-11 bg-brand-orange text-white hover:bg-brand-orange-strong w-full sm:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva caja
               </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} onClearExtra={() => {setStatus('all');setPage(1)}} extraFilters={status !== 'all' ? [{label: `Estado: ${status === 'active' ? 'Activas' : 'Inactivas'}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
+            )}</>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} onClearExtra={() => {setStatus('all');setPage(1)}} extraFilters={status !== 'all' ? [{label: `Estado: ${status === 'active' ? 'Activas' : 'Inactivas'}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
           <label className="space-y-1 text-xs">Estado de las cajas<select aria-label="Estado de las cajas" value={status} onChange={e => setStatus(e.target.value)} className="auna-control auna-control-select px-3"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
         </CatalogFilters>
         <CardContent className="catalog-content">
@@ -353,8 +342,9 @@ export function CashRegistersTab() {
             </div>
           )}
         </CardContent>
-        {!registersError && !isLoading && <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={filteredRegisters.length} pageSize={10} count={visibleRegisters.length} itemLabel="cajas" />}
+
       </Card>
+<div className="auna-pagination-outside">{!registersError && !isLoading && <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={filteredRegisters.length} pageSize={10} count={visibleRegisters.length} itemLabel="cajas" />}</div></>
 
       <Dialog
         open={dialog.open}

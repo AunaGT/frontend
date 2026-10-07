@@ -44,7 +44,7 @@ const CATEGORY_COLORS = ['#f97316', '#2563eb', '#60a5fa', '#22c55e', '#8b5cf6', 
 const INVENTORY_COLORS = ['#22c55e', '#f97316', '#ef4444']
 
 function DashboardCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <Card className={`rounded-2xl border-border/70 bg-card shadow-sm dark:bg-[#101f34] ${className}`}>{children}</Card>
+  return <Card className={`auna-surface rounded-2xl border-border/70 bg-card ${className}`}>{children}</Card>
 }
 
 function DashboardTooltip({ active, payload, label, currency }: {
@@ -152,13 +152,7 @@ const Analytics = () => {
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
       <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        {isFetching && data && <LoadingIndicator message="Actualizando analítica…" />}<header className="auna-module-heading">
-          <div>
-            <p className="auna-module-eyebrow">Analítica</p>
-            <h1>Dashboard analítico</h1>
-            <p className="auna-module-description">Visión completa de tu negocio con información real.</p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {isFetching && data && <LoadingIndicator message="Actualizando analítica…" />}<h1 className="sr-only">Dashboard analítico</h1><div className="auna-page-toolbar"><div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(value === 'all' ? 'all' : Number(value))}>
               <SelectTrigger className="min-w-56">
                 <CalendarDays className="mr-2 h-5 w-5 text-brand-orange" />
@@ -173,8 +167,7 @@ const Analytics = () => {
               <Button type="button" size="sm" variant="ghost" className={`rounded-lg ${selectedYear === currentYear ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} onClick={() => setSelectedYear(currentYear)}>Este año</Button>
               <Button type="button" size="sm" variant="ghost" className={`rounded-lg ${selectedYear === 'all' ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} onClick={() => setSelectedYear('all')}>Histórico</Button>
             </div>
-          </div>
-        </header>
+          </div></div>
 
         {isError ? (
           <DashboardCard>

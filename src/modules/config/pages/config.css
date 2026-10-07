@@ -45,8 +45,8 @@
 .config-tabs [role="tab"]:focus-visible, .config-filter:focus-visible, .config-pages button:focus-visible { outline: 2px solid hsl(var(--brand-orange)); outline-offset: -2px; }
 .config-tab-content { margin-top: 18px; display: flex; flex-direction: column; gap: 14px; }
 .config-tab-content[hidden] { display: none; }
-.config-panel { border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); box-shadow: 0 3px 16px hsl(var(--foreground) / .035); }
-.dark .config-panel { background: linear-gradient(125deg, hsl(var(--card)), hsl(216 45% 15%)); box-shadow: 0 8px 28px hsl(220 80% 4% / .24); }
+.config-panel { border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); box-shadow: none; }
+.dark .config-panel { background: hsl(var(--auna-surface-card)); box-shadow: none; }
 .config-panel [class*="CardHeader"] { padding-bottom: 12px; }
 .config-panel h3 { font-size: 18px; letter-spacing: -.02em; }
 .config-company-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(300px, 1fr); gap: 20px 28px; align-items: start; }
@@ -90,7 +90,7 @@
 .config-filter { display: inline-flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 16px; border: 1px solid hsl(var(--border)); border-radius: 8px; color: hsl(var(--muted-foreground)); background: hsl(var(--card)); font-size: 13px; }
 .config-filter[data-active="true"] { background: hsl(var(--brand-orange)); border-color: hsl(var(--brand-orange)); color: white; box-shadow: 0 3px 14px hsl(var(--brand-orange) / .22); }
 .config-sort { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.config-module-table-wrap { overflow-x: auto; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); }
+.config-module-table-wrap { overflow-x: auto; border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); }
 .config-module-table { width: 100%; min-width: 880px; border-collapse: collapse; text-align: left; }
 .config-module-table th { padding: 15px 16px; border-bottom: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
 .config-module-table td { padding: 14px 16px; border-bottom: 1px solid hsl(var(--border)); color: hsl(var(--foreground)); font-size: 13px; }

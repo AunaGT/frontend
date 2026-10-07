@@ -12,6 +12,7 @@
  *  - Fila 1: Roles asignados (Asignar rol) + Empresas asignadas (Asignar empresa)
  *  - Fila 2: Permisos del usuario (Buscador + Filtro + Tabla) + Actividad reciente (Ver toda + Tabla) + Acciones de seguridad (Lista + Eliminar)
  */
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { LoadingState, LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -97,6 +98,7 @@ export default function UserDetailPage() {
 
   // Modo edición inline
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === '1')
+  usePageTrail([{ label: 'Detalle' }, ...(isEditing && canEdit ? [{ label: 'Editar' }] : activeTab !== 'summary' ? [{ label: USER_DETAIL_TABS.find(item => item.key === activeTab)?.label || 'Detalle' }] : [])])
   const [isSaving, setIsSaving] = useState(false)
   const [editName, setEditName] = useState('')
   const [editEmail, setEditEmail] = useState('')
@@ -228,16 +230,14 @@ export default function UserDetailPage() {
 
   if (isLoading && !user) {
     return (
-      <main className="users-page space-y-4"><Link className="users-muted text-sm" to="/usuarios">← Usuarios</Link><h1 className="text-xl font-semibold">Detalle de usuario</h1><LoadingState variant="detail" message="Cargando usuario…" /></main>
+      <main className="users-page space-y-4"><h1 className="sr-only">Detalle de usuario</h1><LoadingState variant="detail" message="Cargando usuario…" /></main>
     )
   }
 
   if (!user) {
     return (
       <main className="users-page space-y-4">
-        <Link className="users-muted text-sm" to="/usuarios">
-          ← Usuarios
-        </Link>
+
         <p className="text-destructive font-medium">Usuario no encontrado.</p>
       </main>
     )
@@ -263,20 +263,10 @@ export default function UserDetailPage() {
     <main className="users-page">
       {isLoading && <LoadingIndicator message="Actualizando usuario…" />}
       {/* Breadcrumb */}
-      <Link to="/usuarios" className="text-xs users-muted hover:text-foreground transition-colors inline-flex items-center gap-1 mb-2">
-        <span>←</span> Usuarios
-      </Link>
+
 
       {/* Encabezado Principal */}
-      <header className="users-heading auna-module-heading mb-6">
-        <div>
-          <p className="auna-module-eyebrow">Administración</p>
-          <h1>Detalle de usuario y roles</h1>
-          <p className="auna-module-description">
-            Consulta y administra la información del usuario, sus roles, permisos y actividad en la plataforma.
-          </p>
-        </div>
-        <div className="flex items-center gap-2.5">
+      <h1 className="sr-only">Detalle de usuario y roles</h1><div className="auna-page-toolbar"><div className="flex items-center gap-2.5">
           {canEdit && (
             <button
               type="button"
@@ -325,8 +315,7 @@ export default function UserDetailPage() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-        </div>
-      </header>
+        </div></div>
 
       {/* ══════════ TARJETA DE IDENTIDAD ══════════ */}
       <AunaPanel className="mb-6">
@@ -714,7 +703,7 @@ export default function UserDetailPage() {
 
       {/* ─── PESTAÑA ROLES Y PERMISOS ─── */}
       {activeTab === 'roles' && (
-        <AunaPanel title="Permisos asignados y efectivos" icon={Shield}>
+        <><AunaPanel title="Permisos asignados y efectivos" icon={Shield}>
           {user.role ? (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -752,12 +741,13 @@ export default function UserDetailPage() {
                   </tbody>
                 </table>
               </div>
-              <PageFooter page={permissionPage} totalPages={Math.max(1, Math.ceil(allPermissions.length / 10))} total={allPermissions.length} pageSize={10} onChange={setPermissionPage} />
+
             </div>
           ) : (
             <p className="users-muted text-xs text-center py-8">Este usuario no tiene un rol asignado.</p>
           )}
         </AunaPanel>
+{user.role ? <div className="auna-pagination-outside"><PageFooter page={permissionPage} totalPages={Math.max(1, Math.ceil(allPermissions.length / 10))} total={allPermissions.length} pageSize={10} onChange={setPermissionPage} /></div>: null}</>
       )}
 
       {/* ─── PESTAÑA EMPRESAS ─── */}
@@ -772,7 +762,7 @@ export default function UserDetailPage() {
 
       {/* ─── PESTAÑA ACTIVIDAD ─── */}
       {activeTab === 'activity' && (
-        <AunaPanel title="Historial completo de auditoría y actividad" icon={Clock}>
+        <><AunaPanel title="Historial completo de auditoría y actividad" icon={Clock}>
           <div className="overflow-x-auto">
             <table className="auna-table">
               <thead>
@@ -790,8 +780,9 @@ export default function UserDetailPage() {
 </tbody>
             </table>
           </div>
-        {activity.data && <PageFooter page={activityPage} totalPages={activity.data.totalPages} total={activity.data.totalItems} pageSize={10} onChange={setActivityPage}/>}
+
         </AunaPanel>
+<div className="auna-pagination-outside">{activity.data && <PageFooter page={activityPage} totalPages={activity.data.totalPages} total={activity.data.totalItems} pageSize={10} onChange={setActivityPage}/>}</div></>
       )}
 
       {/* ─── PESTAÑA SEGURIDAD ─── */}

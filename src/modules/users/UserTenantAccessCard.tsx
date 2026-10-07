@@ -151,7 +151,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
     }
 
     return (
-        <Card>
+        <Card className="auna-surface">
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-base">
                     <Building2 className="h-4 w-4" /> Acceso a empresas y sucursales
@@ -219,7 +219,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
                         <Store className="h-3.5 w-3.5" /> Sucursales en {company?.name ?? 'la empresa activa'}
                     </p>
                     {loading ? (
-                        <LoadingState variant="cards" size="sm" message="Cargando sucursales…" />
+                        <LoadingState variant="cards" className="auna-loading-embedded" size="sm" message="Cargando sucursales…" />
                     ) : !belongsToActive ? (
                         <p className="text-sm text-muted-foreground">
                             El usuario no pertenece a esta empresa. Actívala arriba para asignarle sucursales.

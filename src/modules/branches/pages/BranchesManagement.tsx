@@ -1,6 +1,7 @@
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Building2, ChevronLeft, ChevronRight, MapPin, Package, Pencil, Plus, Search } from 'lucide-react'
@@ -33,6 +34,7 @@ export default function BranchesManagement() {
   const canManage = hasPermission('branches.manage')
   const canViewAll = canManage || hasPermission('branches.view_all') || hasPermission('users.view')
   const [tab, setTab] = useState<'companies' | 'branches' | 'warehouses'>('branches')
+  usePageTrail([{ label: tab === 'companies' ? 'Empresas' : tab === 'warehouses' ? 'Almacenes' : 'Sucursales' }])
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [order, setOrder] = useState('name')
@@ -63,13 +65,13 @@ export default function BranchesManagement() {
   const save = () => { if (!editBranch || !editForm.name.trim()) return; updateMutation.mutate({ id: editBranch.id, payload: { ...editForm, name: editForm.name.trim(), manager_user_id: editForm.manager_user_id || null } }) }
 
   return <main className="branches-page">
-    <header className="branches-heading auna-module-heading"><div><p className="branches-eyebrow auna-module-eyebrow">ADMINISTRACIÓN</p><h1>Empresas, sucursales y almacenes</h1><p className="auna-module-description">Gestiona sedes, espacios de inventario y sus responsables desde un solo lugar.</p></div>{tab === 'branches' && canManage && <Button className="branches-primary" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Nueva sucursal</Button>}</header>
+    <h1 className="sr-only">Empresas, sucursales y almacenes</h1>
     <nav className="branches-tabs" aria-label="Secciones del módulo"><button type="button" data-active={tab === 'companies'} onClick={() => setTab('companies')}>Empresas</button><button type="button" data-active={tab === 'branches'} onClick={() => setTab('branches')}>Sucursales</button><button type="button" data-active={tab === 'warehouses'} onClick={() => setTab('warehouses')}>Almacenes</button></nav>
 
     {tab === 'companies' && <CompaniesCard canManage={hasPermission('companies.manage')} activeBranches={branches} onAddBranch={() => { setTab('branches'); setCreateOpen(true) }} />}
     {tab === 'branches' && <>
       <MetricStrip loading={branchesQuery.isLoading || warehousesQuery.isLoading} label="Resumen de sucursales" items={[{label:'Sucursales',value:branches.length},{label:'Almacenes visibles',value:warehousesQuery.isError ? '—' : warehouses.length},...(['operating','maintenance','inactive'] as const).map(key => ({label:labelOf[key],value:counts[key],active:status === key,onClick: () => {setStatus(status === key ? 'all' : key);setPage(1)}}))]} />
-      <CompactFilterPanel title="Filtros de sucursales" activeCount={Number(Boolean(search.trim())) + Number(status !== 'all') + Number(order !== 'name')} onClear={() => {setSearch('');setStatus('all');setOrder('name');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${labelOf[status as keyof typeof labelOf]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []),...(order !== 'name' ? [{label:'Orden: Código',onRemove: () => {setOrder('name');setPage(1)}}] : [])]} search={<label className="auna-control-group branches-search"><Search className="h-4 w-4" /><Input aria-label="Buscar sucursales" placeholder="Buscar por nombre, dirección o responsable..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></label>}>
+      <CompactFilterPanel actions={<>{tab === 'branches' && canManage && <Button className="branches-primary" onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4" /> Nueva sucursal</Button>}</>} title="Filtros de sucursales" activeCount={Number(Boolean(search.trim())) + Number(status !== 'all') + Number(order !== 'name')} onClear={() => {setSearch('');setStatus('all');setOrder('name');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${labelOf[status as keyof typeof labelOf]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []),...(order !== 'name' ? [{label:'Orden: Código',onRemove: () => {setOrder('name');setPage(1)}}] : [])]} search={<label className="auna-control-group branches-search"><Search className="h-4 w-4" /><Input aria-label="Buscar sucursales" placeholder="Buscar por nombre, dirección o responsable..." value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></label>}>
         <select className="auna-control auna-control-select" aria-label="Empresa" value={company?.id || ''} onChange={(event) => { setCompany(event.target.value); setPage(1) }}>{companies.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
         <select className="auna-control auna-control-select" aria-label="Estado de sucursal" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option value="all">Todos los estados</option><option value="operating">Operativas</option><option value="maintenance">En mantenimiento</option><option value="inactive">Inactivas</option></select>
         <select className="auna-control auna-control-select" aria-label="Ordenar sucursales" value={order} onChange={(event) => setOrder(event.target.value)}><option value="name">Ordenar por: Nombre</option><option value="code">Ordenar por: Código</option></select>

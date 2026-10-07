@@ -187,11 +187,7 @@ export default function MyProfilePage() {
       />
 
       {/* Encabezado */}
-      <header className="auna-module-heading mb-6"><div>
-        <p className="auna-module-eyebrow">Administración</p>
-        <h1>Mi perfil</h1>
-        <p className="auna-module-description">Administra tu información, seguridad y preferencias</p>
-      </div></header>
+      <h1 className="sr-only">Mi perfil</h1>
 
       <div className="space-y-5">
         {/* ══════════ FILA 1: Tarjeta Usuario + Datos Personales ══════════ */}
@@ -397,7 +393,7 @@ export default function MyProfilePage() {
             }
           >
             <div className="divide-y divide-border/40">
-              {sessionsQuery.isLoading && <LoadingState variant="cards" message="Cargando sesiones…" />}
+              {sessionsQuery.isLoading && <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando sesiones…" />}
               {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <button onClick={() => void sessionsQuery.refetch()}>Reintentar</button></p>}
               {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <p className="users-muted py-4">No hay sesiones registradas.</p>}
               {displayedSessions.map((session) => {

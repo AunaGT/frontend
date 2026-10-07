@@ -5,6 +5,7 @@
  */
 
 import { LoadingState } from '@/components/shared/LoadingState'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useState, useEffect, useMemo } from 'react'
 import { format as formatDate } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -76,6 +77,7 @@ export default function ConfigManagement() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTab, setActiveTab] = useState('general')
+  usePageTrail([{ label: ({general:'Preferencias de empresa',experience:'Experiencia de venta',fiscal:'Datos fiscales',denominations:'Cierre de caja',modules:'Módulos','hr-documents':'Expedientes de empleados'} as Record<string,string>)[activeTab] || 'Configuración' }])
   const [settings, setSettings] = useState<SystemSettings>({})
   const [form, setForm] = useState({
     company_name: '',
@@ -353,17 +355,13 @@ export default function ConfigManagement() {
 
   if (loading) {
     return (
-      <main className="config-page space-y-5"><header className="auna-module-heading"><h1>Configuración</h1></header><LoadingState variant="page" message="Cargando configuración…" /></main>
+      <main className="config-page space-y-5"><h1 className="sr-only">Configuración</h1><LoadingState variant="page" message="Cargando configuración…" /></main>
     )
   }
 
   return (
     <div className="config-page">
-      <header className="config-page-heading auna-module-heading"><div>
-        <p className="config-eyebrow auna-module-eyebrow">CONFIGURACIÓN · {company?.name ?? 'Empresa activa'}</p>
-        <h1>{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
-        <p className="auna-module-description">{activeTab === 'modules' ? 'Gestiona la activación comercial y las dependencias de esta empresa.' : `Personaliza el funcionamiento de ${company?.name ?? 'tu empresa'} según sus necesidades.`}</p>
-      </div></header>
+      <h1 className="sr-only">{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="config-tabs-root">
         <TabsList className="config-tabs">

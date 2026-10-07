@@ -308,12 +308,10 @@ export default function IncomingMerchandiseDetailPage() {
   if (!id) {
     return (
       <div className="p-6">
-        <Card>
+        <Card className="auna-surface">
           <CardContent className="p-12 text-center">
             <p className="text-muted-foreground mb-4">Registro no especificado.</p>
-            <Button variant="outline" asChild>
-              <Link to="/mercancia">Volver a registros</Link>
-            </Button>
+
           </CardContent>
         </Card>
       </div>
@@ -323,7 +321,7 @@ export default function IncomingMerchandiseDetailPage() {
   if (isLoading) {
     return (
       <div className="merchandise-page mx-auto max-w-[1560px] space-y-5 p-6">
-        <Button variant="ghost" asChild><Link to="/mercancia"><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Link></Button>
+
         <LoadingState variant="detail" message="Cargando entrada de mercancía…" />
       </div>
     )
@@ -334,14 +332,12 @@ export default function IncomingMerchandiseDetailPage() {
       error instanceof Error ? error.message : 'No se pudo cargar el registro.'
     return (
       <div className="p-6">
-        <Card>
+        <Card className="auna-surface">
           <CardContent className="p-12 text-center space-y-4">
             <Package className="w-16 h-16 mx-auto text-muted-foreground" />
             <h3 className="text-lg font-semibold">No se encontró el registro</h3>
             <p className="text-muted-foreground text-sm">{msg}</p>
-            <Button variant="outline" asChild>
-              <Link to="/mercancia">Volver a registros</Link>
-            </Button>
+
           </CardContent>
         </Card>
       </div>
@@ -367,10 +363,11 @@ export default function IncomingMerchandiseDetailPage() {
 
   const visibleItems = detailData.items.slice((itemsPage - 1) * 10, itemsPage * 10)
   return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-    <Button variant="ghost" className="-ml-3" onClick={() => navigate('/mercancia')}><ArrowLeft className="mr-2 h-4 w-4" />Mercancía</Button>
-    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Entrada de mercadería</h1><p className="auna-module-description">Registro {detailData.id.slice(0,8).toUpperCase()} · {formatDateShort(detailData.date)}</p></div><PaymentStatusBadge status={detailData.payment_status} /></header>
+
+    <h1 className="sr-only">Entrada de mercadería</h1><div className="auna-page-toolbar"><p className="auna-module-description">Registro {detailData.id.slice(0,8).toUpperCase()} · {formatDateShort(detailData.date)}</p>
+<PaymentStatusBadge status={detailData.payment_status} /></div>
     {isFetching && <LoadingIndicator message="Actualizando entrada de mercancía…" />}
-    <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Proveedor</p><p className="flex items-center gap-2 font-semibold"><Building2 className="h-4 w-4 text-brand-orange" />{detailData.supplier.name}</p><p className="text-sm text-muted-foreground">{[detailData.supplier.contact, detailData.supplier.phone, detailData.supplier.email].filter(Boolean).join(' · ')}</p></div>
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Recepción</p><p className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-brand-orange" />{formatDate(detailData.date)}</p><p className="text-sm text-muted-foreground">{detailData.items.length} productos recibidos</p></div>
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Registrado por</p><p className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-brand-orange" />{detailData.registeredBy.name}</p><p className="text-sm text-muted-foreground">{detailData.registeredBy.email}</p></div>
@@ -378,17 +375,18 @@ export default function IncomingMerchandiseDetailPage() {
     <Tabs defaultValue="items"><TabsList><TabsTrigger value="items">Partidas ({detailData.items.length})</TabsTrigger><TabsTrigger value="payments">Pagos y condiciones</TabsTrigger></TabsList>
       <TabsContent value="items" className="mt-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0 space-y-5">
-          <section className="auna-data-table-shell"><h2 className="border-b p-4 font-semibold">Productos recibidos</h2><div className="overflow-x-auto"><table className="w-full min-w-[660px]"><thead><tr><th>Producto</th><th>Código</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>{visibleItems.map(item => <tr key={item.id}><td><div className="flex items-center gap-3">{item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} loading="lazy" className="h-11 w-11 shrink-0 rounded-lg border object-cover" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<div><strong className="font-medium">{item.product.name}</strong><small className="block text-muted-foreground">{[item.product.brand,item.product.size].filter(Boolean).join(' · ')}</small></div></div></td><td>{item.product.barcode || '—'}</td><td>{item.quantity}</td><td className="whitespace-nowrap">{formatCurrency(item.unit_cost)}</td><td className="whitespace-nowrap font-medium">{formatCurrency(item.subtotal)}</td></tr>)}</tbody></table></div><Pagination currentPage={itemsPage} totalPages={Math.max(1, Math.ceil(detailData.items.length / 10))} onPageChange={setItemsPage} totalItems={detailData.items.length} pageSize={10} count={visibleItems.length} itemLabel="productos" /></section>
-          {detailData.notes && <Card><CardHeader className="pb-2"><CardTitle className="text-base">Observaciones</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm">{detailData.notes}</p></CardContent></Card>}
+          <><section className="auna-data-table-shell"><h2 className="border-b p-4 font-semibold">Productos recibidos</h2><div className="overflow-x-auto"><table className="w-full min-w-[660px]"><thead><tr><th>Producto</th><th>Código</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>{visibleItems.map(item => <tr key={item.id}><td><div className="flex items-center gap-3">{item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} loading="lazy" className="h-11 w-11 shrink-0 rounded-lg border object-cover" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<div><strong className="font-medium">{item.product.name}</strong><small className="block text-muted-foreground">{[item.product.brand,item.product.size].filter(Boolean).join(' · ')}</small></div></div></td><td>{item.product.barcode || '—'}</td><td>{item.quantity}</td><td className="whitespace-nowrap">{formatCurrency(item.unit_cost)}</td><td className="whitespace-nowrap font-medium">{formatCurrency(item.subtotal)}</td></tr>)}</tbody></table></div></section>
+<div className="auna-pagination-outside"><Pagination currentPage={itemsPage} totalPages={Math.max(1, Math.ceil(detailData.items.length / 10))} onPageChange={setItemsPage} totalItems={detailData.items.length} pageSize={10} count={visibleItems.length} itemLabel="productos" /></div></>
+          {detailData.notes && <Card className="auna-surface"><CardHeader className="pb-2"><CardTitle className="text-base">Observaciones</CardTitle></CardHeader><CardContent><p className="whitespace-pre-wrap text-sm">{detailData.notes}</p></CardContent></Card>}
         </div><aside className="space-y-5">
-          <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen de costos</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><span>{detailData.items.length}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades recibidas</span><span>{detailData.items.reduce((sum,item)=>sum+Number(item.quantity),0)}</span></div><div className="flex justify-between border-t pt-4 font-bold"><span>Total</span><span className="text-brand-orange">{formatCurrency(detailData.totalValue)}</span></div></CardContent></Card>
-          <Card><CardHeader className="pb-3"><CardTitle className="text-lg">Pago al proveedor</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Pagado</span><span>{formatCurrency(amountPaid)}</span></div><div className="flex justify-between text-sm font-semibold"><span>Saldo pendiente</span><span>{formatCurrency(amountPending)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Porcentaje pagado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(payProgressPct)}><div className="h-full rounded-full bg-emerald-500" style={{ width: `${payProgressPct}%` }} /></div><p className="text-xs text-muted-foreground">{detailData.payment_term?.name || 'Sin término de pago'}{detailData.due_date ? ` · Vence ${formatDateShort(detailData.due_date)}` : ''}</p></CardContent></Card>
+          <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen de costos</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><span>{detailData.items.length}</span></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades recibidas</span><span>{detailData.items.reduce((sum,item)=>sum+Number(item.quantity),0)}</span></div><div className="flex justify-between border-t pt-4 font-bold"><span>Total</span><span className="text-brand-orange">{formatCurrency(detailData.totalValue)}</span></div></CardContent></Card>
+          <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="text-lg">Pago al proveedor</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Pagado</span><span>{formatCurrency(amountPaid)}</span></div><div className="flex justify-between text-sm font-semibold"><span>Saldo pendiente</span><span>{formatCurrency(amountPending)}</span></div><div className="h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="Porcentaje pagado" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(payProgressPct)}><div className="h-full rounded-full bg-emerald-500" style={{ width: `${payProgressPct}%` }} /></div><p className="text-xs text-muted-foreground">{detailData.payment_term?.name || 'Sin término de pago'}{detailData.due_date ? ` · Vence ${formatDateShort(detailData.due_date)}` : ''}</p></CardContent></Card>
         </aside></div>
       </TabsContent>
       <TabsContent value="payments" className="mt-5 space-y-5">
         {showPaymentEditForm ? (
           <div className="grid items-start gap-5 xl:grid-cols-2">
-            <Card>
+            <Card className="auna-surface">
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Abonos al proveedor</CardTitle>
                 <CardDescription>
@@ -416,7 +414,7 @@ export default function IncomingMerchandiseDetailPage() {
                   </p>
                 </div>
                 {entries.length > 0 && (
-                  <div className="auna-data-table-shell overflow-x-auto">
+                  <div className="auna-data-table-shell auna-table-embedded overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-muted/80">
                         <tr>
@@ -519,7 +517,7 @@ export default function IncomingMerchandiseDetailPage() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="auna-surface">
               <CardHeader className="pb-3">
                 <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                   <div>
@@ -684,7 +682,7 @@ export default function IncomingMerchandiseDetailPage() {
             </Card>
           </div>
         ) : (
-          <div className="space-y-4 rounded-lg border bg-muted/30 p-4">
+          <div className="auna-surface space-y-4 rounded-lg border p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <Label className="text-base font-medium flex items-center gap-2">
                 <Banknote className="w-4 h-4" />
@@ -717,7 +715,7 @@ export default function IncomingMerchandiseDetailPage() {
                     style={{ width: `${payProgressPct}%` }}
                   />
                 </div>
-                <div className="auna-data-table-shell overflow-x-auto text-sm">
+                <div className="auna-data-table-shell auna-table-embedded overflow-x-auto text-sm">
                   <table className="w-full">
                     <thead className="bg-muted/80">
                       <tr>

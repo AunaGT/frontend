@@ -11,7 +11,6 @@
 /**
  * DenominationsCounter - Cash denominations counter
  */
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import type { Denomination } from '../types'
@@ -56,9 +55,7 @@ export const DenominationsCounter = ({
                     </p>
                 )}
             </div>
-            <Card>
-                <CardContent className="pt-6">
-                    <div className="space-y-3">
+                    <div className="space-y-3 border-t pt-4">
                         <div className="grid grid-cols-4 gap-2 font-semibold text-sm">
                             <div>Denominación</div>
                             <div>Tipo</div>
@@ -85,8 +82,6 @@ export const DenominationsCounter = ({
                             <output className="auna-field-value-inline text-xl font-bold">{formatCurrency(cashTotal, currencyCode, locale)}</output>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
         </div>
     )
 }

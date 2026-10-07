@@ -1,9 +1,11 @@
 <!doctype html>
 <html lang="es">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prueba visual de tablas Auna</title><link rel="stylesheet" href="/src/index.css"><link rel="stylesheet" href="/src/modules/users/users.css"><link rel="stylesheet" href="/src/modules/alerts/pages/alerts.css"><link rel="stylesheet" href="/src/modules/config/pages/config.css"><link rel="stylesheet" href="/src/modules/branches/pages/branches.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Prueba visual de tablas Auna</title><link rel="stylesheet" href="/src/index.css"><link rel="stylesheet" href="/src/components/shared/surfaces.css"><link rel="stylesheet" href="/src/components/ui/form-controls.css"><link rel="stylesheet" href="/src/components/shared/compactList.css"><link rel="stylesheet" href="/src/components/layout/pageNavigation.css"><link rel="stylesheet" href="/src/modules/users/users.css"><link rel="stylesheet" href="/src/modules/alerts/pages/alerts.css"><link rel="stylesheet" href="/src/modules/config/pages/config.css"><link rel="stylesheet" href="/src/modules/branches/pages/branches.css"></head>
 <body>
   <main style="display:grid;grid-template-columns:minmax(0,1fr);gap:24px;padding:24px;max-width:1100px;margin:auto">
-    <header class="auna-module-heading"><div><p class="auna-module-eyebrow">Administración</p><h1>Usuarios y roles</h1><p class="auna-module-description">Gestiona el acceso a tu empresa.</p></div><button>Nueva cuenta</button></header>
+    <h1 class="sr-only">Usuarios y roles</h1>
+    <nav class="auna-page-breadcrumbs" aria-label="Navegación de la vista"><ol><li><a href="/usuarios">Usuarios</a></li><li><span aria-hidden="true">›</span><span aria-current="page">Roles y permisos</span></li></ol></nav>
+    <section class="compact-filter-toolbar" aria-label="Búsqueda y acciones"><div class="flex flex-wrap items-end gap-2"><div class="compact-filter-search min-w-0 flex-1"><input class="auna-control" aria-label="Buscar usuarios" placeholder="Buscar usuarios…"></div><button class="auna-form-action-outline">Filtros</button><div class="compact-filter-actions"><button class="auna-form-action-primary">Nuevo usuario</button></div></div></section>
     <section class="auna-data-table-shell" aria-label="Tabla clara">
       <table class="auna-data-table"><thead><tr><th>Período</th><th>Empleado</th><th>Total neto</th><th>Acciones</th></tr></thead><tbody><tr><td>Septiembre 2026</td><td>Ejemplo</td><td>Q 1,250.00</td><td><button aria-label="Ver ejemplo">Ver</button></td></tr></tbody></table>
       <footer class="auna-data-table-pagination"><span>Mostrando 1 de 1</span><nav aria-label="Paginación"><button aria-label="Página anterior" disabled>‹</button><button aria-current="page">1</button><button aria-label="Página siguiente" disabled>›</button></nav></footer>
@@ -13,11 +15,23 @@
     <section class="config-page"><div class="config-module-table-wrap"><table class="config-module-table"><thead><tr><th>Módulo</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activo</td></tr></tbody></table></div></section>
     <section class="branches-page"><div class="branches-warehouse-table"><table><thead><tr><th>Almacén</th><th>Estado</th></tr></thead><tbody><tr><td>Ejemplo</td><td>Activo</td></tr></tbody></table></div></section>
     <section class="dark" style="padding:24px;background:#0b132b;color:white">
+      <nav class="auna-page-breadcrumbs" aria-label="Navegación de la vista"><ol><li><a href="/inventario">Inventario</a></li><li><span aria-hidden="true">›</span><span aria-current="page">Lotes y caducidades</span></li></ol></nav>
+      <section class="branches-page"><div class="auna-page-toolbar compact-filter-toolbar"><input class="auna-control" aria-label="Buscar sucursales" placeholder="Buscar sucursales…"><div class="compact-filter-actions"><button class="auna-form-action-primary">Nueva sucursal</button></div></div><article class="auna-surface rounded-xl border p-4">Sucursal Principal</article></section>
+      <div class="auna-surface-flat" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:24px">
+        <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px"><h2>Venta V-001</h2><p>Cliente de ejemplo</p><strong>Q 445.00</strong></article>
+        <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px"><h2>Venta V-002</h2><p>Cliente de ejemplo</p><strong>Q 125.00</strong></article>
+      </div>
+      <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px;margin-bottom:24px"><h2>Productos del pedido</h2><div class="auna-data-table-shell auna-table-embedded"><table class="auna-data-table"><thead><tr><th>Producto</th><th>Cantidad</th></tr></thead><tbody><tr><td>Producto de ejemplo</td><td>2</td></tr></tbody></table></div></article>
       <div class="auna-data-table-shell" aria-label="Tabla oscura">
         <table class="auna-data-table"><thead><tr><th>Período</th><th>Empleado</th><th>Total neto</th><th>Acciones</th></tr></thead><tbody><tr><td>Septiembre 2026</td><td>Ejemplo</td><td>Q 1,250.00</td><td><button aria-label="Ver ejemplo">Ver</button></td></tr></tbody></table>
         <footer class="auna-data-table-pagination"><span>Mostrando 1 de 1</span><nav aria-label="Paginación"><button aria-label="Página anterior" disabled>‹</button><button aria-current="page">1</button><button aria-label="Página siguiente" disabled>›</button></nav></footer>
       </div>
     </section>
+    <div class="auna-surface-flat" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+      <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px"><h2>Venta V-001</h2><p>Cliente de ejemplo</p><strong>Q 445.00</strong></article>
+      <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px"><h2>Venta V-002</h2><p>Cliente de ejemplo</p><strong>Q 125.00</strong></article>
+    </div>
+    <article class="auna-surface" style="border:1px solid hsl(var(--auna-surface-border));border-radius:12px;padding:20px"><h2>Productos del pedido</h2><div class="auna-data-table-shell auna-table-embedded"><table class="auna-data-table"><thead><tr><th>Producto</th><th>Cantidad</th></tr></thead><tbody><tr><td>Producto de ejemplo</td><td>2</td></tr></tbody></table></div></article>
   </main>
 </body>
 </html>

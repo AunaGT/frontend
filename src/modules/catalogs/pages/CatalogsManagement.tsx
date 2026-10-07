@@ -9,6 +9,7 @@
  */
 
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -102,6 +103,7 @@ export function CatalogsManagement() {
   const requestedTab = searchParams.get('tab')
   const activeTab = ['categories', 'payment-terms', 'cash-registers', 'payment-methods'].includes(requestedTab ?? '') ? requestedTab! : 'categories'
   const setActiveTab = (tab: string) => setSearchParams({ tab }, { replace: true })
+  usePageTrail([{ label: ({categories:'Categorías','cash-registers':'Cajas','payment-methods':'Métodos de pago','payment-terms':'Términos de pago'} as Record<string,string>)[activeTab] || 'Datos maestros' }])
   const [showDeleted, setShowDeleted] = useState(false)
 
   // Payment Terms Dialog State
@@ -121,13 +123,7 @@ export function CatalogsManagement() {
 
   return (
     <div className="catalogs-page space-y-6">
-      <header className="auna-module-heading"><div>
-        <p className="auna-module-eyebrow">Configuración</p>
-        <h1>Datos maestros</h1>
-        <p className="auna-module-description">
-          Administra las categorías, cajas y condiciones de pago de tu negocio.
-        </p>
-      </div></header>
+      <h1 className="sr-only">Datos maestros</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
@@ -216,7 +212,7 @@ function PaymentTermsTab({
   const { search, setSearch, query } = useCatalogSearch()
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
-  
+
   const { data: paymentTermsData, isLoading, isFetching, error: termsError } = usePaymentTerms({
     page: currentPage,
     pageSize,
@@ -268,14 +264,9 @@ function PaymentTermsTab({
   }
 
   return (
-    <Card className="auna-data-table-shell">
-      <CardHeader className="p-3 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-          <div>
-            <CardTitle className="text-lg sm:text-xl">Términos de Pago</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Administra los términos disponibles</CardDescription>
-          </div>
-          <div className="flex gap-2">
+    <><Card className="auna-data-table-shell">
+
+      <CatalogFilters actions={<><div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -305,10 +296,7 @@ function PaymentTermsTab({
                 </Button>
               </>
             )}
-          </div>
-        </div>
-      </CardHeader>
-      <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+          </div></>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
       <CardContent className="catalog-content">
         {isFetching && paymentTermsData && <LoadingIndicator message="Actualizando términos de pago…" />}
         {termsError ? <p role="alert" className="p-6 text-destructive">{termsError.message}</p> : (
@@ -362,22 +350,7 @@ function PaymentTermsTab({
             </TableBody>
           </Table>
         )}
-        {paymentTermsData && paymentTermsData.totalPages > 0 && paymentTermsData.totalItems > 0 && (
-          <div className="mt-4">
-            <Pagination
-              currentPage={paymentTermsData.page}
-              totalPages={paymentTermsData.totalPages}
-              onPageChange={setCurrentPage}
-              hasNextPage={paymentTermsData.nextPage !== null}
-              hasPrevPage={paymentTermsData.prevPage !== null}
-              loading={isLoading}
-              totalItems={paymentTermsData.totalItems}
-              pageSize={pageSize}
-              count={paymentTerms.length}
-              itemLabel="términos de pago"
-            />
-          </div>
-        )}
+
       </CardContent>
 
       <AlertDialog
@@ -441,6 +414,22 @@ function PaymentTermsTab({
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+<div className="auna-pagination-outside">{paymentTermsData && paymentTermsData.totalPages > 0 && paymentTermsData.totalItems > 0 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={paymentTermsData.page}
+              totalPages={paymentTermsData.totalPages}
+              onPageChange={setCurrentPage}
+              hasNextPage={paymentTermsData.nextPage !== null}
+              hasPrevPage={paymentTermsData.prevPage !== null}
+              loading={isLoading}
+              totalItems={paymentTermsData.totalItems}
+              pageSize={pageSize}
+              count={paymentTerms.length}
+              itemLabel="términos de pago"
+            />
+          </div>
+        )}</div></>
   )
 }
 
@@ -468,7 +457,7 @@ function ProductCategoriesTab({
   const { search, setSearch, query } = useCatalogSearch()
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
-  
+
   const { data: categoriesData, isLoading, isFetching, error: categoriesError } = useProductCategories({
     page: currentPage,
     pageSize,
@@ -520,14 +509,9 @@ function ProductCategoriesTab({
   }
 
   return (
-    <Card className="auna-data-table-shell">
-      <CardHeader className="p-3 sm:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-          <div>
-            <CardTitle className="text-lg sm:text-xl">Categorías</CardTitle>
-            <CardDescription className="text-xs sm:text-sm">Administra las categorías disponibles</CardDescription>
-          </div>
-          <div className="flex gap-2">
+    <><Card className="auna-data-table-shell">
+
+      <CatalogFilters actions={<><div className="flex gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -557,10 +541,7 @@ function ProductCategoriesTab({
                 </Button>
               </>
             )}
-          </div>
-        </div>
-      </CardHeader>
-      <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+          </div></>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
       <CardContent className="catalog-content">
         {isFetching && categoriesData && <LoadingIndicator message="Actualizando categorías…" />}
         {categoriesError ? <p role="alert" className="p-6 text-destructive">{categoriesError.message}</p> : (
@@ -628,22 +609,7 @@ function ProductCategoriesTab({
             </TableBody>
           </Table>
         )}
-        {categoriesData && categoriesData.totalPages > 0 && categoriesData.totalItems > 0 && (
-          <div className="mt-4">
-            <Pagination
-              currentPage={categoriesData.page}
-              totalPages={categoriesData.totalPages}
-              onPageChange={setCurrentPage}
-              hasNextPage={categoriesData.nextPage !== null}
-              hasPrevPage={categoriesData.prevPage !== null}
-              loading={isLoading}
-              totalItems={categoriesData.totalItems}
-              pageSize={pageSize}
-              count={categories.length}
-              itemLabel="categorías"
-            />
-          </div>
-        )}
+
       </CardContent>
 
       <AlertDialog
@@ -707,6 +673,22 @@ function ProductCategoriesTab({
         </AlertDialogContent>
       </AlertDialog>
     </Card>
+<div className="auna-pagination-outside">{categoriesData && categoriesData.totalPages > 0 && categoriesData.totalItems > 0 && (
+          <div className="mt-4">
+            <Pagination
+              currentPage={categoriesData.page}
+              totalPages={categoriesData.totalPages}
+              onPageChange={setCurrentPage}
+              hasNextPage={categoriesData.nextPage !== null}
+              hasPrevPage={categoriesData.prevPage !== null}
+              loading={isLoading}
+              totalItems={categoriesData.totalItems}
+              pageSize={pageSize}
+              count={categories.length}
+              itemLabel="categorías"
+            />
+          </div>
+        )}</div></>
   )
 }
 

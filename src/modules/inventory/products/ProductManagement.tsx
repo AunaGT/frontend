@@ -356,11 +356,43 @@ const ProductManagement = () => {
     return (
         <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
             {/* Header */}
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0 flex-1">
-                    <h2 className="text-lg sm:text-2xl font-bold text-foreground">Inventario</h2>
-                </div>
-                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+            <h1 className="sr-only">Inventario</h1>
+
+            <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Escáner de códigos</DialogTitle>
+                        <DialogDescription>Ingrese el código de barras manualmente</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="text-center">
+                            <QrCode className="w-24 h-24 mx-auto text-muted-foreground mb-4" />
+                        </div>
+                        <div>
+                            <Label htmlFor="scannedCode">Código de barras</Label>
+                            <Input
+                                id="scannedCode"
+                                placeholder="7501001234567"
+                                value={scannedCode}
+                                onChange={(e) => setScannedCode(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && searchByBarcode()}
+                            />
+                        </div>
+                        <div className="flex gap-2">
+                            <Button variant="outline" className="flex-1" onClick={() => setIsScannerOpen(false)}>
+                                Cancelar
+                            </Button>
+                            <Button className="flex-1" onClick={searchByBarcode}>
+                                Buscar
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <div className="space-y-3">
+
+                <CompactFilterPanel actions={<div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -452,51 +484,10 @@ const ProductManagement = () => {
                             <span className="hidden sm:inline">Nuevo producto</span>
                         </Button>
                     )}
-                </div>
-            </div>
-
-            <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Escáner de códigos</DialogTitle>
-                        <DialogDescription>Ingrese el código de barras manualmente</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="text-center">
-                            <QrCode className="w-24 h-24 mx-auto text-muted-foreground mb-4" />
-                        </div>
-                        <div>
-                            <Label htmlFor="scannedCode">Código de barras</Label>
-                            <Input
-                                id="scannedCode"
-                                placeholder="7501001234567"
-                                value={scannedCode}
-                                onChange={(e) => setScannedCode(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && searchByBarcode()}
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" className="flex-1" onClick={() => setIsScannerOpen(false)}>
-                                Cancelar
-                            </Button>
-                            <Button className="flex-1" onClick={searchByBarcode}>
-                                Buscar
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
-
-            <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_minmax(0,2fr)]">
-                <Card className="rounded-2xl border-border/70 shadow-sm">
-                    <CardContent className="p-3">
-                        <div className="relative">
+                </div>} search={<div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input placeholder="Buscar por nombre, marca o código..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10" />
-                        </div>
-                    </CardContent>
-                </Card>
-                <CompactFilterPanel title="Alcance del inventario" summary="Categoría, sucursal, almacén y ubicación" activeCount={activeAdvancedFilters} onClear={resetAdvancedFilters} appliedFilters={[...(categoryFilter !== 'all' ? [{label: `Categoría: ${categoryFilter}`,onRemove: () => setCategoryFilter('all')}] : []),...(scopeBranch !== 'all' ? [{label: `Sucursal: ${branches.find(b => b.id === scopeBranch)?.name || 'Seleccionada'}`,onRemove: () => {setScopeBranch('all');setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeWarehouse !== 'all' ? [{label: `Almacén: ${scopeWarehouses.find(w => w.id === scopeWarehouse)?.name || 'Seleccionado'}`,onRemove: () => {setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeLocation !== 'all' ? [{label: `Ubicación: ${scopeLocations.find(l => l.id === scopeLocation)?.code || 'Seleccionada'}`,onRemove: () => setScopeLocation('all')}] : [])]} contentClassName="flex flex-wrap items-center gap-3">
+                        </div>} title="Alcance del inventario" summary="Categoría, sucursal, almacén y ubicación" activeCount={activeAdvancedFilters} onClear={resetAdvancedFilters} appliedFilters={[...(categoryFilter !== 'all' ? [{label: `Categoría: ${categoryFilter}`,onRemove: () => setCategoryFilter('all')}] : []),...(scopeBranch !== 'all' ? [{label: `Sucursal: ${branches.find(b => b.id === scopeBranch)?.name || 'Seleccionada'}`,onRemove: () => {setScopeBranch('all');setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeWarehouse !== 'all' ? [{label: `Almacén: ${scopeWarehouses.find(w => w.id === scopeWarehouse)?.name || 'Seleccionado'}`,onRemove: () => {setScopeWarehouse('all');setScopeLocation('all')}}] : []),...(scopeLocation !== 'all' ? [{label: `Ubicación: ${scopeLocations.find(l => l.id === scopeLocation)?.code || 'Seleccionada'}`,onRemove: () => setScopeLocation('all')}] : [])]} contentClassName="flex flex-wrap items-center gap-3">
                     <Select value={categoryFilter} onValueChange={setCategoryFilter}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Categoría" /></SelectTrigger><SelectContent>{categories.map(category => <SelectItem key={category} value={category}>{category === 'all' ? 'Todas las categorías' : category}</SelectItem>)}</SelectContent></Select>
                     <Select value={scopeBranch} onValueChange={(v) => { setScopeBranch(v); setScopeWarehouse('all'); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><Store className="mr-2 h-4 w-4" /><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todas las sucursales</SelectItem>{branches.map((branch) => <SelectItem key={branch.id} value={branch.id}>{branch.name}</SelectItem>)}</SelectContent></Select>
                     {scopeWarehouses.length > 1 && <Select value={scopeWarehouse} onValueChange={(v) => { setScopeWarehouse(v); setScopeLocation('all') }}><SelectTrigger className="min-w-48 flex-1"><SelectValue placeholder="Almacén" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los almacenes</SelectItem>{scopeWarehouses.map((warehouse) => <SelectItem key={warehouse.id} value={warehouse.id}>{scopeBranch === 'all' && warehouse.branch ? `${warehouse.branch.name} · ` : ''}{warehouse.name}</SelectItem>)}</SelectContent></Select>}
@@ -506,7 +497,7 @@ const ProductManagement = () => {
             </div>
 
             {/* Products View (table or cards) */}
-            <Card>
+            <><Card className={viewMode === 'cards' ? 'auna-surface-flat' : 'auna-surface'}>
                 <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                     <CardTitle>Productos ({totalItems})</CardTitle>
                     <ModuleTabBar items={[{ value: 'table', label: '', icon: Table2 }, { value: 'cards', label: '', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de productos" onValueChange={(value) => { setViewMode(value); if (value === 'cards') setSelectedIds([]) }} />
@@ -661,7 +652,7 @@ const ProductManagement = () => {
                                             key={product.id}
                                             role="button"
                                             tabIndex={0}
-                                            className="border border-border rounded-xl p-3 sm:p-3.5 bg-card/95 shadow-sm hover:shadow-md hover:border-border/80 transition-all animate-slide-up cursor-pointer text-left flex flex-col min-h-0"
+                                            className="auna-surface border rounded-xl p-3 sm:p-3.5 hover:border-brand-orange/50 transition-all animate-slide-up cursor-pointer text-left flex flex-col min-h-0"
                                             style={{ animationDelay: `${index * 50}ms` }}
                                             onClick={() => viewProduct(product)}
                                             onKeyDown={(e) => {
@@ -749,7 +740,12 @@ const ProductManagement = () => {
                             )}
 
                             {/* Pagination + page size */}
-                            <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
+
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
+{!isLoading && !isError && <div className="auna-pagination-outside"><div className="flex flex-wrap items-center justify-between gap-4 mt-4">
                                 <div className="flex items-center gap-2">
                                     <span className="text-sm text-muted-foreground">Items por página:</span>
                                     <Select
@@ -776,11 +772,7 @@ const ProductManagement = () => {
                                         loading={isFetching}
                                     />
                                 )}
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
+                            </div></div>}</>
 
             {/* Export PDF Dialog — columnas del reporte de inventario */}
             <ExportDialog

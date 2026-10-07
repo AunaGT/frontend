@@ -293,23 +293,16 @@ export const TransfersManagement = () => {
     return (
         <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
             <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-                <header className="auna-module-heading">
-                    <div>
-                        <p className="auna-module-eyebrow">Inventario</p>
-                        <h1>Traslados</h1>
-                        <p className="auna-module-description">Gestiona movimientos de productos entre sucursales y almacenes.</p>
-                    </div>
-                    <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                <h1 className="sr-only">Traslados</h1>
+
+<CompactFilterPanel actions={<><div className="flex items-center gap-2 self-stretch sm:self-auto">
                         <ModuleTabBar items={[{ value: 'table', label: '', icon: Table2 }, { value: 'cards', label: '', icon: LayoutGrid }]} value={view} ariaLabel="Vista de traslados" onValueChange={setView} />
                         {canCreate && branch ? (
                             <Button size="lg" className="h-12 flex-1 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong sm:flex-none" onClick={() => setCreateOpen(true)}>
                                 <Plus className="mr-2 h-5 w-5" />Nuevo traslado
                             </Button>
                         ) : null}
-                    </div>
-                </header>
-
-<CompactFilterPanel title="Filtros de traslados" summary="Folio, producto, origen, destino y estado" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(320px,2fr)_repeat(3,minmax(170px,1fr))]" search={<div className="relative min-w-[320px] flex-[2_1_480px]">
+                    </div></>} title="Filtros de traslados" summary="Folio, producto, origen, destino y estado" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(320px,2fr)_repeat(3,minmax(170px,1fr))]" search={<div className="relative min-w-[320px] flex-[2_1_480px]">
                         <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" />
                         <Input className="pl-10" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar por folio, producto, origen o destino…" />
                     </div>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(origin !== 'all' ? [{label: `Origen: ${branches.find(b => b.id === origin)?.name || 'Seleccionado'}`,onRemove: () => {setOrigin('all');setPage(1)}}] : []),...(destination !== 'all' ? [{label: `Destino: ${branches.find(b => b.id === destination)?.name || 'Seleccionado'}`,onRemove: () => {setDestination('all');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${({EN_TRANSITO:'En tránsito',RECIBIDA:'Recibidos',CANCELADA:'Cancelados'} as Record<string,string>)[status] || status}`,onRemove: () => {setStatus('all');setPage(1)}}] : [])]}>
@@ -326,7 +319,7 @@ export const TransfersManagement = () => {
                     <EmptyState filtered={hasFilters} onCreate={canCreate && branch ? () => setCreateOpen(true) : undefined} />
                 ) : (
                     <>
-                        {visibleViews.table ? <div className="auna-data-table-shell">
+                        {visibleViews.table ? <><div className="auna-data-table-shell">
                             <div className="overflow-x-auto"><table className="w-full min-w-[1120px] text-sm">
                                 <thead className="bg-muted/60 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground dark:bg-white/5"><tr><th className="px-5 py-4">Folio</th><th className="px-5 py-4">Fecha</th><th className="px-5 py-4">Origen</th><th className="w-8 px-1 py-4" aria-label="Dirección" /><th className="px-5 py-4">Destino</th><th className="px-5 py-4">Productos</th><th className="px-5 py-4">Estado</th><th className="px-5 py-4 text-right">Acciones</th></tr></thead>
                                 <tbody className="divide-y divide-border/70">
@@ -354,12 +347,13 @@ export const TransfersManagement = () => {
                                     })}
                                 </tbody>
                             </table></div>
-                            {!transferQuery.isLoading && <TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} />}
-                        </div> : null}
+
+                        </div>
+<div className="auna-pagination-outside">{!transferQuery.isLoading && <TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} />}</div></> : null}
 
                         {visibleViews.cards ? <div className="grid gap-4 lg:grid-cols-2">
                             {transferQuery.isLoading ? <div className="lg:col-span-2"><LoadingState variant="cards" message="Cargando traslados…" /></div> : transfers.map((transfer) => (
-                                <button key={transfer.id} type="button" className="w-full rounded-2xl border border-border/70 bg-card p-4 text-left shadow-sm transition active:scale-[0.99] dark:bg-[#101f34]" onClick={() => setSelected(transfer)}>
+                                <button key={transfer.id} type="button" className="auna-surface w-full rounded-2xl border p-4 text-left transition active:scale-[0.99]" onClick={() => setSelected(transfer)}>
                                     <div className="flex items-start justify-between gap-3"><div><strong className="text-lg">{transfer.reference}</strong><p className="text-xs text-muted-foreground">{dateTime(transfer.sent_at)}</p></div><StatusBadge status={transfer.status} /></div>
                                     <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3"><div className="flex min-w-0 gap-2"><Building2 className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm font-semibold">{transfer.fromBranch?.name}</p><p className="text-xs text-muted-foreground">Origen</p></div></div><ArrowRight className="h-5 w-5 text-muted-foreground" /><div className="flex min-w-0 gap-2"><Building2 className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm font-semibold">{transfer.toBranch?.name}</p><p className="text-xs text-muted-foreground">Destino</p></div></div></div>
                                     <div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><span className="flex items-center gap-2 text-sm"><Package className="h-5 w-5 text-muted-foreground" /><span><strong>{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} unidades</small></span></span><ChevronRight className="h-5 w-5 text-muted-foreground" /></div>
@@ -367,7 +361,7 @@ export const TransfersManagement = () => {
                             ))}
                         </div> : null}
 
-                        {visibleViews.cards && !transferQuery.isLoading ? <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm dark:bg-[#101f34]"><TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} /></div> : null}
+                        {visibleViews.cards && !transferQuery.isLoading ? <div className="auna-surface-flat"><TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} /></div> : null}
                     </>
                 )}
             </div>

@@ -173,6 +173,7 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
 
   return (
     <section className="min-w-0 space-y-4" aria-labelledby="product-lots-heading">
+      <div className="auna-surface rounded-xl border p-4 sm:p-5 space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 id="product-lots-heading" className="text-xl font-semibold tracking-tight">Lotes y caducidades</h2>
@@ -223,7 +224,7 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
         </div>
       </CompactFilterPanel>
 
-      <div className="auna-data-table-shell" aria-busy={query.isFetching}>
+      <div className="auna-data-table-shell auna-table-embedded overflow-x-auto" aria-busy={query.isFetching}>
         {query.isFetching && !query.isLoading && <LoadingIndicator message="Actualizando lotes…" className="px-4 py-2" />}
         {query.isLoading ? <LoadingState columns={['Lote', 'Almacén / ubicación', 'Vencimiento', 'Existencia', 'Estado', ...(canManage ? ['Acciones'] : [])]} message="Cargando lotes…" /> : query.isError ? <div role="alert" className="p-8 text-center">
           <p>No se pudieron cargar los lotes del producto.</p>
@@ -261,9 +262,11 @@ export function ProductLotsSection({ productId, tracksExpiry, onMutated }: Props
               })}</TableBody>
             </Table>
           </div>
-          <Pagination currentPage={safePage} totalPages={totalPages} totalItems={filteredLots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={query.isFetching} />
+
         </>}
       </div>
+      </div>
+      {!query.isLoading && !query.isError && filteredLots.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={filteredLots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={query.isFetching} /></div>}
 
       <FormDialog
         appearance="auna"

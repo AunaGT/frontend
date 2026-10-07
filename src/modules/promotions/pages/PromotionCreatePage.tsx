@@ -276,11 +276,11 @@ export default function PromotionCreatePage() {
 
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="auna-module-heading"><div><button type="button" className="mb-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-orange" onClick={() => navigate('/promociones')}><ArrowLeft className="h-4 w-4" />Promociones</button><p className="auna-module-eyebrow">Ventas</p><h1>Nueva promoción</h1><p className="auna-module-description">Crea y configura una promoción para impulsar tus ventas.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-create-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promoción</Button></div></header>
+      <h1 className="sr-only">Nueva promoción</h1><div className="auna-page-toolbar"><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-create-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promoción</Button></div></div>
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
       <form id="promotion-create-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
-        <Card>
+        <Card className="auna-surface">
           <CardHeader>
             <CardTitle className="text-base">1. Información general</CardTitle>
             <CardDescription>Nombre, tipo y descripción de la promoción</CardDescription>
@@ -365,7 +365,7 @@ export default function PromotionCreatePage() {
           selectedType?.name === 'MIN_QTY_DISCOUNT' ||
           selectedType?.name === 'FREE_GIFT' ||
           selectedType?.name === 'COMBO_DISCOUNT') && (
-          <Card>
+          <Card className="auna-surface">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 {selectedType?.name === 'PERCENTAGE' && <Percent className="w-4 h-4" />}
@@ -475,7 +475,7 @@ export default function PromotionCreatePage() {
               )}
 
               {selectedType?.name === 'FREE_GIFT' && (
-                <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                <div className="space-y-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
                     Cuando el cliente compre el producto activador, recibirá gratis el producto regalo.
                   </p>
@@ -495,7 +495,7 @@ export default function PromotionCreatePage() {
               )}
 
               {selectedType?.name === 'COMBO_DISCOUNT' && (
-                <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                <div className="space-y-4 border-t pt-4">
                   <p className="text-sm text-muted-foreground">
                     Cuando el cliente compre el producto A, obtiene descuento en el producto B.
                   </p>
@@ -534,7 +534,7 @@ export default function PromotionCreatePage() {
         )}
 
         {/* Fechas y límites */}
-        <Card>
+        <Card className="auna-surface">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -653,7 +653,7 @@ export default function PromotionCreatePage() {
           </CardContent>
         </Card>
 
-        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de promoción</CardTitle><CardDescription>Genera códigos automáticamente o ingrésalos manualmente.</CardDescription></CardHeader><CardContent className="space-y-4">
+        <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de promoción</CardTitle><CardDescription>Genera códigos automáticamente o ingrésalos manualmente.</CardDescription></CardHeader><CardContent className="space-y-4">
           <div className="flex gap-2"><Button type="button" variant={codeMode === 'auto' ? 'default' : 'outline'} size="sm" onClick={() => setCodeMode('auto')}><Shuffle className="mr-1 h-4 w-4" />Generar</Button><Button type="button" variant={codeMode === 'manual' ? 'default' : 'outline'} size="sm" onClick={() => setCodeMode('manual')}><Pencil className="mr-1 h-4 w-4" />Manual</Button></div>
           {codeMode === 'auto' ? <div className="grid gap-4 sm:grid-cols-2"><div><Label htmlFor="codeCount">Cantidad de códigos</Label><Input id="codeCount" type="number" min={1} max={100} value={codeCount} onChange={(event) => setCodeCount(event.target.value)} className="mt-1" /></div><div><Label htmlFor="codePrefix">Prefijo (opcional)</Label><Input id="codePrefix" value={codePrefix} onChange={(event) => setCodePrefix(event.target.value.toUpperCase())} className="mt-1 uppercase" /></div></div> : <div className="space-y-2"><Label htmlFor="manualCode">Códigos manuales</Label><div className="flex gap-2"><Input id="manualCode" value={newManualCode} onChange={(event) => setNewManualCode(event.target.value.toUpperCase())} placeholder="Escribe un código" className="font-mono uppercase" onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addManualCode() } }} /><Button type="button" onClick={addManualCode} aria-label="Añadir código"><Plus className="h-4 w-4" /></Button></div><div className="flex flex-wrap gap-2">{manualCodes.map((code) => <span key={code} className="inline-flex items-center gap-1 rounded bg-muted px-2 py-1 font-mono text-sm">{code}<button type="button" className="rounded p-1 hover:bg-muted-foreground/20" onClick={() => removeManualCode(code)} aria-label={`Quitar código ${code}`}><X className="h-3 w-3" /></button></span>)}</div></div>}
         </CardContent></Card>

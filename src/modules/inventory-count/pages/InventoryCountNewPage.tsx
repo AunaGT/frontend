@@ -140,11 +140,11 @@ export default function InventoryCountNewPage() {
 
   return <div className="inventory-count-page inventory-count-new"><div className="inventory-count-content">
     <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")} disabled={createMut.isPending}><ArrowLeft className="mr-2 h-4 w-4" />Sesiones de conteo</Button>
-    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>Nuevo conteo</h1><p className="auna-module-description">Define qué vas a contar y revisa los parámetros antes de comenzar.</p></div></header>
+    <h1 className="sr-only">Nuevo conteo</h1>
     <form onSubmit={e => { e.preventDefault(); createMut.mutate() }}>
       <fieldset disabled={createMut.isPending} className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
         <div className="min-w-0">
-          <Card><CardHeader className="p-4"><CardTitle className="flex items-center gap-3 text-base"><ClipboardList className="h-5 w-5 text-brand-orange" />Información del conteo</CardTitle></CardHeader><CardContent className="space-y-4 p-4 pt-0">
+          <Card className="auna-surface"><CardHeader className="p-4"><CardTitle className="flex items-center gap-3 text-base"><ClipboardList className="h-5 w-5 text-brand-orange" />Información del conteo</CardTitle></CardHeader><CardContent className="space-y-4 p-4 pt-0">
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="space-y-2"><Label>Sucursal</Label><Input value={currentBranch?.name || "Selecciona una sucursal en el encabezado"} readOnly aria-label="Sucursal del conteo" /></div>
               <div className="space-y-2"><Label htmlFor="count-warehouse">Almacén</Label><Select value={warehouseId} onValueChange={setWarehouseId} disabled={warehouseLoading || warehouseError}><SelectTrigger id="count-warehouse"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los almacenes</SelectItem>{warehouses.map(w => <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>)}</SelectContent></Select>{warehouseError && <p role="alert" className="text-xs text-destructive">No se cargaron los almacenes. <button type="button" className="underline" onClick={() => reloadWarehouses()}>Reintentar</button></p>}</div>
@@ -166,7 +166,7 @@ export default function InventoryCountNewPage() {
             <div className="space-y-2"><Label htmlFor="count-notes">Notas (opcional)</Label><Textarea id="count-notes" value={notes} maxLength={2000} onChange={e => setNotes(e.target.value)} placeholder="Indicaciones para el conteo…" rows={2} /></div>
           </CardContent></Card>
         </div>
-        <Card className="auna-count-summary self-start lg:sticky lg:top-4"><CardHeader className="p-4"><CardTitle className="text-base">Resumen del conteo</CardTitle></CardHeader><CardContent className="p-4 pt-0"><dl>
+        <Card className="auna-surface auna-count-summary self-start lg:sticky lg:top-4"><CardHeader className="p-4"><CardTitle className="text-base">Resumen del conteo</CardTitle></CardHeader><CardContent className="p-4 pt-0"><dl>
           <div><dt>Sucursal</dt><dd>{currentBranch?.name || "Sin seleccionar"}</dd></div><div><dt>Almacén</dt><dd>{warehouses.find(w => w.id === warehouseId)?.name || "Todos los almacenes"}</dd></div>
           <div><dt>Alcance</dt><dd>{scopeMode === "full" ? "Todo el inventario" : `${selCategories.size} categorías / ${selSuppliers.size} proveedores`}</dd></div>
           <div><dt>Grupos por valor</dt><dd>{[...selAbc].join(", ") || "Todos"}</dd></div><div><dt>Muestra</dt><dd>{samplePercentStr || "100"}%</dd></div><div><dt>Doble conteo</dt><dd>{doubleCount ? "Sí" : "No"}</dd></div><div><dt>Aprobaciones</dt><dd>{dualApproval ? "Dos personas" : "Una persona"}</dd></div>

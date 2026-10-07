@@ -31,7 +31,7 @@ export function PromotionPreview({ name, description, typeName, percentage, amou
   const headline = typeName === 'PERCENTAGE' || typeName === 'MIN_QTY_DISCOUNT' ? `${percentage || '0'}% de descuento` : typeName === 'FIXED_AMOUNT' ? `${money(Number(amount) || 0)} de descuento` : getFriendlyTypeName(typeName || '')
   const selectedBranches = branches.filter((branch) => branchIds.includes(branch.id))
 
-  return <aside className="rounded-2xl border border-border/70 bg-card p-4 shadow-sm dark:bg-[#101f34] lg:sticky lg:top-6 lg:self-start" aria-label="Vista previa de promoción">
+  return <aside className="auna-surface-flat lg:sticky lg:top-6 lg:self-start" aria-label="Vista previa de promoción">
     <h2 className="mb-4 flex items-center gap-2 text-base font-semibold"><Percent className="h-5 w-5 text-brand-orange" />Vista previa</h2>
     <div className="overflow-hidden rounded-xl border bg-brand-surface dark:bg-brand-navy">
       <div className="relative min-h-52 overflow-hidden bg-gradient-to-br from-brand-navy via-[#14345c] to-brand-orange p-6 text-white">

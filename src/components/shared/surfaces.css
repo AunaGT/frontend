@@ -1,0 +1,63 @@
+/* Explicit adoption only: legacy screens and form-control tokens stay unchanged. */
+:root {
+  --auna-surface-card: 0 0% 100%;
+  --auna-surface-border: 215 30% 82%;
+  --auna-surface-header: 215 35% 94%;
+  --auna-surface-muted: 219 25% 38%;
+}
+.dark {
+  --auna-surface-card: 214 36% 22%;
+  --auna-surface-border: 214 25% 38%;
+  --auna-surface-header: 214 34% 26%;
+  --auna-surface-muted: 215 25% 78%;
+}
+.auna-surface {
+  background: hsl(var(--auna-surface-card));
+  border-color: hsl(var(--auna-surface-border));
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
+}
+.auna-surface .text-muted-foreground,
+.auna-data-table-shell .text-muted-foreground {
+  color: hsl(var(--auna-surface-muted));
+}
+.auna-surface-flat.auna-surface-flat {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.auna-data-table-shell.overflow-x-auto { overflow-x: auto; }
+.auna-data-table-shell.auna-table-embedded {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.auna-table-embedded .auna-loading-table { border: 0; }
+.auna-data-table-shell .auna-loading-table { border: 0; }
+.auna-data-table-shell .auna-loading-state > .auna-loading-status { border: 0; border-radius: 0; }
+.auna-section-list > .auna-section-row {
+  border: 0;
+  border-top: 1px solid hsl(var(--auna-surface-border));
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.auna-section-list > .auna-section-row:first-child { border-top: 0; }
+.auna-section-list > .auna-section-row-interactive:hover { background: hsl(var(--muted) / .5); }
+.auna-section-list > .auna-section-row-interactive:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.auna-loading-embedded .auna-loading-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.auna-loading-embedded > .auna-loading-status { border: 0; border-radius: 0; }
+
+/* Navigation is a sibling of results, never part of their frame or scroller. */
+.auna-pagination-outside { min-width: 0; margin-top: 12px; }
+.auna-pagination-outside:empty { display: none; }
+.auna-pagination-outside.auna-pagination-outside :is(.auna-data-table-pagination, .users-footer, .alerts-table-footer, .auna-import-pagination) {
+  border-top: 0;
+  padding: 12px 0;
+  margin: 0;
+  background: transparent;
+}
+.auna-pagination-outside nav { flex-wrap: wrap; }
+.auna-pagination-outside > .border-t { border-top: 0; padding-inline: 0; }
+.auna-pagination-outside > .mt-4 { margin-top: 0; }

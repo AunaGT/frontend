@@ -11,7 +11,6 @@
 /**
  * PaymentMethodsForm - Form for entering actual payment amounts
  */
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,7 +33,7 @@ export const PaymentMethodsForm = ({
 }: PaymentMethodsFormProps) => {
     const { currencyCode, locale } = useSystemSettings()
     return (
-        <div className="space-y-4">
+        <div className="auna-section-list">
             <h3 className="font-semibold">Desglose por Método de Pago</h3>
             {paymentBreakdown.map((item, index) => {
                 const isCash =
@@ -43,8 +42,7 @@ export const PaymentMethodsForm = ({
                     cashSession.opening_float > 0
 
                 return (
-                    <Card key={item.payment_method_id}>
-                        <CardContent className="pt-6">
+                    <section key={item.payment_method_id} className="auna-section-row py-4">
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h4 className="font-medium">{item.payment_method_name}</h4>
@@ -111,8 +109,7 @@ export const PaymentMethodsForm = ({
                                     />
                                 </div>}
                             </div>
-                        </CardContent>
-                    </Card>
+                    </section>
                 )
             })}
         </div>

@@ -157,24 +157,14 @@ export default function SupplierCreatePage() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/contactos')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Nuevo contacto</h1>
-            <p className="text-sm text-muted-foreground">Alta de proveedor o cliente</p>
-          </div>
-        </div>
-      </div>
+      <h1 className="sr-only">Nuevo contacto</h1>
 
-      <Card>
+      <Card className="auna-surface">
         <CardHeader>
           <CardTitle>Información del contacto</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="rounded-lg border bg-muted/20 p-4 space-y-5">
+          <div className="border-b pb-5 space-y-5">
             <div className="space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Tipo de relación con el negocio

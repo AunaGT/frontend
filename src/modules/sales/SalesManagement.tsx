@@ -162,37 +162,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
     return (
         <div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
             {/* Header */}
-            <header className="auna-module-heading">
-                <div className='min-w-0'>
-                    <p className="auna-module-eyebrow">Ventas</p>
-                    <h1>Ventas</h1>
-                    <p className="auna-module-description">Consulta las ventas, sus pagos y devoluciones desde un solo lugar.</p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                    {canAccessCashClosure && (
-                        <Button
-                            variant='outline'
-                            onClick={handleCashClosure}
-                            disabled={isValidatingClosure}
-                            className="h-12 rounded-xl px-4"
-                        >
-                            <Calculator className="h-4 w-4" aria-hidden="true" />
-                            <span>
-                                {isValidatingClosure ? 'Validando...' : 'Cierre de Caja'}
-                            </span>
-                        </Button>
-                    )}
-                    {canCreateSale && (
-                        <Button
-                            className="h-12 rounded-xl bg-brand-orange px-6 text-white hover:bg-brand-orange/90"
-                            onClick={() => navigate('/ventas/nueva')}
-                        >
-                            <Plus className="h-4 w-4" aria-hidden="true" />
-                            Nueva venta
-                        </Button>
-                    )}
-                </div>
-            </header>
+            <h1 className="sr-only">Ventas</h1>
 
             {canCreateSale && hasPendingSaleDraft && (
                 <Alert className="border-amber-500/50 bg-amber-500/5">
@@ -231,7 +201,30 @@ const SalesManagement = (_props: SalesManagementProps) => {
             {salesData.summaryError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">No se pudo cargar el resumen del período.<Button variant="outline" size="sm" onClick={salesData.refreshSales}>Reintentar</Button></div>}
 
             {/* Filters */}
-            <SalesFilters
+            <SalesFilters actions={<><div className="flex flex-wrap items-center gap-2">
+                    {canAccessCashClosure && (
+                        <Button
+                            variant='outline'
+                            onClick={handleCashClosure}
+                            disabled={isValidatingClosure}
+                            className="h-12 rounded-xl px-4"
+                        >
+                            <Calculator className="h-4 w-4" aria-hidden="true" />
+                            <span>
+                                {isValidatingClosure ? 'Validando...' : 'Cierre de Caja'}
+                            </span>
+                        </Button>
+                    )}
+                    {canCreateSale && (
+                        <Button
+                            className="h-12 rounded-xl bg-brand-orange px-6 text-white hover:bg-brand-orange/90"
+                            onClick={() => navigate('/ventas/nueva')}
+                        >
+                            <Plus className="h-4 w-4" aria-hidden="true" />
+                            Nueva venta
+                        </Button>
+                    )}
+                </div></>}
                 searchTerm={salesData.filters.searchTerm}
                 onSearchChange={salesData.setSearchTerm}
                 statusFilter={salesData.filters.statusFilter}

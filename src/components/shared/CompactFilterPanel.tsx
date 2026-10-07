@@ -8,6 +8,7 @@ import './compactList.css'
 type CompactFilterPanelProps = {
   children: ReactNode
   search?: ReactNode
+  actions?: ReactNode
   activeCount?: number
   title?: string
   summary?: string
@@ -19,7 +20,7 @@ type CompactFilterPanelProps = {
   appliedFilters?: { label: string; onRemove: () => void }[]
 }
 
-export function CompactFilterPanel({ children, search, activeCount = 0, title = 'Filtros', summary, onClear, onApply, applyDisabled, className, contentClassName, appliedFilters = [] }: CompactFilterPanelProps) {
+export function CompactFilterPanel({ children, search, actions, activeCount = 0, title = 'Filtros', summary, onClear, onApply, applyDisabled, className, contentClassName, appliedFilters = [] }: CompactFilterPanelProps) {
   const [open, setOpen] = useState(false)
   const titleId = useId()
   return <section className={cn('compact-filter-toolbar', className)} aria-label={title}>
@@ -36,6 +37,7 @@ export function CompactFilterPanel({ children, search, activeCount = 0, title = 
       </Popover>
       {onApply && <Button type="button" className="h-10 bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={onApply} disabled={applyDisabled}>Aplicar</Button>}
       {onClear && activeCount > 0 && <Button type="button" variant="ghost" className="h-10 text-muted-foreground" onClick={onClear}>Limpiar</Button>}
+      {actions && <div className="compact-filter-actions">{actions}</div>}
     </div>
     {!!appliedFilters.length && <div className="mt-2 flex flex-wrap gap-2" aria-label="Filtros aplicados">{appliedFilters.map(filter => <button key={filter.label} type="button" onClick={filter.onRemove} className="inline-flex min-h-8 max-w-full items-center gap-2 rounded-md border px-2 text-xs text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Quitar ${filter.label}`}><span className="truncate">{filter.label}</span><X className="h-3 w-3 shrink-0" aria-hidden="true" /></button>)}</div>}
   </section>

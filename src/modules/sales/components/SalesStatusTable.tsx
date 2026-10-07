@@ -69,8 +69,8 @@ export const SalesStatusTable = ({
             </DropdownMenuContent></DropdownMenu>}
         </div>
     }
-    const cards = <div className={viewMode === 'table' ? 'p-4 md:hidden' : 'p-4'}>
-        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{sales.map(sale => <article key={sale.id} className="min-w-0 rounded-lg border border-border bg-card p-4">
+    const cards = <div className={viewMode === 'table' ? 'md:hidden' : ''}>
+        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{sales.map(sale => <article key={sale.id} className="auna-surface min-w-0 rounded-lg border p-4">
             <header className="flex flex-wrap items-center justify-between gap-2"><strong className="break-all text-sm">{sale.reference ?? sale.id}</strong>{getStatusBadge(sale.status)}</header>
             <div className="mt-3"><p className="break-words font-medium">{sale.customer}</p><p className="text-xs text-muted-foreground">NIT: {sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p></div>
             <dl className="mt-3 space-y-1 text-xs text-muted-foreground">
@@ -84,13 +84,13 @@ export const SalesStatusTable = ({
         </article>)}</div>}
     </div>
 
-    return <section className="auna-data-table-shell" aria-label={title} aria-busy={busy || undefined}>
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
+    return <section className="auna-surface-flat" aria-label={title} aria-busy={busy || undefined}>
+        <header className="flex flex-wrap items-center justify-between gap-3 py-3">
             <h2 className="text-sm font-semibold">{title}{pageInfo.totalItems != null ? ` (${pageInfo.totalItems})` : ''}</h2>
             {isFetching && !initialLoading && <LoadingIndicator message="Actualizando ventas…" />}
         </header>
         {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3"><p className="text-sm text-destructive">{error}</p>{onRetry && <Button type="button" variant="outline" size="sm" onClick={onRetry} disabled={busy}>Reintentar</Button>}</div>}
-        {viewMode === 'table' && <div className="hidden overflow-x-auto md:block">
+        {viewMode === 'table' && <div className="auna-data-table-shell hidden overflow-x-auto md:block">
             <table className="auna-data-table min-w-[960px]">
                 <thead><tr>{['ID Venta', 'Fecha/Hora', 'Cliente', 'Vendedor', 'Pago', 'Total neto', 'Estado', 'Acciones'].map(heading => <th key={heading} scope="col">{heading}</th>)}</tr></thead>
                 <tbody>{initialLoading ? <TableLoadingRows columns={8} message="Cargando ventas…" /> : sales.map(sale => <tr key={sale.id}>

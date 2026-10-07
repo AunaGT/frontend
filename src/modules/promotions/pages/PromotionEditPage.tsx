@@ -328,12 +328,12 @@ export default function PromotionEditPage() {
 
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-      <header className="auna-module-heading"><div><button type="button" className="mb-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-brand-orange" onClick={() => navigate('/promociones')}><ArrowLeft className="h-4 w-4" />Promociones</button><p className="auna-module-eyebrow">Ventas</p><h1>Editar promoción</h1><p className="auna-module-description">Modifica los detalles, reglas, alcance y productos de esta promoción.</p></div><div className="flex flex-wrap items-center gap-2"><span className={`rounded-lg px-3 py-2 text-xs font-semibold ${active ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'}`}>{active ? 'Habilitada' : 'Desactivada'}</span><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-edit-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar cambios</Button></div></header>
+      <h1 className="sr-only">Editar promoción</h1><div className="auna-page-toolbar"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-lg px-3 py-2 text-xs font-semibold ${active ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'}`}>{active ? 'Habilitada' : 'Desactivada'}</span><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-edit-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar cambios</Button></div></div>
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
       {fetchingPromotion && <LoadingIndicator message="Actualizando promoción…" />}
       <form id="promotion-edit-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
-        <Card>
+        <Card className="auna-surface">
           <CardHeader>
             <CardTitle className="text-base">1. Información general</CardTitle>
             <CardDescription>Nombre, tipo y descripción</CardDescription>
@@ -408,7 +408,7 @@ export default function PromotionEditPage() {
             selectedType.name === 'MIN_QTY_DISCOUNT' ||
             selectedType.name === 'FREE_GIFT' ||
             selectedType.name === 'COMBO_DISCOUNT') && (
-            <Card>
+            <Card className="auna-surface">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   {selectedType.name === 'PERCENTAGE' && <Percent className="w-4 h-4" />}
@@ -502,7 +502,7 @@ export default function PromotionEditPage() {
                 )}
 
                 {selectedType.name === 'FREE_GIFT' && (
-                  <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                  <div className="space-y-4 border-t pt-4">
                     <ProductCombobox
                       value={formData.trigger_product_id}
                       onChange={(v) => setFormData({ ...formData, trigger_product_id: v })}
@@ -519,7 +519,7 @@ export default function PromotionEditPage() {
                 )}
 
                 {selectedType.name === 'COMBO_DISCOUNT' && (
-                  <div className="space-y-4 p-4 rounded-lg bg-muted/50 border">
+                  <div className="space-y-4 border-t pt-4">
                     <ProductCombobox
                       value={formData.trigger_product_id}
                       onChange={(v) => setFormData({ ...formData, trigger_product_id: v })}
@@ -554,7 +554,7 @@ export default function PromotionEditPage() {
           )}
 
         {/* Vigencia y límites */}
-        <Card>
+        <Card className="auna-surface">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Calendar className="w-4 h-4" />
@@ -673,7 +673,7 @@ export default function PromotionEditPage() {
           </CardContent>
         </Card>
 
-        <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de esta promoción</CardTitle><CardDescription>{promotion.codes?.length ?? 0} códigos. Para agregar más, utiliza el menú de acciones del listado.</CardDescription></CardHeader><CardContent>{promotion.codes?.length ? <details className="group"><summary className="cursor-pointer text-sm font-medium text-brand-orange focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-orange">Ver los {promotion.codes.length} códigos</summary><div className="mt-3 flex flex-wrap gap-2">{promotion.codes.map((code) => <code key={code.id} className="rounded bg-muted px-2 py-1 text-sm font-mono">{code.code} <span className="text-xs text-muted-foreground">({code.current_uses} {code.current_uses === 1 ? 'uso' : 'usos'})</span></code>)}</div></details> : <span className="text-sm text-muted-foreground">Sin códigos</span>}</CardContent></Card>
+        <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Tag className="h-4 w-4" />Códigos de esta promoción</CardTitle><CardDescription>{promotion.codes?.length ?? 0} códigos. Para agregar más, utiliza el menú de acciones del listado.</CardDescription></CardHeader><CardContent>{promotion.codes?.length ? <details className="group"><summary className="cursor-pointer text-sm font-medium text-brand-orange focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand-orange">Ver los {promotion.codes.length} códigos</summary><div className="mt-3 flex flex-wrap gap-2">{promotion.codes.map((code) => <code key={code.id} className="rounded bg-muted px-2 py-1 text-sm font-mono">{code.code} <span className="text-xs text-muted-foreground">({code.current_uses} {code.current_uses === 1 ? 'uso' : 'usos'})</span></code>)}</div></details> : <span className="text-sm text-muted-foreground">Sin códigos</span>}</CardContent></Card>
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
           <Button type="button" variant="outline" onClick={() => navigate('/promociones')} disabled={isLoading}>

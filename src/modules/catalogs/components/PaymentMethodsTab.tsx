@@ -103,16 +103,9 @@ export function PaymentMethodsTab() {
 
   return (
     <>
-      <Card className="auna-data-table-shell">
-        <CardHeader className="p-3 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
-            <div>
-              <CardTitle className="text-lg sm:text-xl">Métodos de pago</CardTitle>
-              <CardDescription className="text-xs sm:text-sm">
-                Administra los métodos de cobro en ventas y cierre de caja
-              </CardDescription>
-            </div>
-            {canManageCatalogs && (
+      <><Card className="auna-data-table-shell">
+
+        <CatalogFilters actions={<>{canManageCatalogs && (
               <Button
                 size="sm"
                 onClick={() => setDialog({ open: true, mode: 'create' })}
@@ -121,10 +114,7 @@ export function PaymentMethodsTab() {
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span>Nuevo método</span>
               </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CatalogFilters search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+            )}</>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
         <CardContent className="catalog-content">
           {isFetching && data && <LoadingIndicator message="Actualizando métodos de pago…" />}
           {error ? <p role="alert" className="p-6 text-destructive">{catalogApiErrorMessage(error, 'No se pudieron cargar los métodos de pago')}</p> : (
@@ -176,7 +166,10 @@ export function PaymentMethodsTab() {
               </TableBody>
             </Table>
           )}
-          {data && data.totalPages > 0 && data.totalItems > 0 && (
+
+        </CardContent>
+      </Card>
+<div className="auna-pagination-outside">{data && data.totalPages > 0 && data.totalItems > 0 && (
             <div className="mt-4">
               <Pagination
                 currentPage={data.page}
@@ -191,9 +184,7 @@ export function PaymentMethodsTab() {
                 itemLabel="métodos de pago"
               />
             </div>
-          )}
-        </CardContent>
-      </Card>
+          )}</div></>
 
       <PaymentMethodDialog dialog={dialog} setDialog={setDialog} />
 

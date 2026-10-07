@@ -38,6 +38,8 @@ test('inventory count loading keeps headings and refresh keeps the visible sessi
   const initial = render()
   assert.match(initial, /<th[^>]*>Sesión<\/th>/)
   assert.match(initial, /aria-label="Buscar sesiones"/)
+  assert.match(initial, /class="sr-only">Sesiones de conteo<\/h1>/)
+  assert.match(initial, /compact-filter-actions[\s\S]*Crear sesión/)
   assert.match(initial, /role="status"/)
   assert.equal((initial.match(/<td\b/g) ?? []).length, 36, 'Five skeleton rows need seven cells each, plus the status cell')
   assert.doesNotMatch(initial, /No hay sesiones/)

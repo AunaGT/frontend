@@ -28,7 +28,9 @@ import {
 import { AppLauncher } from './AppLauncher'
 import { TenantSwitcher } from './TenantSwitcher'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
-import { appModules, getUserRole } from '@/config/appModules'
+import { findModuleForPath, getUserRole } from '@/config/appModules'
+import { PageBreadcrumbs, usePageNavigation } from './PageNavigation'
+import { getRouteTrail, selectPageTrail } from './pageTrail'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useOverdueReceivablesCount } from '@/modules/receivables'
@@ -84,9 +86,11 @@ export const TopBar = () => {
     const overdueCount = vencidas?.count ?? 0
 
     // Find current module based on path
-    const currentModule = appModules.find(
-        (m) => location.pathname === m.path || location.pathname.startsWith(`${m.path}/`),
-    )
+    const currentModule = findModuleForPath(location.pathname)
+    const navigation = usePageNavigation()
+    const fallbackTrail = getRouteTrail(location.pathname, location.search, currentModule ? { code: currentModule.id, label: currentModule.label, path: currentModule.path } : undefined)
+    const trail = selectPageTrail(location.pathname + location.search, fallbackTrail, navigation?.override ?? null).map(item =>
+        item.to && item.permissions?.length && !item.permissions.some(code => hasPermission(code)) ? { ...item, to: undefined } : item)
 
     const handleLogout = () => {
         logout()
@@ -95,7 +99,7 @@ export const TopBar = () => {
 
     return (
         <>
-            <header className='h-14 bg-card border-b border-border flex items-center px-2 sm:px-4 gap-2 sm:gap-3 shadow-sm'>
+            <header className='auna-topbar bg-card border-b border-border flex items-center px-2 sm:px-4 gap-2 sm:gap-3 shadow-sm'>
                 {/* App Launcher Button */}
                 <Button
                     variant='ghost'
@@ -121,17 +125,7 @@ export const TopBar = () => {
                     </span>
                 </div>
 
-                {/* Current Module Name - Hidden on mobile */}
-                {currentModule && location.pathname !== '/' && (
-                    <div className='hidden lg:flex items-center gap-2 ml-4 pl-4 border-l'>
-                        {currentModule.icon && (
-                            <currentModule.icon className='w-4 h-4 text-muted-foreground' />
-                        )}
-                        <span className='text-sm font-medium text-muted-foreground'>
-                            {currentModule.label}
-                        </span>
-                    </div>
-                )}
+                {trail.length > 0 && <div className='auna-topbar-trail'><PageBreadcrumbs items={trail} /></div>}
 
                 {/* Spacer */}
                 <div className='flex-1' />

@@ -203,19 +203,9 @@ export default function ProductCreatePage() {
 
   return (
     <div className="p-6 space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/inventario')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Nuevo Producto</h1>
-            <p className="text-sm text-muted-foreground">Crear un nuevo producto en el inventario</p>
-          </div>
-        </div>
-      </div>
+      <h1 className="sr-only">Nuevo Producto</h1>
 
-      <Card>
+      <Card className="auna-surface">
         <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle>Datos esenciales</CardTitle>
@@ -423,7 +413,7 @@ export default function ProductCreatePage() {
                   </div>}
 
                   {advancedOpen && isKit ? (
-                    <div className="rounded-md border p-4 bg-muted/30">
+                    <div className="border-t pt-4">
                       <ProductKitComponentsEditor
                         value={formData.kitComponents}
                         onChange={(kitComponents) => onFormChange('kitComponents', kitComponents)}

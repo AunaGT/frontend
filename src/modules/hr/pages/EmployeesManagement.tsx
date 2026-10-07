@@ -48,7 +48,7 @@ const EmployeeAvatar = ({ employee }: { employee: Employee }) =>
     </div>
   )
 
-export const EmployeesManagement = () => {
+export const EmployeesManagement = ({ actions }: { actions?: import('react').ReactNode } = {}) => {
   const { toast } = useToast()
   const qc = useQueryClient()
   const navigate = useNavigate()
@@ -93,12 +93,12 @@ export const EmployeesManagement = () => {
     <MetricStrip loading={isLoading} label="Resumen de empleados" items={[{label:'Total de empleados',value:data?.summary?.total ?? '—'},{label:'Activos sin licencia',value:data?.summary?.active ?? '—'},{label:'En licencia hoy',value:data?.summary?.onLeave ?? '—'},{label:'Inactivos',value:data?.summary?.inactive ?? '—'}]} />
     <Card className="border-0 bg-transparent shadow-none">
       {!!selectedIds.length && <div className="flex items-center justify-between gap-3 pb-3"><p className="text-sm">{selectedIds.length} empleados seleccionados en esta página</p><Button variant="outline" disabled={exporting} onClick={() => void downloadSelected()}>{exporting ? 'Preparando…' : 'Descargar fichas seleccionadas'}</Button></div>}
-      <CompactFilterPanel title="Filtros de empleados" activeCount={Number(Boolean(search.trim())) + Number(status !== 'all') + Number(Boolean(position)) + Number(branch !== 'all')} onClear={() => {setSearch('');setQuery('');setStatus('all');setPosition('');setBranch('all');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setQuery('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${EMPLOYEE_STATUS_LABELS[status as keyof typeof EMPLOYEE_STATUS_LABELS]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []),...(position ? [{label: `Puesto: ${position}`,onRemove: () => {setPosition('');setPage(1)}}] : []),...(branch !== 'all' ? [{label: `Sucursal: ${branches.find(b => b.id === branch)?.name || 'Seleccionada'}`,onRemove: () => {setBranch('all');setPage(1)}}] : [])]} search={<div><Label htmlFor="hr-search">Buscar empleado</Label><div className="relative mt-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="hr-search" className="pl-9" placeholder="Nombre, apellido, correo o código…" value={search} onChange={e => setSearch(e.target.value)} /></div></div>}>
+      <CompactFilterPanel actions={actions} title="Filtros de empleados" activeCount={Number(Boolean(search.trim())) + Number(status !== 'all') + Number(Boolean(position)) + Number(branch !== 'all')} onClear={() => {setSearch('');setQuery('');setStatus('all');setPosition('');setBranch('all');setPage(1)}} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setQuery('');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${EMPLOYEE_STATUS_LABELS[status as keyof typeof EMPLOYEE_STATUS_LABELS]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []),...(position ? [{label: `Puesto: ${position}`,onRemove: () => {setPosition('');setPage(1)}}] : []),...(branch !== 'all' ? [{label: `Sucursal: ${branches.find(b => b.id === branch)?.name || 'Seleccionada'}`,onRemove: () => {setBranch('all');setPage(1)}}] : [])]} search={<div><Label htmlFor="hr-search">Buscar empleado</Label><div className="relative mt-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="hr-search" className="pl-9" placeholder="Nombre, apellido, correo o código…" value={search} onChange={e => setSearch(e.target.value)} /></div></div>}>
         <div><Label>Estado</Label><Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger className="mt-1" aria-label="Estado del empleado"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem>{Object.entries(EMPLOYEE_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
         <div><Label htmlFor="hr-position-filter">Puesto</Label><Input className="mt-1" id="hr-position-filter" placeholder="Cualquier puesto" value={position} onChange={e => { setPosition(e.target.value); setPage(1) }} /></div>
         <div><Label>Sucursal</Label><Select value={branch} onValueChange={value => { setBranch(value); setPage(1) }}><SelectTrigger className="mt-1" aria-label="Sucursal del empleado"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Ámbito actual</SelectItem>{branches.map(item => <SelectItem value={item.id} key={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
       </CompactFilterPanel>
-      <CardContent className="auna-data-table-shell mt-5 p-0">
+      <><CardContent className="auna-data-table-shell mt-5 p-0">
         {isFetching && data && <LoadingIndicator message="Actualizando empleados…" className="px-4 py-2" />}
         {isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar los empleados.</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div> : (
           <Table>
@@ -156,8 +156,9 @@ export const EmployeesManagement = () => {
             </TableBody>
           </Table>
         )}
-        {data && <><Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} pageSize={pageSize} count={data.items.length} onPageChange={setPage} loading={isLoading} itemLabel="empleados" /><div className="flex justify-end border-t p-3"><label className="flex items-center gap-2 text-sm">Filas por página<select className="auna-control auna-control-select hr-native-select !w-20 !mt-0" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{[8, 16, 32].map(size => <option key={size}>{size}</option>)}</select></label></div></>}
+
       </CardContent>
+<div className="auna-pagination-outside">{data && <><Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} pageSize={pageSize} count={data.items.length} onPageChange={setPage} loading={isLoading} itemLabel="empleados" /><div className="flex justify-end border-t p-3"><label className="flex items-center gap-2 text-sm">Filas por página<select className="auna-control auna-control-select hr-native-select !w-20 !mt-0" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{[8, 16, 32].map(size => <option key={size}>{size}</option>)}</select></label></div></>}</div></>
     </Card>
     <ConfirmDialog appearance="auna" open={!!selected} onOpenChange={open => { if (!open && !terminate.isPending) setSelected(null) }} title="Dar de baja al empleado" description={`¿Dar de baja a ${selected?.first_name ?? ''} ${selected?.last_name ?? ''}? Se conservará su historial laboral y de nómina.`} confirmText="Dar de baja" variant="destructive" loading={terminate.isPending} onConfirm={() => { if (selected) terminate.mutate(selected.id) }} />
     </div>

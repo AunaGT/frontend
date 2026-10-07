@@ -4,8 +4,8 @@
 .dark .hr-record-page { background:#0d1522; color:#eef4ff; }
 .hr-record-container { max-width:1560px; margin:0 auto; padding:24px 32px; }
 .hr-create-grid { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:16px; align-items:start; }
-.hr-panel { border:1px solid #d5e2f4; background:#fff; box-shadow:none; border-radius:10px; }
-.dark .hr-panel { border-color:#263b55; background:#142237; }
+.hr-panel { border:1px solid hsl(var(--auna-surface-border)); background:hsl(var(--auna-surface-card)); box-shadow:none; border-radius:10px; }
+.dark .hr-panel { border-color:hsl(var(--auna-surface-border)); background:hsl(var(--auna-surface-card)); }
 .hr-panel > div:first-child { padding:18px 18px 12px; }
 .hr-panel > div:first-child h3 { display:flex; align-items:center; gap:12px; font-size:18px; letter-spacing:-.02em; }
 .hr-panel > div:first-child h3 svg { width:24px; height:24px; color:#ff790f; }

@@ -6,8 +6,215 @@ const Module = require('node:module')
 const ts = require('typescript')
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
+const { assertPaginationOutside } = require('./pagination-assertions.cjs')
 const cache = new Map()
 const overrides = new Map()
+test('compact filters align actions with search and preserve applied filters', () => {
+  const {CompactFilterPanel}=load(path.join(__dirname,'../src/components/shared/CompactFilterPanel.tsx'))
+  const html=renderToStaticMarkup(React.createElement(CompactFilterPanel, {title:'Filtros de prueba', search:React.createElement('input',{'aria-label':'Buscar registros'}),actions:React.createElement('button',{type:'button'},'Nuevo registro'),activeCount:1,onClear(){},appliedFilters:[{label:'Estado: Activo',onRemove(){}}]},React.createElement('label',null,'Estado')))
+  assert.match(html,/class="[^"]*compact-filter-actions/)
+  assert.match(html,/Buscar registros/)
+  assert.match(html,/Nuevo registro/)
+  assert.match(html,/Quitar Estado: Activo/)
+  assert.match(html,/Limpiar/)
+})
+test('branch toolbars separate data and nested loading tables keep only the owner frame', async () => {
+  const css=['index.css','components/shared/loading.css','components/shared/surfaces.css','modules/branches/pages/branches.css'].map(file=>fs.readFileSync(path.join(__dirname,'../src',file),'utf8')).join('\n')
+  const result=await require('postcss')().process(css,{from:undefined})
+  const values=selector=>{const map=new Map();result.root.walkRules(rule=>{if(rule.selector.split(',').map(s=>s.trim()).includes(selector))rule.walkDecls(d=>map.set(d.prop,d.value))});return map}
+  assert.equal(values('.branches-page .compact-filter-toolbar').get('margin-bottom'),'20px')
+  assert.equal(values('.auna-data-table-shell .auna-loading-table').get('border'),'0')
+  assert.equal(values('.auna-data-table-shell .auna-loading-state > .auna-loading-status').get('border'),'0')
+  assert.match(values('.auna-loading-table').get('border'),/1px/,'Standalone table loading still owns its frame')
+})
+test('flat interactive rows retain hover and focus feedback and owner surfaces preserve editing rings', async () => {
+  const css=fs.readFileSync(path.join(__dirname,'../src/components/shared/surfaces.css'),'utf8')
+  const result=await require('postcss')().process(css,{from:undefined})
+  const values=selector=>{const map=new Map();result.root.walkRules(rule=>{if(rule.selector.split(',').map(s=>s.trim()).includes(selector))rule.walkDecls(d=>map.set(d.prop,d.value))});return map}
+  assert.match(values('.auna-surface').get('box-shadow'),/--tw-ring-shadow/)
+  assert.match(values('.auna-section-list > .auna-section-row-interactive:hover').get('background'),/--muted/)
+  assert.ok(values('.auna-section-list > .auna-section-row-interactive:focus-visible').get('outline'))
+  assert.equal(values('.auna-loading-embedded .auna-loading-panel').get('border'),'0')
+  const footer = new Map()
+  result.root.walkRules(rule => {
+    if (rule.selector === '.auna-pagination-outside.auna-pagination-outside :is(.auna-data-table-pagination, .users-footer, .alerts-table-footer, .auna-import-pagination)') rule.walkDecls(d => footer.set(d.prop, d.value))
+  })
+  assert.equal(footer.get('background'), 'transparent')
+  assert.equal(footer.get('border-top'), '0')
+  assert.equal(footer.get('padding'), '12px 0')
+  assert.equal(values('.auna-pagination-outside > .border-t').get('border-top'), '0')
+})
+test('private import workbench moves its title into navigation without dropping instructions or controls', () => {
+  overrides.set('@/services/api',{downloadFile(){},getAuthToken:()=>null})
+  const {MemoryRouter}=require('react-router-dom')
+  const {PageNavigationProvider}=load(path.join(__dirname,'../src/components/layout/PageNavigation.tsx'))
+  const {ImportWorkbench}=load(path.join(__dirname,'../src/components/shared/ImportWorkbench.tsx'))
+  const props={title:'Importar productos',description:'La primera fila debe contener encabezados.',back:'/inventario',backLabel:'Inventario',templatePath:'/template',templateName:'template.xlsx',file:null,onFile(){},sheetNames:[],selectedSheet:'',onSheetChange(){},fields:[],mappings:[],onMappingChange(){},rows:[],firstErrorIndex:0,validated:false,validCount:0,errors:[],onValidate(){},onImport(){},result:null}
+  const render=privatePage=>renderToStaticMarkup(React.createElement(MemoryRouter,null,privatePage?React.createElement(PageNavigationProvider,null,React.createElement(ImportWorkbench,props)):React.createElement(ImportWorkbench,props)))
+  assert.match(render(true),/class="sr-only">Importar productos<\/h1>/)
+  assert.match(render(true),/La primera fila debe contener encabezados/)
+  assert.match(render(true),/Descargar plantilla|plantilla/)
+  assert.match(render(false),/<h1>Importar productos<\/h1>/)
+  const validated = renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(ImportWorkbench, { ...props, validated: true, rows: [{ name: 'Producto' }], validCount: 1 })))
+  assertPaginationOutside(validated)
+  overrides.delete('@/services/api')
+})
+test('cash breakdowns stay flat and preserve amounts, quantity fields and read-only totals', () => {
+  overrides.set('@/hooks/useSystemSettings', { useSystemSettings: () => ({ locale: 'en-US', currencyCode: 'USD' }) })
+  const { PaymentMethodsForm } = load(path.join(__dirname, '../src/modules/cash-closure/components/PaymentMethodsForm.tsx'))
+  const html = renderToStaticMarkup(React.createElement(PaymentMethodsForm, { paymentBreakdown: [{ payment_method_id: 1, payment_method_name: 'Tarjeta', theoretical_amount: 50, actual_amount: 40, difference: -10, theoretical_count: 1, notes: 'Prueba' }], showAdvancedDetails: true, onUpdateAmount() {} }))
+  assert.match(html, /auna-section-list/)
+  assert.match(html, /auna-section-row/)
+  assert.match(html, /id="actual-0"/)
+  assert.match(html, /id="notes-0"/)
+  assert.match(html, /\$50\.00/)
+  assert.match(html, /Prueba/)
+  overrides.delete('@/hooks/useSystemSettings')
+})
+test('import summaries use flat metrics and preserve partial errors, zero counts and navigation', () => {
+  const { MemoryRouter } = require('react-router-dom')
+  const { ImportSummary } = load(path.join(__dirname, '../src/components/shared/ImportSummary.tsx'))
+  const render = result => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(ImportSummary, { result, back: '/usuarios', backLabel: 'Usuarios' })))
+  const partial = render({ created: 2, skipped: 1, adopted: 1, errors: [{ rowIndex: 7, error: 'Código duplicado' }] })
+  assert.match(partial, /metric-strip/)
+  assert.match(partial, /Fila 7: Código duplicado/)
+  assert.match(partial, /href="\/usuarios"/)
+  assert.match(partial, /1 incorporado/)
+  const zero = render({ created: 0 })
+  assert.equal((zero.match(/<strong[^>]*>0<\/strong>/g) ?? []).length, 3)
+  assert.doesNotMatch(zero, /Filas con error/)
+})
+test('merchandise and product modes preserve records and keep card grids unframed', () => {
+  const { MemoryRouter } = require('react-router-dom')
+  let viewMode = 'cards'
+  const names = ['@/hooks/usePersistedListUiState', '../hooks/useIncomingMerchandise', '@/hooks/useProducts', '@/hooks/useCategories', '@/services/productService', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/useSystemSettings', '@/hooks/use-toast', '@tanstack/react-query', '@/services/api', './api']
+  const previous = names.map(name => overrides.get(name))
+  overrides.set('@/hooks/usePersistedListUiState', { usePersistedListUiState: () => ({ page: 1, pageSize: 10, viewMode, setPage() {}, setPageSize() {}, setViewMode() {} }), useResetPageOnFilterChange() {} })
+  overrides.set('../hooks/useIncomingMerchandise', { useIncomingMerchandise: () => ({ data: { items: [{ id: 'record-1', date: '2026-10-06', supplier: { name: 'Proveedor visible' }, itemsCount: 2, totalValue: 25, payment_status: 'PAID' }], totalItems: 1, totalPages: 1 }, isLoading: false, isFetching: false, isError: false }) })
+  overrides.set('@/hooks/useProducts', { useProducts: () => ({ data: { items: [{ id: 'p1', name: 'Producto visible', stock: 5, price: 25, category: 'Bebidas', availableForSale: true }], totalItems: 11, totalPages: 2, page: 1, nextPage: 2, prevPage: null }, isLoading: false }) })
+  overrides.set('@/hooks/useCategories', { useCategories: () => ({ data: [] }) })
+  overrides.set('@/services/productService', { adaptApiProduct: p => p })
+  overrides.set('@/context/useTenant', { useTenant: () => ({ branches: [] }) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => true }) })
+  overrides.set('@/hooks/useSystemSettings', { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ' }) })
+  overrides.set('@/hooks/use-toast', { useToast: () => ({ toast() {} }) })
+  overrides.set('@tanstack/react-query', { useQuery: () => ({ data: [] }), useMutation: () => ({}), useQueryClient: () => ({}) })
+  overrides.set('@/services/api', { apiFetch() { throw Error('No remote calls in presentation tests') } })
+  overrides.set('./api', overrides.get('@/services/api'))
+  try {
+    for (const [file, record] of [['modules/merchandise/pages/IncomingMerchandiseManagement.tsx', 'Proveedor visible'], ['modules/inventory/products/ProductManagement.tsx', 'Producto visible']]) {
+      const Component = load(path.join(__dirname, '../src', file)).default
+      const render = () => renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Component)))
+      viewMode = 'cards'
+      const cards = render()
+      assert.match(cards, /compact-filter-actions/)
+      assert.doesNotMatch(cards, /<header[^>]*class="[^"]*auna-module-heading/)
+      assert.match(cards, /auna-surface-flat/)
+      assert.match(cards, /auna-surface\b/)
+      assert.match(cards, new RegExp(record))
+      assert.doesNotMatch(cards, /<table\b/)
+      viewMode = 'table'
+      const table = render()
+      assert.equal((table.match(/<table\b/g) ?? []).length, 1)
+      assert.match(table, new RegExp(record))
+      assert.match(table, /Paginación/)
+      if (file.includes('ProductManagement')) {
+        assert.ok(table.indexOf('auna-pagination-outside') > table.indexOf('</table>'), 'Page size and pagination must follow the closed product result surface')
+      }
+    }
+  } finally {
+    names.forEach((name, i) => previous[i] === undefined ? overrides.delete(name) : overrides.set(name, previous[i]))
+    cache.clear()
+  }
+})
+test('single surfaces and embedded tables use a shared theme without resetting controls', async () => {
+  const surfaceFile = path.join(__dirname, '../src/components/shared/surfaces.css')
+  const css = fs.readFileSync(path.join(__dirname, '../src/index.css'), 'utf8') + '\n' + (fs.existsSync(surfaceFile) ? fs.readFileSync(surfaceFile, 'utf8') : '')
+  const config = load(path.join(__dirname, '../tailwind.config.ts')).default
+  const result = await require('postcss')([require('tailwindcss')({ ...config, content: [{ raw: '<div class="auna-surface auna-surface-flat auna-table-embedded"></div>', extension: 'html' }] })]).process(css, { from: undefined })
+  const declarations = selector => {
+    const values = new Map()
+    result.root.walkRules(rule => { if (rule.selector === selector) rule.walkDecls(d => values.set(d.prop, d.value)) })
+    return values
+  }
+  const flat = declarations('.auna-surface-flat.auna-surface-flat')
+  const embedded = declarations('.auna-data-table-shell.auna-table-embedded')
+  const surface = declarations('.auna-surface')
+  assert.equal(flat.get('border'), '0')
+  assert.equal(flat.get('background'), 'transparent')
+  assert.equal(flat.get('box-shadow'), 'none')
+  assert.equal(embedded.get('border'), '0')
+  assert.equal(embedded.get('box-shadow'), 'none')
+  assert.ok(surface.get('background')?.includes('--auna-surface-card'))
+  assert.equal(declarations('.auna-data-table-shell').get('overflow'), 'hidden')
+  assert.equal(surface.get('--input'), undefined)
+})
+test('table shells preserve explicit horizontal scrolling after the compiled utility cascade', async () => {
+  const css = ['index.css', 'components/shared/surfaces.css'].map(file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8')).join('\n')
+  const config = load(path.join(__dirname, '../tailwind.config.ts')).default
+  const result = await require('postcss')([require('tailwindcss')({ ...config, content: [{ raw: '<div class="auna-data-table-shell auna-table-embedded overflow-x-auto"></div>', extension: 'html' }] })]).process(css, { from: undefined })
+  const overflowX = classes => {
+    let winner = { specificity: -1, value: undefined }
+    result.root.walkRules(rule => {
+      for (const selector of rule.selector.split(',')) {
+        const simple = selector.trim()
+        if (!/^(\.[\w-]+)+$/.test(simple)) continue
+        const required = simple.slice(1).split('.')
+        if (!required.every(name => classes.includes(name))) continue
+        rule.walkDecls(decl => {
+          if (!['overflow', 'overflow-x'].includes(decl.prop) || required.length < winner.specificity) return
+          winner = { specificity: required.length, value: decl.prop === 'overflow' ? decl.value.split(/\s+/)[0] : decl.value }
+        })
+      }
+    })
+    return winner.value
+  }
+  assert.equal(overflowX(['auna-data-table-shell']), 'hidden', 'A shell with a separate inner scroller still clips its rounded corners')
+  assert.equal(overflowX(['auna-data-table-shell', 'overflow-x-auto']), 'auto', 'Wide standalone tables must expose every column and action')
+  assert.equal(overflowX(['auna-data-table-shell', 'auna-table-embedded', 'overflow-x-auto']), 'auto', 'Flattening an embedded table must not suppress its scroller')
+})
+test('late module styles preserve solid themed surfaces and exclude flat wrappers', async () => {
+  const files = ['components/shared/surfaces.css', 'components/shared/dataTransfer.css', 'modules/hr/pages/hr.css', 'modules/merchandise/merchandise.css', 'modules/inventory-count/inventoryCount.css', 'modules/config/pages/config.css', 'modules/branches/pages/branches.css', 'modules/users/users.css', 'modules/alerts/pages/alerts.css', 'modules/catalogs/catalogs.css']
+  const css = ['index.css', 'components/ui/form-controls.css', ...files].map(file => fs.readFileSync(path.join(__dirname, '../src', file), 'utf8')).join('\n')
+  const config = load(path.join(__dirname, '../tailwind.config.ts')).default
+  const result = await require('postcss')([require('tailwindcss')({ ...config, content: [{ raw: '<div class="auna-surface-flat auna-table-embedded bg-card"></div>', extension: 'html' }] })]).process(css, { from: undefined })
+  const declarations = selector => {
+    const values = new Map()
+    result.root.walkRules(rule => { if (rule.selector.split(',').map(s => s.trim()).includes(selector)) rule.walkDecls(d => values.set(d.prop, d.value)) })
+    return values
+  }
+  for (const selector of ['.dark .hr-panel', '.dark .config-panel', '.users-panel', '.auna-import-panel']) {
+    assert.equal(declarations(selector).get('background'), 'hsl(var(--auna-surface-card))', selector)
+  }
+  for (const selector of ['.merchandise-page .bg-card', '.inventory-count-page .bg-card']) {
+    assert.equal(declarations(selector).get('background'), undefined, 'Broad card styles must not repaint flat wrappers')
+    assert.ok(declarations(selector + ':not(.auna-surface-flat)').get('background'))
+  }
+  assert.equal(declarations('.auna-surface-flat.auna-surface-flat').get('background'), 'transparent')
+  assert.equal(declarations('.auna-data-table-shell.auna-table-embedded').get('border'), '0')
+})
+test('surface secondary text stays readable on cards and table headers in both themes', async () => {
+  const result = await require('postcss')().process(fs.readFileSync(path.join(__dirname, '../src/components/shared/surfaces.css'), 'utf8'), { from: undefined })
+  const luminance = value => {
+    const [h, s, l] = value.split(' ').map(Number.parseFloat)
+    const a = s / 100 * Math.min(l / 100, 1 - l / 100)
+    const channel = n => {
+      const k = (n + h / 30) % 12
+      const c = l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+      return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4
+    }
+    return .2126 * channel(0) + .7152 * channel(8) + .0722 * channel(4)
+  }
+  for (const theme of [':root', '.dark']) {
+    const vars = new Map()
+    result.root.walkRules(rule => { if (rule.selector === theme) rule.walkDecls(d => vars.set(d.prop, d.value)) })
+    const text = luminance(vars.get('--auna-surface-muted'))
+    for (const token of ['--auna-surface-card', '--auna-surface-header']) {
+      const bg = luminance(vars.get(token))
+      assert.ok((Math.max(bg, text) + .05) / (Math.min(bg, text) + .05) >= 4.5, `${theme} ${token}`)
+    }
+  }
+})
 test('native selectors used across modules are styled on direct entry without loading Merchandise', async () => {
   // Compile the always-loaded stylesheet, not a lazy module's CSS.
   const css = fs.readFileSync(path.join(__dirname, '../src/index.css'), 'utf8') + '\n' + fs.readFileSync(path.join(__dirname, '../src/components/ui/form-controls.css'), 'utf8')
@@ -45,6 +252,38 @@ function load(file) {
   mod._compile(compiled.outputText, file)
   return mod.exports
 }
+test('transfers keep pagination outside both result modes and hide it for loading, error and empty states', () => {
+  const names = ['react', '@tanstack/react-query', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/use-toast', '@/hooks/useSystemSettings', '@/services/tenantService', '@/services/productService', '@/services/warehouseService', '@/utils/pdfBranding']
+  const previous = names.map(name => overrides.get(name))
+  let view = 'table', stateIndex = 0
+  let query = { data: { items: [{ id: 't1', reference: 'T-001', status: 'RECIBIDA', sent_at: '2026-10-06T12:00:00Z', fromBranch: { name: 'Central' }, toBranch: { name: 'Otra' }, lines: [{ qty_sent: 2, qty_received: 2, product: { name: 'Botella' } }] }], page: 1, pageSize: 10, totalItems: 11, totalPages: 2 }, isLoading: false, isFetching: false, isError: false }
+  overrides.set('react', { ...React, useState: initial => React.useState(stateIndex++ === 1 ? view : initial) })
+  overrides.set('@tanstack/react-query', { useQuery: options => options.queryKey[0] === 'transfers' ? query : { data: [] }, useMutation: () => ({ isPending: false }), useQueryClient: () => ({ invalidateQueries() {} }) })
+  overrides.set('@/context/useTenant', { useTenant: () => ({ branch: { id: 'b1' }, branches: [] }) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => true }) })
+  overrides.set('@/hooks/use-toast', { useToast: () => ({ toast() {} }) })
+  overrides.set('@/hooks/useSystemSettings', { useSystemSettings: () => ({ locale: 'es-GT' }) })
+  for (const name of names.slice(6)) overrides.set(name, {})
+  try {
+    const { TransfersManagement } = load(path.join(__dirname, '../src/modules/transfers/pages/TransfersManagement.tsx'))
+    const render = () => { stateIndex = 0; return renderToStaticMarkup(React.createElement(TransfersManagement)) }
+    for (view of ['table', 'cards']) {
+      const html = render()
+      assertPaginationOutside(html)
+      assert.match(html, /T-001/)
+      assert.match(html, /Mostrando 1 a 1 de 11 traslados/)
+      for (const state of [{ ...query, isLoading: true }, { ...query, isError: true }, { ...query, data: { items: [] } }]) {
+        const ready = query
+        query = state
+        assert.doesNotMatch(render(), /aria-label="Paginación de traslados"/)
+        query = ready
+      }
+    }
+  } finally {
+    names.forEach((name, index) => previous[index] === undefined ? overrides.delete(name) : overrides.set(name, previous[index]))
+  }
+})
+
 test('stock movements opens with the history table and compact filters, not operation forms', () => {
   overrides.set('@/services/api', { apiFetch: () => { throw new Error('No remote calls in layout tests') } })
   overrides.set('./api', { apiFetch: () => { throw new Error('No remote calls in layout tests') } })
@@ -61,9 +300,12 @@ test('stock movements opens with the history table and compact filters, not oper
   const html = renderToStaticMarkup(React.createElement(StockMovesPage))
   assert.match(html, /aria-label="Buscar movimientos"/)
   assert.match(html, /aria-label="Filtros de movimientos"/)
+  assert.match(html, /class="sr-only">Existencias y movimientos<\/h1>/)
+  assert.match(html, /compact-filter-actions[\s\S]*Mover mercancía/)
   assert.match(html, /<table/)
   assert.match(html, /Botella/)
   assert.match(html, /105 movimientos/)
+  assertPaginationOutside(html)
   assert.match(html, /aria-label="Paginación de movimientos"/)
   assert.doesNotMatch(html, /id="move-notes"|id="adjust-notes"|Ver historial/)
 })
@@ -274,7 +516,7 @@ test('accounting keeps the queried period and primary account visible with filte
 
 test('cash history keeps page size visible but no advanced filter row for sellers', () => {
   let isSeller = false
-  overrides.set('./hooks', { useCashClosureForm: () => ({ isSeller }), useCashClosureAPI: () => ({ closures: [], isLoadingClosures: false, currentPage: 1, totalPages: 1, pageSize: 10, fetchClosures: () => {}, setPageSize: () => {} }), useMineClosureGate: () => ({ gate: { loading: false } }), canRegisterMineClosure: () => false, mineClosureBlockedHint: () => '' })
+  overrides.set('./hooks', { useCashClosureForm: () => ({ isSeller }), useCashClosureAPI: () => ({ closures: [{ id: 'closure-1', closure_number: 1, status: 'Aprobado', start_date: '2026-10-01', end_date: '2026-10-02', actual_total: 10, difference: 0 }], isLoadingClosures: false, currentPage: 1, totalPages: 2, pageSize: 10, fetchClosures: () => {}, setPageSize: () => {} }), useMineClosureGate: () => ({ gate: { loading: false } }), canRegisterMineClosure: () => false, mineClosureBlockedHint: () => '' })
   overrides.set('./CashClosureCreatePage', { CASH_CLOSURE_CREATE_PATH: '/cierre-caja/nuevo' })
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'cashclosure.view' }) })
   const { default: CashClosure } = load(path.join(__dirname, '../src/modules/cash-closure/CashClosureManagement.tsx'))
@@ -282,6 +524,7 @@ test('cash history keeps page size visible but no advanced filter row for seller
   assert.match(html, /aria-label="Filtros de cierres"/)
   assert.equal((html.match(/role="combobox"/g) || []).length, 1)
   assert.doesNotMatch(html, /type="date"/)
+  assertPaginationOutside(html)
   isSeller = true
   const seller = renderToStaticMarkup(React.createElement(CashClosure))
   assert.match(seller, /Último cierre de caja/)
@@ -317,6 +560,7 @@ test('lot expiry starts compact and paginates real rows with product images', ()
   assert.match(first, /src="\/producto.png"/)
   assert.match(first, /Ventana de 30 días/)
   assert.match(first, /Mostrando 1 a 10 de 12 lotes/)
+  assertPaginationOutside(first)
   assert.doesNotMatch(first, /LOTE-10</)
   assert.doesNotMatch(first, /Dar de baja/)
   assert.match(first, /Vence hoy/)
@@ -334,6 +578,7 @@ test('lot expiry starts compact and paginates real rows with product images', ()
   lotPage = 1
   const allowed = renderLots()
   assert.match(allowed, /Dar de baja 1 vencido/)
+  assert.match(allowed, /compact-filter-actions[\s\S]*Dar de baja 1 vencido/)
   assert.match(allowed, /aria-label="Dar de baja lote LOTE-0"/)
   assert.doesNotMatch(allowed, /aria-label="Dar de baja lote LOTE-1"/)
 })
@@ -372,6 +617,7 @@ test('product lot details reuse closed filters and pagination without exposing u
   assert.match(html, /aria-label="Buscar lotes del producto"/)
   assert.match(html, /aria-label="Filtros de lotes del producto"/)
   assert.match(html, /Mostrando 1 a 5 de 12 lotes/)
+  assertPaginationOutside(html)
   assert.doesNotMatch(html, /DETALLE-5</)
   assert.match(html, /Sin caducidad/)
   assert.doesNotMatch(html, /aria-label="Editar lote/)
@@ -413,7 +659,9 @@ test('product locations show five rows without hiding the remaining records', ()
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => false }) })
   const { ProductLocationsSection } = load(path.join(__dirname, '../src/modules/inventory/products/ProductLocationsSection.tsx'))
   const html = renderToStaticMarkup(React.createElement(ProductLocationsSection, { productId: 'product' }))
+  assert.match(html, /auna-data-table-shell auna-table-embedded overflow-x-auto/)
   assert.match(html, /Mostrando 1 a 5 de 7 ubicaciones/)
+  assertPaginationOutside(html)
   assert.match(html, /ANAQUEL-4</)
   assert.doesNotMatch(html, /ANAQUEL-5</)
   assert.match(html, /aria-label="Página siguiente"/)
@@ -475,6 +723,7 @@ test('product details separate tasks into tabs and keep the initial view free of
 
   tab = 'lots'
   const lots = renderPage()
+  assertPaginationOutside(lots)
   assert.match(activePanel(lots), /LOTE-UX/)
   assert.doesNotMatch(activePanel(lots), /Mínimo interno|UX-123|Precio mayoreo/)
 

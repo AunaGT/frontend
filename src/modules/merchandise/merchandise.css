@@ -1,4 +1,4 @@
-.merchandise-page .bg-card { background: hsl(var(--auna-table-surface)); border-radius: 1rem; }
+.merchandise-page .bg-card:not(.auna-surface-flat) { background: hsl(var(--auna-table-surface)); border-radius: 1rem; }
 .merchandise-page [role="tablist"] { background: transparent; border-bottom: 1px solid hsl(var(--border)); border-radius: 0; }
 .merchandise-page [role="tab"] { border-radius: 0; border-bottom: 2px solid transparent; padding: .75rem 1rem; }
 .merchandise-page [role="tab"][data-state="active"] { background: transparent; border-bottom-color: hsl(var(--brand-orange)); color: hsl(var(--brand-orange)); box-shadow: none; }

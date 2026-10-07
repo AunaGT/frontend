@@ -1,3 +1,4 @@
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -21,6 +22,7 @@ export default function RoleEditor({ id }: { id?: number }) {
   const readOnly = !canManage
   const initial = roleDraft(role.data)
   const dirty = name !== initial.name || description !== initial.description || [...selected].sort().join('|') !== [...initial.selected].sort().join('|')
+  usePageTrail(id ? [{ label: 'Roles y permisos', to: '/usuarios/roles-permisos', permissions: ['roles.view', 'roles.manage'] }, { label: 'Detalle' }, ...(dirty && !readOnly ? [{ label: 'Editar' }] : [])] : null)
   function reset() { setName(initial.name); setDescription(initial.description); setSelected(initial.selected) }
   useEffect(() => { reset() }, [role.data])
   useEffect(() => { if (!dirty || readOnly) return; const guard = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }; window.addEventListener('beforeunload', guard); return () => window.removeEventListener('beforeunload', guard) }, [dirty, readOnly])
@@ -35,7 +37,7 @@ export default function RoleEditor({ id }: { id?: number }) {
     } catch (e) { toast({ title: 'No se pudo guardar', description: (e as Error).message, variant: 'destructive' }) }
     finally { setSaving(false) }
   }
-  return <UsersPage title={id ? 'Detalle de permisos' : 'Crear rol'} description="Gestiona los permisos del rol seleccionando las acciones por módulo." back="/usuarios/roles-permisos" backLabel="Roles y permisos">
+  return <UsersPage compact title={id ? 'Detalle de permisos' : 'Crear rol'} description="Gestiona los permisos del rol seleccionando las acciones por módulo." back="/usuarios/roles-permisos" backLabel="Roles y permisos">
     <Feedback loading={catalog.isLoading || (!!id && role.isLoading)} error={catalog.error || role.error} retry={() => { void catalog.refetch(); if (id) void role.refetch() }}/>
     {!catalog.isLoading && !catalog.error && (!id || role.data) && <>
       <Panel><div className="grid gap-5 md:grid-cols-[1fr_1.5fr_.6fr] items-end"><label className="space-y-2 text-sm">Rol<Input value={name} onChange={e => setName(e.target.value)} maxLength={50} disabled={readOnly || saving}/></label><label className="space-y-2 text-sm">Descripción<Input value={description} onChange={e => setDescription(e.target.value)} maxLength={500} disabled={readOnly || saving}/></label><div className="space-y-2 text-sm"><span className="block">Tipo</span><span className="users-state" data-status="ACTIVE">{fromTemplate ? 'Plantilla del sistema' : 'Personalizado'}</span></div></div>{fromTemplate && canManage && <p className="users-muted text-sm mt-4">Estás personalizando una plantilla. Al guardar se creará un rol editable únicamente para {company?.name || 'la empresa activa'}.</p>}{readOnly && <p className="users-muted text-sm mt-4">Acceso de consulta. Necesitas el permiso para gestionar roles.</p>}</Panel>

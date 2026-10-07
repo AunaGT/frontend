@@ -1,6 +1,7 @@
 /**
  * Detalle de producto organizado por tareas, con edición agrupada.
  */
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useMemo, useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -128,6 +129,7 @@ export default function ProductDetailPage() {
 
   const [isEditing, setIsEditing] = useState(false)
   const [detailTab, setDetailTab] = useState('information')
+  usePageTrail([{ label: 'Detalle' }, ...(isEditing ? [{ label: 'Editar' }] : detailTab !== 'information' ? [{ label: ({lots:'Lotes y caducidades',locations:'Existencias por ubicación',kit:'Componentes del kit'} as Record<string,string>)[detailTab] || 'Información y precios' }] : [])])
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editPriceWholesale, setEditPriceWholesale] = useState('')
@@ -201,7 +203,7 @@ export default function ProductDetailPage() {
   if (isLoading && !product) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/inventario')}><ArrowLeft className="mr-2 h-4 w-4" />Inventario</Button>
+
         <LoadingState variant="detail" message="Cargando producto…" />
       </div>
     )
@@ -209,10 +211,7 @@ export default function ProductDetailPage() {
   if (!product) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/inventario')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Volver
-        </Button>
+
         <div className="mt-6 text-center text-destructive">Producto no encontrado.</div>
       </div>
     )
@@ -318,9 +317,7 @@ export default function ProductDetailPage() {
   return (
     <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-4 px-4 py-5 sm:px-8">
       <header className="space-y-4">
-        <Button variant="ghost" size="sm" className="-ml-3 text-muted-foreground" onClick={() => navigate('/inventario')}>
-          <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />Volver a Inventario
-        </Button>
+
         <ProductDetailSummary product={product} category={categoryLabel} status={getStatusBadge(product)} actions={
           !isEditing && <>
             {canEdit && <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => setIsEditing(true)}>
@@ -608,12 +605,12 @@ export default function ProductDetailPage() {
           </TabsList>
         </div>
         {product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
-          <div className="rounded-xl border bg-card p-4 sm:p-5"><ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} /></div>
+          <ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
         </TabsContent>}
         <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} /></TabsContent>
         <TabsContent value="information" forceMount hidden={detailTab !== 'information'} className="mt-5 data-[state=inactive]:hidden">
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <section className="min-w-0 space-y-4 rounded-xl border bg-card p-5" aria-labelledby="product-information-heading">
+            <section className="auna-surface min-w-0 space-y-4 rounded-xl border p-5" aria-labelledby="product-information-heading">
               <h2 id="product-information-heading" className="text-lg font-semibold">Información del producto</h2>
               <dl className="grid gap-4 sm:grid-cols-2">
                 {[
@@ -626,7 +623,7 @@ export default function ProductDetailPage() {
               </dl>
               <div className="border-t pt-4"><h3 className="text-sm font-medium">Descripción</h3><p className="mt-2 whitespace-pre-line break-words text-sm text-muted-foreground">{product.description || 'Sin descripción'}</p></div>
             </section>
-            <section className="min-w-0 space-y-4 rounded-xl border bg-card p-5" aria-labelledby="product-prices-heading">
+            <section className="auna-surface min-w-0 space-y-4 rounded-xl border p-5" aria-labelledby="product-prices-heading">
               <h2 id="product-prices-heading" className="text-lg font-semibold">Precios y rentabilidad</h2>
               <dl className="grid gap-4 sm:grid-cols-2">
                 {[

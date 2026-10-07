@@ -14,6 +14,7 @@
  * - Proveedor: entradas de mercancía.
  * - Cliente: historial de compras (ventas vinculadas por nombre o ID fiscal).
  */
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useMemo, useState, useEffect } from 'react'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -252,6 +253,8 @@ export default function SupplierDetailPage() {
   }, [paymentTermsData])
 
   const [isEditing, setIsEditing] = useState(false)
+  const [detailPane, setDetailPane] = useState('detalles')
+  usePageTrail([{ label: 'Detalle' }, ...(isEditing && canEditSupplier ? [{ label: 'Editar' }] : detailPane !== 'detalles' ? [{ label: detailPane === 'entradas' ? 'Entradas de mercancía' : 'Ventas' }] : [])])
   const [editName, setEditName] = useState('')
   const [editContact, setEditContact] = useState('')
   const [editPhone, setEditPhone] = useState('')
@@ -426,10 +429,7 @@ export default function SupplierDetailPage() {
   if (supplierError || (rawSupplier === null && !supplierLoading)) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/contactos')}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Volver
-        </Button>
+
         <div className="mt-6 text-center text-destructive">Contacto no encontrado.</div>
       </div>
     )
@@ -438,7 +438,7 @@ export default function SupplierDetailPage() {
   if (supplierLoading || !supplier) {
     return (
       <div className="p-6">
-        <Button variant="ghost" onClick={() => navigate('/contactos')}><ArrowLeft className="mr-2 h-4 w-4" />Contactos</Button>
+
         <LoadingState variant="detail" message="Cargando contacto…" />
       </div>
     )
@@ -452,9 +452,7 @@ export default function SupplierDetailPage() {
       {supplierFetching && <LoadingIndicator message="Actualizando contacto…" />}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/contactos')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+
           <div>
             <h1 className="text-2xl font-bold text-foreground">{supplier.name}</h1>
             <p className="text-sm text-muted-foreground">
@@ -697,7 +695,7 @@ export default function SupplierDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="detalles" className="w-full">
+      <Tabs defaultValue="detalles" onValueChange={setDetailPane} className="w-full">
         <TabsList
           className={
             hasSecondaryTab ? 'grid w-full max-w-md grid-cols-2' : 'grid w-full max-w-md grid-cols-1'
@@ -727,7 +725,7 @@ export default function SupplierDetailPage() {
         </TabsList>
 
         <TabsContent value="detalles" className="mt-6">
-          <Card className={isEditing && canEditSupplier ? 'ring-2 ring-liquor-amber/30' : ''}>
+          <Card className={"auna-surface " + (isEditing && canEditSupplier ? 'ring-2 ring-liquor-amber/30' : '')}>
             <CardContent className="pt-6 space-y-6">
               {isEditing && canEditSupplier && (
                 <div className="flex flex-wrap items-center justify-end gap-2">
@@ -1118,13 +1116,13 @@ export default function SupplierDetailPage() {
               {!isEditing && isSupplierParty && (
                 <div className="mt-6 space-y-3">
                   <Label className="text-lg font-medium">Productos que Suministra</Label>
-                  <div className="border rounded-lg max-h-64 overflow-y-auto">
+                  <div className="max-h-64 overflow-y-auto">
                     {supplier.productsList && supplier.productsList.length > 0 ? (
-                      <div className="space-y-2 p-3">
+                      <div className="auna-section-list">
                         {supplier.productsList.map((product) => (
                           <div
                             key={product.id}
-                            className="flex items-center justify-between p-2 bg-muted/50 rounded"
+                            className="auna-section-row flex items-center justify-between py-3"
                           >
                             <div>
                               <p className="font-medium text-sm">{product.name}</p>
@@ -1207,7 +1205,7 @@ export default function SupplierDetailPage() {
           </Card>
 
           {partyType === 'CUSTOMER' && canEditSupplier && (
-            <Card className="mt-6">
+            <Card className="auna-surface mt-6">
               <CardHeader>
                 <CardTitle>Precios por canal</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -1234,7 +1232,7 @@ export default function SupplierDetailPage() {
                   </Select>
                 </div>
                 {priceRuleDraft.map((row, idx) => (
-                  <div key={idx} className="flex flex-wrap items-end gap-2 border border-border rounded-lg p-3">
+                  <div key={idx} className="flex flex-wrap items-end gap-2 border-t py-3">
                     <div className="min-w-[140px] flex-1">
                       <Label className="text-xs">Canal</Label>
                       <Select
@@ -1333,7 +1331,7 @@ export default function SupplierDetailPage() {
 
         {showMerchTab && (
         <TabsContent value="entradas" className="mt-6">
-          <Card>
+          <><Card className="auna-surface">
             <CardHeader>
               <CardTitle>Entradas de mercancía</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -1396,7 +1394,12 @@ export default function SupplierDetailPage() {
                       </tbody>
                     </table>
                   </div>
-                  {totalPages > 0 && (
+
+                </>
+              )}
+            </CardContent>
+          </Card>
+{(merchLoading) ? (null) : ((records.length === 0) ? (null) : (<div className="auna-pagination-outside">{totalPages > 0 && (
                     <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-muted-foreground">Items por página:</span>
@@ -1422,17 +1425,13 @@ export default function SupplierDetailPage() {
                         />
                       )}
                     </div>
-                  )}
-                </>
-              )}
-            </CardContent>
-          </Card>
+                  )}</div>))}</>
         </TabsContent>
         )}
 
         {showSalesHistoryTab && (
           <TabsContent value="compras" className="mt-6">
-            <Card>
+            <><Card className="auna-surface">
               <CardHeader>
                 <CardTitle>Historial de compras</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -1495,7 +1494,12 @@ export default function SupplierDetailPage() {
                         </tbody>
                       </table>
                     </div>
-                    {salesTotalPages > 0 && (
+
+                  </>
+                )}
+              </CardContent>
+            </Card>
+{(customerSalesLoading) ? (null) : ((saleRows.length === 0) ? (null) : (<div className="auna-pagination-outside">{salesTotalPages > 0 && (
                       <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-muted-foreground">Items por página:</span>
@@ -1526,11 +1530,7 @@ export default function SupplierDetailPage() {
                           />
                         )}
                       </div>
-                    )}
-                  </>
-                )}
-              </CardContent>
-            </Card>
+                    )}</div>))}</>
           </TabsContent>
         )}
       </Tabs>

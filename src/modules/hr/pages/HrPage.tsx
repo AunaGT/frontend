@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import './hr.css'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 
 export const HrPage = () => {
   const { hasPermission } = useAuthPermissions()
@@ -27,18 +28,19 @@ export const HrPage = () => {
   const canAttendance = hasPermission('hr.attendance.view')
   const canAdvances = hasPermission('hr.advances.view')
   const [tab, setTab] = useState(canEmployees ? 'empleados' : canAttendance ? 'asistencia' : 'anticipos')
+  usePageTrail([{ label: tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos' }])
   const navigate = useNavigate()
   return (
   <div className="hr-record-page">
   <div className="hr-record-container space-y-5">
-    <header className="auna-module-heading"><div><p className="auna-module-eyebrow">PERSONAS</p><h1>{tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos'}</h1><p className="auna-module-description">{tab === 'empleados' ? 'Gestiona el talento que impulsa tu empresa.' : 'Gestiona la asistencia y los anticipos de tu equipo.'}</p></div>{tab === 'empleados' && hasPermission('hr.employees.create') && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => navigate('/rrhh/empleados/nuevo')}><Plus className="mr-2 h-4 w-4" />Nuevo empleado</Button>}</header>
+    <h1 className="sr-only">{tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos'}</h1>
     <Tabs value={tab} onValueChange={setTab}>
       <div className="overflow-x-auto"><ModuleTabsList>
         {canEmployees && <ModuleTabsTrigger value="empleados">Empleados</ModuleTabsTrigger>}
         {canAttendance && <ModuleTabsTrigger value="asistencia">Asistencia</ModuleTabsTrigger>}
         {canAdvances && <ModuleTabsTrigger value="anticipos">Anticipos</ModuleTabsTrigger>}
       </ModuleTabsList></div>
-      {canEmployees && <TabsContent value="empleados"><EmployeesManagement /></TabsContent>}
+      {canEmployees && <TabsContent value="empleados"><EmployeesManagement actions={<>{tab === 'empleados' && hasPermission('hr.employees.create') && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => navigate('/rrhh/empleados/nuevo')}><Plus className="mr-2 h-4 w-4" />Nuevo empleado</Button>}</>} /></TabsContent>}
       {canAttendance && <TabsContent value="asistencia"><AttendanceSheet /></TabsContent>}
       {canAdvances && <TabsContent value="anticipos"><AdvancesManagement /></TabsContent>}
     </Tabs>

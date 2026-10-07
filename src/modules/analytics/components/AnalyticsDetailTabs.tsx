@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -57,7 +58,7 @@ type Props = {
 }
 
 function AnalyticsCard({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <Card className={`rounded-2xl border-border/70 bg-card shadow-sm dark:bg-[#101f34] ${className}`}>{children}</Card>
+  return <Card className={`auna-surface rounded-2xl border-border/70 bg-card ${className}`}>{children}</Card>
 }
 
 function MetricCard({ label, value, hint, icon: Icon, loading, alert = false }: {
@@ -98,6 +99,8 @@ export function AnalyticsDetailTabs({
   children,
 }: Props) {
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState('resumen')
+  usePageTrail([{ label: ({resumen:'Resumen',ventas:'Ventas',productos:'Productos',inventario:'Inventario',compras:'Compras',cartera:'Cartera'} as Record<string,string>)[activeTab] || 'Resumen' }])
   const tabs = buildAnalyticsTabs(sectionAccess)
   const showReceivables = tabs.includes('cartera')
   const receivables = useQuery({
@@ -121,7 +124,7 @@ export function AnalyticsDetailTabs({
   const margin = data?.totals.totalSales ? (data.totals.totalProfit / data.totals.totalSales) * 100 : 0
 
   return (
-    <Tabs defaultValue="resumen" className="space-y-5">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
       <div className="overflow-x-auto pb-1" aria-label="Secciones de análisis">
         <ModuleTabsList>
           {tabs.map((tab) => {
@@ -206,9 +209,9 @@ export function AnalyticsDetailTabs({
         </section>
         <AnalyticsCard>
           <CardHeader><CardTitle className="text-base">Rentabilidad por categoría</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="auna-section-list">
             {(data?.categoryPerformance ?? []).map((category) => (
-              <div key={category.category} className="grid gap-2 rounded-xl border border-border/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
+              <div key={category.category} className="auna-section-row grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-center">
                 <span className="truncate font-medium">{category.category}</span>
                 <span className="text-sm text-muted-foreground">{formatCurrency(category.revenue)} de ingresos</span>
                 <strong className={category.margin < 15 ? 'text-red-500' : 'text-brand-orange'}>{category.margin.toFixed(1)}%</strong>
@@ -293,9 +296,9 @@ export function AnalyticsDetailTabs({
                 </AnalyticsCard>
                 <AnalyticsCard>
                   <CardHeader><CardTitle className="text-base">Mayores saldos de clientes</CardTitle></CardHeader>
-                  <CardContent className="space-y-2">
+                  <CardContent className="auna-section-list">
                     {(receivables.data?.items ?? []).slice().sort((a, b) => b.saldo - a.saldo).slice(0, 8).map((customer) => (
-                      <div key={customer.customer_id} className="flex items-center justify-between gap-4 rounded-xl border border-border/60 p-3">
+                      <div key={customer.customer_id} className="auna-section-row flex items-center justify-between gap-4 py-3">
                         <div className="min-w-0"><p className="truncate text-sm font-medium">{customer.customer_name}</p><p className="text-xs text-muted-foreground">{customer.facturas} facturas</p></div>
                         <div className="text-right"><p className="text-sm font-semibold">{formatCurrency(customer.saldo)}</p>{customer.vencido > 0 ? <p className="text-xs text-red-500">{formatCurrency(customer.vencido)} vencido</p> : null}</div>
                       </div>

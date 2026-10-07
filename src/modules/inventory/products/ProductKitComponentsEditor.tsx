@@ -43,7 +43,7 @@ export function ProductKitComponentsEditor({ value, onChange, excludeProductId, 
         </p>
       )}
       {value.map((row, index) => (
-        <div key={index} className="grid sm:grid-cols-[1fr_120px_auto] gap-2 items-end border rounded-md p-3">
+        <div key={index} className="grid sm:grid-cols-[1fr_120px_auto] gap-2 items-end border-t py-3">
           <ProductCombobox
             label="Producto"
             value={row.component_product_id || undefined}

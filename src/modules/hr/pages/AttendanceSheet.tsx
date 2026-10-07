@@ -126,9 +126,9 @@ export const AttendanceSheet = () => {
   }
 
   return (
-    <Card>
+    <><Card className="auna-surface">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
-        <CardTitle>Asistencia</CardTitle>
+        <CardTitle className="sr-only">Asistencia</CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-md border bg-muted/30 p-1">
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => shiftMonth(-1)} aria-label="Mes anterior">
@@ -147,9 +147,9 @@ export const AttendanceSheet = () => {
       <CardContent>
         {(isFetching && attendance || employeesFetching && employees) && <LoadingIndicator message="Actualizando asistencia…" />}
         {employeesError ? <div role="alert" className="p-6 text-center"><p>No se pudo cargar el equipo.</p><Button variant="outline" onClick={() => void reloadEmployees()}>Reintentar</Button></div> : (
-          <div className="overflow-x-auto auna-data-table-shell">
+          <div className="auna-data-table-shell auna-table-embedded overflow-x-auto">
             {/* Los chips son idénticos a las celdas: la leyenda se lee mirando, no traduciendo. */}
-            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/30 px-3 py-2">
+            <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 py-2">
               {CYCLE.map((status) => (
                 <span key={status} className="flex items-center gap-1.5 text-xs">
                   <span
@@ -165,7 +165,7 @@ export const AttendanceSheet = () => {
                 <span className="text-muted-foreground">Sin marcar</span>
               </span>
             </div>
-            <div className="rounded-md border">
+            <div>
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b bg-muted/40">
@@ -240,7 +240,7 @@ export const AttendanceSheet = () => {
           </div>
         )}
       </CardContent>
-      {employees && <Pagination currentPage={employees.page} totalPages={employees.totalPages} totalItems={employees.totalItems} count={employees.items.length} pageSize={10} onPageChange={setPage} itemLabel="empleados" />}
+
 
       <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
         <DialogContent variant="auna" className="max-w-sm">
@@ -271,6 +271,7 @@ export const AttendanceSheet = () => {
         </DialogContent>
       </Dialog>
     </Card>
+<div className="auna-pagination-outside">{employees && <Pagination currentPage={employees.page} totalPages={employees.totalPages} totalItems={employees.totalItems} count={employees.items.length} pageSize={10} onPageChange={setPage} itemLabel="empleados" />}</div></>
   )
 }
 

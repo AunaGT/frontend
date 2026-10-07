@@ -179,7 +179,7 @@ const MONTH_NAMES = [
 const ReportCard = ({ report, onGenerate }: { report: ReportDefinition; onGenerate: () => void }) => {
   const Icon = report.icon
   return (
-    <Card className="h-full transition-shadow hover:shadow-md">
+    <Card className="auna-surface h-full transition-shadow hover:shadow-md">
       <CardContent className="flex h-full flex-col p-5">
         <div className="flex items-start gap-3">
           <div className={`rounded-lg p-2.5 ${report.bgColor}`}>
@@ -454,10 +454,7 @@ const ReportsManagement = () => {
         </Collapsible>
       </ExportDialog>
 
-      <header>
-        <p className="text-sm text-muted-foreground">Decide primero; exporta el detalle cuando lo necesites.</p>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Reportes</h1>
-      </header>
+      <h1 className="sr-only">Reportes</h1>
 
       <Card className="border-primary/20 bg-primary/5">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -492,7 +489,7 @@ const ReportsManagement = () => {
 
       {specializedReports.length > 0 && (
         <Collapsible open={specializedOpen} onOpenChange={setSpecializedOpen}>
-          <Card>
+          <Card className="auna-surface-flat">
             <CardHeader className="pb-3">
               <CollapsibleTrigger asChild>
                 <Button type="button" variant="ghost" className="h-auto w-full justify-between p-0 text-left">
@@ -508,7 +505,7 @@ const ReportsManagement = () => {
               </CollapsibleTrigger>
             </CardHeader>
             <CollapsibleContent>
-              <CardContent className="grid gap-4 border-t pt-4 sm:grid-cols-2 lg:grid-cols-3">
+              <CardContent className="grid gap-4 px-0 pt-4 sm:grid-cols-2 lg:grid-cols-3">
                 {specializedReports.map((report) => (
                   <ReportCard key={report.id} report={report} onGenerate={() => openReport(report)} />
                 ))}

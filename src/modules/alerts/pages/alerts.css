@@ -19,8 +19,8 @@
 .alerts-page .alerts-primary:hover, .alerts-dialog .alerts-primary:hover { background: hsl(var(--brand-orange) / .88); }
 .alerts-heading .alerts-primary { gap: 8px; min-height: 42px; padding-inline: 18px; white-space: nowrap; }
 .alerts-stats { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin-bottom: 24px; }
-.alerts-stat { display: flex; align-items: center; gap: 13px; min-height: 116px; padding: 20px; text-align: left; border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); box-shadow: 0 4px 16px hsl(var(--foreground) / .035); }
-.dark .alerts-stat { background: linear-gradient(135deg, hsl(var(--card)), hsl(216 45% 15%)); }
+.alerts-stat { display: flex; align-items: center; gap: 13px; min-height: 116px; padding: 20px; text-align: left; border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); box-shadow: none; }
+.dark .alerts-stat { background: hsl(var(--auna-surface-card)); }
 .alerts-stat:hover { border-color: hsl(var(--brand-orange) / .55); transform: translateY(-1px); }
 .alerts-stat:focus-visible,  .alerts-page button:focus-visible { outline: 2px solid hsl(var(--brand-orange)); outline-offset: 2px; }
 .alerts-stat-icon { display: grid; place-items: center; flex: none; width: 47px; height: 47px; border-radius: 10px; }
@@ -39,7 +39,7 @@
 .alerts-search-input { display: flex; align-items: center; gap: 6px; }
 .alerts-filter-panel .alerts-filter-apply { height: 39px; padding-inline: 15px; white-space: nowrap; font-size: 12px; }
 .alerts-filter-clear { height: 39px; color: hsl(var(--muted-foreground)); font-size: 12px; }
-.alerts-list-panel { border: 1px solid hsl(var(--border)); border-radius: 12px; background: hsl(var(--card)); overflow: hidden; }
+.alerts-list-panel { border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); overflow: hidden; }
 .alerts-list-heading, .alerts-table-footer { display: flex; justify-content: space-between; align-items: center; gap: 18px; min-height: 58px; padding: 12px 17px; color: hsl(var(--muted-foreground)); font-size: 12px; }
 .alerts-list-heading label, .alerts-table-footer label { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .alerts-list-heading select { width: 177px; }

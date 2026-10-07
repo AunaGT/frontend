@@ -127,18 +127,10 @@ export default function UserCreatePage() {
   return (
     <main className="users-page">
       {/* Breadcrumb */}
-      <Link to="/usuarios" className="text-xs users-muted hover:text-foreground transition-colors inline-flex items-center gap-1 mb-2">
-        <span>←</span> Usuarios
-      </Link>
+
 
       {/* Encabezado */}
-      <header className="auna-module-heading mb-6"><div>
-        <p className="auna-module-eyebrow">Administración</p>
-        <h1>Crear usuario y roles</h1>
-        <p className="auna-module-description">
-          Registra un nuevo usuario, define su acceso, asigna empresas, roles y permisos.
-        </p>
-      </div></header>
+      <h1 className="sr-only">Crear usuario y roles</h1>
 
       <div className="space-y-6">
         {/* ══════════ FILA 1: Información del usuario + Acceso y seguridad ══════════ */}
@@ -430,7 +422,7 @@ export default function UserCreatePage() {
         </div>
 
         <AunaPanel title="Permisos del rol" subtitle="Los permisos se heredan del rol; la activación comercial de módulos es independiente." icon={Shield}>
-          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <LoadingState variant="cards" message="Cargando permisos…" /> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
+          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando permisos…" /> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
           <Link className="text-orange-500 text-sm inline-block mt-3" to="/usuarios/roles-permisos">Consultar roles y permisos</Link>
         </AunaPanel>
 

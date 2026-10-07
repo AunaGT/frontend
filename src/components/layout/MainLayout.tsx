@@ -20,20 +20,21 @@ import { ModuleProvider } from '@/context/ModuleProvider'
 import { ModuleAccessBoundary } from '@/routes/ModuleAccessBoundary'
 import { BrandLoading } from '@/components/branding/BrandLoading'
 import { Suspense } from 'react'
+import { PageNavigationProvider } from './PageNavigation'
 
 export const MainLayout = () => {
     return (
         <ModuleProvider>
             <SystemSettingsProvider>
                 <DocumentBranding />
-                <div className='min-h-screen bg-brand-surface/70 dark:bg-brand-navy flex flex-col'>
+                <PageNavigationProvider><div className='min-h-screen bg-brand-surface/70 dark:bg-brand-navy flex flex-col'>
                     <TopBar />
                     <main className='auna-app-content flex-1 overflow-auto bg-brand-surface/70 dark:bg-brand-navy'>
                         <Suspense fallback={<BrandLoading message="Cargando módulo…" />}>
                             <ModuleAccessBoundary />
                         </Suspense>
                     </main>
-                </div>
+                </div></PageNavigationProvider>
             </SystemSettingsProvider>
         </ModuleProvider>
     )

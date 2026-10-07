@@ -101,17 +101,10 @@ export const ClosureDetailPage = () => {
     toast({ title: 'PDF generado', description: `Cierre #${closure.closure_number} descargado` })
   }
 
-  const BackButton = (
-    <Button variant="ghost" size="sm" onClick={() => navigate('/cierre-caja')} className="-ml-2 text-muted-foreground">
-      <ArrowLeft className="h-4 w-4 mr-2" />Volver al historial
-    </Button>
-  )
-
   if (loading) {
     return (
       <div className="p-6 space-y-6">
-        {BackButton}
-        <h1 className="text-xl font-semibold">Detalle del cierre</h1><LoadingState variant="detail" message="Cargando cierre…" />
+        <h1 className="sr-only">Detalle del cierre</h1><LoadingState variant="detail" message="Cargando cierre…" />
       </div>
     )
   }
@@ -119,7 +112,6 @@ export const ClosureDetailPage = () => {
   if (!closure) {
     return (
       <div className="p-6 space-y-6">
-        {BackButton}
         <Card><CardContent className="py-12 text-center text-muted-foreground">No se encontró el cierre solicitado.</CardContent></Card>
       </div>
     )
@@ -130,12 +122,11 @@ export const ClosureDetailPage = () => {
 
   return (
     <div className="p-6 space-y-6">
-      {BackButton}
 
       {/* Encabezado con acciones */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-foreground">Cierre #{closure.closure_number}</h2>
+          <h1 className="text-2xl font-bold text-foreground">Cierre #{closure.closure_number}</h1>
           <Badge variant={statusVariant(closure.status)}>{closure.status}</Badge>
         </div>
         <div className="flex items-center gap-2">

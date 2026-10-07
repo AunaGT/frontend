@@ -11,6 +11,7 @@ import { feedbackForRow } from './importRowFeedback.mjs'
 import { ImportRowActions, type ImportRowIssue } from './useImportDecisions'
 import { validateImportFile } from './importFile.mjs'
 import './dataTransfer.css'
+import { usePageNavigation, usePageTrail } from '@/components/layout/PageNavigation'
 
 type Field = { id: string; label: string; required: boolean }
 type Mapping = { excelColumn: string; systemField: string | null }
@@ -52,6 +53,7 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
   resolutionActions?: ReactNode
   rowResolutionActions?: (rowIndex: number) => ReactNode
 }) {
+  const navigation = usePageNavigation()
   const [fileError, setFileError] = useState('')
   const [page, setPage] = useState(1)
   const [showErrorsOnly, setShowErrorsOnly] = useState(false)
@@ -70,6 +72,7 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
   const visible = filtered.slice((currentPage - 1) * 10, currentPage * 10)
   const pages = Array.from(new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages])).filter((number) => number >= 1 && number <= totalPages).sort((a, b) => a - b)
   const step = result ? 4 : validated ? 3 : file ? 2 : 1
+  usePageTrail(navigation ? [{ label: 'Importar' }, { label: ['Cargar archivo', 'Mapeo de campos', 'Validación', 'Resultado'][step - 1] }] : null)
   useEffect(() => { if (validated && errors.length) errorSummary.current?.focus() }, [validated, errors])
 
   const loadFile = async (next?: File) => {
@@ -90,11 +93,11 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
     } catch (error) { setTemplateError(error instanceof Error ? error.message : 'No se pudo descargar la plantilla.') }
   }
 
-  if (result) return <main className="auna-import-workbench"><header className="auna-import-workbench-heading"><h1>{title}</h1></header><ImportWizardSteps current={4} fileName={file?.name} /><section className="auna-import-panel"><div className="auna-import-panel-body"><ImportSummary result={result} back={back} backLabel={backLabel} /></div></section></main>
+  if (result) return <main className="auna-import-workbench">{navigation ? <h1 className="sr-only">{title}</h1> : <header className="auna-import-workbench-heading"><h1>{title}</h1></header>}<ImportWizardSteps current={4} fileName={file?.name} /><section className="auna-import-panel"><div className="auna-import-panel-body"><ImportSummary result={result} back={back} backLabel={backLabel} /></div></section></main>
 
   return <main className="auna-import-workbench">
-    <Link className="auna-import-back" to={back}>← {backLabel}</Link>
-    <header className="auna-import-workbench-heading"><h1>{title}</h1><p>{description}</p></header>
+    {!navigation && <Link className="auna-import-back" to={back}>← {backLabel}</Link>}
+    {navigation ? <><h1 className="sr-only">{title}</h1><p className="text-sm text-muted-foreground">{description}</p></> : <header className="auna-import-workbench-heading"><h1>{title}</h1><p>{description}</p></header>}
     <ImportWizardSteps current={step as 1 | 2 | 3 | 4} fileName={file?.name} />
 
     <section className="auna-import-panel" aria-labelledby="import-upload-heading">
@@ -129,10 +132,10 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
           {resolutionActions}
           <label className="auna-import-only-errors"><input className="auna-checkbox" type="checkbox" checked={showErrorsOnly} onChange={(event) => { setShowErrorsOnly(event.target.checked); setPage(1) }} />Mostrar solo filas con errores</label>
           <div className="auna-import-table-wrap"><table className="auna-import-table"><thead><tr><th>Fila</th>{previewFields.map((field) => <th key={field.id}>{field.label}</th>)}<th>Validación</th></tr></thead><tbody>{visible.map(({ row, index }) => { const rowErrors = feedbackForRow(errors, index, firstErrorIndex); const skipped = skippedRowIndexes.includes(index + firstErrorIndex) || automaticSkippedRowIndexes.includes(index + firstErrorIndex); return <tr key={index}><td>{index + (useFirstRowAsHeader ? 2 : 1)}</td>{previewFields.map((field) => <td key={field.id}>{String(row[selected[field.id]] ?? '') || '—'}</td>)}<td className={firstError ? '' : rowErrors.length ? 'auna-import-invalid' : skipped ? '' : 'auna-import-valid'}>{firstError ? 'Pendiente de validación' : rowErrors.length ? rowErrors.join(' · ') : skipped ? automaticSkippedRowIndexes.includes(index + firstErrorIndex) ? 'Omitido: el código ya existe' : 'Omitido por decisión del usuario' : 'Válido'}{rowResolutionActions?.(index + firstErrorIndex)}{onResolveRow && !automaticSkippedRowIndexes.includes(index + firstErrorIndex) && <ImportRowActions rowIndex={index + firstErrorIndex} displayRowIndex={index + (useFirstRowAsHeader ? 2 : 1)} issue={errors.find(error => error.rowIndex === index + firstErrorIndex)} skipped={skipped} disabled={busy || Boolean(firstError)} onResolve={onResolveRow} />}</td></tr> })}</tbody></table></div>
-          <footer className="auna-import-pagination"><span>Mostrando {visible.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, filtered.length)} de {filtered.length}</span><nav aria-label="Paginación"><Button type="button" size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button>{pages.map((number, index) => <span key={number} className="auna-import-page-number">{index > 0 && number - pages[index - 1] > 1 && <span aria-hidden="true">…</span>}<Button type="button" size="icon" variant={number === currentPage ? 'default' : 'outline'} aria-label={`Página ${number}`} aria-current={number === currentPage ? 'page' : undefined} onClick={() => setPage(number)}>{number}</Button></span>)}<Button type="button" size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></nav></footer>
         </> : <p className="auna-import-note">Valida el archivo para revisar cada fila antes de guardar datos.</p>}
       </div>
     </section>
+    {validated && <div className="auna-pagination-outside"><footer className="auna-import-pagination"><span>Mostrando {visible.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, filtered.length)} de {filtered.length}</span><nav aria-label="Paginación"><Button type="button" size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft size={16} /></Button>{pages.map((number, index) => <span key={number} className="auna-import-page-number">{index > 0 && number - pages[index - 1] > 1 && <span aria-hidden="true">…</span>}<Button type="button" size="icon" variant={number === currentPage ? 'default' : 'outline'} aria-label={`Página ${number}`} aria-current={number === currentPage ? 'page' : undefined} onClick={() => setPage(number)}>{number}</Button></span>)}<Button type="button" size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight size={16} /></Button></nav></footer></div>}
 
     <section className="auna-import-panel" aria-labelledby="import-result-heading">
       <header><h2 id="import-result-heading">4. Resultado</h2></header>

@@ -1,6 +1,6 @@
 # Superficies visuales únicas en las vistas migradas de Auna
 
-Fecha: 2026-10-06. Estado: diseño visual aprobado; especificación pendiente de revisión.
+Fecha: 2026-10-06. Estado: diseño visual y especificación aprobados; implementación y comprobaciones automáticas realizadas. Comparación visual en navegador pendiente.
 
 ## Objetivo
 

@@ -36,6 +36,18 @@ const sale = { id: 'sale-1', reference: 'V-001', customer: 'Cliente visible', cu
 const base = { sales: [sale], pageInfo: { page: 2, totalPages: null, hasMore: true }, isLoading: false, updatingSaleIds: new Set(), onPageChange() {}, onStatusChange() {}, onViewSale() {}, onViewInvoice() {}, canChangeStatus: true, canViewDetail: true, canViewInvoice: true, locale: 'en-US', currencyCode: 'USD' }
 const render = props => renderToStaticMarkup(React.createElement(SalesStatusTable, { ...base, ...props }))
 
+test('card grids and responsive lists have no outer decorative surface', () => {
+  const cards = render({ viewMode: 'cards' })
+  assert.match(cards, /<section[^>]*class="auna-surface-flat"/)
+  assert.match(cards, /<article[^>]*class="[^"]*auna-surface\b/)
+  assert.doesNotMatch(cards, /auna-data-table-shell|<table\b/)
+  assert.match(cards, /aria-label="Página siguiente"/)
+  const table = render({ viewMode: 'table' })
+  assert.equal((table.match(/auna-data-table-shell/g) ?? []).length, 1)
+  assert.match(table, /Vendedor visible/)
+  assert.match(table, /Ver detalle de V-001/)
+})
+
 test('all sales render a single real table with seller and preserve fully returned net zero', () => {
   const html = render()
   assert.equal((html.match(/<table\b/g) ?? []).length, 1)
@@ -150,9 +162,9 @@ test('management uses the shared module heading, visible search and compact filt
   })
   const { default: SalesManagement } = load(path.join(root, 'src/modules/sales/SalesManagement.tsx'))
   const html = renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(SalesManagement)))
-  assert.match(html, /auna-module-heading/)
-  assert.match(html, /auna-module-eyebrow[^>]*>Ventas/)
-  assert.match(html, /<h1>Ventas<\/h1>/)
+  assert.match(html, /class="sr-only">Ventas<\/h1>/)
+  assert.match(html, /compact-filter-actions/)
+  assert.doesNotMatch(html, /auna-module-eyebrow[^>]*>Ventas/)
   assert.match(html, /bg-brand-orange[^>]*>.*?Nueva venta/)
   assert.match(html, /<label[^>]*for="sales-search"[^>]*>Buscar/)
   assert.match(html, /compact-filter-toolbar/)

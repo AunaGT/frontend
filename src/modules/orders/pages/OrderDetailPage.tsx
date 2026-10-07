@@ -417,7 +417,7 @@ export default function OrderDetailPage() {
         </section>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(260px,0.8fr)_minmax(500px,1.55fr)_minmax(280px,0.9fr)]">
-          <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+          <Card className="auna-surface rounded-2xl border-border/70 shadow-sm">
             <CardHeader><CardTitle className="text-lg">Cliente</CardTitle></CardHeader>
             <CardContent className="space-y-4 text-sm">
               <div className="flex gap-3"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600"><Building2 className="h-6 w-6" /></span><div><strong className="text-base">{order.customer || order.customerContact?.name || "Sin cliente"}</strong><p className="text-muted-foreground">{order.is_final_consumer ? "Consumidor final" : `NIT ${order.customer_nit || order.customerContact?.tax_id || "—"}`}</p></div></div>
@@ -428,7 +428,7 @@ export default function OrderDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+          <Card className="auna-surface rounded-2xl border-border/70 shadow-sm">
             <CardHeader><CardTitle className="text-lg">Cumplimiento del pedido</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-5 gap-1">
@@ -442,7 +442,7 @@ export default function OrderDetailPage() {
                   </div>;
                 })}
               </div>
-              <div className="mt-7 grid grid-cols-3 gap-3 rounded-xl border border-border/70 bg-muted/30 p-4 text-center">
+              <div className="mt-7 grid grid-cols-3 gap-3 border-t pt-4 text-center">
                 <div><strong className="block text-xl">{totalOrdered}</strong><span className="text-xs text-muted-foreground">Solicitado</span></div>
                 <div><strong className="block text-xl text-emerald-600">{totalFulfilled}</strong><span className="text-xs text-muted-foreground">Entregado</span></div>
                 <div><strong className="block text-xl text-brand-orange">{Math.max(0, totalOrdered - totalFulfilled)}</strong><span className="text-xs text-muted-foreground">Pendiente</span></div>
@@ -450,7 +450,7 @@ export default function OrderDetailPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+          <Card className="auna-surface rounded-2xl border-border/70 shadow-sm">
             <CardHeader><CardTitle className="text-lg">Información del pedido</CardTitle></CardHeader>
             <CardContent className="space-y-3 text-sm">
               <InfoRow label="Folio" value={order.reference ?? order.id.slice(0, 8)} />
@@ -466,7 +466,7 @@ export default function OrderDetailPage() {
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.72fr)]">
-          <Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+          <><Card className="auna-surface overflow-hidden rounded-2xl border-border/70 shadow-sm">
             <CardHeader className="flex-row items-center justify-between"><CardTitle className="text-lg">Partidas ({order.lines.length})</CardTitle><Button variant="outline" size="sm" className="rounded-lg print:hidden" onClick={() => void handlePdf()}><FileDown className="mr-2 h-4 w-4" />Descargar</Button></CardHeader>
             <CardContent className="p-0">
               <div className="hidden overflow-x-auto sm:block">
@@ -475,15 +475,16 @@ export default function OrderDetailPage() {
                   <TableBody>{paginatedLines.items.map((line) => <TableRow key={line.id}><TableCell className="pl-6 text-muted-foreground">{line.product?.barcode || "—"}</TableCell><TableCell className="font-medium">{line.product?.name ?? line.product_id}</TableCell><TableCell className="text-right">{line.qty}</TableCell><TableCell className="text-right text-emerald-600">{Number(line.qty_fulfilled || 0)}</TableCell><TableCell className="text-right text-brand-orange">{pendingOrderLineQty(line)}</TableCell><TableCell className="text-right">{fmt(num(line.unit_price))}</TableCell><TableCell className="pr-6 text-right font-semibold">{fmt(num(line.line_total))}</TableCell></TableRow>)}</TableBody>
                 </Table>
               </div>
-              <div className="space-y-3 p-4 sm:hidden">{paginatedLines.items.map((line) => <article key={line.id} className="rounded-xl border border-border/70 p-4"><div className="flex justify-between gap-3"><div><strong>{line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="rounded-lg bg-muted p-2">Pedido<strong className="block text-sm">{line.qty}</strong></span><span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{Number(line.qty_fulfilled || 0)}</strong></span><span className="rounded-lg bg-orange-500/10 p-2 text-brand-orange">Pendiente<strong className="block text-sm">{pendingOrderLineQty(line)}</strong></span></div></article>)}</div>
-              {paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}
+              <div className="auna-section-list px-4 sm:hidden">{paginatedLines.items.map((line) => <article key={line.id} className="auna-section-row py-4"><div className="flex justify-between gap-3"><div><strong>{line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="rounded-lg bg-muted p-2">Pedido<strong className="block text-sm">{line.qty}</strong></span><span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{Number(line.qty_fulfilled || 0)}</strong></span><span className="rounded-lg bg-orange-500/10 p-2 text-brand-orange">Pendiente<strong className="block text-sm">{pendingOrderLineQty(line)}</strong></span></div></article>)}</div>
+
               <div className="ml-auto w-full max-w-sm space-y-2 border-t border-border/70 p-5 text-sm"><InfoRow label="Subtotal" value={fmt(num(order.subtotal))} />{num(order.discount_total) > 0 ? <InfoRow label="Descuento" value={`-${fmt(num(order.discount_total))}`} /> : null}<div className="flex items-center justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{fmt(total)}</span></div></div>
             </CardContent>
           </Card>
+<div className="auna-pagination-outside">{paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}</div></>
 
           <aside className="space-y-4">
-            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Despacho y entrega</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent className="space-y-3 text-sm"><InfoRow label="Transportista" value={order.delivery_carrier || "—"} /><InfoRow label="Guía de envío" value={order.delivery_tracking_number || "—"} /><InfoRow label="Salida" value={order.delivery_dispatched_at ? formatDateTime(order.delivery_dispatched_at, undefined, locale) : "—"} /><InfoRow label="Entrega estimada" value={order.delivery_estimated_at ? formatDateTime(order.delivery_estimated_at, undefined, locale) : "—"} /><InfoRow label="Dirección" value={order.delivery_address || order.customerContact?.address || "—"} /><InfoRow label="Estado" value={deliveryLabel} /></CardContent></Card>
-            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+            <Card className="auna-surface rounded-2xl border-border/70 shadow-sm"><CardHeader className="flex-row items-center justify-between"><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Despacho y entrega</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent className="space-y-3 text-sm"><InfoRow label="Transportista" value={order.delivery_carrier || "—"} /><InfoRow label="Guía de envío" value={order.delivery_tracking_number || "—"} /><InfoRow label="Salida" value={order.delivery_dispatched_at ? formatDateTime(order.delivery_dispatched_at, undefined, locale) : "—"} /><InfoRow label="Entrega estimada" value={order.delivery_estimated_at ? formatDateTime(order.delivery_estimated_at, undefined, locale) : "—"} /><InfoRow label="Dirección" value={order.delivery_address || order.customerContact?.address || "—"} /><InfoRow label="Estado" value={deliveryLabel} /></CardContent></Card>
+            <Card className="auna-surface rounded-2xl border-border/70 shadow-sm">
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><DollarSign className="h-5 w-5 text-emerald-500" />Facturación y cartera</CardTitle></CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <InfoRow label="Total del pedido" value={fmt(total)} />
@@ -496,16 +497,16 @@ export default function OrderDetailPage() {
                 {order.documentSales?.length ? <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">{order.documentSales.map(link => link.sale?.id ? <Button key={link.id} variant="outline" size="sm" className="rounded-lg" onClick={() => navigate(`/ventas/${link.sale!.id}/factura`)}>{link.sale.reference ?? link.sale.id.slice(0, 8)}</Button> : null)}</div> : <p className="text-muted-foreground">Sin ventas emitidas. No hay saldo por cobrar.</p>}
               </CardContent>
             </Card>
-            {order.fulfillment_mode === 'SEPARATE' && <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]">
+            {order.fulfillment_mode === 'SEPARATE' && <Card className="auna-surface rounded-2xl border-border/70 shadow-sm">
               <CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Entregas registradas</CardTitle></CardHeader>
-              <CardContent className="max-h-72 space-y-3 overflow-y-auto text-sm">{order.deliveries?.length ? order.deliveries.map((delivery, index) => <div key={delivery.id} className="rounded-xl border border-border/70 p-3">
+              <CardContent className="auna-section-list max-h-72 overflow-y-auto text-sm">{order.deliveries?.length ? order.deliveries.map((delivery, index) => <div key={delivery.id} className="auna-section-row py-3">
                 <p className="font-medium">Entrega {order.deliveries!.length - index}{delivery.reversed_at ? ' · Revertida' : ''}</p><p className="text-xs text-muted-foreground">{formatDateTime(delivery.created_at, undefined, locale)}</p>
                 {delivery.lines.map(line => <p key={line.document_line_id}>{order.lines.find(item => item.id === line.document_line_id)?.product?.name || 'Producto'}: {line.qty}</p>)}
                 {canManage && !delivery.reversed_at && delivery.lines.every(line => line.qty_invoiced === 0) && <Button variant="outline" size="sm" className="mt-2" onClick={() => setDeliveryToReverse(delivery.id)}>Revertir entrega</Button>}
               </div>) : <p className="text-muted-foreground">Todavía no se han registrado entregas.</p>}</CardContent>
             </Card>}
-            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Link2 className="h-5 w-5 text-brand-orange" />Seguimiento del cliente</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Comparte una vista de solo lectura con el estado y las partidas del pedido.</p><Button variant="outline" className="w-full rounded-xl" disabled={shareAction !== null} onClick={() => void handlePublicAction("copy")}><ClipboardCopy className="mr-2 h-4 w-4" />Copiar enlace público</Button></CardContent></Card>
-            <Card className="rounded-2xl border-border/70 shadow-sm dark:bg-[#101f34]"><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-lg">Notas</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent><p className="whitespace-pre-wrap text-sm text-muted-foreground">{order.notes || "Sin notas para este pedido."}</p></CardContent></Card>
+            <Card className="auna-surface rounded-2xl border-border/70 shadow-sm"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Link2 className="h-5 w-5 text-brand-orange" />Seguimiento del cliente</CardTitle></CardHeader><CardContent className="space-y-3"><p className="text-sm text-muted-foreground">Comparte una vista de solo lectura con el estado y las partidas del pedido.</p><Button variant="outline" className="w-full rounded-xl" disabled={shareAction !== null} onClick={() => void handlePublicAction("copy")}><ClipboardCopy className="mr-2 h-4 w-4" />Copiar enlace público</Button></CardContent></Card>
+            <Card className="auna-surface rounded-2xl border-border/70 shadow-sm"><CardHeader className="flex-row items-center justify-between"><CardTitle className="text-lg">Notas</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent><p className="whitespace-pre-wrap text-sm text-muted-foreground">{order.notes || "Sin notas para este pedido."}</p></CardContent></Card>
           </aside>
         </div>
 

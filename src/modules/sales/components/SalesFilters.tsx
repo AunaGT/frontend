@@ -17,10 +17,12 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Search } from 'lucide-react'
 import type { SaleStatusKey } from '../types'
+import type { ReactNode } from 'react'
 
 const PERIOD_LABELS: Record<string, string> = { today: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Todo el historial' }
 
 interface SalesFiltersProps {
+    actions?: ReactNode
     searchTerm: string
     onSearchChange: (value: string) => void
     statusFilter: SaleStatusKey | 'all'
@@ -45,7 +47,7 @@ export const SalesFilters = ({
     onPaymentChange,
     isGlobalSearch = false,
     searchHint = null,
-    period = 'today', onPeriodChange, paymentMethods, paymentMethodsLoading = false, showStatusFilter = true,
+    period = 'today', onPeriodChange, paymentMethods, paymentMethodsLoading = false, showStatusFilter = true, actions,
 }: SalesFiltersProps) => {
     const methods = paymentMethods ?? ['Efectivo', 'Tarjeta', 'Transferencia'].map(name => ({ id: name, name, is_credit: false }))
     const appliedFilters = [
@@ -54,7 +56,7 @@ export const SalesFilters = ({
         ...(paymentFilter !== 'all' ? [{label: `Pago: ${paymentFilter}`,onRemove: () => onPaymentChange('all')}] : []),
         ...(onPeriodChange && period !== 'today' ? [{label: `Período: ${PERIOD_LABELS[period] || period}`,onRemove: () => onPeriodChange('today')}] : []),
     ]
-    return <div className="space-y-2"><CompactFilterPanel title="Filtros de ventas" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={() => {onSearchChange('');onStatusChange('all');onPaymentChange('all');onPeriodChange?.('today')}} search={
+    return <div className="space-y-2"><CompactFilterPanel actions={actions} title="Filtros de ventas" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={() => {onSearchChange('');onStatusChange('all');onPaymentChange('all');onPeriodChange?.('today')}} search={
         <div className="space-y-2"><Label htmlFor="sales-search">Buscar</Label><div className="relative min-w-0"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input id="sales-search" aria-label="Buscar ventas" placeholder="Cliente, folio o ID fiscal…" value={searchTerm} onChange={e => onSearchChange(e.target.value)} className="pl-10" /></div></div>
     }>
         {showStatusFilter && <div className="space-y-2"><Label>Estado</Label><Select value={statusFilter} onValueChange={(v: SaleStatusKey | 'all') => onStatusChange(v)}><SelectTrigger aria-label="Estado de venta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="completed">Completado</SelectItem><SelectItem value="cancelled">Cancelado</SelectItem></SelectContent></Select></div>}

@@ -13,8 +13,8 @@ Todos los colores DEBEN ser HSL.
     --brand-orange: 24 94% 53%;
     --brand-orange-strong: 20 90% 46%;
     --brand-surface: 216 33% 97%;
-    --auna-table-surface: 0 0% 100%;
-    --auna-table-header: 216 35% 96%;
+    --auna-table-surface: var(--auna-surface-card);
+    --auna-table-header: var(--auna-surface-header);
 
     --background: 45 15% 97%;
     --foreground: 25 15% 15%;
@@ -88,8 +88,8 @@ Todos los colores DEBEN ser HSL.
     --brand-orange: 24 94% 55%;
     --brand-orange-strong: 20 92% 49%;
     --brand-surface: 218 34% 13%;
-    --auna-table-surface: 216 45% 14%;
-    --auna-table-header: 215 35% 18%;
+    --auna-table-surface: var(--auna-surface-card);
+    --auna-table-header: var(--auna-surface-header);
 
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
@@ -215,10 +215,10 @@ header.auna-module-heading p.auna-module-description {
 
 .auna-data-table-shell {
   overflow: hidden;
-  border: 1px solid hsl(var(--border) / .7);
+  border: 1px solid hsl(var(--auna-surface-border));
   border-radius: 1rem;
   background: hsl(var(--auna-table-surface));
-  box-shadow: 0 2px 10px -4px hsl(var(--brand-navy) / .12);
+  box-shadow: none;
 }
 
 :is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table,
@@ -234,9 +234,9 @@ table.auna-data-table {
 table.auna-data-table thead > tr > th {
   height: auto;
   padding: 16px 20px;
-  border-bottom: 1px solid hsl(var(--border) / .7);
+  border-bottom: 1px solid hsl(var(--auna-surface-border));
   background: hsl(var(--auna-table-header));
-  color: hsl(var(--muted-foreground));
+  color: hsl(var(--auna-surface-muted));
   font-size: 12px;
   font-weight: 650;
   letter-spacing: .04em;
@@ -247,13 +247,13 @@ table.auna-data-table thead > tr > th {
 
 :is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr,
 table.auna-data-table tbody > tr {
-  border-bottom: 1px solid hsl(var(--border) / .7);
+  border-bottom: 1px solid hsl(var(--auna-surface-border));
   transition: background-color .15s ease;
 }
 :is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:last-child,
 table.auna-data-table tbody > tr:last-child { border-bottom: 0; }
 :is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:is(:hover, :focus-within),
-table.auna-data-table tbody > tr:is(:hover, :focus-within) { background: hsl(var(--muted) / .35); }
+table.auna-data-table tbody > tr:is(:hover, :focus-within) { background: hsl(var(--auna-surface-header)); }
 :is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr > td,
 table.auna-data-table tbody > tr > td {
   padding: 16px 20px;
@@ -272,7 +272,7 @@ table.auna-data-table tbody > tr > td button[aria-label] { border-radius: 8px; }
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid hsl(var(--border) / .7);
+  border-top: 1px solid hsl(var(--auna-surface-border));
   color: hsl(var(--muted-foreground));
   font-size: 13px;
 }

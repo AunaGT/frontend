@@ -18,6 +18,7 @@ export function UsersPage({
   actions,
   back = '/usuarios',
   backLabel = 'Usuarios',
+  compact = false,
 }: {
   title: string
   description?: string
@@ -25,22 +26,23 @@ export function UsersPage({
   actions?: ReactNode
   back?: string
   backLabel?: string
+  compact?: boolean
 }) {
   return (
     <main className="users-page">
-      {back && (
+      {back && !compact && (
         <Link className="users-muted text-sm inline-flex items-center gap-1 mb-2 hover:text-foreground transition-colors" to={back}>
           <span>←</span> {backLabel}
         </Link>
       )}
-      <header className="users-heading auna-module-heading mb-6">
+      {compact ? <><h1 className="sr-only">{title}</h1>{actions && <div className="auna-page-toolbar mb-5"><div className="compact-filter-actions">{actions}</div></div>}</> : <header className="users-heading auna-module-heading mb-6">
         <div>
           <p className="auna-module-eyebrow">Administración</p>
           <h1>{title}</h1>
           {description && <p className="auna-module-description">{description}</p>}
         </div>
         {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
-      </header>
+      </header>}
       {children}
     </main>
   )

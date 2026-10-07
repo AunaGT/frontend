@@ -2,7 +2,7 @@
 .dark .inventory-count-page { background: hsl(var(--brand-navy)); }
 .inventory-count-content { width: 100%; max-width: 1560px; margin: 0 auto; padding: 24px 32px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
 .inventory-count-content > *, .inventory-count-page fieldset, .inventory-count-page .bg-card { min-width: 0; }
-.inventory-count-page .bg-card { background: hsl(var(--auna-table-surface)); border-radius: 16px; }
+.inventory-count-page .bg-card:not(.auna-surface-flat) { background: hsl(var(--auna-table-surface)); border-radius: 16px; }
 .inventory-count-page .auna-count-summary dl > div { display: flex; gap: 16px; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid hsl(var(--border)); font-size: 14px; }
 .inventory-count-page .auna-count-summary dt { color: hsl(var(--muted-foreground)); }
 .inventory-count-page .auna-count-summary dd { text-align: right; overflow-wrap: anywhere; }

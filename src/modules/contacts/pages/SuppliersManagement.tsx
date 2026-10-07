@@ -103,7 +103,7 @@ const SuppliersManagement = () => {
     party_type:
       showPartyTabs && partyFilter !== "all" ? partyFilter : undefined,
   });
-  
+
   const suppliers: Supplier[] = suppliersData?.items ?? [];
   const totalItems = suppliersData?.totalItems ?? 0;
   const totalPages = suppliersData?.totalPages ?? 1;
@@ -244,38 +244,11 @@ const SuppliersManagement = () => {
   return (
     <div className="p-6 space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Contactos</h2>
-          <p className="text-muted-foreground">
-            Haz clic en una fila o tarjeta para abrir el detalle. Proveedores y clientes.
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          {canImport && (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => navigate('/contactos/importar')}
-              >
-                <FileUp className="w-4 h-4 mr-2" />
-                Importar
-              </Button>
-            </>
-          )}
-          {canCreate && (
-            <Button className="bg-liquor-amber hover:bg-liquor-amber/90 text-white" onClick={() => navigate("/contactos/nuevo")}>
-              <Plus className="w-4 h-4 mr-2" />
-              Nuevo contacto
-            </Button>
-          )}
-        </div>
-      </div>
+      <h1 className="sr-only">Contactos</h1>
 
       {/* Estadísticas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="animate-slide-up">
+        <Card className="auna-surface animate-slide-up">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -287,7 +260,7 @@ const SuppliersManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="animate-slide-up" style={{ animationDelay: "100ms" }}>
+        <Card className="auna-surface animate-slide-up" style={{ animationDelay: "100ms" }}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -299,7 +272,7 @@ const SuppliersManagement = () => {
           </CardContent>
         </Card>
 
-        <Card className="animate-slide-up" style={{ animationDelay: "200ms" }}>
+        <Card className="auna-surface animate-slide-up" style={{ animationDelay: "200ms" }}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -342,8 +315,8 @@ const SuppliersManagement = () => {
                 </Button>
               </div>
             )}
-            <div className="flex items-center gap-4">
-            <div className="relative flex-1">
+            <div className="auna-page-toolbar">
+            <div className="compact-filter-search relative min-w-0 flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar por nombre, contacto o categoría..."
@@ -374,7 +347,25 @@ const SuppliersManagement = () => {
                 <LayoutGrid className="w-4 h-4" />
               </Button>
             </div>
-            </div>
+            <div className="compact-filter-actions"><div className="flex gap-2">
+          {canImport && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => navigate('/contactos/importar')}
+              >
+                <FileUp className="w-4 h-4 mr-2" />
+                Importar
+              </Button>
+            </>
+          )}
+          {canCreate && (
+            <Button className="bg-liquor-amber hover:bg-liquor-amber/90 text-white" onClick={() => navigate("/contactos/nuevo")}>
+              <Plus className="w-4 h-4 mr-2" />
+              Nuevo contacto
+            </Button>
+          )}
+        </div></div></div>
           </div>
 
       {/* Lista de contactos */}
@@ -388,13 +379,13 @@ const SuppliersManagement = () => {
       {!isLoading && !isError && (
         <>
           {suppliers.length === 0 ? (
-            <Card>
+            <Card className="auna-surface">
               <CardContent className="p-6 text-center text-muted-foreground">
                 No hay contactos para mostrar.
               </CardContent>
             </Card>
           ) : viewMode === "table" ? (
-            <Card>
+            <Card className="auna-surface">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -481,7 +472,7 @@ const SuppliersManagement = () => {
                 key={supplier.id}
                 role="button"
                 tabIndex={0}
-                className="animate-bounce-in hover:shadow-card transition-all duration-300 cursor-pointer"
+                className="auna-surface animate-bounce-in hover:shadow-card transition-all duration-300 cursor-pointer"
                 style={{ animationDelay: `${index * 100}ms` }}
                 onClick={() => viewSupplier(supplier)}
                 onKeyDown={(e) => {

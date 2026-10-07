@@ -286,20 +286,16 @@ export function CashClosureCreatePage() {
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to="/cierre-caja" aria-label="Volver al listado">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
+
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Registrar cierre de caja</h2>
+          <h1 className="sr-only">Registrar cierre de caja</h1>
           <p className="text-sm text-muted-foreground">
             Revisa el turno, cuenta lo recibido y confirma la diferencia.
           </p>
         </div>
       </div>
 
-      <Card>
+      <Card className="auna-surface">
         <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <CardTitle className="text-lg">Nuevo cierre</CardTitle>
@@ -320,7 +316,7 @@ export function CashClosureCreatePage() {
         <CardContent className="space-y-5">
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-foreground">1 — Revisar turno</h4>
-            <div className="bg-muted/50 border rounded-lg p-4">
+            <div className="border-t py-4">
               {effectiveScope === 'mine' ? (
                 mineClosureGate.loading ? (
                   <LoadingState variant="detail" size="sm" message="Cargando datos de la caja…" />
@@ -527,7 +523,7 @@ export function CashClosureCreatePage() {
                 locale={locale}
               />
 
-              {advancedOpen && <div className="border rounded-lg p-4 bg-muted/50">
+              {advancedOpen && <div className="border-t py-4">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-muted-foreground" />
                   <div>

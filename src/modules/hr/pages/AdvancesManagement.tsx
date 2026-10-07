@@ -78,15 +78,12 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
   })
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Anticipos</CardTitle>
-        {canManage && <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nuevo anticipo</Button>}
-      </CardHeader>
-      <CompactFilterPanel className="px-6 pb-4" title="Filtros de anticipos" activeCount={Number(status !== 'all')} onClear={() => {setStatus('all');setPage(1)}} appliedFilters={status !== 'all' ? [{label: `Estado: ${ADVANCE_STATUS_LABELS[status as keyof typeof ADVANCE_STATUS_LABELS]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
+    <><Card className="auna-surface">
+
+      <CompactFilterPanel actions={<>{canManage && <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nuevo anticipo</Button>}</>} className="px-6 pb-4" title="Filtros de anticipos" activeCount={Number(status !== 'all')} onClear={() => {setStatus('all');setPage(1)}} appliedFilters={status !== 'all' ? [{label: `Estado: ${ADVANCE_STATUS_LABELS[status as keyof typeof ADVANCE_STATUS_LABELS]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
         <Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger className="max-w-xs" aria-label="Estado del anticipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem>{Object.entries(ADVANCE_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
       </CompactFilterPanel>
-      <CardContent className="auna-data-table-shell p-0">
+      <CardContent className="auna-data-table-shell auna-table-embedded overflow-x-auto p-0">
         {isFetching && data && <LoadingIndicator message="Actualizando anticipos…" className="px-4 py-2" />}
         {isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar los anticipos.</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div> : (
           <Table>
@@ -140,7 +137,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
             </TableBody>
           </Table>
         )}
-        {data && <Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} count={data.items.length} pageSize={10} onPageChange={setPage} loading={isLoading} itemLabel="anticipos" />}
+
       </CardContent>
       <ConfirmDialog appearance="auna" open={!!cancelId} onOpenChange={open => { if (!open && !cancel.isPending) setCancelId(null) }} title="Cancelar anticipo" description="Se anulará el anticipo y se revertirá su movimiento contable. Esta acción solo está disponible si aún no tiene descuentos aplicados." variant="destructive" loading={cancel.isPending} onConfirm={() => { if (cancelId) cancel.mutate(cancelId) }} />
 
@@ -184,6 +181,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
         </DialogContent>
       </Dialog>
     </Card>
+<div className="auna-pagination-outside">{data && <Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} count={data.items.length} pageSize={10} onPageChange={setPage} loading={isLoading} itemLabel="anticipos" />}</div></>
   )
 }
 

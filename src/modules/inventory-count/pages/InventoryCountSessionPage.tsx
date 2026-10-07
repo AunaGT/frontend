@@ -251,14 +251,14 @@ export default function InventoryCountSessionPage() {
   return (
     <div className="inventory-count-page"><div className="inventory-count-content">
       <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="h-4 w-4 mr-2" />Sesiones de conteo</Button>
-      <header className="auna-module-heading"><div><p className="auna-module-eyebrow">Inventario</p><h1>{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
+      <header className="auna-page-toolbar"><div><h1 className="text-2xl font-semibold">{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
       {sessionQuery.isFetching && <LoadingIndicator message="Actualizando sesión…" />}
-      <Card><CardContent className="p-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
+      <Card className="auna-surface"><CardContent className="p-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
         <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-4 mt-5 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
         <div className="lg:border-l lg:pl-6"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-3 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
       </CardContent></Card>
       {!isDraft && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[{ label: "Líneas completas", value: session.progress?.countedLines ?? 0, Icon: Package, color: "text-blue-500 bg-blue-500/10" }, { label: "Sin diferencias", value: session.totals?.unchangedLines ?? 0, Icon: Check, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" }, { label: "Con diferencias", value: session.totals?.differenceLines ?? 0, Icon: AlertTriangle, color: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }, { label: "No encontrados", value: session.totals?.notFoundLines ?? 0, Icon: XCircle, color: "text-rose-600 dark:text-rose-400 bg-rose-500/10" }].map(({ label, value, Icon, color }) => <Card key={label}><CardContent className="p-4 flex items-center gap-4"><span className={`rounded-xl p-3 ${color}`}><Icon className="h-5 w-5" /></span><div><strong className="text-2xl">{value}</strong><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
+        {[{ label: "Líneas completas", value: session.progress?.countedLines ?? 0, Icon: Package, color: "text-blue-500 bg-blue-500/10" }, { label: "Sin diferencias", value: session.totals?.unchangedLines ?? 0, Icon: Check, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" }, { label: "Con diferencias", value: session.totals?.differenceLines ?? 0, Icon: AlertTriangle, color: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }, { label: "No encontrados", value: session.totals?.notFoundLines ?? 0, Icon: XCircle, color: "text-rose-600 dark:text-rose-400 bg-rose-500/10" }].map(({ label, value, Icon, color }) => <Card className="auna-surface" key={label}><CardContent className="p-4 flex items-center gap-4"><span className={`rounded-xl p-3 ${color}`}><Icon className="h-5 w-5" /></span><div><strong className="text-2xl">{value}</strong><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
       </div>}
       {session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
       {Boolean(session.totals?.mismatchLines) && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">Hay {session.totals?.mismatchLines} líneas con lecturas distintas. Corrígelas antes de enviar a revisión.</p>}
@@ -308,7 +308,7 @@ export default function InventoryCountSessionPage() {
             </Button>
           )}
         </div>
-      <details className="rounded-2xl border bg-card"><summary className="cursor-pointer p-4 text-sm font-medium">Configuración y historial del conteo</summary><Card className="border-0 shadow-none">
+      <details className="rounded-2xl border bg-card"><summary className="cursor-pointer p-4 text-sm font-medium">Configuración y historial del conteo</summary><Card className="auna-surface border-0 shadow-none">
         <CardHeader className="py-3 pb-0">
           <CardTitle className="text-sm font-medium">Cómo se configuró este inventario</CardTitle>
         </CardHeader>
@@ -359,7 +359,7 @@ export default function InventoryCountSessionPage() {
 
       </details>
       {isDraft && session._count?.lines === 0 && (
-        <Card>
+        <Card className="auna-surface">
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
             Aún no hay lista de productos. Pulsa «Armar lista y contar» para generarla según lo que elegiste al crear
             el inventario.
@@ -368,7 +368,7 @@ export default function InventoryCountSessionPage() {
       )}
 
       {!isDraft && (
-        <Card>
+        <><Card className="auna-surface">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center gap-3">
               <span>Productos a contar</span>
@@ -441,7 +441,7 @@ export default function InventoryCountSessionPage() {
               </p>
             )}
             {!linesQuery.isLoading && !linesQuery.isError && !(pendingOnly && lines.length === 0) && (
-              <div className="auna-data-table-shell overflow-x-auto">
+              <div className="auna-data-table-shell auna-table-embedded overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -472,9 +472,10 @@ export default function InventoryCountSessionPage() {
                 </Table>
               </div>
             )}
-            {linesQuery.data && !linesQuery.isError && <Pagination currentPage={page + 1} totalPages={totalPages} onPageChange={value => setPage(value - 1)} totalItems={linesTotal} pageSize={pageSize} count={lines.length} itemLabel="líneas" loading={linesQuery.isFetching} />}
+
           </CardContent>
         </Card>
+<div className="auna-pagination-outside">{linesQuery.data && !linesQuery.isError && <Pagination currentPage={page + 1} totalPages={totalPages} onPageChange={value => setPage(value - 1)} totalItems={linesTotal} pageSize={pageSize} count={lines.length} itemLabel="líneas" loading={linesQuery.isFetching} />}</div></>
       )}
 
       <AlertDialog

@@ -2,10 +2,10 @@
 .record-edit { display:grid; gap:12px; min-width:0; }
 .record-edit-columns, .record-edit-identity { display:grid; gap:12px; min-width:0; align-items:start; }
 .record-edit .record-edit-panel, .record-edit .hr-panel, .record-edit-actions {
-  min-width:0; border:1px solid #d5e2f4; border-radius:10px; background:#fff; box-shadow:none;
+  min-width:0; border:1px solid hsl(var(--auna-surface-border)); border-radius:10px; background:hsl(var(--auna-surface-card)); box-shadow:none;
 }
 .dark .record-edit .record-edit-panel, .dark .record-edit .hr-panel, .dark .record-edit-actions {
-  border-color:#263b55; background:#142237;
+  border-color:hsl(var(--auna-surface-border)); background:hsl(var(--auna-surface-card));
 }
 .record-edit-panel { padding:16px; }
 .record-edit-heading { display:flex; align-items:center; gap:10px; margin-bottom:12px; font-size:18px; font-weight:600; }

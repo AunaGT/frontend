@@ -60,13 +60,13 @@ export const ClosuresHistoryList = ({
 
     return (
         <>
-            <div className="space-y-2">
+            <div className="auna-section-list auna-surface rounded-xl border px-4">
                 {closures.map((closure) => (
                     <div
                         key={closure.id}
                         role="button"
                         tabIndex={0}
-                        className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+                        className="auna-section-row auna-section-row-interactive flex items-center justify-between py-4 transition-colors cursor-pointer"
                         onClick={() => onViewClosure(closure.id)}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -97,28 +97,33 @@ export const ClosuresHistoryList = ({
                 ))}
             </div>
 
-            {/* Pagination - mismo estilo que otras vistas (derecha, solo flechas) */}
             {!isSeller && totalPages > 1 && (
-                <div className="flex justify-end items-center gap-2 pt-4 border-t">
-                    <span className="text-sm text-muted-foreground mr-2">
-                        Página {currentPage} de {totalPages}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onPageChange(currentPage - 1)}
-                        disabled={currentPage === 1}
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onPageChange(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                    >
-                        <ChevronRight className="w-4 h-4" />
-                    </Button>
+                <div className="auna-pagination-outside">
+                    <div className="auna-data-table-pagination">
+                        <span className="text-sm text-muted-foreground mr-2">
+                            Página {currentPage} de {totalPages}
+                        </span>
+                        <nav className="flex items-center gap-2" aria-label="Paginación de cierres">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label="Página anterior"
+                                onClick={() => onPageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                            >
+                                <ChevronLeft className="w-4 h-4" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                aria-label="Página siguiente"
+                                onClick={() => onPageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                            >
+                                <ChevronRight className="w-4 h-4" />
+                            </Button>
+                        </nav>
+                    </div>
                 </div>
             )}
         </>

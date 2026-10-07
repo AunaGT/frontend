@@ -102,16 +102,7 @@ const CashClosureManagement = () => {
           : null
       : null
 
-  return (
-    <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-foreground">Cierre de caja</h2>
-          <p className="text-muted-foreground text-sm mt-1">
-            Historial de arqueos. Para registrar un cierre, use el turno ya cerrado en «Nueva venta».
-          </p>
-        </div>
-        {canCreateClosure && (
+  const pageActions = <>{canCreateClosure && (
           <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
             <Button
               asChild={canOpenCreate}
@@ -134,11 +125,13 @@ const CashClosureManagement = () => {
               <p className="text-xs text-muted-foreground max-w-xs text-right">{createBlockedHint}</p>
             )}
           </div>
-        )}
-      </div>
+        )}</>
+  return (
+    <div className="p-6 space-y-6">
+      <h1 className="sr-only">Cierre de caja</h1><p className="text-sm text-muted-foreground">Historial de arqueos. Para registrar un cierre, use el turno ya cerrado en «Nueva venta».</p>{(!canViewHistory || form.isSeller) && <div className="auna-page-toolbar"><div className="compact-filter-actions">{pageActions}</div></div>}
 
       {canCreateClosure && canCreateOwn && (
-        <Card className="border-dashed">
+        <Card className="auna-surface border-dashed">
           <CardContent className="py-4 flex items-start gap-3">
             <Calculator className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
             <div className="text-sm text-muted-foreground">
@@ -159,8 +152,8 @@ const CashClosureManagement = () => {
       )}
 
       {canViewHistory && (
-        <Card>
-          <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-start sm:justify-between">
+        <Card className="auna-surface-flat">
+          <CardHeader className="gap-3 px-0 pb-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <FileText className="h-5 w-5" />
@@ -172,10 +165,10 @@ const CashClosureManagement = () => {
             </div>
 
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-0">
             <div className="space-y-4">
               {!form.isSeller && (
-                <CompactFilterPanel title="Filtros de cierres" activeCount={activeHistoryFilters} onClear={clearHistoryFilters} appliedFilters={[...(historyStatus ? [{label: `Estado: ${historyStatus}`,onRemove: () => setHistoryStatus('')}] : []),...(historyStartDate ? [{label: `Desde: ${historyStartDate}`,onRemove: () => setHistoryStartDate('')}] : []),...(historyEndDate ? [{label: `Hasta: ${historyEndDate}`,onRemove: () => setHistoryEndDate('')}] : [])]} search={<div className="flex items-center gap-2">
+                <CompactFilterPanel actions={pageActions} title="Filtros de cierres" activeCount={activeHistoryFilters} onClear={clearHistoryFilters} appliedFilters={[...(historyStatus ? [{label: `Estado: ${historyStatus}`,onRemove: () => setHistoryStatus('')}] : []),...(historyStartDate ? [{label: `Desde: ${historyStartDate}`,onRemove: () => setHistoryStartDate('')}] : []),...(historyEndDate ? [{label: `Hasta: ${historyEndDate}`,onRemove: () => setHistoryEndDate('')}] : [])]} search={<div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Por página:</span>
                     <Select
                       value={String(api.pageSize)}

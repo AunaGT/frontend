@@ -1,4 +1,6 @@
 .compact-filter-toolbar{min-width:0}
+.compact-filter-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-inline-start:auto;min-width:0}
+@media(max-width:639px){.compact-filter-actions{width:100%;margin-inline-start:0;justify-content:flex-end}}
 .compact-filter-search{max-width:640px;flex-basis:240px}
 .compact-filter-search .users-search input{flex:1;min-width:0;width:100%;margin:0}
 .compact-filter-search>div,.compact-filter-search>label{min-width:0!important}

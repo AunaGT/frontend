@@ -15,6 +15,18 @@ La implementación debe representar las funciones reales del ERP. No se agregan 
 
 ## Límites de arquitectura
 
+### Una superficie por agrupación
+
+Usar `auna-surface` para una tarjeta independiente; `auna-surface-flat` para la envolvente estructural de una cuadrícula. Los registros deben contrastar con el lienzo tanto en claro como en oscuro, con fondo sólido y sin degradados decorativos.
+
+Una tabla independiente tiene un único `auna-data-table-shell`. Dentro de Card/sección, marcar su shell `auna-table-embedded` y conservar el overflow; no añadir un segundo marco. Listas interiores usan `auna-section-list` / `auna-section-row`. No modificar el Card base ni borrar estilos de descendientes automáticamente.
+
+La paginación de resultados y su selector de cantidad quedan como hermanos del marco, en `auna-pagination-outside`, nunca dentro del shell, Card o scroller. Comprobar también los contenedores del componente padre: por ejemplo, el detalle de producto no debe volver a encerrar el paginador de lotes. Mantener sus condiciones de carga/error, callbacks y permisos. Esta regla aplica en ambos temas; los selectores paginados de diálogos conservan su contexto funcional.
+
+Controles, alertas, documentos, imágenes y opciones seleccionables son excepciones funcionales, no tarjetas redundantes. Inventario de adopción: [SINGLE_SURFACE_ADOPTION.md](SINGLE_SURFACE_ADOPTION.md).
+
+Referencias aprobadas: [tarjetas](</home/DiegoPatzan/.codex/generated_images/01a090b6-e882-7132-8279-68c3c42035eb/exec-db5b9529-8095-4ce3-83d4-27879bdd360e.png>) y [tablas](</home/DiegoPatzan/.codex/generated_images/01a090b6-e882-7132-8279-68c3c42035eb/exec-f0fe0091-1c3a-4f7a-92d1-99634a0c23b2.png>).
+
 ### Controles de formulario globales
 
 Todas las vistas, incluidas las legacy, usan el contrato de `src/components/ui/form-controls.css`, importado una sola vez desde `main.tsx`. Usar Input, Textarea, Select, Checkbox, RadioGroup, Switch, Button e ImageUploadDropzone existentes; no crear versiones locales de sus bordes, colores, foco o tamaños. El inventario y ejemplos están en [FORM_CONTROLS_ADOPTION.md](FORM_CONTROLS_ADOPTION.md).
@@ -67,3 +79,8 @@ Una migración de base de datos solo se justifica cuando el dato requerido no ex
 Estado y método de pago se filtran en la API antes de paginar. La búsqueda global conserva su mínimo de caracteres y paginación sin conteo; ignora el período, con aviso explícito. El resumen usa `includeSummary=true` para agregar todas las ventas completadas del período por empresa/sucursal, independientemente de la página y de los filtros del listado; utiliza `adjusted_total` incluso cuando es cero por devolución completa. Métodos de pago provienen del catálogo existente.
 
 Este alcance no modifica el punto de venta, el detalle ni la factura. Las pruebas de datos y presentación cubren permisos, errores, carga, paginación y totales; la comparación visual en navegador permanece pendiente hasta habilitar esa revisión.
+# Navegación y acciones compactas
+
+En vistas privadas migradas, el navbar identifica módulo y recorrido. Retirar solo encabezados genéricos repetidos, conservando un h1 accesible y la identidad del registro. CompactFilterPanel/SalesFilters/CatalogFilters admiten actions para colocar Crear y acciones extra al extremo derecho de búsqueda/filtros; no copiar formularios de filtro a las páginas. Los detalles sin búsqueda usan auna-page-toolbar y conservan Guardar/Cancelar en su formulario.
+
+Registrar pestañas/edición locales con usePageTrail; no pasar datos ni handlers de negocio al navbar. Ancestros sin permisos son texto, no nuevos accesos. No quitar títulos a diálogos ni páginas públicas sin navbar. Consultar `docs/COMPACT_NAVIGATION_ADOPTION.md` para rutas, variantes, excepciones y límites de validación.
