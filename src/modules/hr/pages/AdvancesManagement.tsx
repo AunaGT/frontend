@@ -1,4 +1,5 @@
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
@@ -53,7 +54,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
   useEffect(() => { const timer = setTimeout(() => { setEmployeeQuery(employeeSearch); setEmployeePage(1) }, 300); return () => clearTimeout(timer) }, [employeeSearch])
   const [cancelId, setCancelId] = useState<string | null>(null)
 
-  const { data, isLoading, isFetching, isError, refetch } = useQuery({ queryKey: ['hr-advances', employeeId, page, status], queryFn: () => fetchAdvances({ employee_id: employeeId, status: status === 'all' ? undefined : status, page, pageSize: 10 }) })
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({ queryKey: ['hr-advances', employeeId, page, status, 'summary'], queryFn: () => fetchAdvances({ employee_id: employeeId, status: status === 'all' ? undefined : status, page, pageSize: 10, includeSummary: true }) })
   const { data: employees, isLoading: employeesLoading, isError: employeesError } = useQuery({
     queryKey: ['hr-employees', 'advance-picker', employeePage, employeeQuery],
     queryFn: () => fetchEmployeeDirectory('advance', { q: employeeQuery || undefined, page: employeePage, pageSize: 10 }),
@@ -78,8 +79,9 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
   })
 
   return (
-    <><Card className="auna-surface">
-
+    <>
+      <MetricStrip className="mb-5" label="Resumen de anticipos" loading={isLoading} items={([['total', 'Anticipos'], ['PENDIENTE', 'Pendientes'], ['PAGADO', 'Pagados'], ['CANCELADO', 'Cancelados']] as const).map(([key, label]) => ({ label, value: isError ? '—' : data?.summary?.[key] ?? '—' }))} />
+      <Card className="auna-surface">
       <CompactFilterPanel actions={<>{canManage && <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => setDialogOpen(true)}><Plus className="mr-2 h-4 w-4" />Nuevo anticipo</Button>}</>} className="px-6 pb-4" title="Filtros de anticipos" activeCount={Number(status !== 'all')} onClear={() => {setStatus('all');setPage(1)}} appliedFilters={status !== 'all' ? [{label: `Estado: ${ADVANCE_STATUS_LABELS[status as keyof typeof ADVANCE_STATUS_LABELS]}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
         <Select value={status} onValueChange={value => { setStatus(value); setPage(1) }}><SelectTrigger className="max-w-xs" aria-label="Estado del anticipo"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem>{Object.entries(ADVANCE_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
       </CompactFilterPanel>

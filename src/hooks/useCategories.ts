@@ -9,14 +9,14 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchCategories } from "@/services/catalogService";
+import { fetchCategories, type CategoriesQueryOptions } from "@/services/catalogService";
 
 export const CATEGORIES_QUERY_KEY = ["categories"] as const;
 
-export const useCategories = () => {
+export const useCategories = (options?: CategoriesQueryOptions) => {
   return useQuery({
-    queryKey: CATEGORIES_QUERY_KEY,
-    queryFn: fetchCategories,
+    queryKey: options ? [...CATEGORIES_QUERY_KEY, options] : CATEGORIES_QUERY_KEY,
+    queryFn: () => fetchCategories(options),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 };

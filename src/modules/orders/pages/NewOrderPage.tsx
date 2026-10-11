@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import './newOrder.css'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Loader2, Package, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -19,6 +20,8 @@ import { createOrder } from '@/services/orderService'
 import type { Supplier } from '@/types'
 import { formatMoney } from '@/utils/formatters'
 import { addOrderDraftLine, orderDraftTotal } from '../orderDraft.mjs'
+import {normalizeQuantityInput,previewLineTotal} from '@/lib/commercialQuantity'
+import { postPricingPreview } from '@/services/productService'
 
 type DraftLine = {
   product_id: string
@@ -27,14 +30,17 @@ type DraftLine = {
   imageUrl?: string
   unitPrice: number
   stock: number
-  qty: number
+  qty: string
+  kind?:'STANDARD'|'KIT'|'SERVICE'
+  serviceUnitLabel?:string
+  quantityDecimals?:number
 }
 
 export default function NewOrderPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { toast } = useToast()
-  const { branch } = useTenant()
+  const { branch, company } = useTenant()
   const { hasPermission } = useAuthPermissions()
   const { locale, currencyCode } = useSystemSettings()
   const [customerId, setCustomerId] = useState('__none__')
@@ -43,7 +49,18 @@ export default function NewOrderPage() {
   const [lines, setLines] = useState<DraftLine[]>([])
   const [notes, setNotes] = useState('')
   const [paymentTerms, setPaymentTerms] = useState<CommercialPaymentTerms>({ payment_condition: 'CASH', credit_days: null })
-  const total = orderDraftTotal(lines)
+  const productIds = lines.map(line=>line.product_id).sort()
+  const pricing = useQuery({
+    queryKey:['order-prices',company?.id,branch?.id,customerId,productIds],
+    queryFn:()=>postPricingPreview({customer_contact_id:customerId==='__none__' ? undefined : customerId,sales_channel:'WHOLESALE',product_ids:productIds}),
+    enabled:Boolean(company?.id && branch?.id && productIds.length),
+  })
+  const pricesReady = !pricing.isPlaceholderData && !pricing.isFetching && !pricing.isError && lines.length > 0 && lines.every(line=>Number.isFinite(pricing.data?.unit_prices?.[line.product_id]))
+  const pricedLines = lines.map(line=>({...line,unitPrice:pricing.data?.unit_prices?.[line.product_id] ?? line.unitPrice}))
+  const total = orderDraftTotal(pricedLines)
+  const quantity=(line:DraftLine)=>normalizeQuantityInput(String(line.qty),{kind:line.kind ?? 'STANDARD',quantityDecimals:line.quantityDecimals ?? 0},locale)
+  const invalidLines=lines.some(line=>{try{quantity(line);return false}catch{return true}})
+  const lineTotal=(line:DraftLine)=>{try{return money(Number(previewLineTotal(quantity(line),line.unitPrice.toFixed(2))))}catch{return '—'}}
   const money = (value: number) => formatMoney(value, locale, currencyCode)
 
   const mutation = useMutation({
@@ -56,7 +73,7 @@ export default function NewOrderPage() {
       sales_channel: 'WHOLESALE',
       ...paymentTerms,
       notes: notes.trim() || undefined,
-      items: lines.map((line) => ({ product_id: line.product_id, qty: line.qty })),
+      items: lines.map((line) => ({ product_id: line.product_id, qty: quantity(line) })),
     }),
     onSuccess: (order) => {
       void queryClient.invalidateQueries({ queryKey: ['orders'] })
@@ -71,7 +88,7 @@ export default function NewOrderPage() {
     setCustomerName(customer.name)
     setCustomerNit(customer.taxId ?? '')
   }
-  const updateQty = (id: string, value: number) => setLines((current) => current.map((line) => line.product_id === id ? { ...line, qty: Math.max(1, Math.floor(value) || 1) } : line))
+  const updateQty = (id: string, value: string) => setLines((current) => current.map((line) => line.product_id === id ? { ...line, qty:value } : line))
 
   return <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
     <main className="mx-auto max-w-[1560px] space-y-4 px-4 py-4 sm:px-6 lg:px-8">
@@ -97,15 +114,22 @@ export default function NewOrderPage() {
         <CardContent className="space-y-3">
           <ProductPicker branchId={branch?.id} money={money} onPick={(product) => setLines((current) => addOrderDraftLine(current, product))} />
           {!lines.length ? <div className="rounded-2xl border border-dashed border-border p-7 text-center"><Package className="mx-auto h-8 w-8 text-brand-orange" /><p className="mt-2 font-semibold">Aún no hay productos</p><p className="mt-1 text-sm text-muted-foreground">Busca un producto arriba para agregarlo al pedido.</p></div>
-            : <section className="auna-data-table-shell auna-table-embedded overflow-x-auto"><Table className="auna-data-table min-w-[820px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Código</TableHead><TableHead className="text-center">Stock</TableHead><TableHead className="w-32">Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead className="w-16"><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>
-              {lines.map((line) => <TableRow key={line.product_id}><TableCell><div className="flex items-center gap-3">{line.imageUrl ? <img src={line.imageUrl} alt={line.name} className="h-12 w-12 rounded-xl border object-cover" /> : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<strong className="min-w-0 truncate">{line.name}</strong></div></TableCell><TableCell className="text-muted-foreground">{line.barcode || '—'}</TableCell><TableCell className="text-center tabular-nums">{line.stock}</TableCell><TableCell><Input aria-label={`Cantidad de ${line.name}`} type="number" min={1} className="w-24 text-center" value={line.qty} onChange={(event) => updateQty(line.product_id, Number(event.target.value))} /></TableCell><TableCell className="text-right tabular-nums">{money(line.unitPrice)}</TableCell><TableCell className="text-right font-semibold tabular-nums">{money(line.unitPrice * line.qty)}</TableCell><TableCell><Button type="button" size="icon" variant="ghost" className="h-10 w-10 text-destructive" aria-label={`Quitar ${line.name}`} onClick={() => setLines((current) => current.filter((item) => item.product_id !== line.product_id))}><Trash2 className="h-4 w-4" /></Button></TableCell></TableRow>)}
+            : <section className="auna-data-table-shell auna-table-embedded order-lines-scroll" tabIndex={0} role="region" aria-label="Partidas del pedido"><Table className="auna-data-table min-w-[820px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Código</TableHead><TableHead className="text-center">Stock</TableHead><TableHead className="w-32">Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead className="w-16"><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>
+              {pricedLines.map(line=><TableRow key={line.product_id}>
+                <TableCell><div className="flex items-center gap-3"><img src={line.imageUrl || '/placeholder.svg'} alt={line.name} className="h-12 w-12 rounded-xl border object-contain" /><strong className="min-w-0 truncate">{line.name}</strong></div></TableCell>
+                <TableCell className="text-muted-foreground">{line.barcode || '—'}</TableCell>
+                <TableCell className="text-center tabular-nums">{line.kind==='SERVICE' ? <span className="text-xs text-muted-foreground">{line.serviceUnitLabel}<span className="block">Sin control de existencias</span></span> : line.stock}</TableCell>
+                <TableCell><Input aria-label={'Cantidad de '+line.name} type="text" inputMode={line.kind==='SERVICE' ? 'decimal' : 'numeric'} className="w-24 text-center" value={line.qty} aria-invalid={lineTotal(line)==='—'} onChange={event=>updateQty(line.product_id,event.target.value)} /></TableCell>
+                <TableCell className="text-right tabular-nums">{money(line.unitPrice)}</TableCell><TableCell className="text-right font-semibold tabular-nums">{lineTotal(line)}</TableCell>
+                <TableCell><Button type="button" size="icon" variant="ghost" className="h-10 w-10 text-destructive" aria-label={'Quitar '+line.name} onClick={()=>setLines(current=>current.filter(item=>item.product_id!==line.product_id))}><Trash2 className="h-4 w-4" /></Button></TableCell>
+              </TableRow>)}
             </TableBody></Table></section>}
         </CardContent>
       </Card>
 
       <aside className="space-y-4 xl:sticky xl:top-4">
         <Card className="auna-surface rounded-2xl border-border/70"><CardHeader className="pb-3"><CardTitle className="text-lg">Notas</CardTitle></CardHeader><CardContent><Label htmlFor="order-notes" className="sr-only">Notas del pedido</Label><Textarea id="order-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Preparación, entrega u observaciones…" /></CardContent></Card>
-        <Card className="auna-surface rounded-2xl border-border/70"><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><strong>{lines.length}</strong></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades</span><strong>{lines.reduce((sum, line) => sum + line.qty, 0)}</strong></div><div className="border-t pt-3"><div className="flex items-end justify-between"><span className="font-semibold">Total estimado</span><output className="auna-field-value-inline text-2xl text-brand-orange tabular-nums">{money(total)}</output></div><p className="mt-2 text-xs text-muted-foreground">El servidor validará precios y existencias al guardar.</p></div><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="h-11 rounded-xl" onClick={() => navigate('/pedidos')}>Cancelar</Button><Button className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={!branch || !lines.length || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Crear pedido</Button></div></CardContent></Card>
+        <Card className="auna-surface rounded-2xl border-border/70"><CardHeader className="pb-3"><CardTitle className="text-lg">Resumen</CardTitle></CardHeader><CardContent className="space-y-3"><div className="flex justify-between text-sm"><span className="text-muted-foreground">Productos</span><strong>{lines.length}</strong></div><div className="flex justify-between text-sm"><span className="text-muted-foreground">Unidades físicas</span><strong>{lines.filter(line=>line.kind!=='SERVICE').reduce((sum,line)=>sum+Number(line.qty || 0),0)}</strong></div><div className="border-t pt-3"><div className="flex items-end justify-between"><span className="font-semibold">Total estimado</span><output className="auna-field-value-inline text-2xl text-brand-orange tabular-nums">{pricesReady ? money(total) : '—'}</output></div><p className="mt-2 text-xs text-muted-foreground">{pricing.isError ? 'No se pudieron consultar los precios. Reintenta antes de guardar.' : pricesReady ? 'Precios según el cliente y el canal mayorista; se validan nuevamente al guardar.' : 'Consultando precios del pedido…'}</p></div><div className="grid grid-cols-2 gap-3"><Button variant="outline" className="h-11 rounded-xl" onClick={() => navigate('/pedidos')}>Cancelar</Button><Button className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={!branch || !pricesReady || invalidLines || mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}Crear pedido</Button></div></CardContent></Card>
       </aside>
       </div>
     </main>

@@ -41,6 +41,88 @@ test('sales transport sends server-side payment and optional full-summary parame
   assert.equal(new URL(url, 'https://example.test').searchParams.has('includeSummary'), false)
 })
 
+test('sale normalization retains product image/barcode from the detail API without changing price or quantity', () => {
+  const { normalizeRawSale } = loader({ '@/hooks/useSales': {} })('src/modules/sales/hooks/useSalesData.ts')
+  const output = normalizeRawSale({ id: 'sale-1', total: '20.00', sale_items: [{ id: 1, product_id: 'p-1', price: '10.00', qty: 2, product: { id: 'p-1', name: 'Producto QA', barcode: '740001', image_url: '/qa-product.png' } }] })
+  assert.equal(output.products[0].imageUrl, '/qa-product.png')
+  assert.equal(output.products[0].barcode, '740001')
+  assert.equal(output.products[0].price, 10)
+  assert.equal(output.products[0].qty, 2)
+  assert.equal(normalizeRawSale({ sale_items: [{ product_id: 'p-2', product: { name: 'Sin imagen', image_url: null } }] }).products[0].imageUrl, undefined)
+  const service = normalizeRawSale({items:0,line_count:1,sale_items:[{product_id:'s',item_name:'Servicio original',item_kind:'SERVICE',unit_label:'Hora',quantity_decimals:3,qty:'0.125',price:'100',net_total:'12.50',product:{name:'Editado'}}]})
+  assert.equal(service.products[0].name,'Servicio original')
+  assert.equal(service.products[0].unitLabel,'Hora')
+  assert.equal(service.products[0].qty,'0.125')
+  assert.equal(service.lineCount,1)
+})
+
+test('completed refunds retain original service identity and canonical quantity', () => {
+  const { normalizeRawSale } = loader({ '@/hooks/useSales': {} })('src/modules/sales/hooks/useSalesData.ts')
+  const output = normalizeRawSale({ returns: [{ status: { name: 'Completada' }, return_items: [{ product: { name: 'Nombre actual' }, sale_item: { item_name: 'Asesoría original', unit_label: 'Hora' }, qty_returned: '0.125', refund_amount: '12.50' }] }] })
+  assert.deepEqual(output.returnDetails[0].items[0], { productName: 'Asesoría original', qty: '0.125', unitLabel: 'Hora', refund: 12.5 })
+})
+
+test('sale normalization retains linked contact presentation without replacing the historical customer identity', () => {
+  const { normalizeRawSale } = loader({ '@/hooks/useSales': {} })('src/modules/sales/hooks/useSalesData.ts')
+  const output = normalizeRawSale({ customer: 'Nombre vendido', customer_nit: '123', customerContact: { id: 'contact-1', name: 'Nombre actual', image_url: '/contact.webp', address: 'Zona QA', phone: '5555', email: 'qa@example.test' }, branch: { name: 'Sucursal QA' } })
+  assert.equal(output.customer, 'Nombre vendido')
+  assert.equal(output.customerNit, '123')
+  assert.deepEqual(output.customerContact, { id: 'contact-1', name: 'Nombre actual', imageUrl: '/contact.webp', address: 'Zona QA', phone: '5555', email: 'qa@example.test', taxId: undefined })
+  assert.equal(output.branchName, 'Sucursal QA')
+  assert.equal(normalizeRawSale({ customerContact: null }).customerContact, undefined)
+})
+
+test('sale normalization preserves discounted and zero-valued item totals', () => {
+  const { normalizeRawSale } = loader({ '@/hooks/useSales': {} })('src/modules/sales/hooks/useSalesData.ts')
+  const output = normalizeRawSale({ sale_items: [
+    { product_id: 'discount', price: '10.00', qty: 2, net_total: '15.00' },
+    { product_id: 'free', price: '10.00', qty: 1, net_total: '0.00' },
+    { product_id: 'historical', price: '10.00', qty: 1 },
+  ] })
+  assert.deepEqual(output.products.map(product => product.lineTotal), [15, 0, undefined])
+})
+
+test('contact photo upload sends bounded multipart metadata with tenant and session headers', async () => {
+  const originalFetch = globalThis.fetch
+  let request
+  try {
+    globalThis.fetch = async (url, options) => { request = { url, options }; return { ok: true, json: async () => ({ id: 'contact-1', image_url: '/signed-photo.webp' }) } }
+    const { uploadSupplierImage } = loader({
+      './api': { getApiBaseUrl: () => '/api', getAuthToken: () => 'test-token', tenantHeaders: () => ({ 'X-Company-Id': 'company-1' }) },
+      './productService': {},
+    })('src/services/supplierService.ts')
+    const file = new File(['synthetic photo'], 'qa.png', { type: 'image/png' })
+    assert.deepEqual(await uploadSupplierImage('contact-1', file), { id: 'contact-1', image_url: '/signed-photo.webp' })
+    assert.equal(request.url, '/api/suppliers/contact-1/image')
+    assert.equal(request.options.body.get('file').name, 'qa.png')
+    assert.deepEqual(request.options.headers, { 'X-Company-Id': 'company-1', Authorization: 'Bearer test-token' })
+    assert.equal(request.options.credentials, 'include')
+    globalThis.fetch = async () => ({ ok: false, json: async () => ({ message: 'Sin permiso' }) })
+    await assert.rejects(uploadSupplierImage('contact-1', file), /Sin permiso/)
+  } finally { globalThis.fetch = originalFetch }
+})
+
+test('contact save does not hide a failed photo upload or discard the saved fields', async () => {
+  let options
+  const saved = { id: 'contact-1', name: 'QA' }, invalidations = [], calls = []
+  let photoFailed = false
+  const { useUpdateSupplier } = loader({
+    '@tanstack/react-query': { useQueryClient: () => ({ invalidateQueries: async args => invalidations.push(args) }), useMutation: value => { options = value; return value } },
+    '@/hooks/useSuppliers': { SUPPLIERS_QUERY_KEY: ['suppliers'] },
+    '@/services/supplierService': {
+      updateSupplier: async () => { calls.push('fields'); return saved },
+      uploadSupplierImage: async () => { calls.push('image'); if (photoFailed) throw new Error('Storage offline'); return { id: 'contact-1', image_url: '/qa.webp' } },
+    },
+  })('src/hooks/useUpdateSupplier.ts')
+  useUpdateSupplier()
+  const input = { id: 'contact-1', payload: { name: 'QA' }, image: new File(['QA'], 'qa.png') }
+  assert.deepEqual(await options.mutationFn(input), { ...saved, image_url: '/qa.webp' })
+  assert.deepEqual(calls, ['fields', 'image'])
+  photoFailed = true
+  await assert.rejects(options.mutationFn(input), error => error.imageUploadFailed === true && error.message.includes('Los datos se guardaron'))
+  assert.deepEqual(invalidations, [{ queryKey: ['suppliers'] }])
+})
+
 function hookProbe(change, failed = false) {
   const calls = []
   let output
@@ -61,6 +143,25 @@ function hookProbe(change, failed = false) {
   renderToStaticMarkup(React.createElement(Probe))
   return { calls, output }
 }
+
+test('sales sends measured card size, preserves aggregate summary and keeps table preference separate', () => {
+  const reads = [], sizes = [], tableSizes = []
+  let output
+  const { useSalesData } = loader({
+    '@/hooks/useSales': { useSales: params => { reads.push(params); return { data: { items: [] }, isLoading: false } } },
+    '@/hooks/use-mobile': { useIsMobile: () => false },
+    '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => ({ page: 1, pageSize: 25, viewMode: 'cards', setPage() {}, setPageSize: value => tableSizes.push(value) }) },
+    '@/hooks/useCardPagination': { useCardPagination: () => ({ pageSize: 12, pageSizeOptions: [12, 24, 36, 48], containerRef() {}, setCardPageSize: value => sizes.push(value) }) },
+  })('src/modules/sales/hooks/useSalesData.ts')
+  function Probe() { output = useSalesData(); return null }
+  renderToStaticMarkup(React.createElement(Probe))
+  assert.equal(reads[0].pageSize, 12)
+  assert.equal(reads[1].pageSize, 1)
+  assert.deepEqual(output.pageSizeOptions, [12, 24, 36, 48])
+  output.setPageSize(24)
+  assert.deepEqual(sizes, [24])
+  assert.deepEqual(tableSizes, [])
+})
 
 test('one paginated list and one aggregate summary replace split lists and 500-row KPIs', () => {
   const { calls, output } = hookProbe()

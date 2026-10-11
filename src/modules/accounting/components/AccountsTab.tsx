@@ -10,7 +10,10 @@
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { Pagination } from '@/components/shared/Pagination'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -22,7 +25,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { ListTree, Pencil, Plus, Upload } from 'lucide-react'
+import { Pencil, Plus, Search, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   createAccount, updateAccount,
@@ -43,10 +46,12 @@ const depthOf = (account: Account, byId: Map<number, Account>): number => {
   return depth
 }
 
-export const AccountsTab = ({ accounts, canManage, onChanged }: {
+export const AccountsTab = ({ accounts, canManage, onChanged, loading = false, loadError = false }: {
   accounts: Account[]
   canManage: boolean
   onChanged: () => void
+  loading?: boolean
+  loadError?: boolean
 }) => {
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -61,9 +66,20 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
   const [parentId, setParentId] = useState('')
   const [isGroup, setIsGroup] = useState(false)
   const [editName, setEditName] = useState('')
+  const [search, setSearch] = useState('')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(1)
 
   const byId = new Map(accounts.map((a) => [a.id, a]))
-  const sorted = [...accounts].sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+  const sorted = [...accounts].filter(a =>
+    `${a.code} ${a.name}`.toLocaleLowerCase('es').includes(search.trim().toLocaleLowerCase('es')) &&
+    (typeFilter === 'all' || a.type === typeFilter) &&
+    (statusFilter === 'all' || a.active === (statusFilter === 'active')),
+  ).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / 25))
+  const safePage = Math.min(page, totalPages)
+  const pageAccounts = sorted.slice((safePage - 1) * 25, safePage * 25)
   const groups = accounts.filter((a) => a.is_group && a.active)
 
   const resetNew = () => { setCode(''); setName(''); setType(''); setParentId(''); setIsGroup(false) }
@@ -116,32 +132,37 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <CardTitle className="flex items-center gap-2 text-lg">
-              <ListTree className="h-5 w-5" />Catálogo de cuentas
-            </CardTitle>
-            <CardDescription>
-              Las cuentas de sistema (usadas por el posteo automático) no se pueden desactivar.
-            </CardDescription>
-          </div>
-          {canManage && (
+    <section className="space-y-5" aria-label="Catálogo de cuentas">
+      <MetricStrip label="Resumen del catálogo de cuentas" loading={loading} items={[
+        { label: 'Cuentas consultadas', value: loadError ? '—' : sorted.length },
+        { label: 'Activas', value: loadError ? '—' : sorted.filter(a => a.active).length },
+        { label: 'Agrupadoras', value: loadError ? '—' : sorted.filter(a => a.is_group).length },
+        { label: 'De movimiento', value: loadError ? '—' : sorted.filter(a => !a.is_group).length },
+      ]} />
+      <CompactFilterPanel title="Filtros de cuentas" activeCount={Number(typeFilter !== 'all') + Number(statusFilter !== 'all')}
+        search={<div className="auna-control-group"><Search className="h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar cuenta" placeholder="Buscar por código o nombre de cuenta…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} /></div>}
+        onClear={() => { setTypeFilter('all'); setStatusFilter('all'); setPage(1) }}
+        appliedFilters={[
+          ...(typeFilter !== 'all' ? [{ label: `Tipo: ${TYPE_LABELS[typeFilter as AccountType]}`, onRemove: () => { setTypeFilter('all'); setPage(1) } }] : []),
+          ...(statusFilter !== 'all' ? [{ label: `Estado: ${statusFilter === 'active' ? 'Activa' : 'Inactiva'}`, onRemove: () => { setStatusFilter('all'); setPage(1) } }] : []),
+        ]}
+        actions={canManage && (
             <div className="flex items-center gap-2">
               <Button variant="outline" size="sm" onClick={() => navigate('/contabilidad/importar?type=accounts')}>
                 <Upload className="h-4 w-4 mr-2" />Importar
               </Button>
-              <Button size="sm" onClick={() => setIsNewOpen(true)} className="bg-liquor-amber hover:bg-liquor-amber/90 text-white">
+              <Button onClick={() => setIsNewOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />Nueva cuenta
               </Button>
             </div>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          )}>
+        <div className="space-y-1"><Label>Tipo de cuenta</Label><Select value={typeFilter} onValueChange={v => { setTypeFilter(v); setPage(1) }}><SelectTrigger aria-label="Tipo de cuenta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los tipos</SelectItem>{ACCOUNT_TYPES.map(t => <SelectItem key={t} value={t}>{TYPE_LABELS[t]}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-1"><Label>Estado</Label><Select value={statusFilter} onValueChange={v => { setStatusFilter(v); setPage(1) }}><SelectTrigger aria-label="Estado"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="active">Activas</SelectItem><SelectItem value="inactive">Inactivas</SelectItem></SelectContent></Select></div>
+      </CompactFilterPanel>
+      <p className="text-xs text-muted-foreground">Las cuentas de sistema se usan en los asientos automáticos y no se pueden desactivar.</p>
+      {loading ? <LoadingState message="Cargando cuentas…" columns={['Código', 'Cuenta', 'Tipo', 'Estado']} /> : loadError ? <div role="alert" className="py-8 text-center"><p>No se pudo cargar el catálogo de cuentas.</p><Button variant="outline" onClick={onChanged} className="mt-3">Reintentar</Button></div> : <>
+        <div className="auna-data-table-shell overflow-x-auto">
+          <table className="auna-data-table">
             <thead>
               <tr className="bg-muted/50 text-xs text-muted-foreground">
                 <th className="text-left font-medium px-3 py-2">Código</th>
@@ -152,7 +173,8 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
               </tr>
             </thead>
             <tbody>
-              {sorted.map((account) => {
+              {!pageAccounts.length && <tr><td colSpan={canManage ? 5 : 4} className="text-center text-muted-foreground">No hay cuentas que coincidan con los filtros.</td></tr>}
+              {pageAccounts.map((account) => {
                 const depth = depthOf(account, byId)
                 return (
                   <tr key={account.id} className={`border-t ${!account.active ? 'opacity-50' : ''} ${account.is_group ? 'bg-muted/20 font-medium' : ''}`}>
@@ -163,7 +185,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
                     </td>
                     <td className="px-3 py-2"><Badge variant="secondary">{TYPE_LABELS[account.type]}</Badge></td>
                     <td className="px-3 py-2">
-                      <Badge variant={account.active ? 'default' : 'destructive'}>
+                      <Badge variant="outline" className={account.active ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : 'border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300'}>
                         {account.active ? 'Activa' : 'Inactiva'}
                       </Badge>
                     </td>
@@ -190,7 +212,8 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
             </tbody>
           </table>
         </div>
-      </CardContent>
+        <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={sorted.length} count={pageAccounts.length} pageSize={25} itemLabel="cuentas" /></div>
+      </>}
 
       {/* Nueva cuenta */}
       <Dialog open={isNewOpen} onOpenChange={setIsNewOpen}>
@@ -270,6 +293,6 @@ export const AccountsTab = ({ accounts, canManage, onChanged }: {
       </Dialog>
 
       {/* Importar catálogo desde Excel */}
-    </Card>
+    </section>
   )
 }

@@ -14,6 +14,8 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useSales } from '@/hooks/useSales'
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { useCardPagination } from '@/hooks/useCardPagination'
+import { useIsMobile } from '@/hooks/use-mobile'
 import { Sale, PaymentMethod, SaleStatus } from '@/types'
 import { STATUS_DB_NAMES, type SaleStatusKey } from '../types'
 import { isSalesSearchReady, salesSearchHint, SALES_MIN_TEXT_SEARCH_LEN } from '../salesSearchUtils'
@@ -35,11 +37,19 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         const s = si as Record<string, unknown>
         const prod = (s.product as Record<string, unknown>) ?? {}
         const id = s.product_id ?? s.id ?? prod.id ?? ''
-        const name = prod.name ?? s.name ?? s.product_name ?? 'Producto'
+        const name = s.item_name ?? prod.name ?? s.name ?? s.product_name ?? 'Producto'
         const priceRaw = s.price ?? s.unit_price ?? prod.price ?? 0
         const price = parseFloat(String(priceRaw)) || 0
-        const qty = (s.qty ?? s.quantity ?? s.amount ?? 1) as number
-        return { id: String(id), name: String(name), price, qty }
+        const qty = (s.qty ?? s.quantity ?? s.amount ?? 1) as number | string
+        return {
+            id: String(id), name: String(name), price, qty,
+            itemKind: s.item_kind as 'STANDARD' | 'KIT' | 'SERVICE' | undefined,
+            unitLabel: typeof s.unit_label === 'string' ? s.unit_label : undefined,
+            quantityDecimals: typeof s.quantity_decimals === 'number' ? s.quantity_decimals : undefined,
+            barcode: typeof prod.barcode === 'string' ? prod.barcode : undefined,
+            imageUrl: typeof prod.image_url === 'string' ? prod.image_url : undefined,
+            lineTotal: s.net_total != null && Number.isFinite(Number(s.net_total)) ? Number(s.net_total) : undefined,
+        }
     })
 
     const totalRaw = r.total ?? r.total_amount ?? '0'
@@ -92,9 +102,11 @@ export const normalizeRawSale = (raw: unknown): Sale => {
             const items = retItems.map((item: unknown) => {
                 const itemObj = item as Record<string, unknown>
                 const product = (itemObj.product as Record<string, unknown>) ?? {}
+                const original = (itemObj.sale_item as Record<string, unknown>) ?? {}
                 return {
-                    productName: String(product.name ?? 'Producto'),
-                    qty: Number(itemObj.qty_returned ?? 0),
+                    productName: String(original.item_name ?? product.name ?? 'Producto'),
+                    qty: String(itemObj.qty_returned ?? 0),
+                    unitLabel: original.unit_label ? String(original.unit_label) : undefined,
                     refund: parseFloat(String(itemObj.refund_amount ?? '0')) || 0
                 }
             })
@@ -134,6 +146,8 @@ export const normalizeRawSale = (raw: unknown): Sale => {
     const createdById = createdByRaw?.id ? String(createdByRaw.id) : undefined
     const createdByName = createdByRaw?.name ? String(createdByRaw.name) : undefined
     const createdByEmail = createdByRaw?.email ? String(createdByRaw.email) : undefined
+    const contactRaw = r.customerContact as Record<string, unknown> | null | undefined
+    const branchRaw = r.branch as Record<string, unknown> | null | undefined
 
     // Facturación electrónica (InFile/SAT) - se reenvía tal cual cuando venga del API
     const saleDtesRaw = Array.isArray(r.sale_dtes) ? r.sale_dtes : []
@@ -157,6 +171,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
     return {
         id: String(r.id ?? ''),
         isCredit: paymentObj?.is_credit === true,
+        paymentStatus: ['PENDING', 'PARTIAL', 'PAID'].includes(String(r.payment_status)) ? r.payment_status : undefined,
         dueDate: r.due_date ? String(r.due_date) : undefined,
         creditPaid: Array.isArray(r.paymentEntries) ? r.paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : 0,
         creditBalance: Math.max(0, adjustedTotal - (Array.isArray(r.paymentEntries) ? r.paymentEntries.reduce((sum, entry) => sum + Number(entry.amount || 0), 0) : 0)),
@@ -164,6 +179,16 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         date: String(r.sold_at ?? r.date ?? ''),
         customer: String(r.customer ?? ''),
         customerNit,
+        customerContact: contactRaw ? {
+            id: String(contactRaw.id ?? ''),
+            name: String(contactRaw.name ?? ''),
+            imageUrl: typeof contactRaw.image_url === 'string' ? contactRaw.image_url : undefined,
+            address: typeof contactRaw.address === 'string' ? contactRaw.address : undefined,
+            phone: typeof contactRaw.phone === 'string' ? contactRaw.phone : undefined,
+            email: typeof contactRaw.email === 'string' ? contactRaw.email : undefined,
+            taxId: typeof contactRaw.tax_id === 'string' ? contactRaw.tax_id : undefined,
+        } : undefined,
+        branchName: typeof branchRaw?.name === 'string' ? branchRaw.name : undefined,
         isFinalConsumer,
         total: totalNum,
         subtotal,
@@ -174,6 +199,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         returnDetails,
         promotions,
         items: (r.items as number) ?? products.length,
+        lineCount: Number(r.line_count ?? (r._count as Record<string, unknown> | undefined)?.sale_items ?? (products.length || r.items || 0)),
         payment,
         status,
         amountReceived,
@@ -192,7 +218,11 @@ export const useSalesData = () => {
     const [statusFilter, updateStatusFilter] = useState<SaleStatusKey | 'all'>('all')
     const [paymentFilter, updatePaymentFilter] = useState('all')
     const [period, updatePeriod] = useState('today')
-    const { page, setPage, pageSize, setPageSize: updatePageSize, viewMode, setViewMode } = usePersistedListUiState(SALES_LIST_KEY, { defaultPageSize: 10, defaultView: 'table' })
+    const { page, setPage, pageSize: tablePageSize, setPageSize: updatePageSize, viewMode, setViewMode } = usePersistedListUiState(SALES_LIST_KEY, { defaultPageSize: 10, defaultView: 'table' })
+    const isMobile = useIsMobile()
+    const cardsVisible = viewMode === 'cards' || isMobile
+    const cardPagination = useCardPagination({ enabled: cardsVisible, tablePageSize, onPageChange: setPage })
+    const pageSize = cardPagination.pageSize
 
     useEffect(() => {
         const timer = window.setTimeout(() => setDebouncedSearch(searchTerm.trim()), 400)
@@ -243,7 +273,9 @@ export const useSalesData = () => {
         preferredPaymentMethod: summary?.preferredPaymentMethod ?? '—',
         setPage,
         pageSize,
-        setPageSize: (value: number) => { updatePageSize(value); setPage(1) },
+        setPageSize: (value: number) => { if (cardsVisible) cardPagination.setCardPageSize(value); else updatePageSize(value); setPage(1) },
+        pageSizeOptions: cardsVisible ? cardPagination.pageSizeOptions : [5, 10, 25, 50],
+        cardContainerRef: cardPagination.containerRef,
         viewMode,
         setViewMode,
         refreshSales,

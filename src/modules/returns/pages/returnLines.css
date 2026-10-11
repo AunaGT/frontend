@@ -1,0 +1,5 @@
+.return-lines-scroll.return-lines-scroll { min-width: 0; max-height: 420px; overflow: auto; scroll-padding-top: 64px; }
+.return-lines-scroll.return-lines-scroll-detail { max-height: 480px; }
+.return-lines-scroll > div { overflow: visible; }
+.return-lines-scroll th { position: sticky; top: 0; z-index: 1; background: hsl(var(--auna-table-header)); }
+.return-lines-scroll:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }

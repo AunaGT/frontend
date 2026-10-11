@@ -27,6 +27,7 @@ type TabIcon = ComponentType<SVGProps<SVGSVGElement>>
 export type ModuleTabItem<T extends string> = {
   value: T
   label: string
+  ariaLabel?: string
   icon?: TabIcon
 }
 
@@ -48,6 +49,7 @@ export function ModuleTabBar<T extends string>({ items, value, onValueChange, ar
           key={item.value}
           type="button"
           role="tab"
+          aria-label={item.ariaLabel}
           aria-selected={active}
           className={cn(triggerClasses, active && 'bg-brand-orange text-white shadow-sm')}
           onClick={() => onValueChange(item.value)}

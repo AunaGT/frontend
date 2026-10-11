@@ -4,8 +4,8 @@
 
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useNavigate } from 'react-router-dom'
+import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -20,7 +20,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { ArrowLeft, Calculator, ChevronDown, Save, Settings2, User } from 'lucide-react'
+import { Calculator, ChevronDown, Save, Settings2, RotateCcw } from 'lucide-react'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useToast } from '@/hooks/use-toast'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -35,10 +36,12 @@ import {
 import { isCashPaymentMethodName } from './types'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import './cash-closure-workflow.css'
 
 export const CASH_CLOSURE_CREATE_PATH = '/cierre-caja/nuevo'
 
 export function CashClosureCreatePage() {
+  usePageTrail([{ label: 'Cierre de caja', to: '/cierre-caja' }, { label: 'Nuevo cierre' }])
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -68,7 +71,7 @@ export function CashClosureCreatePage() {
     [setStartDate, setEndDate]
   )
 
-  const { gate: mineClosureGate, refresh: refreshMineClosureGate } = useMineClosureGate({
+  const { gate: mineClosureGate, refresh: refreshMineClosureGate, isRefreshing } = useMineClosureGate({
     enabled: effectiveScope === 'mine',
     userId: user?.id,
     timezone,
@@ -277,30 +280,24 @@ export function CashClosureCreatePage() {
     if (field === 'actual_amount') {
       setCountedPaymentMethodIds((current) => {
         const next = new Set(current)
-        next.add(form.paymentBreakdown[index].payment_method_id)
+        const methodId = form.paymentBreakdown[index].payment_method_id
+        if (String(value).trim() === '') next.delete(methodId)
+        else next.add(methodId)
         return next
       })
     }
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 w-full min-w-0">
-      <div className="flex items-center gap-3">
-
-        <div>
-          <h1 className="sr-only">Registrar cierre de caja</h1>
-          <p className="text-sm text-muted-foreground">
-            Revisa el turno, cuenta lo recibido y confirma la diferencia.
-          </p>
-        </div>
-      </div>
-
-      <Card className="auna-surface">
-        <CardHeader className="gap-3 pb-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+      <h1 className="sr-only">Registrar cierre de caja</h1>
+      <section className="space-y-3" aria-label="Turno y período del cierre">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-lg">Nuevo cierre</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">El conteo directo es suficiente para cerrar.</p>
+            <h2 className="text-sm font-semibold">Turno y período</h2>
+            <p className="mt-1 text-sm text-muted-foreground">{form.cashierName} · Revisa el período antes del conteo.</p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -312,11 +309,18 @@ export function CashClosureCreatePage() {
             {advancedOpen ? 'Ocultar herramientas' : 'Herramientas avanzadas'}
             <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-5">
+          <Button
+            onClick={() => void handleCalculateTheoretical()}
+            disabled={api.isCalculating || (effectiveScope === 'mine' && (mineClosureGate.loading || !mineClosureGate.canCalculate || !mineClosureGate.closableSessionId))}
+          >
+            <Calculator className="h-4 w-4" aria-hidden="true" />
+            {api.isCalculating ? 'Calculando...' : effectiveScope === 'mine' ? 'Calcular mi cierre' : 'Calcular cierre del día'}
+          </Button>
+          </div>
+        </div>
+        <div>
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-foreground">1 — Revisar turno</h4>
-            <div className="border-t py-4">
+            <div className="cash-closure-turn border-y py-3">
               {effectiveScope === 'mine' ? (
                 mineClosureGate.loading ? (
                   <LoadingState variant="detail" size="sm" message="Cargando datos de la caja…" />
@@ -416,9 +420,9 @@ export function CashClosureCreatePage() {
 
             {advancedOpen && showClosureTypeSelector && (
               <div className="space-y-2">
-                <Label>Tipo de cierre</Label>
+                <Label htmlFor="closure-scope">Tipo de cierre</Label>
                 <Select value={closureScope} onValueChange={(v: 'day' | 'mine') => setClosureScope(v)}>
-                  <SelectTrigger>
+                  <SelectTrigger id="closure-scope">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -433,7 +437,7 @@ export function CashClosureCreatePage() {
               </div>
             )}
 
-            {effectiveScope === 'mine' && (
+            {effectiveScope === 'mine' && (mineClosureGate.loading || mineClosureGate.reason !== 'ok') && (
               <p
                 className={`text-sm rounded-md border px-3 py-2 ${
                   mineClosureGate.loading || !mineClosureGate.canCalculate
@@ -471,49 +475,49 @@ export function CashClosureCreatePage() {
               </p>
             )}
 
-            <Button
-              onClick={() => void handleCalculateTheoretical()}
-              disabled={
-                api.isCalculating ||
-                (effectiveScope === 'mine' &&
-                  (mineClosureGate.loading ||
-                    !mineClosureGate.canCalculate ||
-                    !mineClosureGate.closableSessionId))
-              }
-              className="w-full bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-            >
-              <Calculator className="h-4 w-4 mr-2" />
-              {api.isCalculating
-                ? 'Calculando...'
-                : effectiveScope === 'mine'
-                  ? 'Calcular mi cierre'
-                  : 'Calcular cierre del día'}
-            </Button>
+            {effectiveScope === 'mine' && mineClosureGate.reason === 'error' && <Button variant="outline" onClick={refreshMineClosureGate} disabled={isRefreshing}>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              {isRefreshing ? 'Verificando turno…' : 'Reintentar'}
+            </Button>}
+
           </div>
+        </div>
+      </section>
 
-          {api.theoreticalData && (
-            <>
-              {advancedOpen && <TheoreticalSummary data={api.theoreticalData} />}
-
-              <div className="space-y-3 pt-4 border-t">
-                <h4 className="text-sm font-medium text-foreground">2 — Contar y verificar</h4>
+      {api.theoreticalData && (
+        <div className={`cash-closure-count-grid ${hasCashPayment ? 'cash-closure-count-grid-with-cash' : ''}`}>
+          {hasCashPayment && (
+            <Card className="auna-surface cash-closure-panel">
+              <CardContent className="p-4">
+                <DenominationsCounter
+                  denominations={form.denominations}
+                  onUpdateQuantity={handleDenominationUpdate}
+                  cashTotal={form.getCashTotal()}
+                  openingFloat={openingFloat}
+                  expectedCashInDrawer={cashSession?.expected_cash_in_drawer}
+                />
+              </CardContent>
+            </Card>
+          )}
+          <Card className="auna-surface cash-closure-panel">
+            <CardContent className="p-4">
                 <PaymentMethodsForm
                   paymentBreakdown={form.paymentBreakdown}
                   cashSession={cashSession}
                   showAdvancedDetails={advancedOpen}
+                  countedPaymentMethodIds={countedPaymentMethodIds}
                   onUpdateAmount={handlePaymentAmountUpdate}
                 />
-                {advancedOpen && hasCashPayment && (
-                  <DenominationsCounter
-                    denominations={form.denominations}
-                    onUpdateQuantity={handleDenominationUpdate}
-                    cashTotal={form.getCashTotal()}
-                    openingFloat={openingFloat}
-                    expectedCashInDrawer={cashSession?.expected_cash_in_drawer}
-                  />
-                )}
-              </div>
-
+            </CardContent>
+          </Card>
+          <aside className="cash-closure-summary-stack space-y-4" aria-label="Resumen y confirmación del cierre">
+            <Card className="auna-surface cash-closure-panel">
+              <CardContent className="p-4">
+                <TheoreticalSummary data={api.theoreticalData} showAdvancedDetails={advancedOpen} />
+              </CardContent>
+            </Card>
+            <Card className="auna-surface cash-closure-panel">
+              <CardContent className="p-4">
               <ClosureSummaryCard
                 theoreticalTotal={api.theoreticalData.theoretical.net_total}
                 actualTotal={form.getActualTotal()}
@@ -521,19 +525,12 @@ export function CashClosureCreatePage() {
                 differencePercentage={form.getDifferencePercentage(api.theoreticalData.theoretical.net_total)}
                 currencyCode={currencyCode}
                 locale={locale}
+                paymentBreakdown={form.paymentBreakdown}
               />
+              </CardContent>
+            </Card>
 
-              {advancedOpen && <div className="border-t py-4">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Cajero</p>
-                    <p className="font-medium">{form.cashierName}</p>
-                  </div>
-                </div>
-              </div>}
-
-              {(advancedOpen || showDifferenceReason) && <div className="space-y-2">
+              <div className="space-y-2">
                 <Label htmlFor="notes">
                   {hasDifference ? 'Motivo de la diferencia *' : 'Notas (opcional)'}
                 </Label>
@@ -543,15 +540,18 @@ export function CashClosureCreatePage() {
                   onChange={(e) => form.setNotes(e.target.value)}
                   placeholder={hasDifference ? 'Explica el faltante o sobrante...' : 'Observaciones del cierre...'}
                   rows={3}
+                  required={hasDifference}
+                  aria-invalid={hasDifference && showDifferenceReason && !form.notes.trim()}
                 />
                 {hasDifference && (
                   <p className="text-xs text-muted-foreground">
                     Todo faltante o sobrante debe quedar documentado.
                   </p>
                 )}
-              </div>}
+              </div>
 
-              <h4 className="text-sm font-medium text-foreground">3 — Confirmar cierre</h4>
+              <div className="flex flex-wrap gap-2 border-t pt-4">
+              <Button variant="outline" onClick={() => navigate('/cierre-caja')} disabled={api.isSaving}>Cancelar</Button>
               <Button
                 onClick={() => void handleSaveClosure()}
                 disabled={
@@ -561,16 +561,15 @@ export function CashClosureCreatePage() {
                       mineClosureGate.reason !== 'ok' ||
                       !mineClosureGate.closableSessionId))
                 }
-                className="w-full bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-                size="lg"
+                className="flex-1"
               >
                 <Save className="h-4 w-4 mr-2" />
                 {api.isSaving ? 'Guardando...' : 'Guardar cierre de caja'}
               </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div>
+          </aside>
+        </div>
+      )}
 
       <AlertDialog open={showConfirmSaveDialog} onOpenChange={setShowConfirmSaveDialog}>
         <AlertDialogContent variant="auna">

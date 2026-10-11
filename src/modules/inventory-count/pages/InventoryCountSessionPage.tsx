@@ -10,8 +10,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Package,
-  Check,
-  AlertTriangle,
   Download,
   Send,
   CheckCircle,
@@ -20,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CountStatusBadge } from "../components/CountStatusBadge";
+import { MetricStrip } from "@/components/shared/MetricStrip";
 import { Pagination } from "@/components/shared/Pagination";
 import { ExportDialog } from "@/components/shared/ExportDialog";
 import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
@@ -247,22 +246,8 @@ export default function InventoryCountSessionPage() {
   const cannotSecondApprove =
     pendingSecond && user?.id && session.firstApprovedBy?.id === user.id;
 
-
-  return (
-    <div className="inventory-count-page"><div className="inventory-count-content">
-      <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="h-4 w-4 mr-2" />Sesiones de conteo</Button>
-      <header className="auna-page-toolbar"><div><h1 className="text-2xl font-semibold">{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
-      {sessionQuery.isFetching && <LoadingIndicator message="Actualizando sesión…" />}
-      <Card className="auna-surface"><CardContent className="p-5 grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]">
-        <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-4 mt-5 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
-        <div className="lg:border-l lg:pl-6"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-3 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
-      </CardContent></Card>
-      {!isDraft && <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[{ label: "Líneas completas", value: session.progress?.countedLines ?? 0, Icon: Package, color: "text-blue-500 bg-blue-500/10" }, { label: "Sin diferencias", value: session.totals?.unchangedLines ?? 0, Icon: Check, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10" }, { label: "Con diferencias", value: session.totals?.differenceLines ?? 0, Icon: AlertTriangle, color: "text-amber-600 dark:text-amber-400 bg-amber-500/10" }, { label: "No encontrados", value: session.totals?.notFoundLines ?? 0, Icon: XCircle, color: "text-rose-600 dark:text-rose-400 bg-rose-500/10" }].map(({ label, value, Icon, color }) => <Card className="auna-surface" key={label}><CardContent className="p-4 flex items-center gap-4"><span className={`rounded-xl p-3 ${color}`}><Icon className="h-5 w-5" /></span><div><strong className="text-2xl">{value}</strong><p className="text-sm text-muted-foreground">{label}</p></div></CardContent></Card>)}
-      </div>}
-      {session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
-      {Boolean(session.totals?.mismatchLines) && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">Hay {session.totals?.mismatchLines} líneas con lecturas distintas. Corrígelas antes de enviar a revisión.</p>}
-      <div className="flex flex-wrap justify-end gap-2">
+  const sessionActions = (
+    <div className="flex flex-wrap justify-end gap-2">
           {isDraft && session._count?.lines === 0 && canStart && (
             <Button onClick={() => startMut.mutate()} disabled={startMut.isPending}>
               Armar lista y contar
@@ -308,6 +293,26 @@ export default function InventoryCountSessionPage() {
             </Button>
           )}
         </div>
+  );
+
+  return (
+    <div className="inventory-count-page"><div className="inventory-count-content">
+      <Button variant="ghost" size="sm" className="justify-self-start -ml-3" onClick={() => navigate("/inventario/inventariado")}><ArrowLeft className="h-4 w-4 mr-2" />Sesiones de conteo</Button>
+      <header className="auna-page-toolbar"><div><h1 className="text-2xl font-semibold">{session.name?.trim() || "Sesión de conteo"}</h1><p className="auna-module-description">Registra el conteo físico y revisa las diferencias por ubicación.</p></div></header>
+      {sessionQuery.isFetching && <LoadingIndicator message="Actualizando sesión…" />}
+      {!isDraft && <MetricStrip label="Resumen del conteo" items={[
+        { label: "Líneas completas", value: session.progress?.countedLines ?? 0 },
+        { label: "Sin diferencias", value: session.totals?.unchangedLines ?? 0 },
+        { label: "Con diferencias", value: session.totals?.differenceLines ?? 0 },
+        { label: "No encontrados", value: session.totals?.notFoundLines ?? 0 },
+      ]} />}
+      <Card className="auna-surface"><CardContent className="p-4 grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
+        <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-3 mt-3 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
+        <div className="lg:border-l lg:pl-4"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-2 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
+      </CardContent></Card>
+      {session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
+      {Boolean(session.totals?.mismatchLines) && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">Hay {session.totals?.mismatchLines} líneas con lecturas distintas. Corrígelas antes de enviar a revisión.</p>}
+      {isDraft && sessionActions}
       <details className="rounded-2xl border bg-card"><summary className="cursor-pointer p-4 text-sm font-medium">Configuración y historial del conteo</summary><Card className="auna-surface border-0 shadow-none">
         <CardHeader className="py-3 pb-0">
           <CardTitle className="text-sm font-medium">Cómo se configuró este inventario</CardTitle>
@@ -368,21 +373,18 @@ export default function InventoryCountSessionPage() {
       )}
 
       {!isDraft && (
-        <><Card className="auna-surface">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex flex-col sm:flex-row sm:items-center gap-3">
-              <span>Productos a contar</span>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:ml-auto w-full sm:w-auto">
+        <><section className="compact-filter-toolbar" aria-label="Filtros del conteo"><div className="flex flex-wrap items-center gap-3">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   aria-label="Escanear o buscar producto"
                   placeholder="Escanea o busca por producto / código…"
-                  className="w-full sm:w-72"
+                  className="w-full min-w-0 sm:flex-1"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
                 {countLocations.length > 1 && (
                   <Select value={locationId} onValueChange={setLocationId}>
-                    <SelectTrigger className="w-full sm:w-56">
+                    <SelectTrigger aria-label="Ubicación del conteo" className="w-full sm:w-56">
                       <SelectValue placeholder="Ubicación" />
                     </SelectTrigger>
                     <SelectContent>
@@ -405,7 +407,10 @@ export default function InventoryCountSessionPage() {
                   </label>
                 )}
               </div>
-            </CardTitle>
+          {sessionActions}
+        </div></section><Card className="auna-surface">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Productos a contar</CardTitle>
             {inProgress && (
               <p className="text-xs text-muted-foreground">
                 La columna «En sistema» es la cantidad que tenías al empezar; «Contado» es lo que encontraste.

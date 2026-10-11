@@ -28,6 +28,7 @@ import {
  * Hook to fetch returns with optional filters
  */
 export const useReturns = (params?: {
+  includeSummary?: boolean
   status?: string
   sale_id?: string
   search?: string

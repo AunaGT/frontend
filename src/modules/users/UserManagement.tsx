@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, Pencil, MoreHorizontal, Shield, FileUp, ArrowUpDown, Search, Crown, Users } from 'lucide-react'
+import { Plus, Pencil, Eye, MoreHorizontal, Shield, FileUp, ArrowUpDown, Search, Crown, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
@@ -23,7 +24,7 @@ export default function UserManagement() {
   const [direction, setDirection] = useState('asc')
   const pageSize = 8
   const activeFilterCount = Number(Boolean(search.trim())) + Number(Boolean(role)) + Number(Boolean(status))
-  const query = useQuery({ queryKey: ['users', company?.id, { page, search, role, status, sort, direction }], queryFn: () => getUsers({ page, pageSize, search, role_id: role ? Number(role) : undefined, status, sort, direction }), enabled: hasPermission('users.view') })
+  const query = useQuery({ queryKey: ['users', company?.id, { page, search, role, status, sort, direction, includeSummary: true }], queryFn: () => getUsers({ page, pageSize, search, role_id: role ? Number(role) : undefined, status, sort, direction, includeSummary: true }), enabled: hasPermission('users.view') })
   const roles = useQuery({ queryKey: ['users-role-options', company?.id], queryFn: getRoles, enabled: hasPermission('users.view') })
   function order(key: string) { setSort(key); setDirection(sort === key && direction === 'asc' ? 'desc' : 'asc'); setPage(1) }
   const pageActions = <>
@@ -32,6 +33,8 @@ export default function UserManagement() {
   </>
   return <UsersPage compact title="Usuarios y roles" back="/" backLabel="Administración" description="Gestiona los usuarios, sus roles y el acceso a las empresas del grupo." actions={!hasPermission('users.view') ? pageActions : undefined}>
     {!hasPermission('users.view') ? <Feedback error={new Error('No tienes permiso para consultar usuarios')}/> : <>
+<MetricStrip label="Resumen de usuarios" loading={query.isLoading} items={([['total', 'Usuarios'], ['ACTIVE', 'Activos'], ['INACTIVE', 'Inactivos'], ['BLOCKED', 'Bloqueados']] as const).map(([key, label]) => ({ label, value: query.isError ? '—' : query.data?.summary?.[key] ?? '—' }))} />
+
 <CompactFilterPanel actions={pageActions} title="Filtros de usuarios" summary="Nombre, correo, rol, empresa y estado" activeCount={activeFilterCount} onClear={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }} contentClassName="users-filters" search={<label className="auna-control-group users-search"><Search size={19} aria-hidden="true"/><input className="auna-control" aria-label="Buscar usuarios" placeholder="Buscar por nombre, correo o rol…" value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}/></label>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`, onRemove: () => {setSearch('');setPage(1)}}] : []), ...(role ? [{label: `Rol: ${roles.data?.find(r => String(r.id) === String(role))?.name || role}`,onRemove: () => {setRole('');setPage(1)}}] : []), ...(status ? [{label: `Estado: ${({ACTIVE:'Activo',INACTIVE:'Inactivo',BLOCKED:'Bloqueado'} as Record<string,string>)[status] || status}`,onRemove: () => {setStatus('');setPage(1)}}] : [])]}>
 
       <select className="auna-control auna-control-select" aria-label="Rol" value={role} onChange={e => { setRole(e.target.value); setPage(1) }}><option value="">Todos los roles</option>{roles.data?.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select>
@@ -48,7 +51,7 @@ export default function UserManagement() {
         <td><Link className="flex items-center gap-3 font-semibold whitespace-nowrap" to={`/usuarios/${u.id}`}><UserAvatar name={u.name} photo={u.photo_url}/>{u.name}</Link></td>
         <td className="users-email">{u.email}</td><td><span className="users-role-chip" data-kind={u.role?.name?.toLowerCase() === 'admin' ? 'admin' : /gerente|manager|supervisor/i.test(u.role?.name || '') ? 'manager' : 'default'}>{u.role?.name?.toLowerCase() === 'admin' ? <Crown size={15}/> : /gerente|manager|supervisor/i.test(u.role?.name || '') ? <Users size={15}/> : <Shield size={15}/>} {u.role?.name || 'Sin rol'}</span></td>
         <td>{u.companies?.length ? u.companies.map(c => <span key={c.id} className="users-company-chip">{c.name}</span>) : <span className="users-muted">No asignada</span>}</td><td><AccessBadge status={u.access_status}/></td><td className="users-muted whitespace-nowrap text-xs">{dateLabel(u.last_login_at)}</td>
-        <td><div className="flex gap-2">{hasPermission('users.edit') && <Button variant="outline" size="icon" aria-label={`Editar ${u.name}`} onClick={() => navigate(`/usuarios/${u.id}?edit=1`)}><Pencil size={15}/></Button>}<DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="outline" aria-label={`Acciones de ${u.name}`}><MoreHorizontal size={18}/></Button></DropdownMenuTrigger><DropdownMenuContent className="users-overlay" align="end"><DropdownMenuItem onSelect={() => navigate(`/usuarios/${u.id}`)}>Ver detalle</DropdownMenuItem>{hasPermission('users.edit') && <DropdownMenuItem onSelect={() => navigate(`/usuarios/${u.id}?tab=security`)}>Administrar acceso</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu></div></td>
+        <td><div className="flex w-max flex-nowrap items-center gap-2"><Button variant="outline" size="icon" aria-label={`Ver detalles de ${u.name}`} onClick={() => navigate(`/usuarios/${u.id}`)}><Eye size={15} aria-hidden="true"/></Button>{hasPermission('users.edit') && <Button variant="outline" size="icon" aria-label={`Editar ${u.name}`} onClick={() => navigate(`/usuarios/${u.id}?edit=1`)}><Pencil size={15}/></Button>}{hasPermission('users.edit') && <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon" variant="outline" aria-label={`Acciones de ${u.name}`}><MoreHorizontal size={18}/></Button></DropdownMenuTrigger><DropdownMenuContent className="users-overlay" align="end">{hasPermission('users.edit') && <DropdownMenuItem onSelect={() => navigate(`/usuarios/${u.id}?tab=security`)}>Administrar acceso</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}</div></td>
       </tr>)}</tbody></table></div>}
 
     </section>

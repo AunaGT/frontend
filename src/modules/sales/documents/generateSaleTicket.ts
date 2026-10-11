@@ -207,7 +207,7 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   // ----- Ítems -----
   const items = sale.sale_items ?? []
   for (const item of items) {
-    const name = item.product?.name ?? 'Producto'
+    const name = `${item.item_name ?? item.product?.name ?? 'Producto'}${item.unit_label ? ` (${item.unit_label})` : ''}`
     const qty = Number(item.qty) || 0
     const price = Number(item.price) || 0
     const lineTotal = qty * price

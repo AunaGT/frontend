@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react'
 import { CatalogFilters } from './CatalogFilters'
 import { useCatalogSearch } from './useCatalogSearch'
 import { Pagination } from '@/components/shared/Pagination'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -219,16 +220,22 @@ export function CashRegistersTab() {
 
   return (
     <>
-      <><Card className="auna-data-table-shell">
+      <MetricStrip className="mb-5" label="Resumen de cajas" loading={isLoading} items={[
+        { label: 'Cajas', value: registersError || isLoading ? '—' : filteredRegisters.length },
+        { label: 'Activas', value: registersError || isLoading ? '—' : filteredRegisters.filter(reg => reg.active).length },
+        { label: 'Inactivas', value: registersError || isLoading ? '—' : filteredRegisters.filter(reg => !reg.active).length },
+      ]} />
+      <>
 
         <CatalogFilters actions={<>{canManage && (
-              <Button onClick={openCreate} size="sm" className="h-11 bg-brand-orange text-white hover:bg-brand-orange-strong w-full sm:w-auto">
+              <Button onClick={openCreate}>
                 <Plus className="w-4 h-4 mr-2" />
                 Nueva caja
               </Button>
             )}</>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} onClearExtra={() => {setStatus('all');setPage(1)}} extraFilters={status !== 'all' ? [{label: `Estado: ${status === 'active' ? 'Activas' : 'Inactivas'}`,onRemove: () => {setStatus('all');setPage(1)}}] : []}>
           <label className="space-y-1 text-xs">Estado de las cajas<select aria-label="Estado de las cajas" value={status} onChange={e => setStatus(e.target.value)} className="auna-control auna-control-select px-3"><option value="all">Todos los estados</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label>
         </CatalogFilters>
+      <Card className="auna-data-table-shell auna-surface">
         <CardContent className="catalog-content">
           {isFetching && !isLoading && <LoadingIndicator message="Actualizando cajas…" />}
           {registersError ? <p role="alert" className="p-6 text-destructive">{registersError.message}</p> : !isLoading && visibleRegisters.length === 0 ? (
@@ -295,6 +302,7 @@ export function CashRegistersTab() {
                                 variant="ghost"
                                 size="sm"
                                 title="Asignar usuarios a esta caja"
+                                aria-label={`Asignar usuarios a ${reg.name}`}
                                 onClick={() => openAssign(reg)}
                               >
                                 <Users className="w-4 h-4" />
@@ -305,6 +313,7 @@ export function CashRegistersTab() {
                                 variant="ghost"
                                 size="sm"
                                 title="Marcar como predeterminada"
+                                aria-label={`Marcar ${reg.name} como predeterminada`}
                                 disabled={setDefaultMutation.isPending}
                                 onClick={() => setDefaultMutation.mutate(reg.id)}
                               >
@@ -315,6 +324,7 @@ export function CashRegistersTab() {
                               variant="ghost"
                               size="sm"
                               title="Editar nombre"
+                              aria-label={`Editar ${reg.name}`}
                               onClick={() => openEdit(reg)}
                             >
                               <Pencil className="w-4 h-4" />

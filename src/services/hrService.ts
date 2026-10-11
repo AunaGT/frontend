@@ -169,6 +169,7 @@ export interface AdvancePayload {
 }
 
 interface Paginated<T> {
+  summary?: Record<string, number>;
   items: T[];
   page: number;
   pageSize: number;
@@ -230,8 +231,8 @@ export const terminateEmployee = (id: string, termination_date?: string) =>
     body: JSON.stringify({ termination_date }),
   });
 
-export const fetchAttendance = (filters: { from?: string; to?: string; employee_id?: string; employee_ids?: string }) =>
-  apiFetch<{ items: Attendance[] }>(`/api/hr/attendance${qs(filters)}`);
+export const fetchAttendance = (filters: { from?: string; to?: string; employee_id?: string; employee_ids?: string; includeSummary?: boolean; summaryOnly?: boolean }) =>
+  apiFetch<{ items: Attendance[]; summary?: Record<string, number> }>(`/api/hr/attendance${qs({ ...filters, includeSummary: filters.includeSummary ? 'true' : undefined, summaryOnly: filters.summaryOnly ? 'true' : undefined })}`);
 
 export const saveAttendance = (payload: AttendancePayload) =>
   apiFetch<Attendance>("/api/hr/attendance", { method: "POST", body: JSON.stringify(payload) });
@@ -240,8 +241,8 @@ export const saveAttendance = (payload: AttendancePayload) =>
 // golpe) pero todavía no hay pantalla que lo use; el envoltorio se agrega cuando
 // la haya, no antes.
 
-export const fetchAdvances = (filters: { employee_id?: string; status?: string; page?: number; pageSize?: number } = {}) =>
-  apiFetch<Paginated<EmployeeAdvance>>(`/api/hr/advances${qs({ ...filters, page: String(filters.page ?? 1), pageSize: String(filters.pageSize ?? 10) })}`);
+export const fetchAdvances = (filters: { employee_id?: string; status?: string; page?: number; pageSize?: number; includeSummary?: boolean } = {}) =>
+  apiFetch<Paginated<EmployeeAdvance>>(`/api/hr/advances${qs({ ...filters, includeSummary: filters.includeSummary ? 'true' : undefined, page: String(filters.page ?? 1), pageSize: String(filters.pageSize ?? 10) })}`);
 
 export const createAdvance = (payload: AdvancePayload) =>
   apiFetch<EmployeeAdvance>("/api/hr/advances", { method: "POST", body: JSON.stringify(payload) });

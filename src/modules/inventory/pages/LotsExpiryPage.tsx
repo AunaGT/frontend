@@ -147,6 +147,12 @@ export const LotsExpiryPage = () => {
 
       <h1 className="sr-only">Lotes y caducidades</h1>
 
+      {!isError && <MetricStrip loading={isLoading} label="Resumen de los lotes consultados" items={[
+        { label: 'Lotes consultados', value: isLoading ? '—' : lots.length },
+        { label: 'Vencidos', value: isLoading ? '—' : expiredCount, alert: expiredCount > 0 },
+        { label: 'Por vencer', value: isLoading ? '—' : expiringCount },
+      ]} />}
+
       <CompactFilterPanel actions={<>{canWriteOff && !isError && !isLoading && expiredCount > 0 && (
           <Button variant="destructive" disabled={isFetching || writeOffMutation.isPending} onClick={() => setConfirming(expired)}>
             <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -190,11 +196,6 @@ export const LotsExpiryPage = () => {
       </CompactFilterPanel>
 
       <p className="text-xs text-muted-foreground">Ventana de {effectiveDays} días · Solo lotes con existencia vencidos o próximos a vencer. La búsqueda y la ubicación se aplican a esta consulta.</p>
-      {!isError && <MetricStrip loading={isLoading} label="Resumen de los lotes consultados" items={[
-        { label: 'Lotes consultados', value: isLoading ? '—' : lots.length },
-        { label: 'Vencidos', value: isLoading ? '—' : expiredCount, alert: expiredCount > 0 },
-        { label: 'Por vencer', value: isLoading ? '—' : expiringCount },
-      ]} />}
 
       <><section className="auna-data-table-shell min-w-0" aria-label="Lotes con existencia" aria-busy={isFetching}>
         {isFetching && !isLoading && <LoadingIndicator message="Actualizando lotes…" className="px-4 py-2" />}

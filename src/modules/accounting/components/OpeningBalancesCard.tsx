@@ -15,6 +15,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -95,7 +96,7 @@ export const OpeningBalancesCard = ({ accounts }: { accounts: Account[] }) => {
   )
 
   return (
-    <Card>
+    <Card className="auna-surface">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg">
           <Scale className="h-5 w-5" />Saldos iniciales (asiento de apertura)
@@ -106,6 +107,11 @@ export const OpeningBalancesCard = ({ accounts }: { accounts: Account[] }) => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <MetricStrip label="Resumen de saldos iniciales" items={[
+          { label: 'Activos', value: fmtQ(totalAssets) },
+          { label: 'Pasivos', value: fmtQ(totalLiabilities) },
+          { label: 'Capital (3101)', value: fmtQ(capital), alert: capital < 0 },
+        ]} />
         <div className="space-y-1 w-[170px]">
           <Label className="text-xs">Fecha de apertura</Label>
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -118,14 +124,6 @@ export const OpeningBalancesCard = ({ accounts }: { accounts: Account[] }) => {
         <div>
           <p className="text-sm font-medium mb-2">Pasivos (lo que se debe)</p>
           {renderRows(liabilities)}
-        </div>
-
-        <div className="rounded-md border p-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-          <span>Activos: <span className="font-semibold">{fmtQ(totalAssets)}</span></span>
-          <span>Pasivos: <span className="font-semibold">{fmtQ(totalLiabilities)}</span></span>
-          <span>
-            Capital (3101): <span className={`font-semibold ${capital < 0 ? 'text-destructive' : ''}`}>{fmtQ(capital)}</span>
-          </span>
         </div>
 
         <Button onClick={handleCreate} disabled={!canSave}>

@@ -5,13 +5,13 @@
  */
 
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { FileText, Plus, Calculator } from 'lucide-react'
+import { Plus, Info, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -19,6 +19,7 @@ import { useCashClosureForm, useCashClosureAPI, useMineClosureGate, canRegisterM
 import { ClosuresHistoryList } from './components'
 import { CASH_CLOSURE_CREATE_PATH } from './CashClosureCreatePage'
 import { readListUiPersisted } from '@/hooks/usePersistedListUiState'
+import './cash-closure-workflow.css'
 
 const CashClosureManagement = () => {
   const navigate = useNavigate()
@@ -33,7 +34,7 @@ const CashClosureManagement = () => {
   const canCreateOwn = hasPermission('cashclosure.create') || hasPermission('cashclosure.create_own')
   const canCreateClosure = canCreateDay || canCreateOwn
 
-  const { gate: mineClosureGate } = useMineClosureGate({
+  const { gate: mineClosureGate, refresh: refreshMineClosureGate, isRefreshing } = useMineClosureGate({
     enabled: canCreateOwn,
     userId: user?.id,
     timezone,
@@ -98,7 +99,9 @@ const CashClosureManagement = () => {
       ? mineClosureGate.loading
         ? 'Comprobando turno en caja…'
         : !canRegisterMineClosure(mineClosureGate)
-          ? mineClosureBlockedHint(mineClosureGate.reason)
+          ? mineClosureGate.reason === 'error'
+            ? 'No se pudo verificar el turno. Reintenta la consulta; no necesitas abrir otro turno.'
+            : mineClosureBlockedHint(mineClosureGate.reason)
           : null
       : null
 
@@ -107,7 +110,6 @@ const CashClosureManagement = () => {
             <Button
               asChild={canOpenCreate}
               disabled={!canOpenCreate}
-              className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
             >
               {canOpenCreate ? (
                 <Link to={CASH_CLOSURE_CREATE_PATH}>
@@ -124,49 +126,22 @@ const CashClosureManagement = () => {
             {createBlockedHint && (
               <p className="text-xs text-muted-foreground max-w-xs text-right">{createBlockedHint}</p>
             )}
+            {mineClosureGate.reason === 'error' && <Button variant="outline" size="sm" onClick={refreshMineClosureGate} disabled={isRefreshing}>
+              <RotateCcw className="h-4 w-4" aria-hidden="true" />
+              {isRefreshing ? 'Verificando turno…' : 'Reintentar'}
+            </Button>}
           </div>
         )}</>
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="sr-only">Cierre de caja</h1><p className="text-sm text-muted-foreground">Historial de arqueos. Para registrar un cierre, use el turno ya cerrado en «Nueva venta».</p>{(!canViewHistory || form.isSeller) && <div className="auna-page-toolbar"><div className="compact-filter-actions">{pageActions}</div></div>}
-
-      {canCreateClosure && canCreateOwn && (
-        <Card className="auna-surface border-dashed">
-          <CardContent className="py-4 flex items-start gap-3">
-            <Calculator className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
-            <div className="text-sm text-muted-foreground">
-              {canOpenCreate ? (
-                <>
-                  Hay un turno cerrado pendiente de arqueo. Pulse <strong>Registrar cierre</strong> para contar
-                  efectivo y cuadrar el turno.
-                </>
-              ) : (
-                <>
-                  No hay turno cerrado pendiente de arqueo. Abra caja en «Nueva venta», venda, cierre el turno y
-                  vuelva aquí.
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+    <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+      <h1 className="sr-only">Cierre de caja</h1>
+      {!canViewHistory && <div className="auna-page-toolbar"><div className="compact-filter-actions">{pageActions}</div></div>}
 
       {canViewHistory && (
-        <Card className="auna-surface-flat">
-          <CardHeader className="gap-3 px-0 pb-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <FileText className="h-5 w-5" />
-                {form.isSeller ? 'Último cierre de caja' : 'Historial de cierres'}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground pt-1">
-                Haz clic en un cierre para ver el detalle, descargar PDF o aprobar / rechazar según tu rol.
-              </p>
-            </div>
+        <section className="space-y-5" aria-label="Historial de cierres">
+              <MetricStrip label="Resumen de cierres" loading={api.isLoadingClosures} items={([['total', 'Cierres'], ['Pendiente', 'Pendientes'], ['Aprobado', 'Aprobados'], ['Rechazado', 'Rechazados']] as const).map(([key, label]) => ({ label, value: api.closureSummary?.[key] ?? '—' }))} />
+              {form.isSeller && <div className="auna-page-toolbar"><div className="compact-filter-actions">{pageActions}</div></div>}
 
-          </CardHeader>
-          <CardContent className="px-0">
-            <div className="space-y-4">
               {!form.isSeller && (
                 <CompactFilterPanel actions={pageActions} title="Filtros de cierres" activeCount={activeHistoryFilters} onClear={clearHistoryFilters} appliedFilters={[...(historyStatus ? [{label: `Estado: ${historyStatus}`,onRemove: () => setHistoryStatus('')}] : []),...(historyStartDate ? [{label: `Desde: ${historyStartDate}`,onRemove: () => setHistoryStartDate('')}] : []),...(historyEndDate ? [{label: `Hasta: ${historyEndDate}`,onRemove: () => setHistoryEndDate('')}] : [])]} search={<div className="flex items-center gap-2">
                     <span className="text-sm text-muted-foreground">Por página:</span>
@@ -186,7 +161,7 @@ const CashClosureManagement = () => {
                         api.fetchClosures(1, form.isSeller, n, f)
                       }}
                     >
-                      <SelectTrigger className="w-[72px]">
+                      <SelectTrigger aria-label="Cierres por página" className="w-[72px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -199,12 +174,12 @@ const CashClosureManagement = () => {
                     </Select>
                   </div>}>
                   <div className="space-y-1">
-                    <Label className="text-xs">Estado</Label>
+                    <Label htmlFor="closure-status" className="text-xs">Estado</Label>
                     <Select
                       value={historyStatus || 'all'}
                       onValueChange={(v) => setHistoryStatus(v === 'all' ? '' : v)}
                     >
-                      <SelectTrigger className="w-[140px]">
+                      <SelectTrigger id="closure-status" className="w-[140px]">
                         <SelectValue placeholder="Todos" />
                       </SelectTrigger>
                       <SelectContent>
@@ -216,8 +191,9 @@ const CashClosureManagement = () => {
                     </Select>
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Desde</Label>
+                    <Label htmlFor="closure-from" className="text-xs">Desde</Label>
                     <input
+                      id="closure-from"
                       type="date"
                       className="auna-control flex w-[140px] px-3 py-1"
                       value={historyStartDate}
@@ -225,8 +201,9 @@ const CashClosureManagement = () => {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Hasta</Label>
+                    <Label htmlFor="closure-to" className="text-xs">Hasta</Label>
                     <input
+                      id="closure-to"
                       type="date"
                       className="auna-control flex w-[140px] px-3 py-1"
                       value={historyEndDate}
@@ -235,6 +212,11 @@ const CashClosureManagement = () => {
                   </div>
                 </CompactFilterPanel>
               )}
+              {canCreateClosure && canCreateOwn && <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Info className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+                {canOpenCreate ? 'Hay un turno cerrado pendiente de arqueo. Registra su cierre para verificar los montos.' : createBlockedHint || 'Para registrar un cierre, finaliza primero el turno desde Nueva venta.'}
+              </p>}
+              <h2 className="text-sm font-semibold">{form.isSeller ? 'Último cierre de caja' : 'Cierres registrados'}</h2>
               <ClosuresHistoryList
                 closures={api.closures}
                 isLoading={api.isLoadingClosures}
@@ -254,9 +236,7 @@ const CashClosureManagement = () => {
                   api.fetchClosures(page, form.isSeller, undefined, f)
                 }}
               />
-            </div>
-          </CardContent>
-        </Card>
+        </section>
       )}
     </div>
   )

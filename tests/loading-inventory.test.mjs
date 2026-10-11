@@ -44,7 +44,7 @@ test('inventory count loading keeps headings and refresh keeps the visible sessi
   assert.equal((initial.match(/<td\b/g) ?? []).length, 36, 'Five skeleton rows need seven cells each, plus the status cell')
   assert.doesNotMatch(initial, /No hay sesiones/)
 
-  client.setQueryData(['inventory-sessions', 'all', '', 1], { total: 1, data: [{ id: 'session-1', name: 'Conteo visible', status: 'DRAFT', scope_json: null, dual_approval: false, submit_reason: null, first_approved_at: null, first_approval_reason: null, final_approval_reason: null, notes: null, created_at: '2026-10-06T12:00:00Z', started_at: null, submitted_at: null, approved_at: null, cancelled_at: null, cancel_reason: null, createdBy: { id: 'user-1', name: 'Responsable', email: 'example@example.com' }, progress: { totalLines: 10, countedLines: 0, pct: 0 } }] })
+  client.setQueryData(['inventory-sessions', 'all', '', 1, 'summary'], { total: 1, data: [{ id: 'session-1', name: 'Conteo visible', status: 'DRAFT', scope_json: null, dual_approval: false, submit_reason: null, first_approved_at: null, first_approval_reason: null, final_approval_reason: null, notes: null, created_at: '2026-10-06T12:00:00Z', started_at: null, submitted_at: null, approved_at: null, cancelled_at: null, cancel_reason: null, createdBy: { id: 'user-1', name: 'Responsable', email: 'example@example.com' }, progress: { totalLines: 10, countedLines: 0, pct: 0 } }] })
   const refreshing = render()
   assert.match(refreshing, /Conteo visible/)
   assert.match(refreshing, /role="status"/)

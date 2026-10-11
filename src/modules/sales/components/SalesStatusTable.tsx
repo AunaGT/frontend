@@ -16,6 +16,7 @@ import { formatMoney, formatDateTime } from '@/utils'
 import { SaleStatusKey, STATUS_LABELS } from '../types'
 import { LoadingState, LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { Pagination } from '@/components/shared/Pagination'
+import { recordCardNavigation } from '@/components/shared/recordCardNavigation'
 
 interface SalesStatusTableProps {
     statusKey?: SaleStatusKey
@@ -57,11 +58,11 @@ export const SalesStatusTable = ({
         <strong className="font-semibold">{formatMoney(sale.adjustedTotal ?? sale.total, locale, currencyCode)}</strong>
         {sale.hasReturns && <span className="text-xs text-muted-foreground line-through">{formatMoney(sale.total, locale, currencyCode)}</span>}
     </div>
-    const actions = (sale: Sale) => {
+    const actions = (sale: Sale, card = false) => {
         const reference = sale.reference ?? sale.id
         const updating = updatingSaleIds.has(reference)
         return <div className="flex flex-wrap items-center justify-end gap-1">
-            {canViewDetail && <Button type="button" variant="ghost" size="icon" aria-label={`Ver detalle de ${reference}`} title="Ver detalle" onClick={() => onViewSale(sale)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>}
+            {!card && canViewDetail && <Button type="button" variant="ghost" size="icon" aria-label={`Ver detalle de ${reference}`} title="Ver detalle" onClick={() => onViewSale(sale)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>}
             {canViewInvoice && <Button type="button" variant="ghost" size="icon" aria-label={`Ver factura de ${reference}`} title="Ver factura" onClick={() => onViewInvoice(sale)}><FileText className="h-4 w-4" aria-hidden="true" /></Button>}
             {canChangeStatus && <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" disabled={updating} aria-label={`Más acciones de ${reference}`} title="Más acciones"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem disabled={updating} onSelect={() => onStatusChange(reference, 'completed')}>Marcar como completado</DropdownMenuItem>
@@ -70,17 +71,23 @@ export const SalesStatusTable = ({
         </div>
     }
     const cards = <div className={viewMode === 'table' ? 'md:hidden' : ''}>
-        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{sales.map(sale => <article key={sale.id} className="auna-surface min-w-0 rounded-lg border p-4">
-            <header className="flex flex-wrap items-center justify-between gap-2"><strong className="break-all text-sm">{sale.reference ?? sale.id}</strong>{getStatusBadge(sale.status)}</header>
-            <div className="mt-3"><p className="break-words font-medium">{sale.customer}</p><p className="text-xs text-muted-foreground">NIT: {sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p></div>
-            <dl className="mt-3 space-y-1 text-xs text-muted-foreground">
-                <div className="flex justify-between gap-2"><dt>Fecha</dt><dd className="text-right">{formatDateTime(sale.date, undefined, locale)}</dd></div>
-                <div className="flex justify-between gap-2"><dt>Vendedor</dt><dd className="break-words text-right">{sale.createdByName ?? '—'}</dd></div>
-                <div className="flex justify-between gap-2"><dt>Pago</dt><dd>{sale.isCredit ? 'A crédito' : sale.payment}</dd></div>
-            </dl>
-            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border pt-3"><span className="text-sm text-muted-foreground">Total neto</span>{total(sale)}</div>
-            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground"><span>{sale.items} artículos</span>{sale.hasReturns && <span>Con devolución</span>}</div>
-            <footer className="mt-3 border-t border-border pt-2">{actions(sale)}</footer>
+        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="auna-record-grid">{sales.map(sale => <article key={sale.id} className="auna-surface auna-record-card rounded-lg border" {...recordCardNavigation(canViewDetail ? () => onViewSale(sale) : undefined)}>
+            <div className="auna-record-content space-y-1">
+                <strong className="text-sm">{sale.reference ?? sale.id}</strong>
+                <p className="font-medium">{sale.customer}</p>
+                <p className="text-sm text-muted-foreground">NIT: {sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p>
+                <dl className="auna-record-meta text-muted-foreground">
+                    <div className="flex flex-wrap gap-1"><dt>Fecha:</dt><dd>{formatDateTime(sale.date, undefined, locale)}</dd></div>
+                    <div className="flex flex-wrap gap-1"><dt>Vendedor:</dt><dd>{sale.createdByName ?? '—'}</dd></div>
+                    <div className="flex flex-wrap gap-1"><dt>Pago:</dt><dd>{sale.isCredit ? 'A crédito' : sale.payment}</dd></div>
+                </dl>
+                <div className="auna-record-meta text-muted-foreground"><span>{sale.lineCount ?? sale.products?.length ?? sale.items} partidas</span>{sale.hasReturns && <span>Con devolución</span>}</div>
+            </div>
+            <div className="auna-record-side text-right">
+                {getStatusBadge(sale.status)}
+                <div><span className="text-sm text-muted-foreground">Total neto</span>{total(sale)}</div>
+                {actions(sale, true)}
+            </div>
         </article>)}</div>}
     </div>
 
@@ -94,7 +101,7 @@ export const SalesStatusTable = ({
             <table className="auna-data-table min-w-[960px]">
                 <thead><tr>{['ID Venta', 'Fecha/Hora', 'Cliente', 'Vendedor', 'Pago', 'Total neto', 'Estado', 'Acciones'].map(heading => <th key={heading} scope="col">{heading}</th>)}</tr></thead>
                 <tbody>{initialLoading ? <TableLoadingRows columns={8} message="Cargando ventas…" /> : sales.map(sale => <tr key={sale.id}>
-                    <td><span className="font-medium">{sale.reference ?? sale.id}</span><div className="text-xs text-muted-foreground">{sale.items} artículos{sale.hasReturns && ' · Con devolución'}</div></td>
+                    <td><span className="font-medium">{sale.reference ?? sale.id}</span><div className="text-xs text-muted-foreground">{sale.lineCount ?? sale.products?.length ?? sale.items} partidas{sale.hasReturns && ' · Con devolución'}</div></td>
                     <td className="whitespace-nowrap">{formatDateTime(sale.date, undefined, locale)}</td>
                     <td><p className="font-medium">{sale.customer}</p><p className="text-xs text-muted-foreground">{sale.isFinalConsumer ? 'CF' : sale.customerNit ?? '—'}</p></td>
                     <td>{sale.createdByName ?? '—'}</td>

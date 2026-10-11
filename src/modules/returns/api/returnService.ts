@@ -9,6 +9,9 @@
  */
 
 import { apiFetch } from '@/services/api'
+import type { ProductKind } from '@/types/product'
+
+interface LineSnapshot { item_kind?: ProductKind;item_name?: string;unit_label?: string;quantity_decimals?: number }
 
 export interface ReturnStatus {
   id: number
@@ -20,7 +23,7 @@ export interface ReturnItem {
   return_id: string
   sale_item_id: number
   product_id: string
-  qty_returned: number
+  qty_returned: string | number
   refund_amount: number
   reason?: string | null
   received_qty?: number | null
@@ -33,10 +36,10 @@ export interface ReturnItem {
     barcode?: string | null
     image_url?: string | null
   }
-  sale_item?: {
+  sale_item?: LineSnapshot & {
     id: number
     price: number
-    qty: number
+    qty: string | number
   }
 }
 
@@ -50,11 +53,11 @@ export interface ReturnPolicy {
   enabledResolutions: ReturnResolution[]
 }
 
-export interface ReturnReplacementItem {
+export interface ReturnReplacementItem extends LineSnapshot {
   id: number
   return_id: string
   product_id: string
-  qty: number
+  qty: string | number
   unit_price: number
   line_total: number
   product?: {
@@ -135,26 +138,26 @@ export interface CreateReturnPayload {
   items: {
     sale_item_id: number
     product_id: string
-    qty_returned: number
+    qty_returned: string | number
     reason?: string
   }[]
   // Solo para cambios (type === 'EXCHANGE'): productos que se lleva el cliente.
   replacements?: {
     product_id: string
-    qty: number
+    qty: string | number
     unit_price?: number
   }[]
 }
 
 export interface ApproveReturnPayload {
   approved_resolution: ReturnResolution
-  lines: Array<{ return_item_id: number; disposition: 'SELLABLE' | 'QUARANTINE' | 'SCRAP'; stock_location_id?: string | null }>
-  replacements?: Array<{ product_id: string; qty: number }>
+  lines: Array<{ return_item_id: number; disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null; stock_location_id?: string | null }>
+  replacements?: Array<{ product_id: string; qty: string | number }>
 }
 
 export interface CompleteReturnPayload {
   idempotency_key: string
-  lines: Array<{ return_item_id: number; received_qty: number; disposition: 'SELLABLE' | 'QUARANTINE' | 'SCRAP'; stock_location_id?: string | null }>
+  lines: Array<{ return_item_id: number; received_qty?: number; disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null; stock_location_id?: string | null }>
   settlement: { payment_method_id?: number; cash_register_session_id?: string; external_reference?: string; channel?: 'ORIGINAL' | 'CASH' | 'TRANSFER' | 'CUSTOMER_CREDIT' }
 }
 
@@ -163,12 +166,14 @@ export interface UpdateReturnStatusPayload {
   restore_stock?: boolean // Solo aplica cuando status_name = 'Aprobada'
 }
 
-export interface EligibleSaleItem {
+export interface EligibleSaleItem extends LineSnapshot {
   id: number
-  qty: number
+  qty: string | number
+  net_total?: number
+  refundable_amount?: number
   price: number
   product_id: string
-  available_to_return: number
+  available_to_return: string | number
   estimated_unit_refund: number
   product: { id: string; name: string; barcode?: string | null; image_url?: string | null }
 }
@@ -198,6 +203,7 @@ export interface EligibleSalesResponse {
 }
 
 export interface ReturnListResponse {
+  summary?: Record<string, number>
   items: Return[]
   page: number
   pageSize: number
@@ -211,6 +217,7 @@ export interface ReturnListResponse {
  * Fetch all returns with optional filters
  */
 export const fetchReturns = async (params?: {
+  includeSummary?: boolean
   status?: string
   sale_id?: string
   search?: string
@@ -222,6 +229,7 @@ export const fetchReturns = async (params?: {
   pageSize?: number
 }): Promise<ReturnListResponse> => {
   const queryParams = new URLSearchParams()
+  if (params?.includeSummary) queryParams.set('includeSummary', 'true')
   
   if (params?.status) queryParams.append('status', params.status)
   if (params?.sale_id) queryParams.append('sale_id', params.sale_id)

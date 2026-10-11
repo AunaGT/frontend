@@ -12,7 +12,7 @@
  * TopBar - Top navigation bar with app launcher trigger
  * Replaces the traditional sidebar with a clean top bar
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTheme } from 'next-themes'
 import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Moon, Sun, Wallet } from 'lucide-react'
@@ -58,6 +58,7 @@ function userPhotoUrl(user: CurrentUser) {
 
 export const TopBar = () => {
     const [launcherOpen, setLauncherOpen] = useState(false)
+    const launcherTriggerRef = useRef<HTMLButtonElement>(null)
     const [imageError, setImageError] = useState(false)
     const location = useLocation()
     const navigate = useNavigate()
@@ -105,6 +106,10 @@ export const TopBar = () => {
                     variant='ghost'
                     size='icon'
                     onClick={() => setLauncherOpen(true)}
+                    ref={launcherTriggerRef}
+                    aria-label="Abrir menú de módulos"
+                    aria-haspopup="dialog"
+                    aria-expanded={launcherOpen}
                     className='hover:bg-primary/10 h-9 w-9 sm:h-10 sm:w-10'
                 >
                     <Menu className='w-5 h-5' />
@@ -285,7 +290,7 @@ export const TopBar = () => {
             </header>
 
             {/* App Launcher Modal */}
-            <AppLauncher open={launcherOpen} onOpenChange={setLauncherOpen} />
+            <AppLauncher open={launcherOpen} onOpenChange={setLauncherOpen} triggerRef={launcherTriggerRef} />
         </>
     )
 }

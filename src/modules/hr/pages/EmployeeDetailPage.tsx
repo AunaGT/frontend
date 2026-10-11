@@ -3,8 +3,9 @@ import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CalendarDays, Download, Edit, FileText, History, Mail, UserMinus, UserRound, Wallet } from 'lucide-react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { CalendarDays, Download, Edit, FileText, History, Mail, UserMinus, UserRound, Wallet } from 'lucide-react'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -68,7 +69,7 @@ export default function EmployeeDetailPage() {
       </div>
       <EmployeeForm className="record-edit-columns" value={form} onChange={setForm} disabled={save.isPending} />
       <div className="record-edit-actions"><Button type="button" variant="outline" disabled={save.isPending || photo.isPending} onClick={() => { setEditing(false); query.refetch() }}>Cancelar cambios</Button><Button type="submit" disabled={save.isPending || photo.isPending} className="bg-brand-orange text-white hover:bg-brand-orange/90">{save.isPending ? 'Guardando…' : 'Guardar cambios'}</Button></div>
-    </form> : <Tabs value={tab} onValueChange={setTab}><div className="overflow-x-auto"><TabsList variant="detail">{tabs.map(item => <TabsTrigger key={item.value} value={item.value}><item.icon className="mr-2 h-4 w-4" />{item.label}</TabsTrigger>)}</TabsList></div><TabsContent value="resumen"><EmployeeSummary employee={employee} onTab={setTab} /></TabsContent>{hasPermission('hr.attendance.view') && <TabsContent value="asistencia"><EmployeeAttendance employeeId={employee.id} /></TabsContent>}{hasPermission('hr.advances.view') && <TabsContent value="anticipos"><AdvancesManagement employeeId={employee.id} /></TabsContent>}<TabsContent value="historial"><EmployeeHistory employeeId={employee.id} /></TabsContent>{hasPermission('hr.documents.view') && <TabsContent value="documentos"><EmployeeDocuments employeeId={employee.id} /></TabsContent>}</Tabs>}
+    </form> : <Tabs value={tab} onValueChange={setTab}><div className="overflow-x-auto"><ModuleTabsList aria-label="Secciones del expediente">{tabs.map(item => <ModuleTabsTrigger key={item.value} value={item.value}><item.icon className="h-4 w-4" aria-hidden="true" />{item.label}</ModuleTabsTrigger>)}</ModuleTabsList></div><TabsContent value="resumen"><EmployeeSummary employee={employee} onTab={setTab} /></TabsContent>{hasPermission('hr.attendance.view') && <TabsContent value="asistencia"><EmployeeAttendance employeeId={employee.id} /></TabsContent>}{hasPermission('hr.advances.view') && <TabsContent value="anticipos"><AdvancesManagement employeeId={employee.id} /></TabsContent>}<TabsContent value="historial"><EmployeeHistory employeeId={employee.id} /></TabsContent>{hasPermission('hr.documents.view') && <TabsContent value="documentos"><EmployeeDocuments employeeId={employee.id} /></TabsContent>}</Tabs>}
     <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Dar de baja a este empleado?</AlertDialogTitle><AlertDialogDescription>Se marcará como baja con fecha de hoy. Su expediente y documentos se conservarán.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={terminate.isPending}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={terminate.isPending} onClick={e => { e.preventDefault(); terminate.mutate() }}>{terminate.isPending ? 'Guardando…' : 'Confirmar baja'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div></div>
 }

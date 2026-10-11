@@ -12,6 +12,8 @@
  * ClosureSummaryCard - Display closure totals and difference
  */
 import { Badge } from '@/components/ui/badge'
+import { Coins } from 'lucide-react'
+import type { PaymentMethodBreakdown } from '../types'
 import { formatCurrency } from '../types'
 
 interface ClosureSummaryCardProps {
@@ -21,6 +23,7 @@ interface ClosureSummaryCardProps {
     differencePercentage: number
     currencyCode?: string
     locale?: string
+    paymentBreakdown?: PaymentMethodBreakdown[]
 }
 
 export const ClosureSummaryCard = ({
@@ -29,23 +32,28 @@ export const ClosureSummaryCard = ({
     difference,
     differencePercentage,
     currencyCode,
-    locale
+    locale,
+    paymentBreakdown,
 }: ClosureSummaryCardProps) => {
     return (
-        <div className="border-t py-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                    <p className="text-sm text-muted-foreground">Total Teórico</p>
-                    <p className="text-2xl font-bold">{formatCurrency(theoreticalTotal, currencyCode, locale)}</p>
+        <div className="space-y-3 tabular-nums">
+            <h2 className="cash-closure-panel-heading"><Coins className="h-5 w-5 text-primary" aria-hidden="true" />Resumen contado</h2>
+            {paymentBreakdown && <dl className="cash-closure-amount-list">
+                {paymentBreakdown.map(item => <div key={item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{formatCurrency(item.actual_amount, currencyCode, locale)}</dd></div>)}
+            </dl>}
+            <div className="space-y-3">
+                <div className="flex justify-between items-baseline gap-3 text-sm">
+                    <p className="text-muted-foreground">Total esperado</p>
+                    <p className="font-semibold">{formatCurrency(theoreticalTotal, currencyCode, locale)}</p>
                 </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Total Contado</p>
-                    <p className="text-2xl font-bold">{formatCurrency(actualTotal, currencyCode, locale)}</p>
+                <div className="flex justify-between items-baseline gap-3 border-t pt-3 text-sm">
+                    <p className="text-muted-foreground">Total contado</p>
+                    <p className="text-lg font-semibold">{formatCurrency(actualTotal, currencyCode, locale)}</p>
                 </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Diferencia</p>
-                    <div className="flex items-center gap-2">
-                        <p className={`text-2xl font-bold ${difference === 0 ? 'text-green-600' : difference > 0 ? 'text-orange-600' : 'text-red-600'}`}>
+                <div className="border-t pt-3" role="status" aria-live="polite" aria-atomic="true">
+                    <p className="text-sm font-medium">{Math.abs(difference) < 0.005 ? 'Cuadrado' : difference > 0 ? 'Sobrante' : 'Faltante'}</p>
+                    <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
+                        <p className={`text-2xl font-bold ${Math.abs(difference) < 0.005 ? 'text-emerald-700 dark:text-emerald-300' : difference > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
                             {difference >= 0 ? '+' : ''}{formatCurrency(difference, currencyCode, locale)}
                         </p>
                         <Badge variant={difference === 0 ? 'default' : 'secondary'}>

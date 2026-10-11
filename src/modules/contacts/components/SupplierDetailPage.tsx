@@ -17,14 +17,15 @@
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useMemo, useState, useEffect } from 'react'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import {
-  ArrowLeft,
   Printer,
   Package,
   User,
@@ -33,6 +34,9 @@ import {
   Receipt,
   Trash2,
   Loader2,
+  Mail,
+  Phone,
+  MapPin,
 } from 'lucide-react'
 import { useSupplier } from '@/hooks/useSupplier'
 import { useCustomerSales } from '@/hooks/useCustomerSales'
@@ -41,12 +45,14 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { adaptApiSupplier } from '@/services/supplierService'
+import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
+import { ContactImage } from '@/components/shared/ContactImage'
 import type { Supplier, Sale } from '@/types'
 import { SaleDetailDialog, normalizeRawSale } from '@/modules/sales'
 import { generateSupplierPDF, type SupplierPDFOptions, type SupplierPDFMerchandiseEntry, type CustomerPDFMetrics } from './generateSupplierPDF'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { fetchIncomingMerchandise } from '@/modules/merchandise'
-import { fetchSalesByCustomerContact } from '@/services/saleService'
+import { fetchSalesByCustomerContact, type Sale as ApiSale } from '@/services/saleService'
 import { Pagination } from '@/components/shared/Pagination'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -87,13 +93,13 @@ import {
 } from '@/components/ui/command'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
 import { Check, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import './contactsDetail.css'
 
 const getStatusBadge = (status: string | undefined) =>
   status === 'active' ? (
-    <Badge className="bg-liquor-gold text-liquor-bronze">Activo</Badge>
+    <Badge variant="secondary">Activo</Badge>
   ) : (
     <Badge variant="secondary">Inactivo</Badge>
   )
@@ -101,6 +107,7 @@ const getStatusBadge = (status: string | undefined) =>
 export default function SupplierDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat(locale || 'es-GT', { style: 'currency', currency: currencyCode || 'GTQ' }).format(value)
@@ -181,7 +188,6 @@ export default function SupplierDetailPage() {
   const canDetails = hasPermission('merchandise.details')
   const showMerchTab = isSupplierParty && canViewMerchandise
   const showSalesHistoryTab = !isSupplierParty && canViewCustomerSales
-  const hasSecondaryTab = showMerchTab || showSalesHistoryTab
 
   const { data: customerSalesData, isLoading: customerSalesLoading, isFetching: customerSalesFetching } = useCustomerSales(id, {
     page: salesPage,
@@ -252,7 +258,19 @@ export default function SupplierDetailPage() {
     return paymentTermsData?.items ?? []
   }, [paymentTermsData])
 
-  const [isEditing, setIsEditing] = useState(false)
+  const [editRequested, setEditRequested] = useState(searchParams.get('editar') === '1')
+  const isEditing = editRequested && canEditSupplier
+  const setIsEditing = (editing: boolean) => {
+    setEditRequested(editing)
+    if (editing) setDetailPane('detalles')
+    setSearchParams(previous => {
+      const next = new URLSearchParams(previous)
+      if (editing) next.set('editar', '1')
+      else next.delete('editar')
+      return next
+    }, { replace: true })
+  }
+  useEffect(() => { setEditRequested(searchParams.get('editar') === '1') }, [searchParams])
   const [detailPane, setDetailPane] = useState('detalles')
   usePageTrail([{ label: 'Detalle' }, ...(isEditing && canEditSupplier ? [{ label: 'Editar' }] : detailPane !== 'detalles' ? [{ label: detailPane === 'entradas' ? 'Entradas de mercancía' : 'Ventas' }] : [])])
   const [editName, setEditName] = useState('')
@@ -268,6 +286,21 @@ export default function SupplierDetailPage() {
   const [editTaxId, setEditTaxId] = useState('')
   const [editCreditLimit, setEditCreditLimit] = useState('')
   const [editEntityKind, setEditEntityKind] = useState<'PERSON' | 'ORGANIZATION'>('ORGANIZATION')
+  const [contactPhoto, setContactPhoto] = useState<File | null>(null)
+  const [contactPhotoPreview, setContactPhotoPreview] = useState<string | null>(null)
+  const [productsPage, setProductsPage] = useState(1)
+  const productsPageSize = 10
+  const productsTotalPages = Math.max(1, Math.ceil((supplier?.productsList?.length ?? 0) / productsPageSize))
+  const currentProductsPage = Math.min(productsPage, productsTotalPages)
+
+  useEffect(() => { setContactPhoto(null) }, [id])
+
+  useEffect(() => {
+    if (!contactPhoto) { setContactPhotoPreview(null); return }
+    const url = URL.createObjectURL(contactPhoto)
+    setContactPhotoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [contactPhoto])
 
   useEffect(() => {
     if (!supplier) return
@@ -278,7 +311,7 @@ export default function SupplierDetailPage() {
     setEditAddress(supplier.address ?? '')
     setEditTaxId(supplier.taxId ?? '')
     setEditCreditLimit(creditLimit == null ? '' : String(creditLimit))
-    setEditCategoryIds([])
+    setEditCategoryIds((supplier.categories ?? []).map(category => String(category.id)))
     const ptList = supplier.paymentTermsList
     if (ptList && ptList.length > 0) {
       setEditPaymentTermIds(ptList.map((x) => String(x.id)))
@@ -326,7 +359,7 @@ export default function SupplierDetailPage() {
   }
 
   const saleRowClickable = canViewSaleDetail || canViewSaleInvoice
-  const openSaleRow = (raw: Sale) => {
+  const openSaleRow = (raw: Pick<ApiSale, 'id' | 'reference'>) => {
     const normalized = normalizeRawSale(raw as unknown)
     if (canViewSaleDetail) {
       setSelectedSale(normalized)
@@ -337,8 +370,24 @@ export default function SupplierDetailPage() {
   }
 
   const handleSave = async () => {
-    if (!supplier || !id) return
+    if (!supplier || !id || isUpdating || !canEditSupplier) return
     try {
+      const requiredFields = [
+        ['Nombre', editName],
+        ...(editEntityKind === 'ORGANIZATION' ? [['Persona de contacto', editContact]] : []),
+        ['Teléfono', editPhone],
+        ['Email', editEmail],
+        ['Dirección', editAddress],
+      ]
+      const missingField = requiredFields.find(([, value]) => !value.trim())
+      if (missingField) {
+        toast({ title: 'Campo requerido', description: `Completa el campo: ${missingField[0]}.`, variant: 'destructive' })
+        return
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(editEmail.trim())) {
+        toast({ title: 'Email inválido', description: 'Por favor ingrese un email válido', variant: 'destructive' })
+        return
+      }
       if (
         editPaymentTermIds.length === 0 ||
         !editDefaultPaymentTermId ||
@@ -358,30 +407,33 @@ export default function SupplierDetailPage() {
       }))
       await updateSupplierAsync({
         id,
+        image: contactPhoto,
         payload: {
           entity_kind: editEntityKind,
-          name: editName,
-          contact: editEntityKind === 'PERSON' ? editName : editContact,
-          phone: editPhone,
-          email: editEmail,
-          address: editAddress,
+          name: editName.trim(),
+          contact: (editEntityKind === 'PERSON' ? editName : editContact).trim(),
+          phone: editPhone.trim(),
+          email: editEmail.trim(),
+          address: editAddress.trim(),
           tax_id: editTaxId.trim() || null,
           ...(partyType === 'CUSTOMER' ? { credit_limit: editCreditLimit.trim() || null } : {}),
           category_ids:
-            isSupplierParty && editCategoryIds.length ? editCategoryIds : undefined,
+            isSupplierParty ? editCategoryIds : undefined,
           payment_terms,
           estado: editEstado,
         },
       })
       await refetchSupplier()
+      setContactPhoto(null)
       toast({
         title: 'Contacto actualizado',
         description: `Los datos de "${editName}" se guardaron correctamente`,
       })
       setIsEditing(false)
     } catch (e) {
+      if (e && typeof e === 'object' && 'imageUploadFailed' in e) await refetchSupplier()
       toast({
-        title: 'Error al actualizar',
+        title: e && typeof e === 'object' && 'imageUploadFailed' in e ? 'Datos guardados; foto pendiente' : 'Error al actualizar',
         description: (e as Error)?.message ?? 'No se pudo actualizar el contacto',
         variant: 'destructive',
       })
@@ -428,7 +480,7 @@ export default function SupplierDetailPage() {
 
   if (supplierError || (rawSupplier === null && !supplierLoading)) {
     return (
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
 
         <div className="mt-6 text-center text-destructive">Contacto no encontrado.</div>
       </div>
@@ -437,7 +489,7 @@ export default function SupplierDetailPage() {
 
   if (supplierLoading || !supplier) {
     return (
-      <div className="p-6">
+      <div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
 
         <LoadingState variant="detail" message="Cargando contacto…" />
       </div>
@@ -448,19 +500,65 @@ export default function SupplierDetailPage() {
     isEditing && canEditSupplier ? editEntityKind : (supplier.entityKind ?? 'ORGANIZATION')
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <main className="contact-detail mx-auto w-full max-w-[1560px] space-y-4 p-4 sm:p-8 animate-fade-in">
       {supplierFetching && <LoadingIndicator message="Actualizando contacto…" />}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{supplier.name}</h1>
+      <header className="contact-detail-header">
+        <div className="contact-detail-identity">
+          <ContactImage src={contactPhotoPreview || supplier.imageUrl} name={supplier.name} className="h-16 w-16" />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-bold text-foreground">{supplier.name}</h1>{getStatusBadge(String(supplier.status))}</div>
             <p className="text-sm text-muted-foreground">
               {isSupplierParty ? 'Proveedor' : 'Cliente'} · Detalle del contacto
             </p>
+            <div className="contact-detail-channels">
+              {supplier.email && <a href={`mailto:${supplier.email}`}><Mail aria-hidden="true" />{supplier.email}</a>}
+              {supplier.phone && <a href={`tel:${supplier.phone}`}><Phone aria-hidden="true" />{supplier.phone}</a>}
+              {supplier.address && <span><MapPin aria-hidden="true" />{supplier.address}</span>}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2 justify-end">
+          {isEditing && canEditSupplier && (
+            <div className="flex flex-wrap items-center justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        if (supplier) {
+                          setEditName(supplier.name ?? '')
+                          setEditContact(supplier.contact ?? '')
+                          setEditPhone(supplier.phone ?? '')
+                          setEditEmail(supplier.email ?? '')
+                          setEditAddress(supplier.address ?? '')
+                          setEditTaxId(supplier.taxId ?? '')
+                          setEditCreditLimit(creditLimit == null ? '' : String(creditLimit))
+                          setEditCategoryIds((supplier.categories ?? []).map(category => String(category.id)))
+                          const ptList = supplier.paymentTermsList
+                          if (ptList && ptList.length > 0) {
+                            setEditPaymentTermIds(ptList.map((x) => String(x.id)))
+                            const def = ptList.find((x) => x.isDefault) || ptList[0]
+                            setEditDefaultPaymentTermId(String(def.id))
+                          } else {
+                            setEditPaymentTermIds([])
+                            setEditDefaultPaymentTermId(undefined)
+                          }
+                          setEditEstado(supplier.estado !== undefined && supplier.estado !== null ? Number(supplier.estado) : 1)
+                          setEditEntityKind(supplier.entityKind ?? 'ORGANIZATION')
+                        }
+                        setContactPhoto(null)
+                        setIsEditing(false)
+                      }}
+                      disabled={isUpdating}
+                    >
+                      Cancelar cambios
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? 'Guardando...' : 'Guardar cambios'}
+                    </Button>
+                  </div>
+          )}
           {canEditSupplier && !isEditing && (
             <Button
               variant="outline"
@@ -479,14 +577,20 @@ export default function SupplierDetailPage() {
           )}
           <Button
             variant="outline"
-            className="border-liquor-amber text-liquor-amber hover:bg-liquor-amber/10"
             onClick={() => setIsPdfOptionsOpen(true)}
           >
             <Printer className="w-4 h-4 mr-2" />
             Descargar PDF
           </Button>
         </div>
-      </div>
+      </header>
+
+      <MetricStrip label="Resumen del contacto" items={[
+        { label: 'Naturaleza', value: supplier.entityKind === 'PERSON' ? 'Persona individual' : 'Empresa', hint: supplier.taxId || 'Sin ID fiscal' },
+        ...(isSupplierParty ? [{ label: 'Productos', value: supplier.productsList?.length ?? supplier.products }] : [{ label: 'Límite de crédito', value: creditLimit == null ? 'Sin límite' : formatCurrency(Number(creditLimit)) }]),
+        { label: isSupplierParty ? 'Total compras' : 'Total comprado', value: isSupplierParty || !canViewCustomerSales ? formatCurrency(Number(supplier.totalPurchases)) : customerSalesLoading && customerPurchaseSummary == null ? '…' : formatCurrency(customerPurchaseSummary?.totalPurchases ?? 0) },
+        { label: isSupplierParty ? 'Último pedido' : 'Última compra', value: isSupplierParty || !canViewCustomerSales ? supplier.lastOrder : customerSalesLoading && customerPurchaseSummary == null ? '…' : customerPurchaseSummary?.lastSaleDate ? formatDate(customerPurchaseSummary.lastSaleDate) : 'Sin compras' },
+      ]} />
 
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
@@ -601,7 +705,6 @@ export default function SupplierDetailPage() {
               Cancelar
             </Button>
             <Button
-              className="border-liquor-amber bg-liquor-amber/10 text-liquor-amber hover:bg-liquor-amber/20"
               disabled={(() => {
                 const b = pdfOptions.includeBasic ?? true
                 const m = pdfOptions.includeMetrics ?? true
@@ -695,90 +798,46 @@ export default function SupplierDetailPage() {
         </DialogContent>
       </Dialog>
 
-      <Tabs defaultValue="detalles" onValueChange={setDetailPane} className="w-full">
-        <TabsList
-          className={
-            hasSecondaryTab ? 'grid w-full max-w-md grid-cols-2' : 'grid w-full max-w-md grid-cols-1'
-          }
-        >
-          <TabsTrigger value="detalles">Detalles</TabsTrigger>
+      <Tabs value={detailPane} onValueChange={setDetailPane} className="w-full">
+        <div className="max-w-full overflow-x-auto pb-1">
+        <ModuleTabsList aria-label="Información del contacto">
+          <ModuleTabsTrigger value="detalles">Detalles</ModuleTabsTrigger>
           {showMerchTab && (
-            <TabsTrigger value="entradas">
+            <ModuleTabsTrigger value="entradas">
               Entradas de mercancía
               {merchData?.totalItems != null && merchData.totalItems > 0 && (
                 <Badge variant="secondary" className="ml-2">
                   {merchData.totalItems}
                 </Badge>
               )}
-            </TabsTrigger>
+            </ModuleTabsTrigger>
           )}
           {showSalesHistoryTab && (
-            <TabsTrigger value="compras">
+            <ModuleTabsTrigger value="compras">
               Historial de compras
               {customerSalesData?.totalItems != null && customerSalesData.totalItems > 0 && (
                 <Badge variant="secondary" className="ml-2">
                   {customerSalesData.totalItems}
                 </Badge>
               )}
-            </TabsTrigger>
+            </ModuleTabsTrigger>
           )}
-        </TabsList>
+        </ModuleTabsList>
+        </div>
 
-        <TabsContent value="detalles" className="mt-6">
-          <Card className={"auna-surface " + (isEditing && canEditSupplier ? 'ring-2 ring-liquor-amber/30' : '')}>
-            <CardContent className="pt-6 space-y-6">
-              {isEditing && canEditSupplier && (
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        if (supplier) {
-                          setEditName(supplier.name ?? '')
-                          setEditContact(supplier.contact ?? '')
-                          setEditPhone(supplier.phone ?? '')
-                          setEditEmail(supplier.email ?? '')
-                          setEditAddress(supplier.address ?? '')
-                          setEditCategoryIds([])
-                          const ptList = supplier.paymentTermsList
-                          if (ptList && ptList.length > 0) {
-                            setEditPaymentTermIds(ptList.map((x) => String(x.id)))
-                            const def = ptList.find((x) => x.isDefault) || ptList[0]
-                            setEditDefaultPaymentTermId(String(def.id))
-                          } else {
-                            setEditPaymentTermIds([])
-                            setEditDefaultPaymentTermId(undefined)
-                          }
-                          setEditEstado(supplier.estado !== undefined && supplier.estado !== null ? Number(supplier.estado) : 1)
-                          setEditEntityKind(supplier.entityKind ?? 'ORGANIZATION')
-                        }
-                        setIsEditing(false)
-                      }}
-                      disabled={isUpdating}
-                    >
-                      Cancelar cambios
-                    </Button>
-                    <Button
-                      onClick={handleSave}
-                      disabled={isUpdating}
-                      className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-                    >
-                      {isUpdating ? 'Guardando...' : 'Guardar cambios'}
-                    </Button>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
-                  {displayEntityKind === 'PERSON' ? 'Datos del contacto' : 'Datos de la empresa'}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+        <TabsContent value="detalles" className="mt-3">
+          <div className={cn('contact-detail-grid', isEditing && 'contact-detail-grid-editing')}>
+            <div className="contact-detail-column">
+              <section className="auna-surface contact-detail-panel contact-detail-identity-panel" aria-labelledby="contact-identity-heading">
+                <h2 id="contact-identity-heading">Identidad y contacto</h2>
+                <div className="contact-detail-fields">
                   <div>
-                    <Label className="text-muted-foreground">
+                    <Label htmlFor="contact-name" className="text-muted-foreground">
                       {displayEntityKind === 'PERSON' ? 'Nombre completo' : 'Nombre de la empresa'}
                     </Label>
                     {isEditing && canEditSupplier ? (
                       <Input
+                        id="contact-name"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         className="mt-1"
@@ -789,9 +848,10 @@ export default function SupplierDetailPage() {
                   </div>
                   {displayEntityKind === 'ORGANIZATION' && (
                     <div>
-                      <Label className="text-muted-foreground">Persona de contacto</Label>
+                      <Label htmlFor="contact-person" className="text-muted-foreground">Persona de contacto</Label>
                       {isEditing && canEditSupplier ? (
                         <Input
+                          id="contact-person"
                           value={editContact}
                           onChange={(e) => setEditContact(e.target.value)}
                           className="mt-1"
@@ -802,9 +862,11 @@ export default function SupplierDetailPage() {
                     </div>
                   )}
                   <div>
-                    <Label className="text-muted-foreground">Teléfono</Label>
+                    <Label htmlFor="contact-phone" className="text-muted-foreground">Teléfono</Label>
                     {isEditing && canEditSupplier ? (
                       <Input
+                        id="contact-phone"
+                        type="tel"
                         value={editPhone}
                         onChange={(e) => setEditPhone(e.target.value)}
                         className="mt-1"
@@ -814,9 +876,10 @@ export default function SupplierDetailPage() {
                     )}
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Email</Label>
+                    <Label htmlFor="contact-email" className="text-muted-foreground">Email</Label>
                     {isEditing && canEditSupplier ? (
                       <Input
+                        id="contact-email"
                         type="email"
                         value={editEmail}
                         onChange={(e) => setEditEmail(e.target.value)}
@@ -826,16 +889,41 @@ export default function SupplierDetailPage() {
                       <p className="text-foreground font-medium">{supplier.email}</p>
                     )}
                   </div>
+                  <div className={isEditing ? undefined : "contact-detail-wide"}>
+                    <Label htmlFor="contact-address" className="text-muted-foreground">Dirección</Label>
+                    {isEditing ? <Input id="contact-address" value={editAddress} onChange={event => setEditAddress(event.target.value)} className="mt-1" /> : <p className="text-foreground font-medium">{supplier.address || '—'}</p>}
+                  </div>
                 </div>
-                <div className="space-y-4">
+                {isEditing && canEditSupplier && <details className="contact-detail-photo" open={Boolean(contactPhoto)}>
+                    <summary>Cambiar foto{contactPhoto && <span className="text-muted-foreground"> · {contactPhoto.name}</span>}</summary>
+                    <ImageUploadDropzone
+                    className="min-w-0 flex-1"
+                    onFileSelect={setContactPhoto}
+                    onReject={message => toast({ title: 'Imagen no válida', description: message, variant: 'destructive' })}
+                    disabled={isUpdating}
+                    isUploading={isUpdating}
+                    accept="image/jpeg,image/png,image/webp"
+                    maxSizeBytes={5 * 1024 * 1024}
+                    formatsLabel="JPG, PNG o WebP"
+                    fileLabel="foto"
+                    selectionLabel={contactPhoto?.name}
+                    onClearSelection={isUpdating ? undefined : () => setContactPhoto(null)}
+                    helperText="Opcional. La foto se actualizará al guardar los cambios."
+                    validateFile={file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? 'Selecciona una imagen JPG, PNG o WebP.' : null}
+                  />
+                  </details>}
+                </section>
+              <section className="auna-surface contact-detail-panel" aria-labelledby="contact-commercial-heading">
+                <h2 id="contact-commercial-heading">Condiciones comerciales</h2>
+                <div className="contact-detail-fields">
                   <div>
-                    <Label className="text-muted-foreground">Naturaleza</Label>
+                    <Label htmlFor="contact-kind" className="text-muted-foreground">Naturaleza</Label>
                     {isEditing && canEditSupplier ? (
                       <Select
                         value={editEntityKind}
                         onValueChange={(v) => setEditEntityKind(v === 'PERSON' ? 'PERSON' : 'ORGANIZATION')}
                       >
-                        <SelectTrigger className="mt-1">
+                        <SelectTrigger id="contact-kind" className="mt-1">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -857,12 +945,13 @@ export default function SupplierDetailPage() {
                   )}
                   {isSupplierParty && (
                   <div>
-                    <Label className="text-muted-foreground">Categorías</Label>
+                    <Label htmlFor="contact-categories" className="text-muted-foreground">Categorías</Label>
                     {isEditing && canEditSupplier ? (
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
                             variant="outline"
+                            id="contact-categories"
                             role="combobox"
                             className="w-full justify-between mt-1"
                           >
@@ -924,13 +1013,13 @@ export default function SupplierDetailPage() {
                   </div>
                   )}
                   <div>
-                    <Label className="text-muted-foreground">Estado</Label>
+                    <Label htmlFor="contact-status" className="text-muted-foreground">Estado</Label>
                     {isEditing && canEditSupplier ? (
                       <Select
                         value={String(editEstado)}
                         onValueChange={(v) => setEditEstado(Number(v))}
                       >
-                        <SelectTrigger className="mt-1">
+                        <SelectTrigger id="contact-status" className="mt-1">
                           <SelectValue placeholder={editEstado === 1 ? 'Activo' : 'Inactivo'} />
                         </SelectTrigger>
                         <SelectContent>
@@ -943,7 +1032,7 @@ export default function SupplierDetailPage() {
                     )}
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">Términos de Pago</Label>
+                    <Label htmlFor="contact-terms" className="text-muted-foreground">Términos de Pago</Label>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {isSupplierParty
                         ? 'Plazo en que se le paga a este proveedor.'
@@ -955,6 +1044,7 @@ export default function SupplierDetailPage() {
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
+                              id="contact-terms"
                               role="combobox"
                               className="w-full justify-between mt-1"
                             >
@@ -1035,12 +1125,12 @@ export default function SupplierDetailPage() {
                                 ))}
                             </div>
                             <div>
-                              <Label className="text-xs text-muted-foreground">Predeterminado</Label>
+                              <Label htmlFor="contact-default-term" className="text-xs text-muted-foreground">Predeterminado</Label>
                               <Select
                                 value={editDefaultPaymentTermId}
                                 onValueChange={setEditDefaultPaymentTermId}
                               >
-                                <SelectTrigger className="mt-1">
+                                <SelectTrigger id="contact-default-term" className="mt-1">
                                   <SelectValue placeholder="Elegir" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -1065,9 +1155,10 @@ export default function SupplierDetailPage() {
                     )}
                   </div>
                   <div>
-                    <Label className="text-muted-foreground">ID fiscal (facturación)</Label>
+                    <Label htmlFor="contact-tax-id" className="text-muted-foreground">ID fiscal (facturación)</Label>
                     {isEditing && canEditSupplier ? (
                       <Input
+                        id="contact-tax-id"
                         value={editTaxId}
                         onChange={(e) => setEditTaxId(e.target.value)}
                         placeholder="NIT, VAT, RFC, etc."
@@ -1079,10 +1170,11 @@ export default function SupplierDetailPage() {
                   </div>
                   {partyType === 'CUSTOMER' && (
                     <div>
-                      <Label className="text-muted-foreground">Límite de crédito</Label>
+                      <Label htmlFor="contact-credit" className="text-muted-foreground">Límite de crédito</Label>
                       {isEditing && canEditSupplier ? (
                         <>
                           <Input
+                            id="contact-credit"
                             type="number"
                             min="0"
                             step="0.01"
@@ -1108,104 +1200,48 @@ export default function SupplierDetailPage() {
                     </div>
                   )}
                 </div>
-              </div>
-              </div>
-
-              <Separator />
-
+                </section>
+            </div>
+            <div className="contact-detail-column">
               {!isEditing && isSupplierParty && (
-                <div className="mt-6 space-y-3">
-                  <Label className="text-lg font-medium">Productos que Suministra</Label>
-                  <div className="max-h-64 overflow-y-auto">
+                <section aria-labelledby="contact-products-heading">
+                  <div className="auna-surface contact-detail-panel">
+                  <h2 id="contact-products-heading">Productos que suministra</h2>
+                  <div className="contact-detail-scroll" role="region" aria-label="Productos del proveedor" tabIndex={0}>
                     {supplier.productsList && supplier.productsList.length > 0 ? (
-                      <div className="auna-section-list">
-                        {supplier.productsList.map((product) => (
-                          <div
-                            key={product.id}
-                            className="auna-section-row flex items-center justify-between py-3"
-                          >
-                            <div>
-                              <p className="font-medium text-sm">{product.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Stock: {product.stock} unidades
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-medium text-sm">
-                                Q {Number(product.price).toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
+                      <table className="auna-data-table contact-detail-products">
+                        <thead><tr><th scope="col">Producto</th><th scope="col" className="text-right">Stock</th><th scope="col" className="text-right">Precio</th></tr></thead>
+                        <tbody>{supplier.productsList.slice((currentProductsPage - 1) * productsPageSize, currentProductsPage * productsPageSize).map((product) => (
+                          <tr key={product.id}><td>{product.name}</td><td className="text-right">{product.stock} unidades</td><td className="text-right">{formatCurrency(Number(product.price))}</td></tr>
                         ))}
-                      </div>
+                        </tbody>
+                      </table>
                     ) : (
                       <div className="p-4 text-center text-muted-foreground">
                         No hay productos asociados a este proveedor
                       </div>
                     )}
                   </div>
-                </div>
-              )}
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Dirección</p>
-                {isEditing && canEditSupplier ? (
-                  <Input
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                    placeholder="Dirección del proveedor"
-                    className="mt-1"
-                  />
-                ) : (
-                  <p className="text-foreground font-medium">{supplier.address || '—'}</p>
-                )}
-              </div>
-
-              <Separator />
-
-              <div
-                className={`grid grid-cols-1 gap-4 pt-2 ${isSupplierParty ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}
-              >
-                {isSupplierParty && (
-                  <div className="text-center">
-                    <p className="text-2xl font-bold text-foreground">
-                      {supplier.productsList?.length ?? supplier.products}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Productos</p>
                   </div>
-                )}
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">
-                    {isSupplierParty || !canViewCustomerSales
-                      ? formatCurrency(Number(supplier.totalPurchases))
-                      : customerSalesLoading && customerPurchaseSummary == null
-                        ? '…'
-                        : formatCurrency(customerPurchaseSummary?.totalPurchases ?? 0)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isSupplierParty ? 'Total Compras' : 'Total comprado'}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold text-foreground">
-                    {isSupplierParty || !canViewCustomerSales
-                      ? supplier.lastOrder
-                      : customerSalesLoading && customerPurchaseSummary == null
-                        ? '…'
-                        : customerPurchaseSummary?.lastSaleDate
-                          ? formatDate(customerPurchaseSummary.lastSaleDate)
-                          : 'N/A'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {isSupplierParty ? 'Último Pedido' : 'Última compra'}
-                  </p>
-                </div>
+                  {productsTotalPages > 1 && <div className="auna-pagination-outside"><Pagination currentPage={currentProductsPage} totalPages={productsTotalPages} onPageChange={setProductsPage} /></div>}
+                </section>
+              )}
+              {!isEditing && (showMerchTab || showSalesHistoryTab) && (
+            <section className="auna-surface contact-detail-panel" aria-labelledby="contact-activity-heading">
+              <div className="contact-detail-section-heading">
+                <h2 id="contact-activity-heading">{(isSupplierParty ? merchPage : salesPage) === 1 ? 'Actividad reciente' : `Actividad · página ${isSupplierParty ? merchPage : salesPage}`}</h2>
+                <Button variant="outline" onClick={() => setDetailPane(isSupplierParty ? 'entradas' : 'compras')}>Ver historial</Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {partyType === 'CUSTOMER' && canEditSupplier && (
-            <Card className="auna-surface mt-6">
+              {(isSupplierParty ? merchLoading : customerSalesLoading) ? <LoadingIndicator message="Cargando actividad…" /> : (
+                <ul className="contact-detail-activity">
+                  {isSupplierParty ? records.slice(0, 3).map(record => <li key={record.id}><span>{formatDate(record.date)}</span><span>{record.itemsCount} productos · {record.registeredBy.name}</span><strong>{formatCurrency(record.totalValue)}</strong></li>) : saleRows.slice(0, 3).map(sale => <li key={sale.id}><span>{formatDate(sale.date)}</span><span>{sale.reference ?? sale.id}</span><strong>{formatCurrency(Number(sale.adjusted_total ?? sale.total))}</strong></li>)}
+                  {(isSupplierParty ? records.length : saleRows.length) === 0 && <li>Sin movimientos registrados.</li>}
+                </ul>
+              )}
+            </section>
+          )}
+              {partyType === 'CUSTOMER' && canEditSupplier && (
+            <Card className="auna-surface contact-detail-prices">
               <CardHeader>
                 <CardTitle>Precios por canal</CardTitle>
                 <p className="text-sm text-muted-foreground">
@@ -1316,7 +1352,6 @@ export default function SupplierDetailPage() {
                   </Button>
                   <Button
                     type="button"
-                    className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
                     size="sm"
                     disabled={savingPriceRules}
                     onClick={() => void handleSavePriceRules()}
@@ -1327,6 +1362,8 @@ export default function SupplierDetailPage() {
               </CardContent>
             </Card>
           )}
+            </div>
+          </div>
         </TabsContent>
 
         {showMerchTab && (
@@ -1350,14 +1387,14 @@ export default function SupplierDetailPage() {
                 </div>
               ) : (
                 <>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
+                  <div className="contact-detail-scroll" role="region" aria-label="Entradas del proveedor" tabIndex={0}>
+                    <table className="auna-data-table min-w-[650px]">
                       <thead>
                         <tr className="border-b">
-                          <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
-                          <th className="text-left p-3 font-medium text-muted-foreground">Registrado por</th>
-                          <th className="text-left p-3 font-medium text-muted-foreground">Productos</th>
-                          <th className="text-right p-3 font-medium text-muted-foreground">Total</th>
+                          <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
+                          <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Registrado por</th>
+                          <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Productos</th>
+                          <th scope="col" className="text-right p-3 font-medium text-muted-foreground">Total</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1453,15 +1490,15 @@ export default function SupplierDetailPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
+                    <div className="contact-detail-scroll" role="region" aria-label="Compras del cliente" tabIndex={0}>
+                      <table className="auna-data-table min-w-[650px]">
                         <thead>
                           <tr className="border-b">
-                            <th className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
-                            <th className="text-left p-3 font-medium text-muted-foreground">Referencia</th>
-                            <th className="text-right p-3 font-medium text-muted-foreground">Total</th>
-                            <th className="text-center p-3 font-medium text-muted-foreground">Ítems</th>
-                            <th className="text-left p-3 font-medium text-muted-foreground">Estado</th>
+                            <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Fecha</th>
+                            <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Referencia</th>
+                            <th scope="col" className="text-right p-3 font-medium text-muted-foreground">Total</th>
+                            <th scope="col" className="text-center p-3 font-medium text-muted-foreground">Ítems</th>
+                            <th scope="col" className="text-left p-3 font-medium text-muted-foreground">Estado</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1566,14 +1603,14 @@ export default function SupplierDetailPage() {
               )}
               <div>
                 <Label className="text-muted-foreground">Productos</Label>
-                <div className="border rounded-lg mt-2 overflow-hidden">
-                  <table className="w-full">
+                <div className="auna-data-table-shell mt-2 overflow-x-auto">
+                  <table className="auna-data-table min-w-[650px]">
                     <thead>
                       <tr className="border-b bg-muted/50">
-                        <th className="text-left p-3 font-medium">Producto</th>
-                        <th className="text-right p-3 font-medium">Cantidad</th>
-                        <th className="text-right p-3 font-medium">Costo unit.</th>
-                        <th className="text-right p-3 font-medium">Subtotal</th>
+                        <th scope="col" className="text-left p-3 font-medium">Producto</th>
+                        <th scope="col" className="text-right p-3 font-medium">Cantidad</th>
+                        <th scope="col" className="text-right p-3 font-medium">Costo unit.</th>
+                        <th scope="col" className="text-right p-3 font-medium">Subtotal</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1609,6 +1646,6 @@ export default function SupplierDetailPage() {
         locale={locale}
         currencyCode={currencyCode}
       />
-    </div>
+    </main>
   )
 }

@@ -67,6 +67,7 @@ export interface MovementFilters {
 }
 
 export interface MovementPage {
+  summary?: Record<string, number>;
   items: StockMovement[];
   page: number;
   pageSize: number;
@@ -76,7 +77,7 @@ export interface MovementPage {
   prevPage: number | null;
 }
 
-export const fetchMovementPage = (filters: MovementFilters & { page: number; pageSize: number }) => {
+export const fetchMovementPage = (filters: MovementFilters & { page: number; pageSize: number; includeSummary?: boolean }) => {
   const qs = new URLSearchParams(
     Object.entries(filters).filter(([, v]) => v !== undefined && v !== '').map(([k, v]) => [k, String(v)])
   ).toString();

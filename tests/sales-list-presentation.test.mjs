@@ -35,6 +35,12 @@ const { SalesFilters } = load(path.join(root, 'src/modules/sales/components/Sale
 const sale = { id: 'sale-1', reference: 'V-001', customer: 'Cliente visible', customerNit: '123456-7', isFinalConsumer: false, date: '2026-10-06T12:00:00Z', createdByName: 'Vendedor visible', status: 'completed', payment: 'Efectivo', isCredit: true, items: 2, total: 25, adjustedTotal: 0, hasReturns: true }
 const base = { sales: [sale], pageInfo: { page: 2, totalPages: null, hasMore: true }, isLoading: false, updatingSaleIds: new Set(), onPageChange() {}, onStatusChange() {}, onViewSale() {}, onViewInvoice() {}, canChangeStatus: true, canViewDetail: true, canViewInvoice: true, locale: 'en-US', currencyCode: 'USD' }
 const render = props => renderToStaticMarkup(React.createElement(SalesStatusTable, { ...base, ...props }))
+test('service-only sales count commercial lines instead of claiming zero articles',()=>{
+  for(const viewMode of ['cards','table']){
+    const html=render({viewMode,sales:[{...sale,items:0,lineCount:1}]})
+    assert.match(html,/1 partidas/);assert.doesNotMatch(html,/0 artículos/)
+  }
+})
 
 test('card grids and responsive lists have no outer decorative surface', () => {
   const cards = render({ viewMode: 'cards' })
@@ -68,7 +74,7 @@ test('card view has no table cells and applies the same action permissions and u
   assert.doesNotMatch(html, /<table\b|<td\b|Ver detalle|Más acciones/)
   assert.match(html, /Ver factura/)
   assert.match(html, /\$0\.00/)
-  assert.match(html, /2 artículos/)
+  assert.match(html, /2 partidas/)
   const updating = render({ viewMode: 'cards', updatingSaleIds: new Set(['V-001']) })
   assert.match(updating, /<button[^>]*disabled=""[^>]*aria-label="Más acciones de V-001"/)
 })
@@ -145,7 +151,7 @@ test('management uses the shared module heading, visible search and compact filt
     './hooks': { useSalesData: () => ({
       filters: { searchTerm: '', statusFilter: 'all', paymentFilter: 'all', period: 'today', isGlobalSearch: false },
       sales: [sale], pageInfo: { page: 1, totalPages: 1, totalItems: 1, hasMore: false },
-      pageSize: 10, viewMode: 'table', totalSalesToday: 0, transactionCountToday: 1, averageTicketToday: 0, preferredPaymentMethod: 'Efectivo',
+      pageSize: 10, pageSizeOptions: [5, 10, 25, 50], cardContainerRef() {}, viewMode: 'table', totalSalesToday: 0, transactionCountToday: 1, averageTicketToday: 0, preferredPaymentMethod: 'Efectivo',
       setSearchTerm() {}, setStatusFilter() {}, setPaymentFilter() {}, setPeriod() {}, setPageSize() {}, setViewMode() {}, setPage() {}, refreshSales() {},
     }), normalizeRawSale: value => value },
     './components': { SalesKPICards, SalesFilters, SalesStatusTable, SaleDetailDialog: () => null, NegativeStockDialog: () => null },

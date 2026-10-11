@@ -8,7 +8,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { adaptApiProduct, fetchProducts } from '@/services/productService'
 import type { Product } from '@/types/product'
 import { LoadingIndicator, LoadingState } from './LoadingState'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
 export function ProductPicker({ branchId, onPick, money = String, supplierId, purchase = false, inventory = false, locationId, excludedIds = [] }: { branchId?: string; onPick: (product: Product) => void; money?: (value: number) => string; supplierId?: string; purchase?: boolean; inventory?: boolean; locationId?: string; excludedIds?: string[] }) {
+  const {inventoryServicesEnabled}=useSystemSettings()
+  const catalogType = !purchase && !inventory && inventoryServicesEnabled ? 'all' : 'goods'
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -23,9 +26,10 @@ export function ProductPicker({ branchId, onPick, money = String, supplierId, pu
   }, [open])
 
   const query = useInfiniteQuery({
-    queryKey: ['document-product-picker', branchId, supplierId, purchase, inventory, locationId, debouncedSearch],
+    queryKey: ['document-product-picker', branchId, supplierId, purchase, inventory, locationId, debouncedSearch, catalogType],
     queryFn: ({ pageParam }) => fetchProducts({
       page: pageParam,
+      catalogType,
       pageSize: 24,
       search: debouncedSearch || undefined,
       forSaleOnly: !purchase && !inventory,
@@ -66,8 +70,8 @@ export function ProductPicker({ branchId, onPick, money = String, supplierId, pu
                   {products.map((product) => <CommandItem key={product.id} value={product.id} disabled={excludedIds.includes(product.id)} className="gap-3 py-2" onSelect={() => { onPick(product); setOpen(false) }}>
                     {product.imageUrl
                       ? <img src={product.imageUrl} alt={product.name} loading="lazy" className="h-12 w-12 rounded-xl border object-cover" />
-                      : <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}
-                    <span className="min-w-0 flex-1"><strong className="block truncate">{product.name}</strong><small className="block truncate text-muted-foreground">{product.barcode || 'Sin código'} · Stock: {product.stock}</small></span>
+                      : <img src="/placeholder.svg" alt={'Sin imagen de '+product.name} loading="lazy" className="h-12 w-12 shrink-0 rounded-xl border object-contain" />}
+                    <span className="min-w-0 flex-1"><strong className="block truncate">{product.name}</strong><small className="block truncate text-muted-foreground">{product.barcode || 'Sin código'} · {product.kind === 'SERVICE' ? `${product.serviceUnitLabel} · Sin control de existencias` : `Stock: ${product.stock}`}</small></span>
                     <strong className="tabular-nums">{excludedIds.includes(product.id) ? 'Agregado' : inventory ? `${product.stock} unidades` : money(purchase ? product.cost ?? 0 : product.price)}</strong>
                   </CommandItem>)}
                   {query.hasNextPage ? <Button type="button" variant="secondary" size="sm" className="mt-2 w-full" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>{query.isFetchingNextPage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Cargar más resultados</Button> : null}

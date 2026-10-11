@@ -25,13 +25,13 @@ interface UseProductFormReturn {
     generateBarcode: () => string
 }
 
-export const useProductForm = (): UseProductFormReturn => {
+export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFormReturn => {
     const { toast } = useToast()
-    const [formData, setFormData] = useState<ProductFormData>(EMPTY_PRODUCT_FORM)
+    const [formData, setFormData] = useState<ProductFormData>({...EMPTY_PRODUCT_FORM,productKind:kind})
 
     const resetForm = useCallback(() => {
-        setFormData(EMPTY_PRODUCT_FORM)
-    }, [])
+        setFormData({...EMPTY_PRODUCT_FORM,productKind:kind})
+    }, [kind])
 
     const validateForm = useCallback((): boolean => {
         if (!formData.name || formData.name.trim() === '') {
@@ -52,7 +52,7 @@ export const useProductForm = (): UseProductFormReturn => {
             return false
         }
 
-        if (!formData.price || Number(formData.price) <= 0) {
+        if (!formData.price || !Number.isFinite(Number(formData.price)) || Number(formData.price) <= 0) {
             toast({
                 title: 'Campo requerido',
                 description: 'El precio debe ser mayor a 0',
@@ -61,7 +61,11 @@ export const useProductForm = (): UseProductFormReturn => {
             return false
         }
 
-        if (!formData.supplier) {
+        if (formData.productKind === 'SERVICE' && (!formData.serviceUnitLabel.trim() || formData.serviceUnitLabel.trim().length > 50 || !/^[0-4]$/.test(formData.quantityDecimals))) {
+            toast({title:'Servicio incompleto',description:'Ingresa una unidad de cobro y entre 0 y 4 decimales',variant:'destructive'})
+            return false
+        }
+        if (formData.productKind !== 'SERVICE' && !formData.supplier) {
             toast({
                 title: 'Campo requerido',
                 description: 'El proveedor es obligatorio',
@@ -172,7 +176,9 @@ export const useProductForm = (): UseProductFormReturn => {
             imageUrl: product.imageUrl || '',
             availableForSale: product.availableForSale !== false,
             tracksExpiry: product.tracksExpiry === true,
-            productKind: product.kind === 'KIT' ? 'KIT' : 'STANDARD',
+            productKind: product.kind ?? 'STANDARD',
+            serviceUnitLabel: product.serviceUnitLabel ?? 'Sesión',
+            quantityDecimals: String(product.quantityDecimals ?? 0),
             kitComponents: (product.kitComponents ?? []).map((line) => ({
                 component_product_id: line.component_product_id,
                 qty_per_unit: line.qty_per_unit,

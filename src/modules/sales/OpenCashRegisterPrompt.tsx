@@ -16,9 +16,10 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Landmark, Loader2 } from 'lucide-react'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { openCashSession } from '@/services/cashSessionsService'
+import './pos.css'
 
 export interface OpenCashRegisterPromptProps {
   registerName?: string | null
@@ -33,6 +34,7 @@ export function OpenCashRegisterPrompt({
   onOpened,
   onBack,
 }: OpenCashRegisterPromptProps) {
+  const { currencyCode } = useSystemSettings()
   const [openingFloat, setOpeningFloat] = useState('0')
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -59,23 +61,17 @@ export function OpenCashRegisterPrompt({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/90 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-md shadow-xl border-2 border-border">
-        <CardHeader className="space-y-1 text-center pb-2">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
-            <Landmark className="h-7 w-7" />
-          </div>
-          <CardTitle className="text-xl">Abrir caja</CardTitle>
-          <CardDescription className="text-base">
-            Debe abrir un turno de caja para registrar ventas. Declare el efectivo inicial en caja (puede ser 0).
-          </CardDescription>
-          {registerName ? (
-            <p className="text-sm font-medium text-foreground pt-1">Caja: {registerName}</p>
-          ) : null}
-        </CardHeader>
-        <CardContent className="space-y-4">
+    <div className="pos-page pos-cash-entry">
+      <section className="auna-surface rounded-xl border pos-opening" aria-label="Apertura de caja">
+        <div className="space-y-3">
+          <Landmark className="h-6 w-6 text-brand-orange" aria-hidden />
+          <h1 className="text-xl font-semibold">Abrir caja</h1>
+          <p className="font-medium">{registerName ?? 'Caja seleccionada'}</p>
+          <p className="text-sm text-muted-foreground">El fondo inicial es el efectivo disponible al comenzar el turno, no una venta.</p>
+        </div>
+        <form className="space-y-4" onSubmit={(event) => { event.preventDefault(); return handleOpen() }}>
           <div className="space-y-2">
-            <Label htmlFor="open-cash-float">Fondo inicial (Q)</Label>
+            <Label htmlFor="open-cash-float">Fondo inicial ({currencyCode})</Label>
             <Input
               id="open-cash-float"
               type="number"
@@ -85,18 +81,21 @@ export function OpenCashRegisterPrompt({
               onChange={(e) => setOpeningFloat(e.target.value)}
               disabled={submitting}
               autoComplete="off"
+              aria-invalid={Boolean(submitError)}
+              aria-describedby={`open-cash-help${submitError ? ' open-cash-error' : ''}`}
             />
+            <p id="open-cash-help" className="text-xs text-muted-foreground">Puedes iniciar con 0 si no hay efectivo en caja.</p>
           </div>
           {submitError ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p id="open-cash-error" className="text-sm text-destructive" role="alert">
               {submitError}
             </p>
           ) : null}
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={onBack} disabled={submitting}>
-              Volver a ventas
+              Cambiar de caja
             </Button>
-            <Button type="button" className="bg-primary" onClick={() => void handleOpen()} disabled={submitting}>
+            <Button type="submit" disabled={submitting}>
               {submitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -107,8 +106,8 @@ export function OpenCashRegisterPrompt({
               )}
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </form>
+      </section>
     </div>
   )
 }

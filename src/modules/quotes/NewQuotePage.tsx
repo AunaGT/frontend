@@ -5,6 +5,8 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import "./quoteLines.css";
+import {normalizeQuantityInput,previewLineTotal,stepQuantity} from '@/lib/commercialQuantity'
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, FileText, Loader2, Package, Trash2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,7 +52,7 @@ import {
 type CartLine = {
   id: string;
   name: string;
-  qty: number;
+  qty: string;
   price: number;
   product: Product;
 };
@@ -99,7 +101,7 @@ export default function NewQuotePage() {
   );
 
   const getCartQty = useCallback(
-    (productId: string) => cartItems.find((c) => c.id === productId)?.qty ?? 0,
+    (productId: string) => Number(cartItems.find((c) => c.id === productId)?.qty || 0),
     [cartItems]
   );
 
@@ -174,7 +176,10 @@ export default function NewQuotePage() {
     };
   }, [cartItems]);
 
-  const cartTotal = cartItems.reduce((acc, l) => acc + l.price * l.qty, 0);
+  const normalizedQty=(line:CartLine)=>normalizeQuantityInput(String(line.qty),{kind:line.product.kind ?? 'STANDARD',quantityDecimals:line.product.quantityDecimals ?? 0},locale)
+  const lineTotals=Object.fromEntries(cartItems.map(line=>{try{return[line.id,previewLineTotal(normalizedQty(line),line.price.toFixed(2))]}catch{return[line.id,null]}})) as Record<string,string|null>
+  const cartTotal=Number(Object.values(lineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n))/100
+  const hasInvalidQuantities=Object.values(lineTotals).some(total=>total===null)
 
   const stockExceededMessage = (product: Product, available: number) => {
     const a = availabilityById[product.id];
@@ -200,7 +205,7 @@ export default function NewQuotePage() {
 
     const available = getAvailableQty(product);
     const current = getCartQty(product.id);
-    if (available <= 0) {
+    if (product.kind!=='SERVICE' && available <= 0) {
       toast({
         title: "Sin stock disponible",
         description: stockExceededMessage(product, available),
@@ -208,7 +213,7 @@ export default function NewQuotePage() {
       });
       return;
     }
-    if (current + 1 > available) {
+    if (product.kind!=='SERVICE' && current + 1 > available) {
       toast({
         title: "Stock insuficiente",
         description: stockExceededMessage(product, available),
@@ -225,9 +230,9 @@ export default function NewQuotePage() {
     setCartItems((prev) => {
       const existing = prev.find((x) => x.id === product.id);
       if (existing) {
-        return prev.map((x) => (x.id === product.id ? { ...x, qty: x.qty + 1 } : x));
+        return prev.map((x) => (x.id === product.id ? { ...x, qty: stepQuantity(String(x.qty),1) } : x));
       }
-      return [...prev, { id: product.id, name: product.name, qty: 1, price: unit, product }];
+      return [...prev, { id: product.id, name: product.name, qty: '1', price: unit, product }];
     });
     void postPricingPreview({
       customer_contact_id: customerContactId,
@@ -245,16 +250,15 @@ export default function NewQuotePage() {
     }).catch(() => toast({ title: "No se pudo actualizar el precio", description: "Verifica la tarifa antes de guardar.", variant: "destructive" }));
   };
 
-  const updateQty = (productId: string, qty: number) => {
-    if (!Number.isFinite(qty) || !Number.isInteger(qty)) return;
-    if (qty <= 0) {
+  const updateQty = (productId: string, qty: string) => {
+    if (qty==='0') {
       setCartItems((prev) => prev.filter((x) => x.id !== productId));
       return;
     }
     const product = cartItems.find((line) => line.id === productId)?.product;
     if (!product) return;
     const available = getAvailableQty(product);
-    if (qty > available) {
+    if (product.kind!=='SERVICE' && Number(qty) > available) {
       toast({
         title: "Stock insuficiente",
         description: stockExceededMessage(product, available),
@@ -264,7 +268,7 @@ export default function NewQuotePage() {
         setCartItems((prev) => prev.filter((x) => x.id !== productId));
         return;
       }
-      qty = available;
+      qty = String(available);
     }
     setCartItems((prev) => prev.map((x) => (x.id === productId ? { ...x, qty } : x)));
   };
@@ -293,6 +297,7 @@ export default function NewQuotePage() {
   };
 
   const handleSave = async (send = false) => {
+    if (hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Usa la precisión definida para cada artículo.',variant:'destructive'});return}
     if (!canCreate) {
       toast({ title: "Sin permiso", variant: "destructive" });
       return;
@@ -316,7 +321,7 @@ export default function NewQuotePage() {
         }
       }
       const available = getAvailableQty(product);
-      if (line.qty > available) {
+      if (product.kind!=='SERVICE' && Number(line.qty) > available) {
         toast({
           title: "Stock insuficiente",
           description: `${line.name}: ${stockExceededMessage(product, available)}`,
@@ -340,7 +345,7 @@ export default function NewQuotePage() {
         valid_until: validUntil ? new Date(validUntil).toISOString() : undefined,
         items: cartItems.map((l) => ({
           product_id: l.id,
-          qty: l.qty,
+          qty: normalizedQty(l),
           unit_price: l.price,
         })),
       });
@@ -384,15 +389,15 @@ export default function NewQuotePage() {
       <Card className="auna-surface min-w-0"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Productos y servicios</CardTitle></CardHeader><CardContent className="space-y-3">
           <ProductPicker branchId={branch?.id} money={fmt} onPick={addProduct} />
           {!cartItems.length ? <div className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">Busca un producto para agregarlo a la cotización.</div>
-            : <section className="auna-data-table-shell auna-table-embedded overflow-x-auto"><Table className="min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
-              <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || "Sin código"} · Disponible: {getAvailableQty(line.product)}</p></div></div></TableCell>
-              <TableCell><Input type="number" className="w-24" aria-label={`Cantidad de ${line.name}`} min={1} max={getAvailableQty(line.product)} step={1} value={line.qty} onChange={(e) => updateQty(line.id, Number(e.target.value))} /></TableCell><TableCell className="text-right">{fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{fmt(line.price * line.qty)}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id, 0)}><Trash2 className="h-4 w-4" /></Button></TableCell>
+            : <section className="auna-data-table-shell auna-table-embedded quote-lines-scroll" tabIndex={0} role="region" aria-label="Partidas de la cotización"><Table className="auna-data-table min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
+              <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || 'Sin código'} · {line.product.kind==='SERVICE' ? `${line.product.serviceUnitLabel} · Sin control de existencias` : `Disponible: ${getAvailableQty(line.product)}`}</p></div></div></TableCell>
+              <TableCell><Input type="text" inputMode={line.product.kind==='SERVICE' ? 'decimal' : 'numeric'} className="w-24" aria-label={`Cantidad de ${line.name}`} aria-invalid={lineTotals[line.id]===null} value={line.qty} onChange={event=>updateQty(line.id,event.target.value)} /></TableCell><TableCell className="text-right">{fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{lineTotals[line.id] ? fmt(Number(lineTotals[line.id])) : '—'}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id,'0')}><Trash2 className="h-4 w-4" /></Button></TableCell>
             </TableRow>)}</TableBody></Table></section>}
         </CardContent></Card>
       <aside className="space-y-4 xl:sticky xl:top-4">
         <QuoteSummary subtotal={cartTotal} total={cartTotal} money={fmt} />
         <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas</CardTitle></CardHeader><CardContent><Label htmlFor="notes" className="sr-only">Notas adicionales</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condiciones, entrega o información para el cliente…" /></CardContent></Card>
-        <div className="space-y-3"><Button variant="outline" className="h-12 w-full" disabled={isSaving || !cartItems.length} onClick={() => void handleSave()}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar borrador</Button>{canManage && <Button className="h-12 w-full bg-brand-orange text-white hover:bg-brand-orange/90" disabled={isSaving || !cartItems.length} onClick={() => void handleSave(true)}><FileText className="mr-2 h-4 w-4" />Generar cotización</Button>}<Button variant="ghost" className="w-full" disabled={isSaving} onClick={() => navigate("/cotizaciones")}>Cancelar</Button></div>
+        <div className="space-y-3"><Button variant="outline" className="h-12 w-full" disabled={isSaving || !cartItems.length || hasInvalidQuantities} onClick={() => void handleSave()}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar borrador</Button>{canManage && <Button className="h-12 w-full bg-brand-orange text-white hover:bg-brand-orange/90" disabled={isSaving || !cartItems.length || hasInvalidQuantities} onClick={() => void handleSave(true)}><FileText className="mr-2 h-4 w-4" />Generar cotización</Button>}<Button variant="ghost" className="w-full" disabled={isSaving} onClick={() => navigate("/cotizaciones")}>Cancelar</Button></div>
       </aside>
     </div>
   </div>;

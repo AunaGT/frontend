@@ -14,6 +14,7 @@ import { ProductCombobox } from '@/components/shared/ProductCombobox'
 import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useProductCategories } from '@/hooks/useProductCategories'
 import { fetchAllProducts } from '@/services/productService'
+import {useSystemSettings} from '@/hooks/useSystemSettings'
 import { X } from 'lucide-react'
 
 export interface ApplicableProductRef {
@@ -31,6 +32,7 @@ interface PromotionApplicableScopeFieldsProps {
   categories: ApplicableCategoryRef[]
   onProductsChange: (p: ApplicableProductRef[]) => void
   onCategoriesChange: (c: ApplicableCategoryRef[]) => void
+  allowServices?: boolean
 }
 
 export function PromotionApplicableScopeFields({
@@ -38,7 +40,10 @@ export function PromotionApplicableScopeFields({
   categories,
   onProductsChange,
   onCategoriesChange,
+  allowServices=false,
 }: PromotionApplicableScopeFieldsProps) {
+  const {inventoryServicesEnabled}=useSystemSettings()
+  const catalogType=allowServices && inventoryServicesEnabled ? 'all' : 'goods'
   const [productPickerKey, setProductPickerKey] = useState(0)
   const { data: catData, isLoading: catLoading } = useProductCategories({
     page: 1,
@@ -46,8 +51,8 @@ export function PromotionApplicableScopeFields({
     includeDeleted: false,
   })
   const { data: allProducts = [] } = useQuery({
-    queryKey: ['products-list'],
-    queryFn: fetchAllProducts,
+    queryKey: ['products-list',catalogType],
+    queryFn: ()=>fetchAllProducts({catalogType}),
     staleTime: 5 * 60 * 1000,
   })
 
@@ -83,6 +88,7 @@ export function PromotionApplicableScopeFields({
         <Label className="text-xs font-medium">Productos</Label>
         <div key={productPickerKey}>
           <ProductCombobox
+            commercial={allowServices}
             value=""
             onChange={(id) => addProductById(id)}
             placeholder="Buscar y añadir producto…"

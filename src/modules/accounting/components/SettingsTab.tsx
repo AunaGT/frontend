@@ -10,6 +10,8 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -65,6 +67,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   const [ivaRate, setIvaRate] = useState('12')
   const [pequenoRate, setPequenoRate] = useState('5')
   const [savingRates, setSavingRates] = useState(false)
+  const [section, setSection] = useState('impuestos')
 
   const postables = accounts.filter((a) => a.active && !a.is_group)
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i)
@@ -169,7 +172,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
 
   if (!canManage) {
     return (
-      <Card>
+      <Card className="auna-surface">
         <CardContent className="py-12 text-center text-muted-foreground flex flex-col items-center gap-2">
           <ShieldAlert className="h-8 w-8" />
           No tienes permiso para administrar la configuración contable.
@@ -181,9 +184,16 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   const statusOf = (month: number) => periods.find((p) => p.month === month)?.status ?? 'OPEN'
 
   return (
-    <div className="space-y-6">
+    <Tabs value={section} onValueChange={setSection} className="accounting-settings-tabs space-y-4">
+      <div className="max-w-full overflow-x-auto pb-1"><ModuleTabsList aria-label="Tareas de configuración contable">
+        <ModuleTabsTrigger value="impuestos">Impuestos</ModuleTabsTrigger>
+        <ModuleTabsTrigger value="cuentas">Cuentas por defecto</ModuleTabsTrigger>
+        <ModuleTabsTrigger value="apertura">Saldos iniciales</ModuleTabsTrigger>
+        <ModuleTabsTrigger value="periodos">Períodos y cierre</ModuleTabsTrigger>
+      </ModuleTabsList></div>
+      <TabsContent value="impuestos" forceMount hidden={section !== 'impuestos'}>
       {/* Régimen de IVA */}
-      <Card>
+      <Card className="auna-surface">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Landmark className="h-5 w-5" />Impuestos (SAT)
@@ -225,9 +235,10 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           </p>
         </CardContent>
       </Card>
+      </TabsContent>
 
       {/* Cuentas por defecto */}
-      <Card>
+      <TabsContent value="cuentas" forceMount hidden={section !== 'cuentas'}><Card className="auna-surface">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Settings2 className="h-5 w-5" />Cuentas por defecto
@@ -258,12 +269,13 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           </Button>
         </CardContent>
       </Card>
+      </TabsContent>
 
       {/* Saldos iniciales (asiento de apertura) */}
-      <OpeningBalancesCard accounts={accounts} />
+      <TabsContent value="apertura" forceMount hidden={section !== 'apertura'}><OpeningBalancesCard accounts={accounts} /></TabsContent>
 
       {/* Períodos */}
-      <Card>
+      <TabsContent value="periodos" forceMount hidden={section !== 'periodos'} className="space-y-4"><Card className="auna-surface">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <CalendarCheck2 className="h-5 w-5" />Períodos contables
@@ -280,12 +292,12 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="auna-section-list grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5">
             {MONTH_LABELS.map((label, i) => {
               const month = i + 1
               const closed = statusOf(month) === 'CLOSED'
               return (
-                <div key={month} className="rounded-md border p-3 flex items-center justify-between gap-2">
+                <div key={month} className="auna-section-row p-3 flex items-center justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{label}</p>
                     <Badge variant={closed ? 'secondary' : 'default'} className="mt-1">
@@ -296,6 +308,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
                     variant="ghost" size="icon" className="h-8 w-8 shrink-0 text-muted-foreground"
                     disabled={busyMonth === month}
                     title={closed ? 'Reabrir' : 'Cerrar'}
+                    aria-label={`${closed ? 'Reabrir' : 'Cerrar'} período ${label} ${periodYear}`}
                     onClick={() => void handleTogglePeriod(month, closed)}
                   >
                     {closed ? <LockOpen className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
@@ -308,7 +321,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
       </Card>
 
       {/* Cierre anual */}
-      <Card>
+      <Card className="auna-surface">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg">
             <Lock className="h-5 w-5" />Cierre anual
@@ -332,6 +345,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           </Button>
         </CardContent>
       </Card>
-    </div>
+      </TabsContent>
+    </Tabs>
   )
 }

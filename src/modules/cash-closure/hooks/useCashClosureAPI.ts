@@ -80,6 +80,7 @@ interface LastClosureDateResponse {
 }
 
 interface UseCashClosureAPIReturn {
+    closureSummary?: Record<string, number>
     // Loading states
     isCalculating: boolean
     isSaving: boolean
@@ -110,6 +111,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
     const [isLoadingClosures, setIsLoadingClosures] = useState(false)
     const [theoreticalData, setTheoreticalData] = useState<TheoreticalData | null>(null)
     const [closures, setClosures] = useState<CashClosure[]>([])
+    const [closureSummary, setClosureSummary] = useState<Record<string, number>>()
     const [currentPage, setCurrentPage] = useState(() => {
         const s = readListUiPersisted(CLOSURE_HISTORY_KEY)
         return Math.max(1, Number(s.page) || 1)
@@ -293,7 +295,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
         const size = pageSizeOverride ?? (isSeller ? 1 : pageSize)
         if (pageSizeOverride != null) setPageSize(pageSizeOverride)
         try {
-            const params = new URLSearchParams({ page: String(page), pageSize: String(size) })
+            const params = new URLSearchParams({ page: String(page), pageSize: String(size), includeSummary: 'true' })
             if (filters?.status) params.set('status', filters.status)
             if (filters?.startDate) params.set('startDate', filters.startDate)
             if (filters?.endDate) params.set('endDate', filters.endDate)
@@ -306,16 +308,19 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
             const data = await response.json()
 
             if (data && Array.isArray(data.items)) {
+                setClosureSummary(data.summary)
                 setClosures(data.items)
                 setCurrentPage(data.page || 1)
                 setTotalPages(data.totalPages || 1)
             } else {
+                setClosureSummary(undefined)
                 setClosures([])
                 setCurrentPage(1)
                 setTotalPages(1)
             }
         } catch (error) {
             console.error('Error fetching closures:', error)
+            setClosureSummary(undefined)
             setClosures([])
             toast({
                 title: 'Error',
@@ -390,6 +395,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
         isLoadingClosures,
         theoreticalData,
         closures,
+        closureSummary,
         currentPage,
         totalPages,
         pageSize,

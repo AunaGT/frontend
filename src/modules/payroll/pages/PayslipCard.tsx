@@ -11,6 +11,7 @@
 /** Recibo individual: devengos, deducciones y neto. Imprimible tal cual. */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { Payslip } from '../api/payrollService'
+import './payrollPrint.css'
 
 const money = (v: string | number) =>
   new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(v))
@@ -31,7 +32,7 @@ export const PayslipCard = ({ payslip }: { payslip: Payslip }) => {
     : null
 
   return (
-    <Card className="print:break-inside-avoid">
+    <Card className="auna-surface payroll-payslip print:break-inside-avoid">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">
           {payslip.employee?.first_name} {payslip.employee?.last_name}

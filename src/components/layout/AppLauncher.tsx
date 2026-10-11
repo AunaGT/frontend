@@ -8,150 +8,103 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-/**
- * AppLauncher 
- * Shows all available modules in a grid with search functionality
- */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, type RefObject } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { Search, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
-import { getVisibleModules, AppModule } from '@/config/appModules'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { AunaBrand } from '@/components/branding/AunaBrand'
+import { getVisibleModules, orderModuleCatalog, findModuleForPath, type AppModule, MODULE_DESCRIPTIONS } from '@/config/appModules'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
+import { ModuleCatalogCard } from './ModuleCatalogCard'
 
 interface AppLauncherProps {
     open: boolean
     onOpenChange: (open: boolean) => void
+    triggerRef?: RefObject<HTMLButtonElement>
 }
 
-const AppCard = ({
-    module,
-    isActive,
-    badgeCount,
-    onClick
-}: {
-    module: AppModule
-    isActive: boolean
-    badgeCount?: number
-    onClick: () => void
-}) => {
-    const Icon = module.icon
-
-    return (
-        <button
-            onClick={onClick}
-            className={cn(
-                'flex flex-col items-center justify-center gap-2 rounded-xl border border-border/70 bg-card p-3 shadow-sm transition-all duration-200',
-                'hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                isActive && 'border-primary/40 ring-2 ring-primary/30 shadow-md'
-            )}
-        >
-            <div className='relative h-12 w-12'>
-                <Icon className='h-full w-full' />
-                {!!badgeCount && badgeCount > 0 && (
-                    <span className='absolute -top-1 -right-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground shadow-sm ring-2 ring-card'>
-                        {badgeCount > 9 ? '9+' : badgeCount}
-                    </span>
-                )}
-            </div>
-            <span className='line-clamp-2 text-center text-xs font-medium leading-tight text-foreground'>
-                {module.label}
-            </span>
-        </button>
-    )
-}
-
-export const AppLauncher = ({ open, onOpenChange }: AppLauncherProps) => {
+export const AppLauncher = ({ open, onOpenChange, triggerRef }: AppLauncherProps) => {
     const [search, setSearch] = useState('')
     const navigate = useNavigate()
     const location = useLocation()
     const { data: activeAlertsCount = 0 } = useActiveAlertsCount()
-    const { enabledModuleCodes } = useModules()
+    const { enabledModuleCodes, isLoading, isError, refetch } = useModules()
+    const ready = !isLoading && !isError && enabledModuleCodes !== null
 
-    const modules = useMemo(
-        () => getVisibleModules(enabledModuleCodes),
-        [enabledModuleCodes]
-    )
-
+    const modules = useMemo(() => orderModuleCatalog(getVisibleModules(enabledModuleCodes)), [enabledModuleCodes])
     const filteredModules = useMemo(() => {
-        if (!search.trim()) return modules
-        const term = search.toLowerCase()
-        return modules.filter(m =>
-            m.label.toLowerCase().includes(term) ||
-            m.id.toLowerCase().includes(term)
-        )
+        const term = search.trim().toLowerCase()
+        if (!term) return modules
+        return modules.filter(module =>
+            `${module.label} ${module.id} ${MODULE_DESCRIPTIONS[module.id] || ''}`.toLowerCase().includes(term))
     }, [modules, search])
+    const currentModule = findModuleForPath(location.pathname)
 
+    const handleOpenChange = (nextOpen: boolean) => {
+        onOpenChange(nextOpen)
+        if (!nextOpen) setSearch('')
+    }
     const handleNavigate = (module: AppModule) => {
         navigate(module.path)
-        onOpenChange(false)
-        setSearch('')
+        handleOpenChange(false)
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className='max-w-3xl p-0 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100'>
-                {/* Sin encabezado visible por diseño (el buscador hace ese papel): el
-                    título y la descripción son solo para lectores de pantalla — Radix
-                    exige un DialogTitle en todo DialogContent, visible o no. */}
-                <DialogTitle className='sr-only'>Buscador de módulos</DialogTitle>
-                <DialogDescription className='sr-only'>
-                    Busca y abre cualquier módulo del sistema al que tengas acceso.
-                </DialogDescription>
-                {/* Header with search */}
-                <div className='p-4 bg-white border-b'>
-                    <div className='relative'>
-                        <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground' />
-                        <Input
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                            placeholder='Buscar módulos...'
-                            className='pl-9 pr-9'
-                            autoFocus
-                        />
-                        {search && (
-                            <Button
-                                variant='ghost'
-                                size='sm'
-                                className='absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0'
-                                onClick={() => setSearch('')}
-                            >
-                                <X className='w-4 h-4' />
-                            </Button>
-                        )}
+        <Dialog open={open} onOpenChange={handleOpenChange}>
+            <DialogContent variant="auna" className="max-w-[1100px] max-h-[85dvh] grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden p-0 sm:p-0"
+                onCloseAutoFocus={event => {
+                    if (triggerRef?.current) {
+                        event.preventDefault()
+                        triggerRef.current.focus()
+                    }
+                }}>
+                <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border p-4 pr-16 sm:p-5 sm:pr-16">
+                    <DialogTitle>Menú de módulos</DialogTitle>
+                    <DialogDescription className="sr-only">Busca y abre los módulos habilitados para tu empresa y permisos.</DialogDescription>
+                    <div className="w-full max-w-[420px] min-w-0">
+                        <label htmlFor="launcher-module-search" className="sr-only">Buscar módulo</label>
+                        <div className="relative">
+                            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                            <Input id="launcher-module-search" value={search} onChange={event => setSearch(event.target.value)}
+                                placeholder="Busca un módulo…" className="pl-10 pr-12" autoComplete="off" autoFocus />
+                            {search && <Button type="button" variant="ghost" size="icon" className="absolute right-0 top-0"
+                                onClick={() => setSearch('')} aria-label="Limpiar búsqueda"><X className="h-4 w-4" aria-hidden /></Button>}
+                        </div>
                     </div>
                 </div>
 
-                {/* App Grid */}
-                <div className='p-6 max-h-[60vh] overflow-y-auto'>
-                    {filteredModules.length === 0 ? (
-                        <div className='text-center py-8 text-muted-foreground'>
-                            No se encontraron módulos
+                <div className="min-h-0 max-h-[60dvh] overflow-y-auto overscroll-contain scroll-p-4 p-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-[-2px] sm:p-5"
+                    role="region" aria-label="Módulos disponibles" tabIndex={0}>
+                    {!ready ? isError ? (
+                        <div role="alert" className="py-8 text-center">
+                            <p className="font-semibold">No pudimos cargar los módulos</p>
+                            <p className="mt-2 text-sm text-muted-foreground">Revisa tu conexión e inténtalo nuevamente.</p>
+                            <Button className="mt-4" onClick={() => refetch()}>Reintentar</Button>
                         </div>
+                    ) : <LoadingState message="Cargando módulos…" variant="cards" rows={8} className="p-0 [&>div.grid]:lg:grid-cols-3 [&>div.grid]:xl:grid-cols-4" />
+                    : filteredModules.length === 0 ? (
+                        <div role="status"><EmptyState title={search.trim() ? 'No encontramos módulos' : 'No hay módulos disponibles'}
+                            description={search.trim() ? 'Prueba con otro término de búsqueda.' : 'Solicita al administrador que revise tus permisos y módulos habilitados.'} /></div>
                     ) : (
-                        <div className='grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4'>
-                            {filteredModules.map(module => (
-                                <AppCard
-                                    key={module.id}
-                                    module={module}
-                                    isActive={location.pathname === module.path}
-                                    badgeCount={module.id === 'alerts' ? activeAlertsCount : undefined}
-                                    onClick={() => handleNavigate(module)}
-                                />
-                            ))}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {filteredModules.map(module => <ModuleCatalogCard key={module.id} module={module}
+                                idPrefix="launcher" className="launcher-module-card"
+                                isActive={currentModule?.id === module.id}
+                                badgeCount={module.id === 'alerts' ? activeAlertsCount : undefined}
+                                onClick={() => handleNavigate(module)} />)}
                         </div>
                     )}
                 </div>
 
-                {/* Footer brand mark */}
-                <div className='flex items-center justify-center gap-1.5 border-t bg-white/60 py-2 text-[11px] text-muted-foreground/70'>
-                    <img src='/auna/isotipo-192.png' alt='' className='h-3.5 w-3.5 opacity-70' />
-                    <span>Auna</span>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:px-5">
+                    <span role="status" aria-live="polite">{ready &&
+                        `${filteredModules.length} ${filteredModules.length === 1 ? 'módulo' : 'módulos'} ${search.trim() ? (filteredModules.length === 1 ? 'encontrado' : 'encontrados') : (filteredModules.length === 1 ? 'disponible' : 'disponibles')}`}</span>
+                    <AunaBrand logoClassName="w-12 sm:w-12" />
                 </div>
             </DialogContent>
         </Dialog>

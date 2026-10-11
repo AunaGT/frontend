@@ -1,4 +1,7 @@
 import { TableLoadingRows } from '@/components/shared/LoadingState'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { Pagination as ButtonsPagination } from '@/components/shared/Pagination'
 import { useState } from 'react'
 import { AlertCircle, Boxes, Info, Loader2, Search } from 'lucide-react'
 import { Switch } from '@/components/ui/switch'
@@ -55,18 +58,16 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
 
   return (
     <section className="config-modules" aria-label="Configuración de módulos">
-      <div className="config-module-toolbar">
-        <label className="auna-control-group config-search"><Search className="h-4 w-4" aria-hidden="true" /><Input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar módulo..." aria-label="Buscar módulo" /></label>
-        <div className="config-filter-list" role="group" aria-label="Filtrar módulos por estado">
-          {([['all', 'Todos'], ['active', 'Activos'], ['inactive', 'Inactivos'], ['trial', 'En prueba']] as const).map(([value, label]) => (
-            <button key={value} type="button" className="config-filter" data-active={filter === value} onClick={() => { setFilter(value); setPage(1) }} aria-pressed={filter === value}>
-              {value !== 'all' && <span className={`config-status-dot config-status-dot--${value}`} />}{label} ({counts[value]})
-            </button>
-          ))}
-        </div>
-        <label className="config-sort"><span>Ordenar por</span><select className="auna-control auna-control-select" value={order} onChange={(event) => setOrder(event.target.value as 'asc' | 'desc')} aria-label="Ordenar módulos"><option value="asc">Nombre (A - Z)</option><option value="desc">Nombre (Z - A)</option></select></label>
-      </div>
-      <div className="config-module-table-wrap"><table className="config-module-table">
+      <MetricStrip loading={isLoading} label="Resumen de módulos" items={[{ label: 'Módulos', value: counts.all }, { label: 'Activos', value: counts.active }, { label: 'Inactivos', value: counts.inactive }, { label: 'En prueba', value: counts.trial }]} />
+      <CompactFilterPanel title="Filtros de módulos" activeCount={Number(Boolean(search.trim())) + Number(filter !== 'all') + Number(order !== 'asc')} onClear={() => { setSearch(''); setFilter('all'); setOrder('asc'); setPage(1) }} appliedFilters={[
+        ...(search.trim() ? [{ label: `Búsqueda: ${search}`, onRemove: () => { setSearch(''); setPage(1) } }] : []),
+        ...(filter !== 'all' ? [{ label: `Estado: ${filter === 'active' ? 'Activos' : filter === 'trial' ? 'En prueba' : 'Inactivos'}`, onRemove: () => { setFilter('all'); setPage(1) } }] : []),
+        ...(order !== 'asc' ? [{ label: 'Orden: Nombre (Z - A)', onRemove: () => { setOrder('asc'); setPage(1) } }] : []),
+      ]} search={<label className="space-y-1 text-xs text-muted-foreground">Buscar<div className="relative"><Search className="absolute left-3 top-3 h-4 w-4" aria-hidden="true" /><Input className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar módulo..." aria-label="Buscar módulo" /></div></label>}>
+        <label className="space-y-1 text-xs text-muted-foreground">Estado<select className="auna-control auna-control-select w-full" value={filter} onChange={(event) => { setFilter(event.target.value as Filter); setPage(1) }} aria-label="Filtrar módulos por estado"><option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option><option value="trial">En prueba</option></select></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Ordenar por<select className="auna-control auna-control-select w-full" value={order} onChange={(event) => setOrder(event.target.value as 'asc' | 'desc')} aria-label="Ordenar módulos"><option value="asc">Nombre (A - Z)</option><option value="desc">Nombre (Z - A)</option></select></label>
+      </CompactFilterPanel>
+      <div className="auna-data-table-shell"><div className="overflow-x-auto"><table className="auna-data-table config-module-table" aria-label="Catálogo de módulos">
         <thead><tr><th>Módulo</th><th>Descripción</th><th>Estado</th><th>Dependencias</th><th>Activación</th></tr></thead>
         <tbody>
           {isLoading && <TableLoadingRows columns={5} message="Cargando módulos…" />}
@@ -85,8 +86,8 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
           })}
           {!isLoading && !visible.length && <tr><td colSpan={5} className="config-empty">No hay módulos que coincidan con estos filtros.</td></tr>}
         </tbody>
-      </table></div>
-      <div className="config-module-footer"><span>Mostrando {visible.length ? (currentPage - 1) * 8 + 1 : 0}–{Math.min(currentPage * 8, filtered.length)} de {filtered.length} {filtered.length === 1 ? 'módulo' : 'módulos'}</span>{pageCount > 1 && <div className="config-pages" aria-label="Paginación de módulos"><button type="button" disabled={currentPage === 1} onClick={() => setPage(currentPage - 1)} aria-label="Página anterior">‹</button>{Array.from({ length: pageCount }, (_, index) => <button type="button" key={index} data-active={currentPage === index + 1} onClick={() => setPage(index + 1)} aria-label={`Página ${index + 1}`} aria-current={currentPage === index + 1 ? 'page' : undefined}>{index + 1}</button>)}<button type="button" disabled={currentPage === pageCount} onClick={() => setPage(currentPage + 1)} aria-label="Página siguiente">›</button></div>}</div>
+      </table></div></div>
+      <div className="auna-pagination-outside"><ButtonsPagination currentPage={currentPage} totalPages={pageCount} onPageChange={setPage} loading={isLoading} totalItems={filtered.length} pageSize={8} count={visible.length} itemLabel="módulos" /></div>
       <div className="config-note"><Info className="h-5 w-5" /><span>Activar un módulo no concede permisos de usuario. Sus funciones se configuran dentro de cada módulo y los accesos se gestionan por separado.</span></div>
     </section>
   )

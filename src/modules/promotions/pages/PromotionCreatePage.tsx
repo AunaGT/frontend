@@ -636,6 +636,7 @@ export default function PromotionCreatePage() {
               supportsProductCategoryScope(selectedType.name) &&
               !formData.applies_to_all && (
                 <PromotionApplicableScopeFields
+                  allowServices={selectedType?.name==='PERCENTAGE'}
                   products={applicableProducts}
                   categories={applicableCategories}
                   onProductsChange={setApplicableProducts}

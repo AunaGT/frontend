@@ -1,0 +1,14 @@
+/* Only module composition: shared fields, tabs, surfaces and themes remain global. */
+.accounting-page { min-width: 0; }
+.accounting-page [role="tabpanel"] { min-width: 0; }
+.accounting-page .auna-data-table-shell > table { min-width: 680px; }
+.accounting-page .auna-data-table-shell td.text-right,
+.accounting-page .auna-data-table-shell th.text-right { text-align: right; font-variant-numeric: tabular-nums; }
+.accounting-page .auna-data-table-shell tfoot td { padding: 12px 20px; border-top: 1px solid hsl(var(--auna-surface-border)); font-weight: 600; }
+.accounting-page .accounting-journal-lines { background: hsl(var(--auna-surface-header) / .35); }
+.accounting-page .accounting-journal-lines table :is(th, td) { padding: 8px 12px; }
+.accounting-page .accounting-journal-lines table { min-width: 0; }
+.accounting-page .accounting-journal-lines td { vertical-align: top; }
+.accounting-page .accounting-statement-row { display: flex; justify-content: space-between; gap: 16px; padding: 6px 0; }
+.accounting-page .accounting-statement-row > :last-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.accounting-page .accounting-settings-tabs [role="tabpanel"][hidden] { display: none; }

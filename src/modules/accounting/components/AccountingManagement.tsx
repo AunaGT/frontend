@@ -14,8 +14,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent } from '@/components/ui/card'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
+import { usePageTrail } from '@/components/layout/PageNavigation'
 import { BookOpen, BookText, Scale, FileBarChart2, Percent, ListTree, Settings2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -27,6 +28,9 @@ import { StatementsTab } from './StatementsTab'
 import { TaxesTab } from './TaxesTab'
 import { AccountsTab } from './AccountsTab'
 import { SettingsTab } from './SettingsTab'
+import './accounting.css'
+
+const TAB_LABELS: Record<string, string> = { diario: 'Diario', mayor: 'Mayor', balanza: 'Balanza', estados: 'Estados financieros', impuestos: 'Impuestos', catalogo: 'Catálogo de cuentas', configuracion: 'Configuración' }
 
 const AccountingManagement = () => {
   const { toast } = useToast()
@@ -35,14 +39,22 @@ const AccountingManagement = () => {
   const canManage = hasPermission('accounting.manage')
 
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [activeTab, setActiveTab] = useState('diario')
+  const [accountsLoading, setAccountsLoading] = useState(true)
+  const [accountsError, setAccountsError] = useState(false)
+  usePageTrail([{ label: TAB_LABELS[activeTab] }])
   const autoPostedRef = useRef(false)
 
   const loadAccounts = useCallback(async () => {
+    setAccountsLoading(true)
+    setAccountsError(false)
     try {
       const res = await getAccounts(true)
       setAccounts(res.items)
     } catch {
-      // el tab Diario mostrará su propio error al cargar
+      setAccountsError(true)
+    } finally {
+      setAccountsLoading(false)
     }
   }, [])
 
@@ -62,24 +74,21 @@ const AccountingManagement = () => {
   }, [canCreate, toast])
 
   return (
-    <div className="p-6 space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-foreground">Contabilidad</h2>
-        <p className="text-muted-foreground text-sm mt-1">
-          Partida doble: libros, estados financieros, catálogo de cuentas y períodos.
-        </p>
-      </div>
+    <div className="accounting-page mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8 space-y-5">
+      <h1 className="sr-only">Contabilidad</h1>
 
-      <Tabs defaultValue="diario" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-grid sm:grid-cols-4 lg:grid-cols-7">
-          <TabsTrigger value="diario"><BookOpen className="w-4 h-4 mr-2" />Diario</TabsTrigger>
-          <TabsTrigger value="mayor"><BookText className="w-4 h-4 mr-2" />Mayor</TabsTrigger>
-          <TabsTrigger value="balanza"><Scale className="w-4 h-4 mr-2" />Balanza</TabsTrigger>
-          <TabsTrigger value="estados"><FileBarChart2 className="w-4 h-4 mr-2" />Estados</TabsTrigger>
-          <TabsTrigger value="impuestos"><Percent className="w-4 h-4 mr-2" />Impuestos</TabsTrigger>
-          <TabsTrigger value="catalogo"><ListTree className="w-4 h-4 mr-2" />Catálogo</TabsTrigger>
-          <TabsTrigger value="configuracion"><Settings2 className="w-4 h-4 mr-2" />Configuración</TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
+        <div className="max-w-full overflow-x-auto pb-1">
+          <ModuleTabsList aria-label="Secciones de contabilidad">
+            <ModuleTabsTrigger value="diario"><BookOpen className="w-4 h-4" />Diario</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="mayor"><BookText className="w-4 h-4" />Mayor</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="balanza"><Scale className="w-4 h-4" />Balanza</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="estados"><FileBarChart2 className="w-4 h-4" />Estados</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="impuestos"><Percent className="w-4 h-4" />Impuestos</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="catalogo"><ListTree className="w-4 h-4" />Catálogo</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="configuracion"><Settings2 className="w-4 h-4" />Configuración</ModuleTabsTrigger>
+          </ModuleTabsList>
+        </div>
 
         <TabsContent value="diario">
           <JournalTab accounts={accounts} canCreate={canCreate} />
@@ -97,7 +106,7 @@ const AccountingManagement = () => {
           <TaxesTab />
         </TabsContent>
         <TabsContent value="catalogo">
-          <AccountsTab accounts={accounts} canManage={canManage} onChanged={() => void loadAccounts()} />
+          <AccountsTab accounts={accounts} loading={accountsLoading} loadError={accountsError} canManage={canManage} onChanged={() => void loadAccounts()} />
         </TabsContent>
         <TabsContent value="configuracion">
           <SettingsTab accounts={accounts} canManage={canManage} />

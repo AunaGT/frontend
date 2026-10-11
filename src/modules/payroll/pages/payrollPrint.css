@@ -1,4 +1,8 @@
 @media print {
+  .payroll-payslip,
+  body.payroll-printing .payroll-receipt,
+  body.payroll-printing .payroll-receipt [data-slot="dialog-header"] { background:#fff !important; color:#111 !important; box-shadow:none !important; }
+  .payroll-payslip * { color:#111 !important; border-color:#bbb !important; }
   body.payroll-printing * { visibility: hidden !important; }
   body.payroll-printing .payroll-receipt,
   body.payroll-printing .payroll-receipt * { visibility: visible !important; }

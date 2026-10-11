@@ -33,7 +33,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useModules } from '@/context/useModules'
 
 // Feature imports
-import { useSalesData, normalizeRawSale } from './hooks'
+import { useSalesData } from './hooks'
 import {
     SalesKPICards,
     SalesFilters,
@@ -44,7 +44,6 @@ import {
 import { STATUS_DB_NAMES, NegativeStockDialogState, SaleStatusKey } from './types'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getApiBaseUrl, getAuthToken } from '@/services/api'
-import { fetchSaleById } from '@/services/saleService'
 import { hasNewSaleDraft } from '@/services/saleDraftStorage'
 
 const API_URL = getApiBaseUrl()
@@ -118,19 +117,9 @@ const SalesManagement = (_props: SalesManagementProps) => {
         }
     }
 
-    const handleViewSale = async (sale: Sale) => {
+    const handleViewSale = (sale: Sale) => {
         setSelectedSale(sale)
         setIsViewSaleOpen(true)
-        try {
-            const raw = await fetchSaleById(sale.reference ?? sale.id)
-            setSelectedSale(normalizeRawSale(raw))
-        } catch (e) {
-            toast({
-                title: 'Error',
-                description: (e as Error).message || 'No se pudo cargar el detalle de la venta',
-                variant: 'destructive',
-            })
-        }
     }
 
     // Cash closure validation
@@ -245,11 +234,11 @@ const SalesManagement = (_props: SalesManagementProps) => {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="max-w-full overflow-x-auto"><TabsList variant="detail" aria-label="Estado de las ventas"><TabsTrigger value="all">Todas</TabsTrigger><TabsTrigger value="completed">Completadas</TabsTrigger><TabsTrigger value="cancelled">Canceladas</TabsTrigger></TabsList></div>
                     <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2"><Label className="text-xs text-muted-foreground">Filas por página</Label><Select value={String(salesData.pageSize)} onValueChange={(value) => salesData.setPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Filas por página"><SelectValue /></SelectTrigger><SelectContent>{[5, 10, 25, 50].map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></div>
-                        <div className="hidden md:block"><ModuleTabBar<'table' | 'cards'> value={salesData.viewMode ?? 'table'} onValueChange={salesData.setViewMode!} ariaLabel="Vista de ventas" items={[{value: 'table', label: '', icon: Table2}, {value: 'cards', label: '', icon: LayoutGrid}]} /></div>
+                        <div className="flex items-center gap-2"><Label className="text-xs text-muted-foreground">Filas por página</Label><Select value={String(salesData.pageSize)} onValueChange={(value) => salesData.setPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Filas por página"><SelectValue /></SelectTrigger><SelectContent>{salesData.pageSizeOptions.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></div>
+                        <div className="hidden md:block"><ModuleTabBar<'table' | 'cards'> value={salesData.viewMode ?? 'table'} onValueChange={salesData.setViewMode!} ariaLabel="Vista de ventas" items={[{value: 'table', label: '', ariaLabel: 'Tabla', icon: Table2}, {value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid}]} /></div>
                     </div>
                 </div>
-                <TabsContent value={salesData.filters.statusFilter} className="mt-4">
+                <TabsContent ref={salesData.cardContainerRef} value={salesData.filters.statusFilter} className="mt-4">
                     <SalesStatusTable
                         statusKey={salesData.filters.statusFilter === 'all' ? undefined : salesData.filters.statusFilter}
                         viewMode={salesData.viewMode ?? 'table'}

@@ -89,6 +89,7 @@ export interface UpdateUserPayload {
 }
 
 export interface UsersQueryParams {
+  includeSummary?: boolean;
   status?: string;
   sort?: string;
   direction?: string;
@@ -100,6 +101,7 @@ export interface UsersQueryParams {
 }
 
 export interface UsersResponse {
+  summary?: Record<string, number>;
   items: User[];
   page: number;
   pageSize: number;
@@ -111,6 +113,7 @@ export interface UsersResponse {
 
 export const getUsers = async (params?: UsersQueryParams): Promise<UsersResponse> => {
   const search = new URLSearchParams();
+  if (params?.includeSummary) search.set('includeSummary', 'true');
   if (params?.page) search.set("page", String(params.page));
   if (params?.pageSize) search.set("pageSize", String(params.pageSize));
   if (params?.role_id) search.set("role_id", String(params.role_id));

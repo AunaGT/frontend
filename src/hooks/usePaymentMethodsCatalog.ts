@@ -24,6 +24,7 @@ export interface PaymentMethodsCatalogParams {
   pageSize?: number
   search?: string
   order?: 'asc' | 'desc'
+  includeSummary?: boolean
 }
 
 export interface PaymentMethodsCatalogResponse {
@@ -34,6 +35,7 @@ export interface PaymentMethodsCatalogResponse {
   totalItems: number
   nextPage: number | null
   prevPage: number | null
+  summary?: { total: number; immediate: number; credit: number }
 }
 
 export function paymentMethodUsageCounts(m: PaymentMethodCatalog) {
@@ -43,16 +45,17 @@ export function paymentMethodUsageCounts(m: PaymentMethodCatalog) {
 }
 
 export function usePaymentMethodsCatalog(params?: PaymentMethodsCatalogParams) {
-  const { page = 1, pageSize = 20, search = '', order = 'asc' } = params || {}
+  const { page = 1, pageSize = 20, search = '', order = 'asc', includeSummary = false } = params || {}
 
   return useQuery<PaymentMethodsCatalogResponse>({
-    queryKey: [...PAYMENT_METHODS_CATALOG_QUERY_KEY, page, pageSize, search, order],
+    queryKey: [...PAYMENT_METHODS_CATALOG_QUERY_KEY, page, pageSize, search, order, includeSummary],
     queryFn: async () => {
       const q = new URLSearchParams()
       q.set('page', String(page))
       q.set('pageSize', String(pageSize))
       if (search.trim()) q.set('search', search.trim())
       q.set('order', order)
+      if (includeSummary) q.set('includeSummary', 'true')
       return apiFetch<PaymentMethodsCatalogResponse>(`/catalogs/payment-methods?${q.toString()}`)
     },
     staleTime: 60 * 1000,

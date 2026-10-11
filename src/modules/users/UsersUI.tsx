@@ -292,7 +292,7 @@ export function Feedback({
         'No hay resultados para esta consulta.'
       )}
       {!!error && retry && (
-        <Button className="ml-3 btn-auna-outline text-xs" onClick={retry}>
+        <Button variant="outline" className="ml-3" onClick={retry}>
           Reintentar
         </Button>
       )}

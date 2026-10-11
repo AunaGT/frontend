@@ -11,8 +11,12 @@ export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLE
 export type QuoteLine = {
   id: string;
   product_id: string;
-  qty: number;
-  qty_fulfilled?: number;
+  qty: string | number;
+  qty_fulfilled?: string | number;
+  item_name?:string;
+  item_kind?:'STANDARD'|'KIT'|'SERVICE';
+  unit_label?:string;
+  quantity_decimals?:number;
   unit_price: number | string;
   line_total: number | string;
   sort_order: number;
@@ -74,7 +78,7 @@ export type Quote = {
 
 export type QuoteLinePayload = {
   product_id: string;
-  qty: number;
+  qty: string | number;
   unit_price?: number;
 };
 
@@ -95,6 +99,7 @@ export type CreateQuotePayload = {
 };
 
 export type QuotesListResponse = {
+  summary?: Record<string, number>;
   items: Quote[];
   page: number;
   pageSize: number;
@@ -118,6 +123,7 @@ export function quoteStatusLabel(status: QuoteStatus | string): string {
 }
 
 export async function fetchQuotes(params?: {
+  includeSummary?: boolean;
   page?: number;
   pageSize?: number;
   status?: string;
@@ -127,6 +133,7 @@ export async function fetchQuotes(params?: {
   date_to?: string;
 }): Promise<QuotesListResponse> {
   const q = new URLSearchParams();
+  if (params?.includeSummary) q.set("includeSummary", "true");
   if (params?.page != null) q.set("page", String(params.page));
   if (params?.pageSize != null) q.set("pageSize", String(params.pageSize));
   if (params?.status) q.set("status", params.status);
@@ -202,7 +209,10 @@ export type PublicQuote = {
     product_name?: string | null;
     barcode?: string | null;
     image_url?: string | null;
-    qty: number;
+    item_kind?: 'STANDARD' | 'KIT' | 'SERVICE';
+    unit_label?: string | null;
+    quantity_decimals?: number;
+    qty: number | string;
     unit_price: number | string;
     line_total: number | string;
   }>;

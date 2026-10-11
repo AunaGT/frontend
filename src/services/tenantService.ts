@@ -126,6 +126,7 @@ export interface Transfer {
 }
 
 export interface TransfersResponse {
+  summary?: Record<string, number>;
   items: Transfer[];
   page: number;
   pageSize: number;
@@ -134,6 +135,7 @@ export interface TransfersResponse {
 }
 
 export const fetchTransfers = (params?: {
+  includeSummary?: boolean;
   direction?: "in" | "out" | "all";
   status?: TransferStatus;
   search?: string;
@@ -143,6 +145,7 @@ export const fetchTransfers = (params?: {
   pageSize?: number;
 }) => {
   const q = new URLSearchParams();
+  if (params?.includeSummary) q.set("includeSummary", "true");
   if (params?.direction) q.set("direction", params.direction);
   if (params?.status) q.set("status", params.status);
   if (params?.search) q.set("search", params.search);

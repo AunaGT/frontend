@@ -22,7 +22,8 @@ import '../merchandise.css'
 import { PaymentStatusBadge } from '../components/PaymentStatusBadge'
 import { Pagination } from '@/components/shared/Pagination'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -320,7 +321,7 @@ export default function IncomingMerchandiseDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="merchandise-page mx-auto max-w-[1560px] space-y-5 p-6">
+      <div className="merchandise-page mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
 
         <LoadingState variant="detail" message="Cargando entrada de mercancía…" />
       </div>
@@ -362,7 +363,7 @@ export default function IncomingMerchandiseDetailPage() {
   const abonoIsPrimaryCta = hasAbonosDetail && amountPending > 0.004
 
   const visibleItems = detailData.items.slice((itemsPage - 1) * 10, itemsPage * 10)
-  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
 
     <h1 className="sr-only">Entrada de mercadería</h1><div className="auna-page-toolbar"><p className="auna-module-description">Registro {detailData.id.slice(0,8).toUpperCase()} · {formatDateShort(detailData.date)}</p>
 <PaymentStatusBadge status={detailData.payment_status} /></div>
@@ -372,7 +373,7 @@ export default function IncomingMerchandiseDetailPage() {
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Recepción</p><p className="flex items-center gap-2 text-sm"><Calendar className="h-4 w-4 text-brand-orange" />{formatDate(detailData.date)}</p><p className="text-sm text-muted-foreground">{detailData.items.length} productos recibidos</p></div>
       <div className="space-y-2"><p className="text-xs text-muted-foreground">Registrado por</p><p className="flex items-center gap-2 font-medium"><User className="h-4 w-4 text-brand-orange" />{detailData.registeredBy.name}</p><p className="text-sm text-muted-foreground">{detailData.registeredBy.email}</p></div>
     </CardContent></Card>
-    <Tabs defaultValue="items"><TabsList><TabsTrigger value="items">Partidas ({detailData.items.length})</TabsTrigger><TabsTrigger value="payments">Pagos y condiciones</TabsTrigger></TabsList>
+    <Tabs defaultValue="items"><div className="max-w-full overflow-x-auto pb-1"><ModuleTabsList aria-label="Detalles de la entrada"><ModuleTabsTrigger value="items">Partidas ({detailData.items.length})</ModuleTabsTrigger><ModuleTabsTrigger value="payments">Pagos y condiciones</ModuleTabsTrigger></ModuleTabsList></div>
       <TabsContent value="items" className="mt-5">
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0 space-y-5">
           <><section className="auna-data-table-shell"><h2 className="border-b p-4 font-semibold">Productos recibidos</h2><div className="overflow-x-auto"><table className="w-full min-w-[660px]"><thead><tr><th>Producto</th><th>Código</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th></tr></thead><tbody>{visibleItems.map(item => <tr key={item.id}><td><div className="flex items-center gap-3">{item.product.image_url ? <img src={item.product.image_url} alt={item.product.name} loading="lazy" className="h-11 w-11 shrink-0 rounded-lg border object-cover" /> : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<div><strong className="font-medium">{item.product.name}</strong><small className="block text-muted-foreground">{[item.product.brand,item.product.size].filter(Boolean).join(' · ')}</small></div></div></td><td>{item.product.barcode || '—'}</td><td>{item.quantity}</td><td className="whitespace-nowrap">{formatCurrency(item.unit_cost)}</td><td className="whitespace-nowrap font-medium">{formatCurrency(item.subtotal)}</td></tr>)}</tbody></table></div></section>

@@ -1,4 +1,5 @@
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useDeferredValue, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -18,7 +19,7 @@ import { apiFetch } from '@/services/api'
 import { getFriendlyTypeName } from './getFriendlyTypeName'
 import { CodesDialog, type CodesDialogState, type Promotion, type PromotionType } from './PromotionsManagement'
 
-type PromotionPage = { items: Promotion[]; page: number; pageSize: number; totalPages: number; totalItems: number }
+type PromotionPage = { items: Promotion[]; page: number; pageSize: number; totalPages: number; totalItems: number; summary?: Record<string, number> }
 const label = (value: string) => value === 'active' ? 'Activa' : value === 'scheduled' ? 'Programada' : value === 'ended' ? 'Finalizada' : 'Inactiva'
 
 function statusOf(promo: Promotion) {
@@ -49,9 +50,9 @@ export default function PromotionsListPage() {
 
   const typesQuery = useQuery({ queryKey: ['promotion-types'], queryFn: () => apiFetch<PromotionType[]>('/promotions/types') })
   const listQuery = useQuery({
-    queryKey: ['promotions', page, deferredSearch, type, status, scope, dateFrom, dateTo],
+    queryKey: ['promotions', page, deferredSearch, type, status, scope, dateFrom, dateTo, 'summary'],
     queryFn: () => {
-      const params = new URLSearchParams({ page: String(page), pageSize: '10' })
+      const params = new URLSearchParams({ page: String(page), pageSize: '10', includeSummary: 'true' })
       if (deferredSearch) params.set('search', deferredSearch)
       if (type !== 'all') params.set('type_id', type)
       if (status !== 'all') params.set('status', status)
@@ -62,6 +63,7 @@ export default function PromotionsListPage() {
     },
   })
   const rows = listQuery.data?.items ?? []
+  const summary = listQuery.isError ? undefined : listQuery.data?.summary
   const changeFilter = (setter: (value: string) => void, value: string) => { setter(value); setPage(1) }
   const date = (value?: string) => value ? new Intl.DateTimeFormat(locale || 'es-GT', { timeZone: 'America/Guatemala', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(value.endsWith('T00:00:00.000Z') ? `${value.slice(0, 10)}T12:00:00-06:00` : value)) : 'Sin fecha límite'
   const uses = (promo: Promotion) => promo.usage?.used ?? promo.codes?.reduce((sum, code) => sum + code.current_uses, 0) ?? 0
@@ -94,6 +96,14 @@ export default function PromotionsListPage() {
     <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
       <h1 className="sr-only">Promociones</h1>
 
+      <MetricStrip label="Resumen promociones consultadas" loading={listQuery.isLoading} items={[
+        { label: 'Promociones', value: summary?.total ?? '—' },
+        { label: 'Activas', value: summary?.active ?? '—' },
+        { label: 'Programadas', value: summary?.scheduled ?? '—' },
+        { label: 'Finalizadas', value: summary?.ended ?? '—' },
+        { label: 'Inactivas', value: summary?.inactive ?? '—' },
+      ]} />
+
       <CompactFilterPanel actions={<>{canManage && <Button size="lg" className="h-12 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong" onClick={() => navigate('/promociones/nueva')}><Plus className="mr-2 h-5 w-5" />Nueva promoción</Button>}</>} title="Filtros de promociones" activeCount={Number(Boolean(search.trim()))+Number(type!=='all')+Number(status!=='all')+Number(scope!=='all')+Number(Boolean(dateFrom))+Number(Boolean(dateTo))} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => changeFilter(setSearch,'')}] : []),...(type !== 'all' ? [{label: `Tipo: ${getFriendlyTypeName(typesQuery.data?.find(t => String(t.id) === type)?.name)}`,onRemove: () => changeFilter(setType,'all')}] : []),...(status !== 'all' ? [{label: `Estado: ${label(status)}`,onRemove: () => changeFilter(setStatus,'all')}] : []),...(scope !== 'all' ? [{label: `Alcance: ${scope === 'specific' ? 'Sucursales específicas' : 'Todas las sucursales'}`,onRemove: () => changeFilter(setScope,'all')}] : []),...(dateFrom ? [{label: `Desde: ${dateFrom}`,onRemove: () => changeFilter(setDateFrom,'')}] : []),...(dateTo ? [{label: `Hasta: ${dateTo}`,onRemove: () => changeFilter(setDateTo,'')}] : [])]} onClear={() => {setSearch('');setType('all');setStatus('all');setScope('all');setDateFrom('');setDateTo('');setPage(1)}} search={<div className="relative"><Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" /><Input aria-label="Buscar promociones" className="pl-12" placeholder="Buscar por nombre, código o descripción…" value={search} onChange={(event) => changeFilter(setSearch, event.target.value)} /></div>}>
           <Select value={type} onValueChange={(value) => changeFilter(setType, value)}><SelectTrigger aria-label="Tipo de promoción"><SelectValue placeholder="Todos los tipos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los tipos</SelectItem>{typesQuery.data?.map((item) => <SelectItem key={item.id} value={String(item.id)}>{getFriendlyTypeName(item.name)}</SelectItem>)}</SelectContent></Select>
           <Select value={status} onValueChange={(value) => changeFilter(setStatus, value)}><SelectTrigger aria-label="Estado de promoción"><SelectValue placeholder="Todos los estados" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="active">Activas</SelectItem><SelectItem value="scheduled">Programadas</SelectItem><SelectItem value="ended">Finalizadas</SelectItem><SelectItem value="inactive">Inactivas</SelectItem></SelectContent></Select>
@@ -101,7 +111,6 @@ export default function PromotionsListPage() {
           <label className="text-xs text-muted-foreground">Inicio desde<Input type="date" className="mt-1" value={dateFrom} onChange={(event) => changeFilter(setDateFrom, event.target.value)} /></label>
           <label className="text-xs text-muted-foreground">Inicio hasta<Input type="date" className="mt-1" value={dateTo} onChange={(event) => changeFilter(setDateTo, event.target.value)} /></label>
       </CompactFilterPanel>
-
       <><section className="auna-data-table-shell" aria-label="Listado de promociones" aria-busy={listQuery.isFetching}>
         {listQuery.isFetching && !listQuery.isLoading && <LoadingIndicator message="Actualizando promociones…" className="px-4 py-2" />}
         {listQuery.isLoading ? <LoadingState columns={['Promoción', 'Tipo', 'Vigencia', 'Alcance', 'Estado', 'Uso', 'Acciones']} message="Cargando promociones…" />

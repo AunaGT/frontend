@@ -78,8 +78,8 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   }
 
   const tableBody = (quote.lines || []).map((line) => [
-    line.product?.name || line.product_id,
-    String(line.qty),
+    line.item_name ?? line.product?.name ?? line.product_id,
+    `${line.qty} ${line.unit_label || ''}`.trim(),
     fmt(num(line.unit_price)),
     fmt(num(line.line_total)),
   ]);

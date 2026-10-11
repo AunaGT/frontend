@@ -22,7 +22,8 @@ export interface ReturnDetail {
   totalRefund: number;
   items: Array<{
     productName: string;
-    qty: number;
+    qty: number | string;
+    unitLabel?: string;
     refund: number;
   }>;
 }
@@ -61,11 +62,14 @@ export interface Sale extends BaseEntity {
   dueDate?: string;
   creditPaid?: number;
   creditBalance?: number;
+  paymentStatus?: 'PENDING' | 'PARTIAL' | 'PAID';
   /** Referencia legible (ej. V-000001). Se usa en UI y ticket; el id sigue siendo el UUID para la API. */
   reference?: string;
   date: string;
   customer: string;
   customerNit?: string; // NIT del cliente (opcional)
+  customerContact?: { id: string; name: string; imageUrl?: string; address?: string; phone?: string; email?: string; taxId?: string };
+  branchName?: string;
   isFinalConsumer: boolean; // Si es consumidor final (CF)
   total: number;
   subtotal?: number; // Subtotal antes de descuentos
@@ -76,6 +80,7 @@ export interface Sale extends BaseEntity {
   returnDetails?: ReturnDetail[]; // Detalles de las devoluciones
   promotions?: SalePromotion[]; // Promociones aplicadas
   items: number;
+  lineCount?: number;
   payment: PaymentMethod;
   status: SaleStatus;
   amountReceived: number;

@@ -2,8 +2,10 @@
  * Detalle de producto organizado por tareas, con edición agrupada.
  */
 import { usePageTrail } from '@/components/layout/PageNavigation'
+import { ServiceQuantityFields } from './ServiceQuantityFields'
+import { ProductCommercialHistory } from './ProductCommercialHistory'
 import { useMemo, useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -51,6 +53,7 @@ import '@/components/shared/recordEditLayout.css'
 type CategoryItem = { id: number | string; name: string }
 
 const getStatusBadge = (product: Product) => {
+  if (product.kind === 'SERVICE') return <Badge variant="secondary" className={product.availableForSale !== false ? 'border-0 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300' : undefined}>{product.availableForSale !== false ? 'Disponible para venta' : 'No disponible'}</Badge>
   if (product.kind === 'KIT') {
     return <Badge variant="outline">Kit / combo</Badge>
   }
@@ -66,12 +69,13 @@ const getStatusBadge = (product: Product) => {
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const canEdit = hasPermission('products.edit')
+  const hasEditPermission = hasPermission('products.edit')
   const canDelete = hasPermission('products.delete')
   const canViewCost = hasPermission('products.create')
-  const { locale, currencyCode } = useSystemSettings()
+  const { locale, currencyCode, inventoryServicesEnabled } = useSystemSettings()
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
 
   const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
@@ -126,10 +130,21 @@ export default function ProductDetailPage() {
     () => (rawProduct ? adaptApiProduct(rawProduct) : null),
     [rawProduct]
   )
+  const isService = product?.kind === 'SERVICE'
+  const serviceReadOnly = isService && !inventoryServicesEnabled
+  const canEdit = hasEditPermission && !serviceReadOnly
 
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(() => canEdit && searchParams.get('editar') === '1')
+  useEffect(() => { if (!canEdit) setIsEditing(false) }, [canEdit])
+  useEffect(() => {
+    if (!isEditing && searchParams.get('editar') === '1') {
+      const next = new URLSearchParams(searchParams)
+      next.delete('editar')
+      setSearchParams(next, { replace: true })
+    }
+  }, [isEditing, searchParams, setSearchParams])
   const [detailTab, setDetailTab] = useState('information')
-  usePageTrail([{ label: 'Detalle' }, ...(isEditing ? [{ label: 'Editar' }] : detailTab !== 'information' ? [{ label: ({lots:'Lotes y caducidades',locations:'Existencias por ubicación',kit:'Componentes del kit'} as Record<string,string>)[detailTab] || 'Información y precios' }] : [])])
+  usePageTrail([...(isService ? [{label:'Servicios',to:'/inventario?tipo=services'}] : []),{ label: product?.name || 'Detalle' }, ...(isEditing ? [{ label: 'Editar' }] : detailTab !== 'information' ? [{ label: ({lots:'Lotes y caducidades',locations:'Existencias por ubicación',kit:'Componentes del kit'} as Record<string,string>)[detailTab] || 'Información y precios' }] : [])])
   const [editName, setEditName] = useState('')
   const [editPrice, setEditPrice] = useState('')
   const [editPriceWholesale, setEditPriceWholesale] = useState('')
@@ -148,10 +163,14 @@ export default function ProductDetailPage() {
   const [editAvailableForSale, setEditAvailableForSale] = useState(true)
   const [editTracksExpiry, setEditTracksExpiry] = useState(false)
   const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const [editServiceUnit,setEditServiceUnit] = useState('')
+  const [editQuantityDecimals,setEditQuantityDecimals] = useState('0')
 
   useEffect(() => {
     if (!product) return
     setEditName(product.name ?? '')
+    setEditServiceUnit(product.serviceUnitLabel ?? '')
+    setEditQuantityDecimals(String(product.quantityDecimals ?? 0))
     setEditPrice(String(product.price ?? ''))
     setEditPriceWholesale(
       product.priceWholesale != null && product.priceWholesale > 0 ? String(product.priceWholesale) : ''
@@ -287,6 +306,8 @@ export default function ProductDetailPage() {
 
   const resetEditState = () => {
     if (!product || !rawProduct) return
+    setEditServiceUnit(product.serviceUnitLabel ?? '')
+    setEditQuantityDecimals(String(product.quantityDecimals ?? 0))
     setEditName(product.name ?? '')
     setEditPrice(String(product.price ?? ''))
     setEditPriceWholesale(
@@ -316,6 +337,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-4 px-4 py-5 sm:px-8">
+      {serviceReadOnly && <p role="status" className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Los servicios están desactivados para esta empresa. Puedes consultar este registro y su historial, pero no modificarlo ni crear nuevas operaciones.</p>}
       <header className="space-y-4">
 
         <ProductDetailSummary product={product} category={categoryLabel} status={getStatusBadge(product)} actions={
@@ -326,7 +348,7 @@ export default function ProductDetailPage() {
             {canDelete && <DropdownMenu>
               <DropdownMenuTrigger asChild><Button variant="outline"><MoreHorizontal className="mr-2 h-4 w-4" aria-hidden="true" />Más acciones</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {branches.length > 1 && <DropdownMenuItem onSelect={() => setIsBranchDialogOpen(true)}>
+                {!isService && branches.length > 1 && <DropdownMenuItem onSelect={() => setIsBranchDialogOpen(true)}>
                   <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />Quitar de esta sucursal
                 </DropdownMenuItem>}
                 <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setIsDeleteDialogOpen(true)}>
@@ -338,8 +360,9 @@ export default function ProductDetailPage() {
         } />
         {!isEditing && <MetricStrip label="Precio y existencias" items={[
           { label: 'Precio de venta', value: fmt(product.price) },
+          ...(isService ? [{label:'Unidad de cobro',value:product.serviceUnitLabel || '—'},{label:'Decimales',value:product.quantityDecimals ?? 0}] : [
           { label: 'Stock actual', value: `${product.stock} unidades` },
-          { label: 'Stock mínimo', value: `${product.minStock} unidades` },
+          { label: 'Stock mínimo', value: `${product.minStock} unidades` }]),
         ]} />}
       </header>
       <AlertDialog open={isBranchDialogOpen} onOpenChange={setIsBranchDialogOpen}>
@@ -433,7 +456,7 @@ export default function ProductDetailPage() {
                 { id: 'edit-brand', label: 'Marca', value: editBrand, set: setEditBrand },
                 { id: 'edit-size', label: 'Presentación', value: editSize, set: setEditSize },
                 { id: 'edit-barcode', label: 'Código de barras', value: editBarcode, set: setEditBarcode },
-              ].map(field => <div key={field.id} className="min-w-0 space-y-1.5">
+              ].filter(field=>!isService || !['edit-brand','edit-size'].includes(field.id)).map(field => <div key={field.id} className="min-w-0 space-y-1.5">
                 <Label htmlFor={field.id}>{field.label}</Label>
                 <Input id={field.id} value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
               </div>)}
@@ -471,7 +494,7 @@ export default function ProductDetailPage() {
                       )}
                     </div>
 
-                    <div>
+                    {!isService && <div>
                       <Label id="edit-supplier-label" className="text-muted-foreground">Proveedor</Label>
                       {isEditing && canEdit ? (
                         <Popover>
@@ -503,7 +526,7 @@ export default function ProductDetailPage() {
                       ) : (
                         <p className="text-foreground font-medium mt-1">{supplierLabel}</p>
                       )}
-                    </div>
+                    </div>}
 
               <div className="space-y-1.5 sm:col-span-2 xl:col-span-3">
                 <Label htmlFor="edit-description">Descripción</Label>
@@ -521,7 +544,7 @@ export default function ProductDetailPage() {
               { id: 'edit-price', label: 'Precio de venta', value: editPrice, set: setEditPrice },
               { id: 'edit-wholesale', label: 'Precio mayoreo', value: editPriceWholesale, set: setEditPriceWholesale },
               { id: 'edit-promotion', label: 'Precio promoción', value: editPricePromotion, set: setEditPricePromotion },
-              ...(canViewCost ? [{ id: 'edit-cost', label: 'Costo', value: editCost, set: setEditCost }] : []),
+              ...(canViewCost && !isService ? [{ id: 'edit-cost', label: 'Costo', value: editCost, set: setEditCost }] : []),
             ].map(field => <div key={field.id} className="space-y-1.5">
               <Label htmlFor={field.id}>{field.label}</Label>
               <Input id={field.id} type="number" value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
@@ -533,18 +556,20 @@ export default function ProductDetailPage() {
         </fieldset>
         <fieldset className="record-edit-panel">
           <legend className="sr-only">Control de inventario</legend>
-          <h3 className="record-edit-heading" aria-hidden="true"><Boxes />Control de inventario</h3>
+          <h3 className="record-edit-heading" aria-hidden="true"><Boxes />{isService ? 'Condiciones del servicio' : 'Control de inventario'}</h3>
           <div className="grid items-start gap-4 sm:grid-cols-2">
+            {isService ? <ServiceQuantityFields unit={editServiceUnit} decimals={editQuantityDecimals} onUnitChange={setEditServiceUnit} onDecimalsChange={setEditQuantityDecimals} disabled={isSaving} /> : <>
             <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual</Label><Input id="edit-stock" type="number" value={editStock} onChange={event => setEditStock(event.target.value)} disabled={isSaving} /></div>
             <div className="space-y-1.5"><Label htmlFor="edit-min-stock">Stock mínimo</Label><Input id="edit-min-stock" type="number" value={editMinStock} onChange={event => setEditMinStock(event.target.value)} disabled={isSaving} /></div>
+            </>}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3"><Label htmlFor="edit-available-sale">Disponible para la venta</Label><Switch id="edit-available-sale" checked={editAvailableForSale} onCheckedChange={setEditAvailableForSale} disabled={isSaving} /></div>
               <p className="text-xs text-muted-foreground">Si lo desactivas, no aparecerá al registrar ventas.</p>
             </div>
-            <div className="space-y-2">
+            {!isService && <div className="space-y-2">
               <div className="flex items-center justify-between gap-3"><Label htmlFor="edit-tracks-expiry">Control de caducidad</Label><Switch id="edit-tracks-expiry" checked={editTracksExpiry} onCheckedChange={setEditTracksExpiry} disabled={isSaving} /></div>
               <p className="text-xs text-muted-foreground">Exige fecha de caducidad en cada ingreso de mercancía.</p>
-            </div>
+            </div>}
           </div>
         </fieldset>
         </div>
@@ -555,6 +580,7 @@ export default function ProductDetailPage() {
                   if (!product || !rawProduct) return
                   try {
                     const numeric = (v: string) => (v ? Number(v) : undefined)
+                    if (isService && (!editServiceUnit.trim() || !/^[0-4]$/.test(editQuantityDecimals))) throw new Error('Ingresa una unidad de cobro y de 0 a 4 decimales')
                     const rawCategoryId = (rawProduct as { category_id?: string | number } | null)?.category_id
                     const rawSupplierId = (rawProduct as { supplier_id?: string | number } | null)?.supplier_id
                     const updated = await updateProductAsync({
@@ -563,23 +589,25 @@ export default function ProductDetailPage() {
                         id: product.id,
                         name: editName.trim() || product.name,
                         category_id: editCategoryId ?? rawCategoryId ?? '',
+                        ...(!isService ? {
                         brand: editBrand || undefined,
                         size: editSize || undefined,
                         stock: numeric(editStock),
                         min_stock: numeric(editMinStock),
+                        cost: numeric(editCost),
+                        supplier_id: editSupplierId ?? (rawSupplierId ? String(rawSupplierId) : undefined),
+                        tracks_expiry: editTracksExpiry,
+                        } : {service_unit_label:editServiceUnit.trim(),quantity_decimals:Number(editQuantityDecimals)}),
                         price: numeric(editPrice),
                         price_wholesale: editPriceWholesale.trim() ? Number(editPriceWholesale) : null,
                         price_promotion: editPricePromotion.trim() ? Number(editPricePromotion) : null,
                         promotion_valid_until: editPromotionUntil.trim()
                           ? new Date(editPromotionUntil).toISOString()
                           : null,
-                        cost: numeric(editCost),
                         image_url: editImageUrl ?? product.imageUrl,
-                        supplier_id: editSupplierId ?? (rawSupplierId ? String(rawSupplierId) : undefined),
                         barcode: editBarcode || undefined,
                         description: editDescription || undefined,
                         available_for_sale: editAvailableForSale,
-                        tracks_expiry: editTracksExpiry,
                       },
                     })
                     setRawProduct(updated)
@@ -599,15 +627,16 @@ export default function ProductDetailPage() {
         <div className="overflow-x-auto">
           <TabsList variant="detail" aria-label="Detalles del producto">
             <TabsTrigger value="information"><Info className="mr-2 h-4 w-4" aria-hidden="true" />Información y precios</TabsTrigger>
-            {product.kind !== 'KIT' && <TabsTrigger value="lots"><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />Lotes y caducidades</TabsTrigger>}
-            <TabsTrigger value="locations"><Warehouse className="mr-2 h-4 w-4" aria-hidden="true" />Ubicaciones</TabsTrigger>
-            {(product.kind === 'KIT' || canEdit) && <TabsTrigger value="kit"><Boxes className="mr-2 h-4 w-4" aria-hidden="true" />Kit / combo</TabsTrigger>}
+            {isService && hasPermission('sales.view') && <TabsTrigger value="history">Historial de ventas</TabsTrigger>}
+            {!isService && product.kind !== 'KIT' && <TabsTrigger value="lots"><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true" />Lotes y caducidades</TabsTrigger>}
+            {!isService && <TabsTrigger value="locations"><Warehouse className="mr-2 h-4 w-4" aria-hidden="true" />Ubicaciones</TabsTrigger>}
+            {!isService && (product.kind === 'KIT' || canEdit) && <TabsTrigger value="kit"><Boxes className="mr-2 h-4 w-4" aria-hidden="true" />Kit / combo</TabsTrigger>}
           </TabsList>
         </div>
-        {product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
+        {!isService && product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
           <ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
         </TabsContent>}
-        <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} /></TabsContent>
+        {!isService && <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} /></TabsContent>}
         <TabsContent value="information" forceMount hidden={detailTab !== 'information'} className="mt-5 data-[state=inactive]:hidden">
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <section className="auna-surface min-w-0 space-y-4 rounded-xl border p-5" aria-labelledby="product-information-heading">
@@ -615,10 +644,10 @@ export default function ProductDetailPage() {
               <dl className="grid gap-4 sm:grid-cols-2">
                 {[
                   ['Categoría', categoryLabel || 'Sin categoría'],
-                  ['Proveedor', supplierLabel || 'Sin proveedor'],
+                  ...(isService ? [['Unidad de cobro',product.serviceUnitLabel || '—'],['Decimales de cantidad',String(product.quantityDecimals ?? 0)]] : [['Proveedor', supplierLabel || 'Sin proveedor']]),
                   ['Código de barras', product.barcode || '—'],
                   ['Disponible para venta', product.availableForSale !== false ? 'Sí' : 'No'],
-                  ['Control de caducidad', product.tracksExpiry ? 'Sí' : 'No'],
+                  ...(!isService ? [['Control de caducidad', product.tracksExpiry ? 'Sí' : 'No']] : []),
                 ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>)}
               </dl>
               <div className="border-t pt-4"><h3 className="text-sm font-medium">Descripción</h3><p className="mt-2 whitespace-pre-line break-words text-sm text-muted-foreground">{product.description || 'Sin descripción'}</p></div>
@@ -630,7 +659,7 @@ export default function ProductDetailPage() {
                   ['Precio mayoreo', product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : 'No configurado'],
                   ['Precio promoción', product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : 'No configurado'],
                   ['Promoción hasta', product.promotionValidUntil ? new Date(product.promotionValidUntil).toLocaleString(locale || 'es-GT') : 'Sin fecha'],
-                  ...(canViewCost ? [
+                  ...(canViewCost && !isService ? [
                     ['Costo', fmt(product.cost)],
                     ['Margen de ganancia', `${fmt(product.price - product.cost)} (${product.price > 0 ? (((product.price - product.cost) / product.price) * 100).toFixed(1) : '0'}%)`],
                     ['Valor de inventario', fmt(product.stock * product.cost)],
@@ -640,9 +669,10 @@ export default function ProductDetailPage() {
             </section>
           </div>
         </TabsContent>
-        {(product.kind === 'KIT' || canEdit) && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
+        {!isService && (product.kind === 'KIT' || canEdit) && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
           <ProductKitSection product={product} productId={id} canEdit={canEdit} onUpdated={() => void reloadProduct()} />
         </TabsContent>}
+        {isService && hasPermission('sales.view') && detailTab==='history' && <TabsContent value="history" className="mt-5"><ProductCommercialHistory productId={id} /></TabsContent>}
       </Tabs>}
     </div>
   )

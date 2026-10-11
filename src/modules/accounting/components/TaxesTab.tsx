@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { LoadingState } from '@/components/shared/LoadingState'
@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { Download, Percent } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { getTaxesReport, type TaxesReportResponse } from '@/services/accountingService'
 import { fmtQ, MONTH_LABELS } from './format'
@@ -39,6 +39,7 @@ export const TaxesTab = () => {
   const [data, setData] = useState<TaxesReportResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [exportOpen, setExportOpen] = useState(false)
+  const [retry, setRetry] = useState(0)
 
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i)
 
@@ -48,11 +49,12 @@ export const TaxesTab = () => {
     getTaxesReport(year)
       .then((res) => { if (active) setData(res) })
       .catch((e) => {
+        if (active) setData(null)
         if (active) toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo cargar el reporte de impuestos', variant: 'destructive' })
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [year, toast])
+  }, [year, toast, retry])
 
   const pequeno = data?.regime === 'PEQUENO'
   const hasMovements = data ? data.months.some((m) => m.netSales !== 0 || m.toPay !== 0) : false
@@ -70,32 +72,9 @@ export const TaxesTab = () => {
       ]) : []
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Percent className="h-5 w-5" />Impuestos (IVA)
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {data && (
-              <Badge variant="outline">
-                {pequeno
-                  ? `Pequeño contribuyente · ${Math.round(data.pequenoRate * 100)}%`
-                  : `Régimen general · IVA ${Math.round(data.ivaRate * 100)}%`}
-              </Badge>
-            )}
-            <Button
-              variant="outline" size="sm"
-              disabled={!data || !hasMovements || loading}
-              onClick={() => setExportOpen(true)}
-            >
-              <Download className="h-4 w-4 mr-2" />Exportar
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap items-end gap-3">
+    <section className="space-y-5" aria-label="Impuestos (IVA)">
+      <MetricStrip label="Resumen anual de impuestos" loading={loading} items={summary.length ? summary.map(s => ({ ...s, value: fmtQ(s.value) })) : ['IVA débito (ventas)', 'IVA crédito (compras)', 'IVA a pagar en el año'].map(label => ({ label, value: '—' }))} />
+        <div className="auna-page-toolbar">
           <div className="space-y-1 w-[140px]">
             <Label className="text-xs">Año</Label>
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
@@ -105,30 +84,21 @@ export const TaxesTab = () => {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-xs text-muted-foreground pb-2">
-            Calculado sobre los asientos automáticos de ventas, devoluciones y compras. El régimen y las tasas se cambian en Configuración.
-          </p>
+          {data && !loading && <Badge variant="outline">{pequeno ? `Pequeño contribuyente · ${Math.round(data.pequenoRate * 100)}%` : `Régimen general · IVA ${Math.round(data.ivaRate * 100)}%`}</Badge>}
+          <Button className="sm:ml-auto" variant="outline" disabled={!data || !hasMovements || loading} onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar</Button>
         </div>
+        <p className="text-xs text-muted-foreground">Calculado sobre los asientos automáticos de ventas, devoluciones y compras. El régimen y las tasas se cambian en Configuración.</p>
 
         {loading ? (
           <LoadingState variant="detail" message="Cargando impuestos…" />
         ) : !data ? (
-          <p className="py-10 text-center text-muted-foreground">No se pudo cargar el reporte.</p>
+          <div role="alert" className="py-8 text-center"><p>No se pudo cargar el reporte.</p><Button variant="outline" className="mt-3" onClick={() => setRetry(value => value + 1)}>Reintentar</Button></div>
         ) : !hasMovements ? (
           <p className="py-10 text-center text-muted-foreground">Sin operaciones contabilizadas en {year}.</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {summary.map((s) => (
-                <div key={s.label} className="rounded-md border p-3">
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <p className="text-lg font-semibold">{fmtQ(s.value)}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-md border overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="auna-data-table-shell overflow-x-auto">
+              <table className="auna-data-table">
                 <thead>
                   <tr className="bg-muted/50 text-xs text-muted-foreground">
                     <th className="text-left font-medium px-3 py-2">Mes</th>
@@ -157,7 +127,7 @@ export const TaxesTab = () => {
                           <td className="px-3 py-2 text-right">{cell(m.ivaCredit)}</td>
                         </>
                       )}
-                      <td className={`px-3 py-2 text-right font-medium ${m.toPay < 0 ? 'text-green-600' : ''}`}>
+                      <td className={`px-3 py-2 text-right font-medium ${m.toPay < 0 ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>
                         {m.toPay !== 0 ? fmtQ(m.toPay) : ''}
                       </td>
                     </tr>
@@ -180,7 +150,6 @@ export const TaxesTab = () => {
             </div>
           </>
         )}
-      </CardContent>
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
@@ -193,6 +162,6 @@ export const TaxesTab = () => {
           setExportOpen(false)
         }}
       />
-    </Card>
+    </section>
   )
 }

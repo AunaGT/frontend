@@ -9,18 +9,18 @@
  */
 
 /**
- * Vista para crear un nuevo proveedor. Mismo estilo que detalle/editar.
+ * Vista para crear un nuevo contacto.
  * Conserva todos los atributos del formulario de proveedores.
  */
 import { useState, useMemo, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { ArrowLeft, Building2, ChevronsUpDown, Check, Package, ShoppingBag, User } from 'lucide-react'
+import { Building2, ChevronsUpDown, Check, CreditCard, FileText, Loader2, Package, Save, ShoppingBag, User, UserRound } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useCreateSupplier } from '@/hooks/useCreateSupplier'
 import { useCategories } from '@/hooks/useCategories'
@@ -31,10 +31,18 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
+import { ContactImage } from '@/components/shared/ContactImage'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { SUPPLIERS_QUERY_KEY } from '@/hooks/useSuppliers'
+import { uploadSupplierImage } from '@/services/supplierService'
+import './contactsCreate.css'
 
 export default function SupplierCreatePage() {
   const navigate = useNavigate()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const { hasPermission } = useAuthPermissions()
   const createSupplierMutation = useCreateSupplier()
   const { data: categoriesData } = useCategories()
   const { data: paymentTermsData } = usePaymentTerms()
@@ -48,6 +56,19 @@ export default function SupplierCreatePage() {
   const [creditLimit, setCreditLimit] = useState('')
   const [entityKind, setEntityKind] = useState<'PERSON' | 'ORGANIZATION'>('ORGANIZATION')
   const [partyKind, setPartyKind] = useState<'SUPPLIER' | 'CUSTOMER'>('SUPPLIER')
+  const [photo, setPhoto] = useState<File | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const canUploadPhoto = hasPermission(partyKind === 'CUSTOMER' ? 'contacts.clients.edit' : 'contacts.suppliers.edit')
+
+  useEffect(() => {
+    if (!photo) { setPhotoPreview(null); return }
+    const url = URL.createObjectURL(photo)
+    setPhotoPreview(url)
+    return () => URL.revokeObjectURL(url)
+  }, [photo])
+
+  useEffect(() => { if (!canUploadPhoto) setPhoto(null) }, [canUploadPhoto])
   const [newCategoryIds, setNewCategoryIds] = useState<string[]>([])
   const [newPaymentTermIds, setNewPaymentTermIds] = useState<string[]>([])
   const [newDefaultPaymentTermId, setNewDefaultPaymentTermId] = useState<string | undefined>(undefined)
@@ -77,6 +98,7 @@ export default function SupplierCreatePage() {
   }, [newPaymentTermIds])
 
   const handleSubmit = async () => {
+    if (createSupplierMutation.isPending || uploadingPhoto) return
     if (!newName?.trim()) {
       toast({
         title: 'Campo requerido',
@@ -141,8 +163,19 @@ export default function SupplierCreatePage() {
         category_ids: partyKind === 'SUPPLIER' ? newCategoryIds.map((id) => Number(id)) : undefined,
         payment_terms,
       })
-      toast({ title: 'Contacto agregado', description: 'El contacto se creó correctamente' })
       const id = (supplier as { id?: string })?.id
+      if (id && photo && canUploadPhoto) {
+        setUploadingPhoto(true)
+        try {
+          await uploadSupplierImage(id, photo)
+          await queryClient.invalidateQueries({ queryKey: SUPPLIERS_QUERY_KEY })
+        } catch (error) {
+          toast({ title: 'Contacto creado; foto pendiente', description: error instanceof Error ? error.message : 'Puedes cargarla desde la edición del contacto.', variant: 'destructive' })
+          navigate(`/contactos/${id}`)
+          return
+        } finally { setUploadingPhoto(false) }
+      }
+      toast({ title: 'Contacto agregado', description: 'El contacto se creó correctamente' })
       if (id) navigate(`/contactos/${id}`)
       else navigate('/contactos')
     } catch (err: unknown) {
@@ -153,184 +186,195 @@ export default function SupplierCreatePage() {
     }
   }
 
-  const isLoading = createSupplierMutation.isPending
+  const isLoading = createSupplierMutation.isPending || uploadingPhoto
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="contact-create-page mx-auto w-full max-w-[1560px] p-4 sm:p-8">
       <h1 className="sr-only">Nuevo contacto</h1>
 
-      <Card className="auna-surface">
-        <CardHeader>
-          <CardTitle>Información del contacto</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="border-b pb-5 space-y-5">
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Tipo de relación con el negocio
-              </p>
-              <RadioGroup
-                value={partyKind}
-                onValueChange={(v) => {
-                  const next = v === 'CUSTOMER' ? 'CUSTOMER' : 'SUPPLIER'
-                  setPartyKind(next)
-                  if (next === 'CUSTOMER') setNewCategoryIds([])
-                }}
-                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-              >
-                <label
-                  htmlFor="party-supplier"
-                  className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors',
-                    partyKind === 'SUPPLIER'
-                      ? 'border-liquor-amber bg-liquor-amber/10 shadow-sm'
-                      : 'border-border bg-card hover:border-muted-foreground/30'
-                  )}
-                >
-                  <RadioGroupItem value="SUPPLIER" id="party-supplier" className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 space-y-1">
-                    <span className="flex items-center gap-2 font-medium text-foreground">
-                      <Package className="h-4 w-4 shrink-0 text-liquor-amber" aria-hidden />
-                      Proveedor
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-snug">
-                      Suministra productos; requiere al menos una categoría de proveedor.
-                    </span>
-                  </div>
-                </label>
-                <label
-                  htmlFor="party-customer"
-                  className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors',
-                    partyKind === 'CUSTOMER'
-                      ? 'border-liquor-amber bg-liquor-amber/10 shadow-sm'
-                      : 'border-border bg-card hover:border-muted-foreground/30'
-                  )}
-                >
-                  <RadioGroupItem value="CUSTOMER" id="party-customer" className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 space-y-1">
-                    <span className="flex items-center gap-2 font-medium text-foreground">
-                      <ShoppingBag className="h-4 w-4 shrink-0 text-liquor-amber" aria-hidden />
-                      Cliente
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-snug">
-                      Compra en el punto de venta; sin categorías de proveedor.
-                    </span>
-                  </div>
-                </label>
-              </RadioGroup>
+      <div className="contact-create-toolbar">
+        <div className="contact-create-kind">
+          <Label id="party-kind-label">Tipo de relación con el negocio</Label>
+          <RadioGroup
+            aria-labelledby="party-kind-label"
+            aria-describedby="party-kind-help"
+            value={partyKind}
+            onValueChange={(v) => {
+              const next = v === 'CUSTOMER' ? 'CUSTOMER' : 'SUPPLIER'
+              setPartyKind(next)
+              if (next === 'CUSTOMER') setNewCategoryIds([])
+            }}
+            className="contact-create-choices"
+          >
+            <label htmlFor="party-supplier" className="contact-create-choice" data-selected={partyKind === 'SUPPLIER'}>
+              <RadioGroupItem value="SUPPLIER" id="party-supplier" />
+              <Package className="h-4 w-4 shrink-0" aria-hidden />
+              Proveedor
+            </label>
+            <label htmlFor="party-customer" className="contact-create-choice" data-selected={partyKind === 'CUSTOMER'}>
+              <RadioGroupItem value="CUSTOMER" id="party-customer" />
+              <ShoppingBag className="h-4 w-4 shrink-0" aria-hidden />
+              Cliente
+            </label>
+          </RadioGroup>
+          <p id="party-kind-help" className="text-xs text-muted-foreground">
+            {partyKind === 'SUPPLIER'
+              ? 'Suministra productos; requiere al menos una categoría de proveedor.'
+              : 'Compra en el punto de venta; sin categorías de proveedor.'}
+          </p>
+        </div>
+
+        <div className="contact-create-kind">
+          <Label id="entity-kind-label">Naturaleza del contacto</Label>
+          <RadioGroup
+            aria-labelledby="entity-kind-label"
+            aria-describedby="entity-kind-help"
+            value={entityKind}
+            onValueChange={(v) => setEntityKind(v === 'PERSON' ? 'PERSON' : 'ORGANIZATION')}
+            className="contact-create-choices"
+          >
+            <label htmlFor="entity-org" className="contact-create-choice" data-selected={entityKind === 'ORGANIZATION'}>
+              <RadioGroupItem value="ORGANIZATION" id="entity-org" />
+              <Building2 className="h-4 w-4 shrink-0" aria-hidden />
+              Empresa
+            </label>
+            <label htmlFor="entity-person" className="contact-create-choice" data-selected={entityKind === 'PERSON'}>
+              <RadioGroupItem value="PERSON" id="entity-person" />
+              <User className="h-4 w-4 shrink-0" aria-hidden />
+              Persona individual
+            </label>
+          </RadioGroup>
+          <p id="entity-kind-help" className="text-xs text-muted-foreground">
+            {entityKind === 'ORGANIZATION'
+              ? 'Razón social y persona de contacto para pedidos o facturación.'
+              : 'Una sola persona; el nombre completo se usa en facturas y comunicación.'}
+          </p>
+        </div>
+      </div>
+
+      <section className="auna-surface contact-create-section" aria-labelledby="contact-identity-title">
+        <h2 id="contact-identity-title" className="contact-create-heading">
+          <FileText aria-hidden />
+          Datos fiscales e identidad
+        </h2>
+        <div className={cn('contact-create-identity', canUploadPhoto && 'contact-create-identity-with-photo')}>
+          <div className="contact-create-fields contact-create-fields-two">
+            <div>
+              <Label htmlFor="name">
+                {entityKind === 'ORGANIZATION' ? 'Nombre de la empresa *' : 'Nombre completo *'}
+              </Label>
+              <Input
+                id="name"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder={entityKind === 'ORGANIZATION' ? 'Ej: Diageo Guatemala' : 'Nombre y apellidos'}
+                className="mt-1"
+              />
             </div>
-
-            <div className="h-px bg-border" />
-
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Naturaleza del contacto
+            <div>
+              <Label htmlFor="tax-id">ID fiscal (opcional)</Label>
+              <Input
+                id="tax-id"
+                value={newTaxId}
+                onChange={(e) => setNewTaxId(e.target.value)}
+                placeholder="Ej. 12345678-9, ESX1234567X"
+                aria-describedby="tax-id-help"
+                className="mt-1"
+              />
+              <p id="tax-id-help" className="text-xs text-muted-foreground mt-1">
+                Para facturación: NIT, VAT, RFC u otro según el país.
               </p>
-              <RadioGroup
-                value={entityKind}
-                onValueChange={(v) => setEntityKind(v === 'PERSON' ? 'PERSON' : 'ORGANIZATION')}
-                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
-              >
-                <label
-                  htmlFor="entity-org"
-                  className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors',
-                    entityKind === 'ORGANIZATION'
-                      ? 'border-liquor-amber bg-liquor-amber/10 shadow-sm'
-                      : 'border-border bg-card hover:border-muted-foreground/30'
-                  )}
-                >
-                  <RadioGroupItem value="ORGANIZATION" id="entity-org" className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 space-y-1">
-                    <span className="flex items-center gap-2 font-medium text-foreground">
-                      <Building2 className="h-4 w-4 shrink-0 text-liquor-amber" aria-hidden />
-                      Empresa
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-snug">
-                      Razón social y persona de contacto para pedidos o facturación.
-                    </span>
-                  </div>
-                </label>
-                <label
-                  htmlFor="entity-person"
-                  className={cn(
-                    'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-colors',
-                    entityKind === 'PERSON'
-                      ? 'border-liquor-amber bg-liquor-amber/10 shadow-sm'
-                      : 'border-border bg-card hover:border-muted-foreground/30'
-                  )}
-                >
-                  <RadioGroupItem value="PERSON" id="entity-person" className="mt-0.5 shrink-0" />
-                  <div className="min-w-0 space-y-1">
-                    <span className="flex items-center gap-2 font-medium text-foreground">
-                      <User className="h-4 w-4 shrink-0 text-liquor-amber" aria-hidden />
-                      Persona individual
-                    </span>
-                    <span className="text-xs text-muted-foreground leading-snug">
-                      Una sola persona; el nombre completo se usa en facturas y comunicación.
-                    </span>
-                  </div>
-                </label>
-              </RadioGroup>
             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">
-                  {entityKind === 'ORGANIZATION' ? 'Nombre de la empresa *' : 'Nombre completo *'}
-                </Label>
-                <Input
-                  id="name"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  placeholder={entityKind === 'ORGANIZATION' ? 'Ej: Diageo Guatemala' : 'Nombre y apellidos'}
-                  className="mt-1"
-                />
-              </div>
-              {entityKind === 'ORGANIZATION' && (
-                <div>
-                  <Label htmlFor="contact">Persona de contacto *</Label>
-                  <Input
-                    id="contact"
-                    value={newContact}
-                    onChange={(e) => setNewContact(e.target.value)}
-                    placeholder="Nombre de quien atiende pedidos o facturación"
-                    className="mt-1"
-                  />
+          {canUploadPhoto && (
+            <aside className="contact-create-photo" aria-label="Imagen del contacto (opcional)">
+              <div className="contact-create-photo-summary">
+                <ContactImage src={photoPreview} name={newName || 'Nuevo contacto'} className="h-14 w-14" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Imagen del contacto</p>
+                  <p className="text-xs text-muted-foreground">Opcional · JPG, PNG o WebP</p>
                 </div>
-              )}
-              <div>
-                <Label htmlFor="phone">Teléfono *</Label>
-                <Input
-                  id="phone"
-                  value={newPhone}
-                  onChange={(e) => setNewPhone(e.target.value)}
-                  placeholder="+502 2345-6789"
-                  className="mt-1"
-                />
               </div>
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="contacto@empresa.com"
-                  className="mt-1"
+              <details>
+                <summary className="contact-create-photo-toggle">
+                  {photo ? 'Cambiar o quitar imagen' : 'Añadir imagen'}
+                </summary>
+                <ImageUploadDropzone onFileSelect={setPhoto} onReject={message => toast({ title: 'Imagen no válida', description: message, variant: 'destructive' })}
+                  disabled={isLoading} isUploading={uploadingPhoto} accept="image/jpeg,image/png,image/webp" formatsLabel="JPG, PNG o WebP"
+                  selectionLabel={photo?.name} onClearSelection={isLoading ? undefined : () => setPhoto(null)}
+                  validateFile={file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ? 'Selecciona una imagen JPG, PNG o WebP.' : null}
                 />
-              </div>
+              </details>
+            </aside>
+          )}
+        </div>
+      </section>
+
+      <section className="auna-surface contact-create-section" aria-labelledby="contact-information-title">
+        <h2 id="contact-information-title" className="contact-create-heading">
+          <UserRound aria-hidden />
+          Contacto y dirección
+        </h2>
+        <div className="contact-create-fields contact-create-fields-three">
+          {entityKind === 'ORGANIZATION' && (
+            <div>
+              <Label htmlFor="contact">Persona de contacto *</Label>
+              <Input
+                id="contact"
+                value={newContact}
+                onChange={(e) => setNewContact(e.target.value)}
+                placeholder="Nombre de quien atiende pedidos o facturación"
+                className="mt-1"
+              />
             </div>
-            <div className="space-y-4">
+          )}
+          <div>
+            <Label htmlFor="phone">Teléfono *</Label>
+            <Input
+              id="phone"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              placeholder="+502 2345-6789"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="email">Email *</Label>
+            <Input
+              id="email"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="contacto@empresa.com"
+              className="mt-1"
+            />
+          </div>
+          <div className="contact-create-field-wide">
+            <Label htmlFor="address">Dirección *</Label>
+            <Textarea
+              id="address"
+              value={newAddress}
+              onChange={(e) => setNewAddress(e.target.value)}
+              placeholder="Dirección completa"
+              rows={2}
+              className="mt-1 resize-y"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="auna-surface contact-create-section" aria-labelledby="contact-commercial-title">
+        <h2 id="contact-commercial-title" className="contact-create-heading">
+          <CreditCard aria-hidden />
+          Condiciones comerciales y de pago
+        </h2>
+        <div className="contact-create-fields contact-create-fields-two">
               {partyKind === 'SUPPLIER' && (
               <div>
-                <Label>Categorías *</Label>
+                <Label htmlFor="categories">Categorías *</Label>
                 <Popover open={categoryPopoverOpen} onOpenChange={setCategoryPopoverOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="w-full justify-between mt-1">
+                    <Button id="categories" variant="outline" role="combobox" aria-expanded={categoryPopoverOpen} className="w-full justify-between mt-1">
                       <span className="truncate text-left">
                         {newCategoryIds.length === 0
                           ? 'Seleccionar categorías'
@@ -389,10 +433,10 @@ export default function SupplierCreatePage() {
               </div>
               )}
               <div>
-                <Label>Términos de pago *</Label>
+                <Label htmlFor="terms">Términos de pago *</Label>
                 <Popover open={paymentTermPopoverOpen} onOpenChange={setPaymentTermPopoverOpen}>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" role="combobox" className="w-full justify-between mt-1" id="terms">
+                    <Button variant="outline" role="combobox" aria-expanded={paymentTermPopoverOpen} className="w-full justify-between mt-1" id="terms">
                       {newPaymentTermIds.length === 0
                         ? 'Seleccionar términos'
                         : `${newPaymentTermIds.length} término(s) seleccionado(s)`}
@@ -451,9 +495,9 @@ export default function SupplierCreatePage() {
                         ))}
                     </div>
                     <div>
-                      <Label className="text-xs text-muted-foreground">Predeterminado</Label>
+                      <Label htmlFor="default-term" className="text-xs text-muted-foreground">Predeterminado</Label>
                       <Select value={newDefaultPaymentTermId} onValueChange={setNewDefaultPaymentTermId}>
-                        <SelectTrigger className="mt-1">
+                        <SelectTrigger id="default-term" className="mt-1">
                           <SelectValue placeholder="Elegir" />
                         </SelectTrigger>
                         <SelectContent>
@@ -473,30 +517,6 @@ export default function SupplierCreatePage() {
                   </div>
                 )}
               </div>
-              <div>
-                <Label htmlFor="address">Dirección *</Label>
-                <Textarea
-                  id="address"
-                  value={newAddress}
-                  onChange={(e) => setNewAddress(e.target.value)}
-                  placeholder="Dirección completa"
-                  rows={3}
-                  className="mt-1 resize-none"
-                />
-              </div>
-              <div>
-                <Label htmlFor="tax-id">ID fiscal (opcional)</Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Para facturación: NIT, VAT, RFC u otro según el país.
-                </p>
-                <Input
-                  id="tax-id"
-                  value={newTaxId}
-                  onChange={(e) => setNewTaxId(e.target.value)}
-                  placeholder="Ej. 12345678-9, ESX1234567X"
-                  className="mt-1"
-                />
-              </div>
               {partyKind === 'CUSTOMER' && (
                 <div>
                   <Label htmlFor="credit-limit">Límite de crédito (opcional)</Label>
@@ -515,36 +535,30 @@ export default function SupplierCreatePage() {
                   />
                 </div>
               )}
-            </div>
-          </div>
+        </div>
+      </section>
 
-          <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={() => navigate('/contactos')} disabled={isLoading}>
-              Cancelar
-            </Button>
-            <Button
-              className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-              disabled={isLoading}
-              onClick={handleSubmit}
-            >
-              {isLoading ? (
-                <>
-                  <svg className="animate-spin w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                  </svg>
-                  Guardando...
-                </>
-              ) : (
-                <>
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Guardar contacto
-                </>
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="contact-create-actions">
+        <p className="text-xs text-muted-foreground">Los campos con * son obligatorios.</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" onClick={() => navigate('/contactos')} disabled={isLoading}>
+            Cancelar
+          </Button>
+          <Button disabled={isLoading} onClick={handleSubmit}>
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                Guardando...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" aria-hidden />
+                Guardar contacto
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

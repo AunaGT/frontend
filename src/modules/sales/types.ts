@@ -15,7 +15,7 @@ import { Product } from '@/types/product'
 import { SaleStatus, PaymentMethod } from '@/types'
 
 export interface CartProduct extends Product {
-    qty: number
+    qty: string
 }
 
 export interface NegativeStockProduct {

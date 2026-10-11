@@ -14,7 +14,7 @@
 import { LoadingState } from '@/components/shared/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import type { CashClosure } from '../types'
 import { formatCurrency, formatDateTime, toNumber, closureRegisterName } from '../types'
@@ -51,7 +51,7 @@ export const ClosuresHistoryList = ({
 }: ClosuresHistoryListProps) => {
     const { currencyCode, locale } = useSystemSettings()
     if (isLoading) {
-        return <LoadingState variant="cards" message="Cargando cierres…" />
+        return <LoadingState variant="table" message="Cargando cierres…" />
     }
 
     if (!Array.isArray(closures) || closures.length === 0) {
@@ -60,41 +60,32 @@ export const ClosuresHistoryList = ({
 
     return (
         <>
-            <div className="auna-section-list auna-surface rounded-xl border px-4">
+            <div className="auna-data-table-shell auna-surface rounded-xl border overflow-x-auto" role="region" aria-label="Cierres registrados" tabIndex={0}>
+              <table className="auna-data-table cash-closure-history-table">
+                <caption className="sr-only">Historial de cierres de caja</caption>
+                <thead><tr>
+                  <th scope="col">Cierre</th><th scope="col">Período</th><th scope="col">Caja</th><th scope="col">Cajero</th>
+                  <th scope="col" className="cash-closure-money">Total esperado</th><th scope="col" className="cash-closure-money">Total contado</th>
+                  <th scope="col" className="cash-closure-money">Diferencia</th><th scope="col">Estado</th><th scope="col" className="text-right">Acciones</th>
+                </tr></thead>
+                <tbody>
                 {closures.map((closure) => (
-                    <div
-                        key={closure.id}
-                        role="button"
-                        tabIndex={0}
-                        className="auna-section-row auna-section-row-interactive flex items-center justify-between py-4 transition-colors cursor-pointer"
-                        onClick={() => onViewClosure(closure.id)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault()
-                                onViewClosure(closure.id)
-                            }
-                        }}
-                    >
-                        <div className="space-y-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                                <span className="font-semibold">Cierre #{closure.closure_number}</span>
-                                {getStatusBadge(closure.status)}
-                            </div>
-                            <div className="text-sm text-muted-foreground">
-                                <p>{formatDateTime(closure.start_date)} - {formatDateTime(closure.end_date)}</p>
-                                <p>Cajero: {closure.cashier_name} · Caja: {closureRegisterName(closure)}</p>
-                            </div>
-                        </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                            <div className="text-right">
-                                <p className="font-bold">{formatCurrency(closure.actual_total, currencyCode, locale)}</p>
-                                <p className={`text-sm ${toNumber(closure.difference) === 0 ? 'text-green-600' : toNumber(closure.difference) > 0 ? 'text-orange-600' : 'text-red-600'}`}>
-                                    {toNumber(closure.difference) >= 0 ? '+' : ''}{formatCurrency(closure.difference, currencyCode, locale)}
-                                </p>
-                            </div>
-                        </div>
-                    </div>
+                    <tr key={closure.id}>
+                      <th scope="row"><Button variant="link" className="h-auto p-0 font-semibold" onClick={() => onViewClosure(closure.id)}>Cierre #{closure.closure_number}</Button></th>
+                      <td><span className="block whitespace-nowrap">{formatDateTime(closure.start_date)}</span><span className="block whitespace-nowrap text-xs text-muted-foreground">Hasta {formatDateTime(closure.end_date)}</span></td>
+                      <td>{closureRegisterName(closure)}</td>
+                      <td>{closure.cashier_name}</td>
+                      <td className="cash-closure-money">{formatCurrency(closure.theoretical_total, currencyCode, locale)}</td>
+                      <td className="cash-closure-money font-semibold">{formatCurrency(closure.actual_total, currencyCode, locale)}</td>
+                      <td className={`cash-closure-money ${toNumber(closure.difference) === 0 ? 'text-emerald-700 dark:text-emerald-300' : toNumber(closure.difference) > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
+                        {toNumber(closure.difference) > 0 ? '+' : ''}{formatCurrency(closure.difference, currencyCode, locale)}
+                      </td>
+                      <td>{getStatusBadge(closure.status)}</td>
+                      <td className="text-right"><Button variant="outline" size="icon" aria-label={`Ver cierre #${closure.closure_number}`} onClick={() => onViewClosure(closure.id)}><Eye className="h-4 w-4" aria-hidden="true" /></Button></td>
+                    </tr>
                 ))}
+                </tbody>
+              </table>
             </div>
 
             {!isSeller && totalPages > 1 && (

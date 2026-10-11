@@ -41,7 +41,7 @@ export interface SupplierPDFMerchandiseEntry {
   totalValue: number
 }
 
-const defaultOptions: Required<Omit<SupplierPDFOptions, 'includeMerchandiseEntries'>> & Pick<SupplierPDFOptions, 'includeMerchandiseEntries'> = {
+const defaultOptions: SupplierPDFOptions = {
   includeBasic: true,
   includeMetrics: true,
   includeProducts: true,

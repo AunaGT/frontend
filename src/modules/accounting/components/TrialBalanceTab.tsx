@@ -10,12 +10,12 @@
 
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { LoadingState } from '@/components/shared/LoadingState'
-import { Download, Scale } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { getTrialBalance, type TrialBalanceResponse } from '@/services/accountingService'
@@ -35,46 +35,40 @@ export const TrialBalanceTab = () => {
   const [data, setData] = useState<TrialBalanceResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [exportOpen, setExportOpen] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
 
   useEffect(() => {
     let active = true
     setLoading(true)
+    setLoadError(false)
     getTrialBalance({ from: from || undefined, to: to || undefined })
       .then((res) => { if (active) setData(res) })
       .catch((e) => {
+        if (active) { setLoadError(true); setData(null) }
         if (active) toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo cargar la balanza', variant: 'destructive' })
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [from, to, toast])
+  }, [from, to, toast, retry])
 
   const squared = data ? data.totals.debit === data.totals.credit : false
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Scale className="h-5 w-5" />Balanza de Comprobación
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            {data && (
-              <Badge variant={squared ? 'default' : 'destructive'}>
-                {squared ? 'Cuadrada' : 'Descuadrada'}
-              </Badge>
-            )}
-            <Button
+    <section className="space-y-5" aria-label="Balanza de comprobación">
+      <MetricStrip label="Resumen de balanza" loading={loading} items={[
+        { label: 'Cuentas con movimientos', value: data ? data.rows.length : '—' },
+        { label: 'Debe del período', value: data ? fmtQ(data.totals.debit) : '—' },
+        { label: 'Haber del período', value: data ? fmtQ(data.totals.credit) : '—' },
+        { label: 'Diferencia', value: data ? fmtQ(data.totals.debit - data.totals.credit) : '—', alert: Boolean(data && !squared) },
+      ]} />
+      <CompactFilterPanel title="Filtros de balanza" search={<div className="flex flex-wrap items-center gap-2 py-2"><span className="text-sm text-muted-foreground">Período: {rangoTexto(from, to)}</span>{data && !loading && <Badge variant={squared ? 'outline' : 'destructive'}>{squared ? 'Cuadrada' : 'Descuadrada'}</Badge>}</div>} actions={<Button
               variant="outline" size="sm"
               disabled={!data || data.rows.length === 0 || loading}
               onClick={() => setExportOpen(true)}
             >
               <Download className="h-4 w-4 mr-2" />Exportar
-            </Button>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <CompactFilterPanel title="Filtros de balanza" activeCount={Number(from !== firstOfMonthISO())+Number(to !== todayISO())} onClear={() => {setFrom(firstOfMonthISO());setTo(todayISO());}} appliedFilters={[...(from !== firstOfMonthISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfMonthISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : [])]}>
+            </Button>} activeCount={Number(from !== firstOfMonthISO())+Number(to !== todayISO())} onClear={() => {setFrom(firstOfMonthISO());setTo(todayISO());}} appliedFilters={[...(from !== firstOfMonthISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfMonthISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : [])]}>
           <div className="space-y-1">
             <Label className="text-xs">Desde</Label>
             <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -84,15 +78,16 @@ export const TrialBalanceTab = () => {
             <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
         </CompactFilterPanel>
-        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
 
         {loading ? (
           <LoadingState message="Cargando balance…" columns={['Código', 'Cuenta', 'Tipo', 'Saldo inicial', 'Debe', 'Haber', 'Saldo final']} />
+        ) : loadError ? (
+          <div role="alert" className="py-8 text-center"><p>No se pudo cargar la balanza.</p><Button variant="outline" className="mt-3" onClick={() => setRetry(value => value + 1)}>Reintentar</Button></div>
         ) : !data || data.rows.length === 0 ? (
           <p className="py-10 text-center text-muted-foreground">Sin movimientos en el rango seleccionado.</p>
         ) : (
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="auna-data-table-shell overflow-x-auto">
+            <table className="auna-data-table">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground">
                   <th className="text-left font-medium px-3 py-2">Código</th>
@@ -126,7 +121,6 @@ export const TrialBalanceTab = () => {
             </table>
           </div>
         )}
-      </CardContent>
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
@@ -139,6 +133,6 @@ export const TrialBalanceTab = () => {
           setExportOpen(false)
         }}
       />
-    </Card>
+    </section>
   )
 }

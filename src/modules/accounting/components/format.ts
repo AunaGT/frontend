@@ -24,6 +24,9 @@ export const SOURCE_LABELS: Record<JournalSourceType, string> = {
   PURCHASE_PAYMENT: 'Abono',
   CLOSING: 'Cierre',
   STOCK_ADJUSTMENT: 'Ajuste de inventario',
+  PAYROLL: 'Nómina',
+  PAYROLL_PAYMENT: 'Pago de nómina',
+  PAYROLL_ADVANCE: 'Anticipo de nómina',
 }
 
 export const TYPE_LABELS: Record<AccountType, string> = {

@@ -69,7 +69,10 @@ import { validateImportFile } from '@/components/shared/importFile.mjs'
 const SYSTEM_FIELDS = [
     { id: 'name', label: 'Nombre', required: true, type: 'string' },
     { id: 'category', label: 'Categoría', required: true, type: 'relation' },
-    { id: 'supplier', label: 'Proveedor', required: true, type: 'relation' },
+    { id: 'supplier', label: 'Proveedor (solo bienes)', required: false, type: 'relation' },
+    { id: 'kind', label: 'Tipo (STANDARD / KIT / SERVICE)', required: false, type: 'string' },
+    { id: 'service_unit_label', label: 'Unidad de cobro (servicios)', required: false, type: 'string' },
+    { id: 'quantity_decimals', label: 'Decimales (servicios)', required: false, type: 'number' },
     { id: 'price', label: 'Precio', required: true, type: 'number' },
     { id: 'cost', label: 'Costo', required: false, type: 'number' },
     { id: 'stock', label: 'Stock', required: false, type: 'number' },
@@ -179,6 +182,9 @@ export default function ImportPage() {
             if (lowerCol.includes('nombre') || lowerCol === 'name') autoField = 'name'
             else if (lowerCol.includes('categor')) autoField = 'category'
             else if (lowerCol.includes('proveedor') || lowerCol.includes('supplier')) autoField = 'supplier'
+            else if (['tipo','kind'].includes(lowerCol)) autoField = 'kind'
+            else if (['unidad_cobro','service_unit_label'].includes(lowerCol)) autoField = 'service_unit_label'
+            else if (['decimales','quantity_decimals'].includes(lowerCol)) autoField = 'quantity_decimals'
             else if (lowerCol.includes('precio') || lowerCol === 'price') autoField = 'price'
             else if (lowerCol.includes('costo') || lowerCol === 'cost') autoField = 'cost'
             else if (lowerCol.includes('stock') && !lowerCol.includes('min')) autoField = 'stock'

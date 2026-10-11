@@ -17,15 +17,15 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Landmark, Star, User as UserIcon, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Landmark, Star, User as UserIcon, AlertCircle, RefreshCw } from 'lucide-react'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { formatMoney } from '@/utils/formatters'
 import { listCashRegisters, type CashRegisterDto } from '@/services/cashSessionsService'
+import './pos.css'
 
 export interface CashRegisterPickerProps {
   onSelect: (registerId: string) => void
@@ -36,6 +36,7 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
   const { user } = useAuth()
   const { hasPermission } = useAuthPermissions()
   const { locale, currencyCode } = useSystemSettings()
+  const isAdmin = String(user?.role?.name ?? '').toLowerCase() === 'admin'
   // Solo admin/supervisores (pueden cerrar turnos ajenos) ven todas las cajas;
   // un vendedor normal solo ve la suya asignada, o la predeterminada si no tiene.
   const canSeeAllRegisters = hasPermission('cashclosure.create', 'cashclosure.create_day')
@@ -77,13 +78,19 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
   }, [sorted, canSeeAllRegisters, user?.cash_register_id])
 
   return (
-    <div className="px-4 sm:px-8 lg:px-14 py-8 w-full max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold">Selecciona una caja</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Elige con qué caja vas a trabajar. Si ya tiene un turno abierto, continuarás sobre esa
-          sesión; si está cerrada, se te pedirá el fondo inicial.
-        </p>
+    <div className="pos-page pos-cash-entry">
+      <div className="pos-toolbar">
+        <Button variant="outline" size="icon" aria-label="Volver a ventas" onClick={onBack}>
+          <ArrowLeft aria-hidden />
+        </Button>
+        <div>
+          <h1 className="text-xl font-semibold">Selecciona una caja</h1>
+          <p className="text-sm text-muted-foreground">Continúa tu turno o abre una caja con su fondo inicial.</p>
+        </div>
+        <Button variant="outline" className="sm:ml-auto" aria-label="Actualizar cajas" disabled={loading} onClick={load}>
+          <RefreshCw aria-hidden />
+          Actualizar cajas
+        </Button>
       </div>
 
       {loading && registers.length > 0 && <LoadingIndicator message="Actualizando cajas…" />}
@@ -91,7 +98,7 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
         <LoadingState variant="cards" message="Cargando cajas…" />
       ) : error ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-2 text-destructive text-sm">
+          <div role="alert" className="flex items-center gap-2 text-destructive text-sm">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
@@ -111,27 +118,25 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="pos-register-list">
             {visible.map((reg) => {
               const isMine = reg.id === user?.cash_register_id
               const isOpen = Boolean(reg.open_session)
+              const blocked = isOpen && !isAdmin && String(reg.open_session?.opened_by_id) !== String(user?.id)
               return (
-                <Card
+                <article
                   key={reg.id}
-                  className={
-                    isMine
-                      ? 'border-primary/50 ring-1 ring-primary/20 shadow-sm'
-                      : 'border-border/70'
-                  }
+                  className="auna-surface rounded-xl border pos-register"
+                  data-assigned={isMine}
+                  aria-label={reg.name}
                 >
-                  <CardContent className="p-4 sm:p-5 space-y-3">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <div className="text-brand-orange shrink-0">
                           <Landmark className="h-5 w-5" />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold truncate">{reg.name}</p>
+                          <h2 className="font-semibold truncate">{reg.name}</h2>
                           <p className="text-xs font-mono text-muted-foreground">{reg.code}</p>
                         </div>
                       </div>
@@ -151,50 +156,45 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-start gap-2 text-sm">
                       <span
-                        className={`inline-block h-2 w-2 rounded-full ${
+                        className={`inline-block mt-1.5 shrink-0 h-2 w-2 rounded-full ${
                           isOpen ? 'bg-emerald-500' : 'bg-muted-foreground/40'
                         }`}
                         aria-hidden
                       />
                       {isOpen && reg.open_session ? (
-                        <span className="text-muted-foreground">
-                          Abierta por{' '}
-                          <span className="font-medium text-foreground">
-                            {reg.open_session.opened_by_name ?? 'un usuario'}
-                          </span>
-                          {' · '}
-                          {formatDistanceToNow(new Date(reg.open_session.opened_at), {
+                        <div className="space-y-1 min-w-0">
+                          <p className="font-medium">{blocked ? 'Turno de otro usuario' : 'Turno abierto'}</p>
+                          <p className="text-muted-foreground">
+                            {reg.open_session.opened_by_name ?? 'un usuario'} · {formatDistanceToNow(new Date(reg.open_session.opened_at), {
                             locale: es,
                             addSuffix: true,
                           })}
-                          {' · fondo '}
-                          {formatMoney(reg.open_session.opening_float, locale, currencyCode)}
-                        </span>
+                          </p>
+                          <p className="text-muted-foreground">Fondo inicial: {formatMoney(reg.open_session.opening_float, locale, currencyCode)}</p>
+                        </div>
                       ) : (
-                        <span className="text-muted-foreground">Cerrada</span>
+                        <div>
+                          <p className="font-medium">Cerrada</p>
+                          <p className="text-muted-foreground">Declara el fondo inicial para comenzar.</p>
+                        </div>
                       )}
                     </div>
-
+                    {blocked && <p className="text-xs text-muted-foreground">Este turno debe cerrarse antes de abrir uno propio.</p>}
                     <Button
-                      className="w-full"
-                      variant={isOpen ? 'default' : 'outline'}
+                      className="w-full mt-auto"
+                      disabled={blocked}
+                      aria-label={blocked ? `Caja ${reg.name} en uso` : isOpen ? `Continuar venta en ${reg.name}` : `Abrir caja ${reg.name}`}
                       onClick={() => onSelect(reg.id)}
                     >
-                      {isOpen ? 'Continuar venta' : 'Abrir caja'}
+                      {blocked ? 'Caja en uso' : isOpen ? 'Continuar venta' : 'Abrir caja'}
                     </Button>
-                  </CardContent>
-                </Card>
+                </article>
               )
             })}
           </div>
 
-          <div>
-            <Button variant="ghost" onClick={onBack}>
-              Volver a ventas
-            </Button>
-          </div>
         </>
       )}
     </div>

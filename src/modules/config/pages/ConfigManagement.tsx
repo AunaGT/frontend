@@ -9,7 +9,9 @@ import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useState, useEffect, useMemo } from 'react'
 import { format as formatDate } from 'date-fns'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { useTenant } from '@/context/useTenant'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -90,6 +92,7 @@ export default function ConfigManagement() {
     quote_validity_days: '30',
     order_validity_days: '7',
     quote_soft_hold_hours: '48',
+    inventory_services_enabled: 'false',
   })
   const [fiscalForm, setFiscalForm] = useState({
     company_nit: '',
@@ -141,6 +144,7 @@ export default function ConfigManagement() {
           quote_validity_days: data.quote_validity_days ?? '30',
           order_validity_days: data.order_validity_days ?? '7',
           quote_soft_hold_hours: data.quote_soft_hold_hours ?? '48',
+          inventory_services_enabled: data.inventory_services_enabled ?? 'false',
         })
         if (Array.isArray(data.cash_closure_denominations)) {
           setDenominations(
@@ -213,6 +217,7 @@ export default function ConfigManagement() {
         quote_validity_days: String(quoteDays),
         order_validity_days: String(orderDays),
         quote_soft_hold_hours: String(softHoldHours),
+        inventory_services_enabled: form.inventory_services_enabled,
       })
       setSettings(updated)
       toast({ title: 'Configuración guardada' })
@@ -355,23 +360,25 @@ export default function ConfigManagement() {
 
   if (loading) {
     return (
-      <main className="config-page space-y-5"><h1 className="sr-only">Configuración</h1><LoadingState variant="page" message="Cargando configuración…" /></main>
+      <main className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8"><h1 className="sr-only">Configuración</h1><LoadingState variant="page" message="Cargando configuración…" /></main>
     )
   }
 
   return (
-    <div className="config-page">
+    <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
       <h1 className="sr-only">{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="config-tabs-root">
-        <TabsList className="config-tabs">
-          <TabsTrigger value="general"><Building2 className="h-4 w-4" /> Preferencias de empresa</TabsTrigger>
-          <TabsTrigger value="experience"><Settings2 className="h-4 w-4" /> Experiencia de venta</TabsTrigger>
-          <TabsTrigger value="fiscal"><FileText className="h-4 w-4" /> Datos fiscales</TabsTrigger>
-          <TabsTrigger value="denominations"><Banknote className="h-4 w-4" /> Cierre de caja</TabsTrigger>
-          <TabsTrigger value="modules"><UsersRound className="h-4 w-4" /> Módulos</TabsTrigger>
-          <TabsTrigger value="hr-documents"><FileText className="h-4 w-4" /> Expedientes de empleados</TabsTrigger>
-        </TabsList>
+        <div className="max-w-full overflow-x-auto pb-1">
+          <ModuleTabsList aria-label="Secciones de configuración">
+            <ModuleTabsTrigger value="general"><Building2 className="h-4 w-4" aria-hidden="true" /> Preferencias de empresa</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="experience"><Settings2 className="h-4 w-4" aria-hidden="true" /> Experiencia de venta</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="fiscal"><FileText className="h-4 w-4" aria-hidden="true" /> Datos fiscales</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="denominations"><Banknote className="h-4 w-4" aria-hidden="true" /> Cierre de caja</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="modules"><UsersRound className="h-4 w-4" aria-hidden="true" /> Módulos</ModuleTabsTrigger>
+            <ModuleTabsTrigger value="hr-documents"><FileText className="h-4 w-4" aria-hidden="true" /> Expedientes de empleados</ModuleTabsTrigger>
+          </ModuleTabsList>
+        </div>
 
         <TabsContent value="hr-documents" className="config-tab-content"><HrDocumentsSettings /></TabsContent>
         <TabsContent value="general" className="config-tab-content">
@@ -427,6 +434,14 @@ export default function ConfigManagement() {
                   placeholder="Mi Empresa"
                   disabled={!canManage}
                 />
+              </div>
+              <div className="flex items-start justify-between gap-4 sm:col-span-2">
+                <div className="space-y-1">
+                  <Label htmlFor="inventory_services_enabled">Vender servicios</Label>
+                  <p className="text-xs text-muted-foreground">Gestiona servicios dentro de Inventario, sin existencias físicas. No activa agendas ni concede permisos.</p>
+                </div>
+                <Switch id="inventory_services_enabled" checked={form.inventory_services_enabled === 'true'} disabled={!canManage || saving}
+                  onCheckedChange={enabled => setForm(current => ({ ...current, inventory_services_enabled: String(enabled) }))} />
               </div>
               <div className="config-currency-field grid gap-2">
                 <Label>Moneda</Label>
@@ -817,48 +832,67 @@ export default function ConfigManagement() {
               </CardDescription>
             </CardHeader>
             <CardContent className="config-denominations-content">
-              <div className="config-denominations-list">
+              <div className="config-denominations-table auna-data-table-shell auna-table-embedded" role="region" aria-label="Denominaciones para cierre de caja" tabIndex={0}>
+                <Table className="auna-data-table">
+                  <caption className="sr-only">Valores y tipos de billetes y monedas disponibles en el arqueo</caption>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead scope="col" className="w-40">Valor</TableHead>
+                      <TableHead scope="col">Tipo</TableHead>
+                      {canManage && <TableHead scope="col" className="w-24 text-right">Acciones</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                 {denominations.map((d, i) => (
-                  <div key={i} className="config-denomination-row">
+                  <TableRow key={i}>
+                    <TableCell>
                     <Input
                       type="number"
                       step="0.01"
                       min="0"
-                      className="w-32"
+                      aria-label={`Valor de denominación ${i + 1}`}
                       value={d.denomination || ''}
                       onChange={(e) => updateDenomination(i, 'denomination', e.target.value)}
                       disabled={!canManage}
                       placeholder="Valor"
                     />
-                    <select
-                      className="auna-control auna-control-select px-3"
+                    </TableCell>
+                    <TableCell>
+                    <Select
                       value={d.type}
-                      onChange={(e) => updateDenomination(i, 'type', e.target.value)}
+                      onValueChange={(value) => updateDenomination(i, 'type', value)}
                       disabled={!canManage}
                     >
-                      <option value="Billete">Billete</option>
-                      <option value="Moneda">Moneda</option>
-                    </select>
+                      <SelectTrigger aria-label={`Tipo de denominación ${i + 1}`}><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Billete">Billete</SelectItem>
+                        <SelectItem value="Moneda">Moneda</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    </TableCell>
                     {canManage && (
-                      <Button type="button" variant="ghost" size="sm" onClick={() => removeDenomination(i)}>
+                      <TableCell className="text-right">
+                      <Button type="button" variant="ghost" size="sm" aria-label={`Quitar denominación ${i + 1}`} onClick={() => removeDenomination(i)}>
                         Quitar
                       </Button>
+                      </TableCell>
                     )}
-                  </div>
+                  </TableRow>
                 ))}
+                    {!denominations.length && <TableRow><TableCell colSpan={canManage ? 3 : 2} className="text-muted-foreground">No hay denominaciones configuradas.</TableCell></TableRow>}
+                  </TableBody>
+                </Table>
               </div>
               {canManage && (
-                <>
-                  <Button variant="outline" size="sm" onClick={addDenomination}>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+                  <Button type="button" variant="outline" onClick={addDenomination}>
                     Agregar denominación
                   </Button>
-                  <div>
-                    <Button onClick={handleSaveDenominations} disabled={saving}>
+                    <Button type="button" onClick={handleSaveDenominations} disabled={saving}>
                       {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                       Guardar denominaciones
                     </Button>
-                  </div>
-                </>
+                </div>
               )}
             </CardContent>
           </Card>

@@ -17,7 +17,7 @@ type Field = { id: string; label: string; required: boolean }
 type Mapping = { excelColumn: string; systemField: string | null }
 type RowError = ImportRowIssue
 
-export function ImportWorkbench({ title, description, back, backLabel, templatePath, templateName, file, onFile, sheetNames, selectedSheet, onSheetChange, useFirstRowAsHeader = true, onHeaderChange, fields, mappings, onMappingChange, rows, firstErrorIndex, validated, validCount, errors, skippedRowIndexes = [], automaticSkippedRowIndexes = [], onResolveRow, onValidate, onImport, busy = false, progress, onCancel, result, errorMessage, options, resolutionActions, rowResolutionActions }: {
+export function ImportWorkbench({ title, description, back, backLabel, templatePath, templateName, file, onFile, sheetNames, selectedSheet, onSheetChange, useFirstRowAsHeader = true, onHeaderChange, fields, mappings, onMappingChange, rows, firstErrorIndex, validated, validCount, errors, skippedRowIndexes = [], automaticSkippedRowIndexes = [], onResolveRow, onValidate, onImport, busy = false, progress, onCancel, result, errorMessage, options, resolutionActions, rowResolutionActions, maxSizeBytes = 10 * 1024 * 1024 }: {
   title: string
   description: string
   back: string
@@ -25,6 +25,7 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
   templatePath: string
   templateName: string
   file: File | null
+  maxSizeBytes?: number
   onFile: (file: File) => Promise<string | void> | string | void
   sheetNames: string[]
   selectedSheet: string
@@ -77,7 +78,7 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
 
   const loadFile = async (next?: File) => {
     if (!next || busy) return
-    const problem = validateImportFile(next)
+    const problem = next.size > maxSizeBytes ? `Selecciona un archivo de hasta ${maxSizeBytes / (1024 * 1024)} MB.` : validateImportFile(next)
     setFileError(problem || '')
     if (!problem) {
       setPage(1); setShowErrorsOnly(false)
@@ -103,9 +104,9 @@ export function ImportWorkbench({ title, description, back, backLabel, templateP
     <section className="auna-import-panel" aria-labelledby="import-upload-heading">
       <header><h2 id="import-upload-heading" className="auna-import-panel-title"><span className="auna-import-panel-icon"><Upload size={15} /></span>1. Cargar archivo</h2></header>
       <div className="auna-import-panel-body auna-import-upload-grid">
-        <ImageUploadDropzone className="auna-import-file-drop" accept=".xlsx,.xls,.csv" maxSizeBytes={10 * 1024 * 1024} fileLabel="archivo" formatsLabel="XLSX, XLS o CSV" validateFile={validateImportFile} disabled={busy} onReject={setFileError} onFileSelect={(next) => void loadFile(next)} />
-        <div className="auna-import-upload-help"><FileSpreadsheet size={26} /><strong className="block break-all mt-2">{file?.name || 'Ningún archivo seleccionado'}</strong><p>Hasta 10 MB</p>
-          {sheetNames.length > 0 && <label className="auna-import-field">Hoja<select className="auna-control auna-control-select" value={selectedSheet} onChange={(event) => { onSheetChange(event.target.value); setPage(1) }}>{sheetNames.map((sheet) => <option key={sheet}>{sheet}</option>)}</select></label>}
+        <ImageUploadDropzone className="auna-import-file-drop" accept=".xlsx,.xls,.csv" maxSizeBytes={maxSizeBytes} fileLabel="archivo" formatsLabel="XLSX, XLS o CSV" validateFile={validateImportFile} disabled={busy} onReject={setFileError} onFileSelect={(next) => void loadFile(next)} />
+        <div className="auna-import-upload-help"><FileSpreadsheet size={26} /><strong className="block break-all mt-2">{file?.name || 'Ningún archivo seleccionado'}</strong><p>Hasta {maxSizeBytes / (1024 * 1024)} MB</p>
+          {sheetNames.length > 0 && <label className="auna-import-field">Hoja<select className="auna-control auna-control-select" value={selectedSheet} disabled={busy} onChange={(event) => { onSheetChange(event.target.value); setPage(1) }}>{sheetNames.map((sheet) => <option key={sheet}>{sheet}</option>)}</select></label>}
           {file && onHeaderChange && <label className="auna-import-only-errors"><input className="auna-checkbox" type="checkbox" checked={useFirstRowAsHeader} onChange={(event) => { onHeaderChange(event.target.checked); setPage(1) }} />Usar primera fila como encabezado</label>}
         </div>
         <div className="auna-import-upload-help"><p>La primera fila debe contener encabezados. Podrás revisar el mapeo y los errores antes de guardar datos.</p>

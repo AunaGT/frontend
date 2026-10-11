@@ -1,521 +1,75 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { CalendarRange, ChevronDown, Download, FileSpreadsheet, SlidersHorizontal } from 'lucide-react'
-import { ExportDialog } from '@/components/shared/ExportDialog'
-import { LoadingState } from '@/components/shared/LoadingState'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import {
-  AlertasIcon,
-  AnalyticsIcon,
-  InventariadoIcon,
-  InventarioIcon,
-  MercanciaIcon,
-  ProveedoresIcon,
-  ReporteFinancieroIcon,
-  VentasIcon,
-  type ModuleIconComponent,
-} from '@/components/icons/CustomIcons'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, FileText, Search } from 'lucide-react'
 import { useTenant } from '@/context/useTenant'
 import { useModules } from '@/context/useModules'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
-import { toast } from '@/hooks/use-toast'
-import { downloadFile } from '@/services/api'
-import { fetchWarehouses } from '@/services/warehouseService'
-
-type Period = 'week' | 'month' | 'quarter' | 'semester' | 'year' | 'all'
-type ReportDefinition = {
-  id: string
-  name: string
-  description: string
-  icon: ModuleIconComponent
-  color: string
-  bgColor: string
-  requiredModules: string[]
-  everyday?: boolean
+import { usePageTrail } from '@/components/layout/PageNavigation'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
+import { LoadingState } from '@/components/shared/LoadingState'
+import { REPORT_CATALOG, REPORT_CATEGORIES, type ReportDefinition } from '../reportCatalog'
+import { allReportColumns, projectReport, type ReportFilters, type ReportSelection } from '../reportModel'
+import { usePreparedReport } from '../hooks/usePreparedReport'
+import { ReportConfigurator } from '../components/ReportConfigurator'
+import { ReportDataPreview } from '../components/ReportDataPreview'
+import { ReportExportDialog } from '../components/ReportExportDialog'
+import { useReportPdf } from '../hooks/useReportPdf'
+import { downloadReportBlob } from '../documents/reportDownload'
+import type { PreparedReport } from '../reportModel'
+import '../reports.css'
+function PdfPreview({ report, getPdf }: { report: PreparedReport; getPdf: () => Promise<Blob> }) {
+  const [pdf, setPdf] = useState<Blob | null>(null), [error, setError] = useState<string | null>(null), [retry, setRetry] = useState(0)
+  const [Viewer, setViewer] = useState<typeof import('../components/ReportDocumentPreview').ReportDocumentPreview | null>(null)
+  useEffect(() => { let disposed = false; setPdf(null); setError(null); void Promise.all([getPdf(), import('../components/ReportDocumentPreview').catch(() => { throw new Error('No se pudo cargar el visor. Reintenta o utiliza Datos y exporta Excel/CSV.') })]).then(([blob, module]) => { if (!disposed) { setPdf(blob); setViewer(() => module.ReportDocumentPreview) } }).catch(cause => { if (!disposed) setError(cause.message) }); return () => { disposed = true } }, [getPdf, retry])
+  return error ? <div role="alert" className="report-panel"><p>{error}</p><Button variant="outline" onClick={() => setRetry(v => v + 1)}>Reintentar PDF</Button><p className="report-help">La vista Datos y las exportaciones Excel/CSV siguen disponibles.</p></div> : pdf && Viewer ? <Viewer pdf={pdf} onDownload={() => downloadReportBlob(pdf, `${report.id}.pdf`)} /> : <LoadingState message="Preparando documento…" variant="page" />
 }
 
-const REPORT_TYPES: ReportDefinition[] = [
-  {
-    id: 'sales',
-    name: 'Ventas',
-    description: 'Ventas, métodos de pago, cajeros y productos vendidos.',
-    icon: VentasIcon,
-    color: 'text-emerald-700',
-    bgColor: 'bg-emerald-100',
-    requiredModules: ['sales'],
-    everyday: true,
-  },
-  {
-    id: 'inventory',
-    name: 'Inventario actual',
-    description: 'Existencias, costos y productos que requieren reposición.',
-    icon: InventarioIcon,
-    color: 'text-violet-700',
-    bgColor: 'bg-violet-100',
-    requiredModules: ['inventory'],
-    everyday: true,
-  },
-  {
-    id: 'financial',
-    name: 'Resultado del negocio',
-    description: 'Ventas, costo, compras y margen del período.',
-    icon: ReporteFinancieroIcon,
-    color: 'text-sky-700',
-    bgColor: 'bg-sky-100',
-    requiredModules: ['sales', 'inventory'],
-    everyday: true,
-  },
-  {
-    id: 'alerts',
-    name: 'Pendientes y alertas',
-    description: 'Reposición priorizada y alertas que siguen abiertas.',
-    icon: AlertasIcon,
-    color: 'text-rose-700',
-    bgColor: 'bg-rose-100',
-    requiredModules: ['alerts'],
-    everyday: true,
-  },
-  {
-    id: 'merchandise',
-    name: 'Ingresos de mercadería',
-    description: 'Compras recibidas, pagos y desglose por proveedor.',
-    icon: MercanciaIcon,
-    color: 'text-blue-700',
-    bgColor: 'bg-blue-100',
-    requiredModules: ['merchandise'],
-  },
-  {
-    id: 'suppliers',
-    name: 'Proveedores',
-    description: 'Volumen comprado y desempeño de proveedores.',
-    icon: ProveedoresIcon,
-    color: 'text-orange-700',
-    bgColor: 'bg-orange-100',
-    requiredModules: ['contacts'],
-  },
-  {
-    id: 'products',
-    name: 'Análisis de productos',
-    description: 'Márgenes, categorías, proveedores y rankings de valor.',
-    icon: AnalyticsIcon,
-    color: 'text-amber-700',
-    bgColor: 'bg-amber-100',
-    requiredModules: ['inventory'],
-  },
-  {
-    id: 'inventory-counts',
-    name: 'Historial de inventariados',
-    description: 'Conteos físicos, diferencias y mermas por sesión.',
-    icon: InventariadoIcon,
-    color: 'text-teal-700',
-    bgColor: 'bg-teal-100',
-    requiredModules: ['inventory-count'],
-  },
-  {
-    id: 'stock-by-location',
-    name: 'Existencias por almacén',
-    description: 'Unidades y valor por almacén y ubicación.',
-    icon: InventarioIcon,
-    color: 'text-violet-700',
-    bgColor: 'bg-violet-100',
-    requiredModules: ['inventory'],
-  },
-  {
-    id: 'kardex',
-    name: 'Kardex por ubicación',
-    description: 'Entradas, salidas y saldo por ubicación en el período.',
-    icon: InventariadoIcon,
-    color: 'text-teal-700',
-    bgColor: 'bg-teal-100',
-    requiredModules: ['inventory'],
-  },
-  {
-    id: 'internal-moves',
-    name: 'Movimientos internos',
-    description: 'Traslados entre anaqueles y responsable del movimiento.',
-    icon: MercanciaIcon,
-    color: 'text-orange-700',
-    bgColor: 'bg-orange-100',
-    requiredModules: ['inventory'],
-  },
-  {
-    id: 'replenishment',
-    name: 'Reposición interna',
-    description: 'Ubicaciones bajo mínimo y origen sugerido para reponer.',
-    icon: AlertasIcon,
-    color: 'text-rose-700',
-    bgColor: 'bg-rose-100',
-    requiredModules: ['inventory'],
-  },
-  {
-    id: 'occupancy',
-    name: 'Ocupación de ubicaciones',
-    description: 'Ubicaciones vacías, llenas y cantidad de SKU almacenados.',
-    icon: AnalyticsIcon,
-    color: 'text-sky-700',
-    bgColor: 'bg-sky-100',
-    requiredModules: ['inventory'],
-  },
-]
-
-const PERIOD_LABELS: Record<Period, string> = {
-  week: 'Esta semana',
-  month: 'Mes',
-  quarter: 'Trimestre',
-  semester: 'Semestre',
-  year: 'Año',
-  all: 'Todo el histórico',
+function ReportWorkspace({ definition, companyId, branchId, available, onBack }: { definition: ReportDefinition; companyId: string; branchId: string; available: ReportDefinition[]; onBack: () => void }) {
+  const now = new Date(), [params, setParams] = useSearchParams()
+  const [filters, setFilters] = useState<ReportFilters>({ branchId, period: 'month', year: now.getFullYear(), month: now.getMonth() + 1, quarter: Math.ceil((now.getMonth() + 1) / 3), semester: now.getMonth() < 6 ? 1 : 2 })
+  const errorSummary = useRef<HTMLParagraphElement>(null)
+  const prepared = usePreparedReport(companyId, definition.id, filters)
+  const [selection, setSelection] = useState<ReportSelection | null>(null)
+  useEffect(() => setSelection(null), [prepared.report])
+  const selected = useMemo(() => selection || (prepared.report ? allReportColumns(prepared.report) : { sections: [], columns: {} }), [selection, prepared.report])
+  const projection = useMemo(() => { try { return { report: prepared.report ? projectReport(prepared.report, selected) : null, error: null } } catch (error) { return { report: null, error: (error as Error).message } } }, [prepared.report, selected])
+  const getPdf = useReportPdf(projection.report), [exportOpen, setExportOpen] = useState(false), [previewTab, setPreviewTab] = useState('datos')
+  const tab = params.get('vista') === 'preview' && projection.report ? 'datos' : 'configurar'
+  usePageTrail([{ label: 'Reportes', to: '/reportes' }, { label: definition.name }, { label: tab === 'configurar' ? 'Configurar' : 'Vista previa' }])
+  const changeTab = (value: string) => setParams({ reporte: definition.id, vista: value === 'configurar' ? 'configurar' : 'preview' })
+  const reset = () => { prepared.clear(); setSelection(null); setFilters({ branchId, period: 'month', year: now.getFullYear(), month: now.getMonth() + 1, quarter: Math.ceil((now.getMonth() + 1) / 3), semester: now.getMonth() < 6 ? 1 : 2 }); changeTab('configurar') }
+  useEffect(() => { if (prepared.error || projection.error) errorSummary.current?.focus() }, [prepared.error, projection.error])
+  return <div className="space-y-5"><div className="report-workspace-toolbar"><Button variant="ghost" onClick={onBack}><ArrowLeft className="h-4 w-4" /> Catálogo</Button><div className="report-type-select"><Select value={definition.id} onValueChange={reporte => setParams({ reporte, vista: 'configurar' })}><SelectTrigger aria-label="Elegir reporte"><SelectValue /></SelectTrigger><SelectContent>{available.map(r => <SelectItem value={r.id} key={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div><div className="ml-auto flex flex-wrap gap-2"><Button variant="ghost" disabled={prepared.pending} onClick={reset}>Restablecer</Button><Button variant="outline" disabled={prepared.pending} onClick={() => prepared.prepare()}>{prepared.report ? 'Actualizar datos' : 'Preparar datos'}</Button><Button variant="outline" disabled={!projection.report} onClick={() => setExportOpen(true)}>Exportar</Button><Button disabled={!projection.report} onClick={() => changeTab('datos')}>Vista previa <ArrowRight className="h-4 w-4" /></Button></div></div>
+    {projection.report && <ReportExportDialog key={`${projection.report.generatedAt}:${JSON.stringify(selected)}`} open={exportOpen} onOpenChange={setExportOpen} report={projection.report} getPdf={getPdf} />}
+    <p className="report-help">{prepared.report ? `${prepared.report.scope.label} · ${prepared.report.period.label} · ${prepared.report.sections.reduce((n, s) => n + s.rows.length, 0)} filas preparadas` : definition.description}</p>
+    {(prepared.error || projection.error) && <p ref={errorSummary} tabIndex={-1} role="alert" className="text-sm text-destructive">{prepared.error?.message || projection.error}</p>}{prepared.dirty && <p role="status" className="report-help">Los filtros cambiaron. Prepara los datos nuevamente.</p>}
+    {prepared.pending ? <LoadingState message="Preparando reporte…" variant="table" /> : <Tabs value={tab} onValueChange={changeTab}><div className="overflow-x-auto"><ModuleTabsList aria-label="Pasos del reporte"><ModuleTabsTrigger value="configurar">Configuración</ModuleTabsTrigger><ModuleTabsTrigger value="datos" disabled={!projection.report}>Datos preparados</ModuleTabsTrigger></ModuleTabsList></div>
+      <TabsContent value="configurar"><ReportConfigurator id={definition.id} filters={filters} onChange={setFilters} report={prepared.report} selection={selected} onSelectionChange={setSelection} /></TabsContent>
+      <TabsContent value="datos">{projection.report && <Tabs value={previewTab} onValueChange={setPreviewTab}><ModuleTabsList aria-label="Formato de vista previa"><ModuleTabsTrigger value="datos">Datos</ModuleTabsTrigger><ModuleTabsTrigger value="documento">Documento PDF</ModuleTabsTrigger></ModuleTabsList><TabsContent value="datos"><ReportDataPreview report={projection.report} /></TabsContent><TabsContent value="documento"><PdfPreview report={projection.report} getPdf={getPdf} /></TabsContent></Tabs>}</TabsContent>
+    </Tabs>}
+  </div>
 }
-
-const MONTH_NAMES = [
-  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
-
-const ReportCard = ({ report, onGenerate }: { report: ReportDefinition; onGenerate: () => void }) => {
-  const Icon = report.icon
-  return (
-    <Card className="auna-surface h-full transition-shadow hover:shadow-md">
-      <CardContent className="flex h-full flex-col p-5">
-        <div className="flex items-start gap-3">
-          <div className={`rounded-lg p-2.5 ${report.bgColor}`}>
-            <Icon className={`h-6 w-6 ${report.color}`} />
-          </div>
-          <div className="min-w-0 flex-1">
-            <h3 className="font-semibold">{report.name}</h3>
-            <p className="mt-1 text-sm text-muted-foreground">{report.description}</p>
-          </div>
-        </div>
-        <Button className="mt-5 w-full" variant="outline" onClick={onGenerate}>
-          <Download className="mr-2 h-4 w-4" /> Preparar descarga
-        </Button>
-      </CardContent>
-    </Card>
-  )
+export default function ReportsManagement() {
+  const { company, branch, isConsolidated } = useTenant(), modules = useModules(), permissions = useAuthPermissions()
+  const [params, setParams] = useSearchParams(), [search, setSearch] = useState(''), [category, setCategory] = useState('Todos')
+  usePageTrail(params.has('reporte') ? null : [{ label: 'Reportes' }])
+  const visible = !modules.enabledModuleCodes || modules.isError || !permissions.permissionsReady ? [] : REPORT_CATALOG.filter(r => r.modules.every(code => modules.enabledModuleCodes!.has(code)) && permissions.hasPermission(...r.permissions))
+  const definition = visible.find(r => r.id === params.get('reporte'))
+  if (modules.isError) return <div role="alert" className="p-6">No se pudo cargar el catálogo de reportes. <Button variant="outline" onClick={() => modules.refetch()}>Reintentar</Button></div>
+  if (modules.isLoading || !modules.enabledModuleCodes || !permissions.permissionsReady) return <LoadingState message="Cargando reportes…" variant="cards" />
+  if (!company) return <p role="status" className="p-6">Selecciona una empresa para consultar sus reportes.</p>
+  const branchId = isConsolidated ? 'all' : branch?.id || ''
+  if (definition && branchId) return <main className="reports-page"><h1 className="sr-only">{definition.name}</h1><ReportWorkspace key={`${company.id}:${branchId}:${definition.id}`} definition={definition} companyId={company.id} branchId={branchId} available={visible} onBack={() => setParams({})} /></main>
+  const filtered = visible.filter(r => (category === 'Todos' || r.category === category) && `${r.name} ${r.description}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')))
+  return <main className="reports-page"><h1 className="sr-only">Reportes</h1>{params.has('reporte') && <p role="alert" className="text-sm text-destructive">Este reporte no está disponible para tus módulos o permisos.</p>}
+    <div className="report-catalog-toolbar"><div className="max-w-xl flex-1 space-y-2"><Label htmlFor="report-search">Buscar reporte</Label><div className="relative"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="report-search" className="pl-10" placeholder="Buscar un reporte…" value={search} onChange={e => setSearch(e.target.value)} /></div></div><span className="text-sm text-muted-foreground">{visible.length} reportes disponibles</span></div>
+    <Tabs value={category} onValueChange={setCategory}><div className="overflow-x-auto"><ModuleTabsList aria-label="Categorías de reportes">{REPORT_CATEGORIES.filter(c => c === 'Todos' || visible.some(r => r.category === c)).map(c => <ModuleTabsTrigger key={c} value={c}>{c}</ModuleTabsTrigger>)}</ModuleTabsList></div>
+      <TabsContent value={category}><div className="report-catalog-grid">{filtered.map(report => <article key={report.id} className="report-catalog-entry"><FileText className="h-6 w-6 text-brand-orange" aria-hidden="true" /><div><span className="text-xs text-muted-foreground">{report.category}</span><h2 className="font-semibold">{report.name}</h2><p className="report-help mt-1">{report.description}</p></div><Button variant="outline" onClick={() => setParams({ reporte: report.id, vista: 'configurar' })}>Configurar <ArrowRight className="h-4 w-4" /></Button></article>)}</div>{!filtered.length && <p className="py-8 text-sm text-muted-foreground">No hay reportes disponibles con esta búsqueda y tus permisos actuales.</p>}</TabsContent>
+    </Tabs>
+  </main>
 }
-
-const ReportsManagement = () => {
-  const now = new Date()
-  const currentYear = now.getFullYear()
-  const initialYear = Math.max(2025, currentYear)
-  const { branch, branches, isConsolidated } = useTenant()
-  const { hasPermission } = useAuthPermissions()
-  const { enabledModuleCodes, isEnabled } = useModules()
-  const { showAdvancedByDefault } = useExperienceProfile()
-
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [pendingReport, setPendingReport] = useState<ReportDefinition | null>(null)
-  const [period, setPeriod] = useState<Period>('month')
-  const [year, setYear] = useState<number | 'all'>(initialYear)
-  const [month, setMonth] = useState<number | null>(now.getMonth() + 1)
-  const [semester, setSemester] = useState<1 | 2>(now.getMonth() < 6 ? 1 : 2)
-  const [branchId, setBranchId] = useState<string>(branch?.id || '')
-  const [warehouseId, setWarehouseId] = useState('all')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [specializedOpen, setSpecializedOpen] = useState(showAdvancedByDefault)
-  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(showAdvancedByDefault)
-
-  useEffect(() => {
-    setBranchId(isConsolidated ? 'all' : branch?.id || '')
-    setWarehouseId('all')
-  }, [branch?.id, isConsolidated])
-
-  const canViewAll = hasPermission('branches.view_all')
-  const showBranchPicker = branches.length > 1 || canViewAll
-  const { data: warehouses } = useQuery({
-    queryKey: ['warehouses', branch?.id],
-    queryFn: fetchWarehouses,
-    enabled: filtersOpen,
-  })
-  const showWarehousePicker = (warehouses?.length ?? 0) > 1 && (!branchId || branchId === branch?.id)
-
-  const visibleReports = useMemo(
-    () => enabledModuleCodes === null
-      ? []
-      : REPORT_TYPES.filter((report) => report.requiredModules.every(isEnabled)),
-    [enabledModuleCodes, isEnabled],
-  )
-  const everydayReports = visibleReports.filter((report) => report.everyday)
-  const specializedReports = visibleReports.filter((report) => !report.everyday)
-
-  const selectedBranch = branchId || (isConsolidated ? 'all' : branch?.id || '')
-  const scopeLabel = selectedBranch === 'all'
-    ? 'Todas las sucursales'
-    : branches.find((candidate) => candidate.id === selectedBranch)?.name || 'Sucursal activa'
-  const warehouseLabel = showWarehousePicker && warehouseId !== 'all'
-    ? warehouses?.find((warehouse) => warehouse.id === warehouseId)?.name
-    : null
-
-  const periodDetail = period === 'month' && month
-    ? MONTH_NAMES[month - 1]
-    : period === 'quarter' && month
-      ? `trimestre ${Math.ceil(month / 3)}`
-      : period === 'semester'
-        ? `semestre ${semester}`
-        : PERIOD_LABELS[period]
-  const periodLabel = `${periodDetail}${year === 'all' || period === 'all' ? '' : ` de ${year}`}`
-  const exportSummary = `${scopeLabel}${warehouseLabel ? ` · ${warehouseLabel}` : ''}. ${periodLabel}.`
-
-  const choosePreset = (nextPeriod: 'week' | 'month' | 'year') => {
-    setPeriod(nextPeriod)
-    setYear(currentYear)
-    setMonth(nextPeriod === 'month' ? now.getMonth() + 1 : null)
-  }
-
-  const openReport = (report: ReportDefinition) => {
-    setPendingReport(report)
-    setFiltersOpen(true)
-  }
-
-  const generateReport = async (format: 'pdf' | 'csv', fileName?: string) => {
-    if (!pendingReport) return
-    setIsGenerating(true)
-    try {
-      const params = new URLSearchParams({ period, format })
-      if (year !== 'all') params.set('year', String(year))
-      if (period === 'month' && month) params.set('month', String(month))
-      if (period === 'quarter' && month) params.set('quarter', String(Math.ceil(month / 3)))
-      if (period === 'semester') params.set('semester', String(semester))
-      if (showWarehousePicker && warehouseId !== 'all') params.set('warehouse_id', warehouseId)
-      await downloadFile(
-        `/reports/${pendingReport.id}?${params.toString()}`,
-        fileName || `${pendingReport.id}-${period}.${format}`,
-        selectedBranch ? { 'X-Branch-Id': selectedBranch } : undefined,
-      )
-      toast({ title: 'Reporte listo', description: `${pendingReport.name} descargado.` })
-      setFiltersOpen(false)
-      setPendingReport(null)
-    } catch (error) {
-      toast({
-        title: 'No se pudo generar el reporte',
-        description: error instanceof Error ? error.message : 'Intenta nuevamente.',
-        variant: 'destructive',
-      })
-    } finally {
-      setIsGenerating(false)
-    }
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6">
-      <ExportDialog
-        open={filtersOpen}
-        onOpenChange={(open) => {
-          setFiltersOpen(open)
-          if (!open) setPendingReport(null)
-        }}
-        title={`Descargar ${pendingReport?.name || 'reporte'}`}
-        summary={exportSummary}
-        fileName={`${pendingReport?.id || 'reporte'}-${period}`}
-        pending={isGenerating}
-        onExport={({ format, fileName }) => {
-          if (format !== 'xlsx') void generateReport(format, fileName)
-        }}
-      >
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm font-medium">¿Qué período necesitas?</p>
-            <p className="text-sm text-muted-foreground">Elige una opción rápida o abre los filtros avanzados.</p>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
-            {([
-              ['week', 'Semana'],
-              ['month', 'Mes'],
-              ['year', 'Año'],
-            ] as const).map(([value, label]) => (
-              <Button
-                key={value}
-                type="button"
-                variant={period === value ? 'default' : 'outline'}
-                onClick={() => choosePreset(value)}
-              >
-                {label}
-              </Button>
-            ))}
-          </div>
-        </div>
-
-        <Collapsible open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-          <CollapsibleTrigger asChild>
-            <Button type="button" variant="ghost" className="w-full justify-between px-0">
-              <span className="flex items-center gap-2">
-                <SlidersHorizontal className="h-4 w-4" /> Filtros avanzados
-              </span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${advancedFiltersOpen ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 border-t pt-4">
-            {showBranchPicker && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Sucursal</p>
-                <Select value={selectedBranch} onValueChange={(value) => { setBranchId(value); setWarehouseId('all') }}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona sucursal" /></SelectTrigger>
-                  <SelectContent>
-                    {branches.map((candidate) => (
-                      <SelectItem key={candidate.id} value={candidate.id}>{candidate.name}</SelectItem>
-                    ))}
-                    {canViewAll && <SelectItem value="all">Toda la empresa</SelectItem>}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {showWarehousePicker && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Almacén</p>
-                <Select value={warehouseId} onValueChange={setWarehouseId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos los almacenes</SelectItem>
-                    {(warehouses ?? []).map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.id}>{warehouse.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Período</p>
-                <Select value={period} onValueChange={(value) => {
-                  const next = value as Period
-                  setPeriod(next)
-                  if (next !== 'month' && next !== 'quarter') setMonth(null)
-                }}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="week">Semana</SelectItem>
-                    <SelectItem value="month">Mes</SelectItem>
-                    <SelectItem value="quarter">Trimestre</SelectItem>
-                    <SelectItem value="semester">Semestre</SelectItem>
-                    <SelectItem value="year">Año</SelectItem>
-                    <SelectItem value="all">Todo</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Año</p>
-                <Select value={String(year)} onValueChange={(value) => setYear(value === 'all' ? 'all' : Number(value))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    {Array.from({ length: currentYear - 2025 + 1 }, (_, index) => 2025 + index).map((candidate) => (
-                      <SelectItem key={candidate} value={String(candidate)}>{candidate}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {period === 'month' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Mes</p>
-                  <Select value={month ? String(month) : ''} onValueChange={(value) => setMonth(Number(value))}>
-                    <SelectTrigger><SelectValue placeholder="Selecciona" /></SelectTrigger>
-                    <SelectContent>
-                      {MONTH_NAMES.map((name, index) => (
-                        <SelectItem key={name} value={String(index + 1)}>{name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {period === 'quarter' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Trimestre</p>
-                  <Select
-                    value={String(Math.ceil((month || now.getMonth() + 1) / 3))}
-                    onValueChange={(value) => setMonth((Number(value) - 1) * 3 + 1)}
-                  >
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {[1, 2, 3, 4].map((candidate) => (
-                        <SelectItem key={candidate} value={String(candidate)}>Q{candidate}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {period === 'semester' && (
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Semestre</p>
-                  <Select value={String(semester)} onValueChange={(value) => setSemester(value === '2' ? 2 : 1)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="1">Primero</SelectItem>
-                      <SelectItem value="2">Segundo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </ExportDialog>
-
-      <h1 className="sr-only">Reportes</h1>
-
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
-            <CalendarRange className="mt-0.5 h-5 w-5 text-primary" />
-            <div>
-              <p className="font-medium">Flujo simple de descarga</p>
-              <p className="text-sm text-muted-foreground">Elige un reporte, selecciona semana/mes/año y descarga PDF o CSV.</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <FileSpreadsheet className="h-4 w-4" /> CSV se abre en Excel o Google Sheets
-          </div>
-        </CardContent>
-      </Card>
-
-      <section className="space-y-3" aria-labelledby="everyday-reports">
-        <div>
-          <h2 id="everyday-reports" className="text-lg font-semibold">Reportes principales</h2>
-          <p className="text-sm text-muted-foreground">Los que un dueño o encargado consulta con más frecuencia.</p>
-        </div>
-        {enabledModuleCodes === null ? (
-          <LoadingState variant="cards" rows={4} message="Cargando reportes disponibles…" />
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            {everydayReports.map((report) => (
-              <ReportCard key={report.id} report={report} onGenerate={() => openReport(report)} />
-            ))}
-          </div>
-        )}
-      </section>
-
-      {specializedReports.length > 0 && (
-        <Collapsible open={specializedOpen} onOpenChange={setSpecializedOpen}>
-          <Card className="auna-surface-flat">
-            <CardHeader className="pb-3">
-              <CollapsibleTrigger asChild>
-                <Button type="button" variant="ghost" className="h-auto w-full justify-between p-0 text-left">
-                  <span>
-                    <CardTitle className="text-lg">Reportes especializados</CardTitle>
-                    <CardDescription className="mt-1">Inventariados, proveedores, kardex y operación de almacén.</CardDescription>
-                  </span>
-                  <span className="flex items-center gap-2 text-sm font-normal text-muted-foreground">
-                    {specializedReports.length} disponibles
-                    <ChevronDown className={`h-4 w-4 transition-transform ${specializedOpen ? 'rotate-180' : ''}`} />
-                  </span>
-                </Button>
-              </CollapsibleTrigger>
-            </CardHeader>
-            <CollapsibleContent>
-              <CardContent className="grid gap-4 px-0 pt-4 sm:grid-cols-2 lg:grid-cols-3">
-                {specializedReports.map((report) => (
-                  <ReportCard key={report.id} report={report} onGenerate={() => openReport(report)} />
-                ))}
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      )}
-    </div>
-  )
-}
-
-export default ReportsManagement

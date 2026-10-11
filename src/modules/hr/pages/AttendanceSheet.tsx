@@ -17,6 +17,7 @@ import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingS
 import { useState } from 'react'
 import { Pagination } from '@/components/shared/Pagination'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -99,6 +100,7 @@ export const AttendanceSheet = () => {
     queryFn: () => fetchAttendance({ from, to, employee_ids: (employees?.items ?? []).map(e => e.id).join(',') }),
     enabled: !!employees,
   })
+  const periodSummary = useQuery({ queryKey: ['hr-attendance', 'summary', from, to], queryFn: () => fetchAttendance({ from, to, includeSummary: true, summaryOnly: true }) })
 
   const byKey = new Map(
     (attendance?.items ?? []).map((a) => [`${a.employee_id}|${a.work_date.slice(0, 10)}`, a]),
@@ -126,7 +128,9 @@ export const AttendanceSheet = () => {
   }
 
   return (
-    <><Card className="auna-surface">
+    <>
+      <MetricStrip className="mb-5" label="Marcas del período" loading={periodSummary.isLoading} items={([['total', 'Marcas del período'], ['PRESENTE', 'Presentes'], ['TARDE', 'Tardanzas'], ['AUSENTE', 'Ausencias registradas']] as const).map(([key, label]) => ({ label, value: periodSummary.isError ? '—' : periodSummary.data?.summary?.[key] ?? '—' }))} />
+      <Card className="auna-surface">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4">
         <CardTitle className="sr-only">Asistencia</CardTitle>
         <div className="flex items-center gap-2">

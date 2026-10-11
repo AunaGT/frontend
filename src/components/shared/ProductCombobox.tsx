@@ -25,30 +25,32 @@ import { fetchAllProducts } from '@/services/productService'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { formatMoney } from '@/utils'
 import { cn } from '@/lib/utils'
+import type { Product } from '@/types/product'
 
 export interface ProductComboboxProps {
   value: string
-  onChange: (value: string) => void
+  onChange: (value: string, product?: Product) => void
   placeholder?: string
   label?: string
   icon?: React.ReactNode
+  commercial?: boolean
 }
 
-function useProducts() {
+function useProducts(catalogType: 'goods' | 'all') {
   return useQuery({
-    queryKey: ['products-list'],
+    queryKey: ['products-list',catalogType],
     // Envuelto: React Query pasa su contexto como primer argumento y
     // fetchAllProducts lo tomaría como sus opciones.
-    queryFn: () => fetchAllProducts(),
+    queryFn: () => fetchAllProducts({catalogType}),
     staleTime: 5 * 60 * 1000
   })
 }
 
-export const ProductCombobox = ({ value, onChange, placeholder, label, icon }: ProductComboboxProps) => {
+export const ProductCombobox = ({ value, onChange, placeholder, label, icon,commercial=false }: ProductComboboxProps) => {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
-  const { locale, currencyCode } = useSystemSettings()
-  const { data: products = [], isLoading } = useProducts()
+  const { locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
+  const { data: products = [], isLoading } = useProducts(commercial && inventoryServicesEnabled ? 'all' : 'goods')
 
   const filteredProducts = useMemo(() => {
     if (!search) return products.slice(0, 50)
@@ -109,7 +111,7 @@ export const ProductCombobox = ({ value, onChange, placeholder, label, icon }: P
                       key={product.id}
                       value={product.id}
                       onSelect={() => {
-                        onChange(product.id)
+                        onChange(product.id,product)
                         setOpen(false)
                         setSearch('')
                       }}
@@ -123,7 +125,7 @@ export const ProductCombobox = ({ value, onChange, placeholder, label, icon }: P
                     <div className="flex flex-col">
                       <span className="font-medium">{product.name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {formatMoney(product.price ?? 0, locale, currencyCode)} • {product.category ?? '-'}
+                        {formatMoney(product.price ?? 0, locale, currencyCode)} • {product.kind === 'SERVICE' ? `${product.serviceUnitLabel} · Sin control de existencias` : product.category ?? '-'}
                       </span>
                     </div>
                   </CommandItem>

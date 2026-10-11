@@ -42,6 +42,7 @@ import { CatalogFilters } from './CatalogFilters'
 import { CatalogRowActions } from './CatalogRowActions'
 import { useCatalogSearch } from './useCatalogSearch'
 import { Pagination } from '@/components/shared/Pagination'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import {
   usePaymentMethodsCatalog,
   useCreatePaymentMethod,
@@ -73,6 +74,7 @@ export function PaymentMethodsTab() {
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   useResetPageOnFilterChange(setCurrentPage, [query, order])
   const { data, isLoading, isFetching, error } = usePaymentMethodsCatalog({
+    includeSummary: true,
     page: currentPage,
     pageSize,
     search: query, order,
@@ -103,18 +105,22 @@ export function PaymentMethodsTab() {
 
   return (
     <>
-      <><Card className="auna-data-table-shell">
+      <MetricStrip className="mb-5" label="Resumen de métodos de pago" loading={isLoading} items={[
+        { label: 'Métodos', value: error ? '—' : data?.summary?.total ?? '—' },
+        { label: 'Cobro inmediato', value: error ? '—' : data?.summary?.immediate ?? '—' },
+        { label: 'Crédito', value: error ? '—' : data?.summary?.credit ?? '—' },
+      ]} />
+      <>
 
         <CatalogFilters actions={<>{canManageCatalogs && (
               <Button
-                size="sm"
                 onClick={() => setDialog({ open: true, mode: 'create' })}
-                className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong shrink-0 self-start sm:self-auto"
               >
                 <Plus className="w-4 h-4 sm:mr-2" />
                 <span>Nuevo método</span>
               </Button>
             )}</>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+      <Card className="auna-data-table-shell auna-surface">
         <CardContent className="catalog-content">
           {isFetching && data && <LoadingIndicator message="Actualizando métodos de pago…" />}
           {error ? <p role="alert" className="p-6 text-destructive">{catalogApiErrorMessage(error, 'No se pudieron cargar los métodos de pago')}</p> : (

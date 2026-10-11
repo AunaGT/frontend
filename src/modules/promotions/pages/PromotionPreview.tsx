@@ -22,9 +22,10 @@ interface Props {
 }
 
 export function PromotionPreview({ name, description, typeName, percentage, amount, startDate, endDate, products, appliesToAllBranches, branchIds, maxUses, active = true }: Props) {
-  const { companyName, companyLogoUrl, locale, currencyCode } = useSystemSettings()
+  const { companyName, companyLogoUrl, locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
+  const catalogType=inventoryServicesEnabled ? 'all' : 'goods'
   const { branches } = useTenant()
-  const productQuery = useQuery({ queryKey: ['products-list'], queryFn: fetchAllProducts, enabled: products.length > 0, staleTime: 5 * 60 * 1000 })
+  const productQuery = useQuery({ queryKey: ['products-list',catalogType], queryFn: ()=>fetchAllProducts({catalogType}), enabled: products.length > 0, staleTime: 5 * 60 * 1000 })
   const productMap = new Map((productQuery.data ?? []).map((product) => [product.id, product]))
   const date = (value: string) => value ? new Intl.DateTimeFormat(locale || 'es-GT', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(`${value}T12:00:00`)) : 'Sin límite'
   const money = (value: number) => new Intl.NumberFormat(locale || 'es-GT', { style: 'currency', currency: currencyCode || 'GTQ' }).format(value)

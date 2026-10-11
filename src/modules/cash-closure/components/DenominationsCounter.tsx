@@ -13,6 +13,7 @@
  */
 import { Input } from '@/components/ui/input'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { Banknote } from 'lucide-react'
 import type { Denomination } from '../types'
 import { formatCurrency, toNumber } from '../types'
 
@@ -35,7 +36,7 @@ export const DenominationsCounter = ({
     return (
         <div className="space-y-4">
             <div>
-                <h3 className="font-semibold">Arqueo por denominaciones</h3>
+                <h2 className="cash-closure-panel-heading"><Banknote className="h-5 w-5 text-primary" aria-hidden="true" />Arqueo por denominaciones</h2>
                 <p className="text-xs text-muted-foreground mt-1">
                     Opcional. El total calculado actualiza automáticamente el efectivo contado.
                 </p>
@@ -55,32 +56,41 @@ export const DenominationsCounter = ({
                     </p>
                 )}
             </div>
-                    <div className="space-y-3 border-t pt-4">
-                        <div className="grid grid-cols-4 gap-2 font-semibold text-sm">
-                            <div>Denominación</div>
-                            <div>Tipo</div>
-                            <div>Cantidad</div>
-                            <div>Subtotal</div>
-                        </div>
+                    <div className="cash-closure-denominations-scroll" role="region" aria-label="Conteo de billetes y monedas" tabIndex={0}>
+                      <table>
+                        <caption className="sr-only">Cantidades y subtotales por denominación</caption>
+                        <thead><tr>
+                            <th scope="col">Denominación</th>
+                            <th scope="col">Cantidad</th>
+                            <th scope="col" className="cash-closure-money">Subtotal</th>
+                        </tr></thead>
+                        <tbody>
                         {denominations.map((denom, index) => (
-                            <div key={`${denom.type}-${denom.denomination}`} className="grid grid-cols-4 gap-2 items-center">
-                                <div className="font-medium">Q {toNumber(denom.denomination).toFixed(2)}</div>
-                                <div className="text-sm text-muted-foreground">{denom.type}</div>
+                            <tr key={`${denom.type}-${denom.denomination}`}>
+                                <th scope="row" className="!bg-transparent !text-foreground">
+                                  {formatCurrency(toNumber(denom.denomination), currencyCode, locale)}
+                                  <span className="block text-xs font-normal text-muted-foreground">{denom.type}</span>
+                                </th>
+                                <td>
                                 <Input
                                     type="number"
                                     data-control-size="compact"
+                                    aria-label={`Cantidad de ${denom.type} de ${formatCurrency(toNumber(denom.denomination), currencyCode, locale)}`}
                                     min="0"
                                     value={denom.quantity || ''}
                                     onChange={(e) => onUpdateQuantity(index, parseInt(e.target.value) || 0)}
                                     placeholder="0"
                                 />
-                                <div className="font-semibold">{formatCurrency(denom.subtotal, currencyCode, locale)}</div>
-                            </div>
+                                </td>
+                                <td className="cash-closure-money font-medium">{formatCurrency(denom.subtotal, currencyCode, locale)}</td>
+                            </tr>
                         ))}
-                        <div className="border-t pt-3 mt-3 flex justify-between items-center">
-                            <span className="font-semibold">Total Efectivo Contado:</span>
-                            <output className="auna-field-value-inline text-xl font-bold">{formatCurrency(cashTotal, currencyCode, locale)}</output>
-                        </div>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="border-t pt-3 flex flex-wrap justify-between items-center gap-2">
+                        <span className="text-sm font-semibold">Total efectivo contado</span>
+                        <output className="auna-field-value-inline text-lg font-bold tabular-nums">{formatCurrency(cashTotal, currencyCode, locale)}</output>
                     </div>
         </div>
     )

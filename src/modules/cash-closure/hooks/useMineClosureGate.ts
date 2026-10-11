@@ -162,11 +162,11 @@ export function useMineClosureGate({
 
   const queryEnabled = enabled && !!userId
 
-  const { data, isLoading, isPending, error, refetch } = useQuery({
+  const { data, isLoading, isPending, isFetching, error, refetch } = useQuery({
     queryKey: CASH_SESSION_CURRENT_QUERY_KEY,
     queryFn: async () => {
       const r = await fetchCashSessionCurrent()
-      if (!r.ok) throw new Error(r.message || 'No se pudo verificar el turno')
+      if (r.ok === false) throw new Error(r.message || 'No se pudo verificar el turno')
       return r
     },
     enabled: queryEnabled,
@@ -216,5 +216,5 @@ export function useMineClosureGate({
     void refetch()
   }, [refetch])
 
-  return { gate, refresh }
+  return { gate, refresh, isRefreshing: isFetching }
 }

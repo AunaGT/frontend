@@ -13,6 +13,7 @@ import {
   Search, Check, UserPlus, Info, Loader2,
 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -259,24 +260,24 @@ export default function UserCreatePage() {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••••••"
-                      className="auna-input pr-8"
+                      className="auna-input pr-12"
                     />
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      variant="ghost" size="icon" className="absolute right-0 top-1/2 -translate-y-1/2" aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
                     >
                       {showPassword ? <EyeOff size={13} /> : <Eye size={13} />}
-                    </button>
+                    </Button>
                   </div>
-                  <button
+                  <Button
                     type="button"
                     onClick={generateRandomPassword}
-                    className="btn-auna-outline text-xs whitespace-nowrap py-2"
+                    variant="outline"
                   >
                     <UserPlus size={13} />
                     <span>Generar contraseña</span>
-                  </button>
+                  </Button>
                 </div>
                 <p className="text-[11px] users-muted flex items-center gap-1.5 mt-1">
                   <Info size={12} className="text-blue-400 shrink-0" />
@@ -322,13 +323,13 @@ export default function UserCreatePage() {
             subtitle="La cuenta se crea en la empresa activa. Administra otros accesos desde su ficha."
             icon={Building2}
             actions={
-              <button
+              <Button
                 type="button"
                 disabled
-                className="text-xs text-orange-500 hover:underline font-medium"
+                variant="link" size="sm"
               >
                 Empresa activa
-              </button>
+              </Button>
             }
           >
             {/* Buscador */}
@@ -373,13 +374,13 @@ export default function UserCreatePage() {
             subtitle="Selecciona el rol efectivo para la empresa activa."
             icon={Users}
             actions={
-              <button
+              <Button
                 type="button"
                 onClick={toggleSelectAllRoles}
-                className="text-xs text-orange-500 hover:underline font-medium"
+                variant="link" size="sm"
               >
                 Limpiar selección
-              </button>
+              </Button>
             }
           >
             {/* Buscador */}
@@ -428,23 +429,23 @@ export default function UserCreatePage() {
 
         {/* ══════════ BARRA INFERIOR DE ACCIONES ══════════ */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <button
+          <Button
             type="button"
             onClick={() => navigate('/usuarios')}
             disabled={isLoading}
-            className="px-4 py-2 rounded-lg border border-border bg-[hsl(var(--card))] hover:bg-muted text-foreground text-xs font-medium transition-colors"
+            variant="outline"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => void handleSubmit()}
             disabled={isLoading}
-            className="btn-auna-primary"
+            variant="default"
           >
             {isLoading ? <Loader2 size={14} className="animate-spin" /> : <UserPlus size={14} />}
             <span>Crear usuario</span>
-          </button>
+          </Button>
         </div>
       </div>
     </main>

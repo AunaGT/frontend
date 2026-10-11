@@ -9,18 +9,20 @@
  */
 
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { Pagination } from '@/components/shared/Pagination'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
-import { LoadingState } from '@/components/shared/LoadingState'
+import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { BookOpen, ChevronDown, ChevronRight, Download, Plus, Receipt, RefreshCcw, Undo2, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, Download, MoreHorizontal, Plus, Receipt, RefreshCcw, Undo2, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import {
   getJournal, postPending, reverseJournalEntry,
@@ -56,9 +58,11 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   const [posting, setPosting] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   const load = useCallback(async (p: number) => {
     setLoading(true)
+    setLoadError(false)
     try {
       const res = await getJournal({ from: from || undefined, to: to || undefined, source: source || undefined, branch_id: branchFilter || undefined, page: p, pageSize: 25 })
       setItems(res.items)
@@ -66,6 +70,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
       setTotalPages(res.totalPages)
       setTotalItems(res.totalItems)
     } catch (e) {
+      setLoadError(true)
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo cargar el diario', variant: 'destructive' })
     } finally {
       setLoading(false)
@@ -141,160 +146,76 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <BookOpen className="h-5 w-5" />Libro Diario
-            <span className="text-sm font-normal text-muted-foreground">({totalItems} asientos)</span>
-          </CardTitle>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportOpen(true)}
-              disabled={exporting || totalItems === 0}
-            >
-              <Download className="h-4 w-4 mr-2" />
-              {exporting ? 'Exportando…' : 'Exportar'}
-            </Button>
-            {canCreate && (
-              <>
-                <Button variant="outline" size="sm" onClick={() => setIsExpenseOpen(true)}>
-                  <Receipt className="h-4 w-4 mr-2" />Registrar gasto
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigate('/contabilidad/importar?type=journal')}>
-                  <Upload className="h-4 w-4 mr-2" />Importar
-                </Button>
-                <Button variant="outline" size="sm" onClick={handlePostPending} disabled={posting}>
-                  <RefreshCcw className={`h-4 w-4 mr-2 ${posting ? 'animate-spin' : ''}`} />
-                  {posting ? 'Contabilizando…' : 'Contabilizar pendientes'}
-                </Button>
-                <Button size="sm" onClick={() => setIsNewOpen(true)} className="bg-liquor-amber hover:bg-liquor-amber/90 text-white">
-                  <Plus className="h-4 w-4 mr-2" />Nuevo asiento
-                </Button>
-              </>
-            )}
-          </div>
+    <section className="space-y-5" aria-label="Libro Diario">
+      <MetricStrip label="Resumen del diario" loading={loading} items={[
+        { label: 'Asientos consultados', value: loadError ? '—' : totalItems },
+        { label: 'Período', value: rangoTexto(from, to) },
+        { label: 'Ámbito', value: branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Todas las sucursales' },
+      ]} />
+      <CompactFilterPanel title="Filtros de diario"
+        search={<p className="py-2 text-sm text-muted-foreground">Libro Diario · {totalItems} asientos</p>}
+        actions={<>
+          <Button variant="outline" onClick={() => setExportOpen(true)} disabled={exporting || loading || loadError || totalItems === 0}><Download className="h-4 w-4 mr-2" />{exporting ? 'Exportando…' : 'Exportar'}</Button>
+          {canCreate && <>
+            <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline"><MoreHorizontal className="h-4 w-4 mr-2" />Más opciones</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => setIsExpenseOpen(true)}><Receipt className="h-4 w-4 mr-2" />Registrar gasto</DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => navigate('/contabilidad/importar?type=journal')}><Upload className="h-4 w-4 mr-2" />Importar</DropdownMenuItem>
+                <DropdownMenuItem disabled={posting} onSelect={() => void handlePostPending()}><RefreshCcw className="h-4 w-4 mr-2" />{posting ? 'Contabilizando…' : 'Contabilizar pendientes'}</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button onClick={() => setIsNewOpen(true)}><Plus className="h-4 w-4 mr-2" />Nuevo asiento</Button>
+          </>}
+        </>}
+        activeCount={Number(from !== '') + Number(to !== '') + Number(Boolean(source)) + Number(Boolean(branchFilter))}
+        onClear={() => { setFrom(''); setTo(''); setSource(''); setBranchFilter('') }}
+        appliedFilters={[
+          ...(from ? [{ label: `Desde: ${from}`, onRemove: () => setFrom('') }] : []),
+          ...(to ? [{ label: `Hasta: ${to}`, onRemove: () => setTo('') }] : []),
+          ...(source ? [{ label: `Origen: ${SOURCE_LABELS[source] || source}`, onRemove: () => setSource('') }] : []),
+          ...(branchFilter ? [{ label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`, onRemove: () => setBranchFilter('') }] : []),
+        ]}>
+        <div className="space-y-1"><Label>Desde</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
+        <div className="space-y-1"><Label>Hasta</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
+        <div className="space-y-1"><Label>Origen</Label><Select value={source || 'all'} onValueChange={v => setSource(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+        {branches.length > 1 && <div className="space-y-1"><Label>Sucursal</Label><Select value={branchFilter || 'all'} onValueChange={v => setBranchFilter(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="company">Solo empresa</SelectItem>{branches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div>}
+      </CompactFilterPanel>
+      {posting && <LoadingIndicator message="Contabilizando operaciones pendientes…" />}
+      {loading ? <LoadingState message="Cargando asientos…" columns={['Número', 'Fecha', 'Descripción', 'Sucursal', 'Origen', 'Total', 'Acciones']} /> : loadError ? <div role="alert" className="py-8 text-center"><p>No se pudo cargar el diario.</p><Button variant="outline" className="mt-3" onClick={() => void load(page)}>Reintentar</Button></div> : <>
+        <div className="auna-data-table-shell overflow-x-auto">
+          <table className="auna-data-table">
+            <thead><tr><th>Número</th><th>Fecha</th><th>Descripción</th><th>Sucursal</th><th>Origen</th><th className="text-right">Total</th><th className="text-right">Acciones</th></tr></thead>
+            <tbody>
+              {!items.length && <tr><td colSpan={7} className="text-center text-muted-foreground">No hay asientos en el rango seleccionado.</td></tr>}
+              {items.map(entry => {
+                const expanded = expandedId === entry.id
+                return <Fragment key={entry.id}>
+                  <tr>
+                    <td className="whitespace-nowrap"><Button variant="ghost" size="sm" className="font-semibold" aria-expanded={expanded} aria-controls={`entry-lines-${entry.id}`} aria-label={`Ver líneas del asiento ${entry.entry_number}`} onClick={() => setExpandedId(expanded ? null : entry.id)}>{expanded ? <ChevronDown className="h-4 w-4 mr-2" /> : <ChevronRight className="h-4 w-4 mr-2" />}{entry.entry_number}</Button></td>
+                    <td className="whitespace-nowrap text-muted-foreground">{fmtDate(entry.date)}</td>
+                    <td className="min-w-40 max-w-80" title={entry.description}>{entry.description}</td>
+                    <td className="text-muted-foreground">{entry.branch?.name ?? 'Empresa'}</td>
+                    <td><Badge variant="secondary">{SOURCE_LABELS[entry.source_type]}</Badge></td>
+                    <td className="text-right whitespace-nowrap font-medium">{fmtQ(entryTotal(entry))}</td>
+                    <td className="text-right"><div className="flex items-center justify-end gap-2">{statusBadge(entry)}{canCreate && !entry.reversal_of_id && (!entry.reversals || entry.reversals.length === 0) && entry.source_type !== 'CLOSING' && <Button variant="ghost" size="sm" aria-label={`Anular asiento ${entry.entry_number}`} onClick={() => void handleReverse(entry)}><Undo2 className="h-4 w-4 mr-1" />Anular</Button>}</div></td>
+                  </tr>
+                  {expanded && <tr id={`entry-lines-${entry.id}`} className="accounting-journal-lines"><td colSpan={7}>
+                    <table aria-label={`Líneas del asiento ${entry.entry_number}`} className="auna-data-table">
+                      <thead><tr><th>Cuenta</th><th className="text-right">Debe</th><th className="text-right">Haber</th></tr></thead>
+                      <tbody>{entry.lines.map(line => <tr key={line.id}><td>{line.account ? `${line.account.code} — ${line.account.name}` : line.account_id}</td><td className="text-right">{Number(line.debit) > 0 ? fmtQ(line.debit) : ''}</td><td className="text-right">{Number(line.credit) > 0 ? fmtQ(line.credit) : ''}</td></tr>)}</tbody>
+                    </table>
+                    {entry.createdBy?.name && <p className="mt-2 text-xs text-muted-foreground">Registrado por {entry.createdBy.name}</p>}
+                  </td></tr>}
+                </Fragment>
+              })}
+            </tbody>
+          </table>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <CompactFilterPanel title="Filtros de diario" activeCount={Number(from !== '')+Number(to !== '')+Number(Boolean(source))+Number(Boolean(branchFilter))} onClear={() => {setFrom('');setTo('');setSource('');setBranchFilter('');}} appliedFilters={[...(from ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom('')}] : []),...(to ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo('')}] : []),...(source ? [{label: `Origen: ${SOURCE_LABELS[source] || source}`,onRemove: () => setSource('')}] : []),...(branchFilter ? [{label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`,onRemove: () => setBranchFilter('')}] : [])]}>
-          <div className="space-y-1">
-            <Label className="text-xs">Desde</Label>
-            <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Hasta</Label>
-            <Input type="date" className="w-[150px]" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Origen</Label>
-            <Select value={source || 'all'} onValueChange={(v) => setSource(v === 'all' ? '' : v)}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Todos" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                {Object.entries(SOURCE_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>{label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          {branches.length > 1 && (
-            <div className="space-y-1">
-              <Label className="text-xs">Sucursal</Label>
-              <Select value={branchFilter || 'all'} onValueChange={(v) => setBranchFilter(v === 'all' ? '' : v)}>
-                <SelectTrigger className="w-[170px]"><SelectValue placeholder="Todas" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas</SelectItem>
-                  <SelectItem value="company">Solo empresa</SelectItem>
-                  {branches.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </CompactFilterPanel>
-        <p className="text-xs text-muted-foreground">Período: {rangoTexto(from, to)}</p>
-
-        {loading ? (
-          <LoadingState message="Cargando asientos…" columns={['Número', 'Fecha', 'Descripción', 'Sucursal', 'Origen', 'Total', 'Acciones']} />
-        ) : items.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">No hay asientos en el rango seleccionado.</p>
-        ) : (
-          <div className="rounded-md border divide-y">
-            <div className="hidden md:grid grid-cols-[28px_110px_100px_1fr_120px_110px_130px_auto] gap-2 px-3 py-2 text-xs font-medium text-muted-foreground bg-muted/50">
-              <span /><span>Número</span><span>Fecha</span><span>Descripción</span><span>Sucursal</span><span>Origen</span><span className="text-right">Total</span><span />
-            </div>
-            {items.map((entry) => {
-              const expanded = expandedId === entry.id
-              return (
-                <div key={entry.id}>
-                  <div
-                    className="grid grid-cols-2 md:grid-cols-[28px_110px_100px_1fr_120px_110px_130px_auto] gap-2 px-3 py-2.5 items-center text-sm cursor-pointer hover:bg-muted/40"
-                    onClick={() => setExpandedId(expanded ? null : entry.id)}
-                  >
-                    <span className="hidden md:block text-muted-foreground">
-                      {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                    </span>
-                    <span className="font-medium">{entry.entry_number}</span>
-                    <span className="text-muted-foreground">{fmtDate(entry.date)}</span>
-                    <span className="truncate col-span-2 md:col-span-1" title={entry.description}>{entry.description}</span>
-                    <span className="truncate text-muted-foreground" title={entry.branch?.name ?? 'Empresa'}>
-                      {entry.branch?.name ?? 'Empresa'}
-                    </span>
-                    <span><Badge variant="secondary">{SOURCE_LABELS[entry.source_type]}</Badge></span>
-                    <span className="text-right font-medium">{fmtQ(entryTotal(entry))}</span>
-                    <span className="flex items-center gap-2 justify-end">
-                      {statusBadge(entry)}
-                      {canCreate && !entry.reversal_of_id && (!entry.reversals || entry.reversals.length === 0) && entry.source_type !== 'CLOSING' && (
-                        <Button
-                          variant="ghost" size="sm" className="h-7 px-2 text-muted-foreground"
-                          onClick={(e) => { e.stopPropagation(); void handleReverse(entry) }}
-                        >
-                          <Undo2 className="h-3.5 w-3.5 mr-1" />Anular
-                        </Button>
-                      )}
-                    </span>
-                  </div>
-                  {expanded && (
-                    <div className="px-4 pb-3 bg-muted/20">
-                      <div className="rounded border bg-background overflow-hidden">
-                        <div className="grid grid-cols-[1fr_120px_120px] gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground bg-muted/50">
-                          <span>Cuenta</span><span className="text-right">Debe</span><span className="text-right">Haber</span>
-                        </div>
-                        {entry.lines.map((line) => (
-                          <div key={line.id} className="grid grid-cols-[1fr_120px_120px] gap-2 px-3 py-1.5 text-sm border-t">
-                            <span>{line.account ? `${line.account.code} — ${line.account.name}` : line.account_id}</span>
-                            <span className="text-right">{Number(line.debit) > 0 ? fmtQ(line.debit) : ''}</span>
-                            <span className="text-right">{Number(line.credit) > 0 ? fmtQ(line.credit) : ''}</span>
-                          </div>
-                        ))}
-                      </div>
-                      {entry.createdBy?.name && (
-                        <p className="mt-2 text-xs text-muted-foreground">Registrado por {entry.createdBy.name}</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => void load(page - 1)}>Anterior</Button>
-            <span className="text-sm text-muted-foreground">Página {page} de {totalPages}</span>
-            <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => void load(page + 1)}>Siguiente</Button>
-          </div>
-        )}
-      </CardContent>
-
+        <div className="auna-pagination-outside"><Pagination currentPage={page} totalPages={totalPages} onPageChange={p => void load(p)} totalItems={totalItems} count={items.length} pageSize={25} itemLabel="asientos" /></div>
+      </>}
       <NewEntryDialog open={isNewOpen} onOpenChange={setIsNewOpen} accounts={accounts} onSaved={() => void load(1)} />
       <ExpenseDialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen} accounts={accounts} onSaved={() => void load(1)} />
       <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar libro diario" fileName="libro-diario" summary={`${rangoTexto(from, to)} (${totalItems} asientos). Se exportan todas las páginas filtradas.`} formats={['xlsx']} pending={exporting} onExport={({ fileName }) => void handleExport(fileName)} />
-    </Card>
+    </section>
   )
 }

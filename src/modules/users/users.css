@@ -39,12 +39,16 @@
 /* Layout base de la página */
 .users-page {
   min-height: calc(100vh - 64px);
-  padding: 28px clamp(16px, 2.2vw, 36px);
+  padding: 16px;
   background: radial-gradient(ellipse at top right, hsl(var(--brand-orange, 24 95% 53%) / 0.035), transparent 42%), hsl(var(--background));
 }
 
 .users-page > * + * {
-  margin-top: 22px;
+  margin-top: 20px;
+}
+
+@media (min-width: 640px) {
+  .users-page { padding: 32px; }
 }
 
 /* Encabezados */

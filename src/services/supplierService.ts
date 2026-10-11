@@ -8,13 +8,14 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { apiFetch } from "./api";
+import { apiFetch, getApiBaseUrl, getAuthToken, tenantHeaders } from "./api";
 import type { Supplier, Status } from "@/types";
 import { adaptApiProduct, type ApiProduct } from "./productService";
 
 export interface ApiSupplier {
   id: string;
   name: string;
+  image_url?: string | null;
   contact?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -170,6 +171,7 @@ export const adaptApiSupplier = (s: ApiSupplier): Supplier => {
     party_type: pt,
     entityKind,
     name: s.name,
+    imageUrl: s.image_url || undefined,
     taxId,
     contact: s.contact ?? "",
     phone: s.phone ?? "",
@@ -193,11 +195,29 @@ export const adaptApiSupplier = (s: ApiSupplier): Supplier => {
   };
 };
 
+export async function uploadSupplierImage(id: string, file: File): Promise<{ id: string; image_url: string | null }> {
+  const formData = new FormData();
+  formData.append("file", file);
+  const token = getAuthToken();
+  const response = await fetch(`${getApiBaseUrl()}/suppliers/${id}/image`, {
+    method: "POST",
+    headers: { ...tenantHeaders(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    credentials: "include",
+    body: formData,
+  });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(body?.message || "No se pudo guardar la imagen");
+  if (!body || body.id !== id || !('image_url' in body)) throw new Error('La respuesta de la carga está incompleta. Actualiza la ficha para comprobar la foto.');
+  return body;
+}
+
 export interface SuppliersQueryParams {
+  includeSummary?: boolean;
   page?: number;
   pageSize?: number;
   search?: string;
   category_id?: number | string;
+  estado?: 0 | 1;
   /** Filtra por tipo de contacto en API (SUPPLIER | CUSTOMER) */
   party_type?: string;
 }
@@ -210,6 +230,7 @@ export const SUPPLIERS_DROPDOWN_PARAMS: SuppliersQueryParams = {
 };
 
 export interface SuppliersResponse {
+  summary?: Record<string, number>;
   items: Supplier[];
   page: number;
   pageSize: number;
@@ -221,14 +242,17 @@ export interface SuppliersResponse {
 
 export const fetchSuppliers = async (params?: SuppliersQueryParams): Promise<SuppliersResponse> => {
   const queryParams = new URLSearchParams();
+  if (params?.includeSummary) queryParams.set('includeSummary', 'true');
   if (params?.page) queryParams.append("page", String(params.page));
   if (params?.pageSize) queryParams.append("pageSize", String(params.pageSize));
   if (params?.search) queryParams.append("search", params.search);
   if (params?.category_id) queryParams.append("category_id", String(params.category_id));
+  if (params?.estado !== undefined) queryParams.append("estado", String(params.estado));
   if (params?.party_type) queryParams.append("party_type", String(params.party_type));
 
   const url = `/api/suppliers${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
   const data = await apiFetch<{
+    summary?: Record<string, number>;
     items: ApiSupplier[];
     page: number;
     pageSize: number;
@@ -239,6 +263,7 @@ export const fetchSuppliers = async (params?: SuppliersQueryParams): Promise<Sup
   }>(url, { method: "GET" });
   
   return {
+    ...(data.summary ? { summary: data.summary } : {}),
     items: Array.isArray(data.items) ? data.items.map(adaptApiSupplier) : [],
     page: data.page ?? 1,
     pageSize: data.pageSize ?? 20,

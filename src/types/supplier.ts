@@ -18,6 +18,7 @@ export interface Supplier extends BaseEntity {
   /** Persona física vs empresa */
   entityKind?: "PERSON" | "ORGANIZATION";
   name: string;
+  imageUrl?: string;
   contact: string;
   phone: string;
   email: string;
@@ -27,7 +28,7 @@ export interface Supplier extends BaseEntity {
   // Etiqueta principal (por compatibilidad). Para múltiples categorías se usará categories / categoriesLabel
   category: ProductCategory | string;
   // Nuevos campos para múltiples categorías
-  categories?: ProductCategory[];
+  categories?: { id: number | string; name: string }[];
   /** Nombres de categorías separados por coma para mostrar en UI */
   categoriesLabel?: string;
   products: number;

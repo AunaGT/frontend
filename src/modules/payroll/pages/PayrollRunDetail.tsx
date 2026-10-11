@@ -93,7 +93,7 @@ export const PayrollRunDetail = () => {
   const currentPage = Math.min(page, totalPages)
 
   return (
-    <div className="mx-auto max-w-[1520px] space-y-5 p-4 md:p-6">
+    <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
       {isFetching && <LoadingIndicator message="Actualizando planilla…" />}<h1 className="sr-only">Detalle de nómina</h1>
       <Card className="auna-surface border-border/70 bg-card/90"><CardContent className="flex flex-wrap items-center justify-between gap-4 p-5"><div>
           <div className="flex flex-wrap items-center gap-3"><h2 className="text-xl font-bold">{run.name}</h2><Badge variant="outline" className={run.status === 'PAGADA' ? 'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : run.status === 'ANULADA' ? 'border-red-500/30 bg-red-500/15 text-red-700 dark:text-red-300' : run.status === 'CONFIRMADA' ? 'border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300' : 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'}>{PAYROLL_STATUS_LABELS[run.status]}</Badge></div>

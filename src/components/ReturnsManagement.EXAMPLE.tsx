@@ -372,7 +372,7 @@ const ReturnsManagementRefactored = () => {
                       <div className="text-right">
                         <div className="font-medium">{formatMoney(item.refund_amount)}</div>
                         <div className="text-sm text-muted-foreground">
-                          {formatMoney(item.refund_amount / item.qty_returned)}/u
+                          {formatMoney(item.refund_amount / Number(item.qty_returned))}/u
                         </div>
                       </div>
                     </div>

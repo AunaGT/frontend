@@ -71,6 +71,7 @@ export interface IncomingMerchandise {
 }
 
 export interface IncomingMerchandiseQueryParams {
+  includeSummary?: boolean
   page?: number
   pageSize?: number
   supplier_id?: string
@@ -84,6 +85,7 @@ export interface IncomingMerchandiseQueryParams {
 }
 
 export interface IncomingMerchandiseResponse {
+  summary?: Record<string, number>
   items: IncomingMerchandise[]
   page: number
   pageSize: number
@@ -97,6 +99,7 @@ export const fetchIncomingMerchandise = async (
   params?: IncomingMerchandiseQueryParams
 ): Promise<IncomingMerchandiseResponse> => {
   const search = new URLSearchParams()
+  if (params?.includeSummary) search.set('includeSummary', 'true')
   if (params?.page) search.set('page', String(params.page))
   if (params?.pageSize) search.set('pageSize', String(params.pageSize))
   if (params?.supplier_id) search.set('supplier_id', params.supplier_id)

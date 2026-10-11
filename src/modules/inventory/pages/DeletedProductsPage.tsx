@@ -9,208 +9,123 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog'
-import { Pagination } from '@/components/shared/Pagination'
+import { Link,useSearchParams } from 'react-router-dom'
+import { ArrowLeft, PackageOpen, RotateCcw, Search } from 'lucide-react'
+import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
+import { EmptyState } from '@/components/shared/EmptyState'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
-import { useToast } from '@/hooks/use-toast'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { Pagination } from '@/components/shared/Pagination'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useCategories } from '@/hooks/useCategories'
 import { useDeletedProducts, useRestoreProduct } from '@/hooks/useProducts'
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { useToast } from '@/hooks/use-toast'
+import { adaptApiProduct } from '@/services/productService'
 import type { Product } from '@/types'
-import { ArrowLeft, Loader2, RotateCcw } from 'lucide-react'
 
 export default function DeletedProductsPage() {
-  const navigate = useNavigate()
+  const [searchParams]=useSearchParams()
+  const serviceCatalog=searchParams.get('tipo')==='services'
   const { toast } = useToast()
-  const { page: currentPage, setPage: setCurrentPage, pageSize } = usePersistedListUiState(
-    'inventario/productos-eliminados',
-    { defaultPage: 1, defaultPageSize: 20 }
-  )
-
-  const { data: allDeletedProducts = [], isLoading, isFetching, isError, refetch } = useDeletedProducts()
-
-  const totalPages = Math.max(1, Math.ceil(allDeletedProducts.length / pageSize))
-  const startIndex = (currentPage - 1) * pageSize
-  const products = allDeletedProducts.slice(startIndex, startIndex + pageSize)
-
-  const restoreMutation = useRestoreProduct()
+  const { hasPermission } = useAuthPermissions()
+  const canRestore = hasPermission('products.register_incoming', 'products.edit')
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventario/productos-eliminados', { defaultPageSize: 20 })
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [category, setCategory] = useState('all')
   const [restoreConfirmProduct, setRestoreConfirmProduct] = useState<Product | null>(null)
+  const { data: categories = [] } = useCategories({ includeDeleted: true, allPages: true })
+  const effectivePageSize = Math.min(100, pageSize)
+  const { data, isLoading, isFetching, isError, refetch } = useDeletedProducts({ ...(serviceCatalog ? {catalogType:'services' as const} : {}),page, pageSize: effectivePageSize, search: debouncedSearch, category, includeSummary: true })
+  const restoreMutation = useRestoreProduct()
+  const products = (data?.items ?? []).map(adaptApiProduct)
+  const summary = data?.summary
 
   useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1)
-    }
-  }, [currentPage, totalPages])
+    if (search.trim() === debouncedSearch) return
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [search, debouncedSearch, setPage])
+
+  useEffect(() => {
+    if (data && data.page !== page) setPage(data.page)
+  }, [data, page, setPage])
+
+  const clearFilters = () => { setSearch(''); setDebouncedSearch(''); setCategory('all'); setPage(1) }
+  const appliedFilters = [
+    ...(search.trim() ? [{ label: `Búsqueda: ${search.trim()}`, onRemove: () => { setSearch(''); setDebouncedSearch(''); setPage(1) } }] : []),
+    ...(category !== 'all' ? [{ label: `Categoría: ${category}`, onRemove: () => { setCategory('all'); setPage(1) } }] : []),
+  ]
 
   const confirmRestoreDeletedProduct = async () => {
-    if (!restoreConfirmProduct) return
-    const name = restoreConfirmProduct.name
+    if (!restoreConfirmProduct || !canRestore || restoreMutation.isPending) return
     try {
       await restoreMutation.mutateAsync(restoreConfirmProduct.id)
       setRestoreConfirmProduct(null)
-      void refetch()
-      toast({
-        title: 'Producto restaurado',
-        description: `El producto "${name}" ha sido restaurado exitosamente`,
-      })
+      toast({ title: 'Producto restaurado', description: `El producto «${restoreConfirmProduct.name}» volvió al inventario.` })
     } catch (error) {
-      const apiError = error as { response?: { data?: { message?: string } } }
-      toast({
-        title: 'Error',
-        description: apiError.response?.data?.message || 'No se pudo restaurar el producto',
-        variant: 'destructive',
-      })
+      toast({ title: 'No se pudo restaurar', description: error instanceof Error ? error.message : 'No se pudo restaurar el producto', variant: 'destructive' })
     }
   }
 
   return (
-    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1 min-w-0">
-          <Button variant="ghost" size="sm" className="-ml-2 gap-1.5 w-fit" onClick={() => navigate('/inventario')}>
-            <ArrowLeft className="h-4 w-4" />
-            Volver al inventario
-          </Button>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Productos eliminados</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Restaura productos que fueron eliminados; volverán al listado principal.
-          </p>
-        </div>
-      </div>
+    <div className="mx-auto grid w-full max-w-[1560px] min-w-0 gap-5 px-4 py-6 sm:px-8">
+      <h1 className="sr-only">Productos eliminados</h1>
+      {!isError && <MetricStrip loading={isLoading} label="Resumen de productos eliminados consultados" items={[
+        { label: 'Productos eliminados', value: data?.totalItems ?? '—' },
+        ...(serviceCatalog ? [{label:'Con cantidades fraccionadas',value:summary?.fractional ?? '—'}] : [
+        { label: 'Productos estándar', value: summary ? summary.total - summary.kits : '—' },
+        { label: 'Kits', value: summary?.kits ?? '—' },
+        { label: 'Control de caducidad', value: summary?.tracksExpiry ?? '—' }]),
+      ]} />}
 
-      <Card>
-        <CardHeader className="p-4 sm:p-6">
-          <CardTitle className="text-lg">Listado</CardTitle>
-          <CardDescription>Productos marcados como eliminados en el sistema</CardDescription>
-        </CardHeader>
-        <CardContent className="p-4 sm:p-6 pt-0">
-          {isFetching && !isLoading && <LoadingIndicator message="Actualizando productos eliminados…" className="mb-3" />}
-          {isError ? (
-            <p className="text-center text-destructive py-8 text-sm">Error al cargar productos eliminados</p>
-          ) : isLoading ? (
-            <LoadingState columns={['Nombre', 'Categoría', 'Marca', 'Stock', 'Proveedor', 'Acciones']} message="Cargando productos eliminados…" />
-          ) : products.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8 text-sm">No hay productos eliminados</p>
-          ) : (
-            <>
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Categoría</TableHead>
-                      <TableHead>Marca</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Proveedor</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {products.map((product) => (
-                      <TableRow key={product.id}>
-                        <TableCell className="font-medium">{product.name}</TableCell>
-                        <TableCell>
-                          {typeof product.category === 'string'
-                            ? product.category
-                            : (product.category as { name: string }).name || '-'}
-                        </TableCell>
-                        <TableCell>{product.brand || '-'}</TableCell>
-                        <TableCell>
-                          <Badge variant={product.stock > 0 ? 'default' : 'secondary'}>{product.stock}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          {typeof product.supplier === 'string'
-                            ? product.supplier
-                            : (product.supplier as { name: string })?.name || '-'}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setRestoreConfirmProduct(product)}
-                            disabled={restoreMutation.isPending}
-                          >
-                            {restoreMutation.isPending ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                              <>
-                                <RotateCcw className="w-4 h-4 mr-2" />
-                                Restaurar
-                              </>
-                            )}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {totalPages > 1 && (
-                <div className="mt-4">
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalPages}
-                    onPageChange={setCurrentPage}
-                    hasNextPage={currentPage < totalPages}
-                    hasPrevPage={currentPage > 1}
-                    loading={isFetching}
-                  />
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <AlertDialog
-        open={!!restoreConfirmProduct}
-        onOpenChange={(o) => {
-          if (!o) setRestoreConfirmProduct(null)
-        }}
+      <CompactFilterPanel title="Filtros de productos eliminados" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={clearFilters}
+        search={<div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar productos eliminados" placeholder="Buscar por producto, marca o código de barras…" className="pl-10" value={search} onChange={event => setSearch(event.target.value)} /></div>}
+        actions={<Button asChild variant="outline"><Link to="/inventario"><ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />Inventario</Link></Button>}
       >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Restaurar producto?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {restoreConfirmProduct
-                ? `«${restoreConfirmProduct.name}» volverá al inventario y estará disponible de nuevo.`
-                : ''}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={restoreMutation.isPending}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={restoreMutation.isPending}
-              onClick={(e) => {
-                e.preventDefault()
-                void confirmRestoreDeletedProduct()
-              }}
-            >
-              {restoreMutation.isPending ? 'Restaurando…' : 'Restaurar'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <div className="space-y-1"><Label htmlFor="deleted-category">Categoría</Label>
+          <Select value={category} onValueChange={value => { setCategory(value); setPage(1) }}>
+            <SelectTrigger id="deleted-category"><SelectValue /></SelectTrigger>
+            <SelectContent><SelectItem value="all">Todas las categorías</SelectItem>{categories.map(item => <SelectItem key={item.id} value={item.name}>{item.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1"><Label htmlFor="deleted-page-size">Filas por página</Label>
+          <Select value={String(effectivePageSize)} onValueChange={value => { setPageSize(Number(value)); setPage(1) }}>
+            <SelectTrigger id="deleted-page-size"><SelectValue /></SelectTrigger>
+            <SelectContent>{[10, 20, 50, 100].map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      </CompactFilterPanel>
+
+      <section className="auna-data-table-shell min-w-0" aria-label="Productos eliminados" aria-busy={isFetching}>
+        {isFetching && !isLoading && !isError && <LoadingIndicator message="Actualizando productos eliminados…" className="px-4 py-2" />}
+        {isLoading ? <LoadingState columns={['Producto', 'Categoría', 'Existencia', 'Proveedor', 'Eliminado el', 'Acciones']} message="Cargando productos eliminados…" /> : isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar los productos eliminados.</p><Button variant="outline" className="mt-3" onClick={() => void refetch()}>Reintentar</Button></div>
+          : !products.length ? <EmptyState icon={PackageOpen} title={appliedFilters.length ? 'No hay coincidencias' : 'No hay productos eliminados'} description={appliedFilters.length ? 'Prueba otra búsqueda o limpia los filtros.' : 'Los productos que elimines aparecerán aquí para poder restaurarlos.'} action={appliedFilters.length ? <Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button> : undefined} />
+          : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
+            <TableHead>Producto</TableHead><TableHead>Categoría</TableHead><TableHead className="text-right">Existencia</TableHead><TableHead>Proveedor</TableHead><TableHead>Eliminado el</TableHead>{canRestore && <TableHead className="text-right">Acciones</TableHead>}
+          </TableRow></TableHeader><TableBody>{products.map(product => <TableRow key={product.id}>
+            <TableCell><div className="flex min-w-48 items-center gap-3">
+              {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg border bg-background object-contain" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border bg-muted"><PackageOpen className="h-5 w-5 text-muted-foreground" aria-hidden="true" /></span>}
+              <div><p className="font-semibold">{product.name}</p><p className="mt-1 text-xs text-muted-foreground">{[product.brand, product.size, product.barcode].filter(Boolean).join(' · ') || 'Sin código de barras'}</p></div>
+            </div></TableCell>
+            <TableCell>{String(product.category || 'Sin categoría')}</TableCell><TableCell className="text-right tabular-nums">{product.kind==='SERVICE' ? 'No aplica' : product.stock}</TableCell><TableCell>{String(product.supplier || '—')}</TableCell>
+            <TableCell className="whitespace-nowrap">{product.deleted_at ? new Date(product.deleted_at).toLocaleDateString('es-GT') : 'Sin registro'}</TableCell>
+            {canRestore && <TableCell className="text-right"><Button size="sm" variant="outline" aria-label={`Restaurar ${product.name}`} disabled={restoreMutation.isPending} onClick={() => setRestoreConfirmProduct(product)}><RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />Restaurar</Button></TableCell>}
+          </TableRow>)}</TableBody></Table></div>}
+      </section>
+      {!isLoading && !isError && data && data.totalItems > 0 && <div className="auna-pagination-outside"><Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} pageSize={data.pageSize} count={products.length} itemLabel="productos eliminados" onPageChange={setPage} hasNextPage={data.nextPage !== null} hasPrevPage={data.prevPage !== null} loading={isFetching} /></div>}
+
+      <ConfirmDialog open={!!restoreConfirmProduct && canRestore} onOpenChange={open => { if (!open && !restoreMutation.isPending) setRestoreConfirmProduct(null) }} title="¿Restaurar producto?" description={restoreConfirmProduct ? `«${restoreConfirmProduct.name}» volverá al listado principal conservando sus datos y existencias.` : ''} confirmText="Restaurar" onConfirm={confirmRestoreDeletedProduct} loading={restoreMutation.isPending} variant="info" appearance="auna" />
     </div>
   )
 }

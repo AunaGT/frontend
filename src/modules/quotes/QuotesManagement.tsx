@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Pagination } from '@/components/shared/Pagination'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { SavedCustomerMany2One } from '@/modules/sales/components/SavedCustomerMany2One'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -34,12 +35,20 @@ export default function QuotesManagement() {
   const [pageSize, setPageSize] = useState(10)
   useEffect(() => { const timer = window.setTimeout(() => { setDebounced(search.trim()); setPage(1) }, 350); return () => window.clearTimeout(timer) }, [search])
   const ready = !debounced || isCommercialDocSearchReady(debounced)
-  const query = useQuery({ queryKey: ['quotes', page, pageSize, status, debounced, customerId, from, to], queryFn: () => fetchQuotes({ page, pageSize, status: status === 'ALL' ? undefined : status, search: debounced || undefined, customer_contact_id: customerId === '__none__' ? undefined : customerId, date_from: from || undefined, date_to: to || undefined }), enabled: ready && (!from || !to || from <= to) })
+  const query = useQuery({ queryKey: ['quotes', page, pageSize, status, debounced, customerId, from, to, 'summary'], queryFn: () => fetchQuotes({ includeSummary: true, page, pageSize, status: status === 'ALL' ? undefined : status, search: debounced || undefined, customer_contact_id: customerId === '__none__' ? undefined : customerId, date_from: from || undefined, date_to: to || undefined }), enabled: ready && (!from || !to || from <= to) })
+  const summary = query.isError || !ready || (from && to && from > to) ? undefined : query.data?.summary
   const rows = ready && (!from || !to || from <= to) ? query.data?.items ?? [] : []
   const activeFilters = Number(Boolean(search.trim())) + Number(status !== 'ALL') + Number(customerId !== '__none__') + Number(Boolean(from)) + Number(Boolean(to))
   const reset = () => { setSearch(''); setStatus('ALL'); setCustomerId('__none__'); setCustomerName(''); setFrom(''); setTo(''); setPage(1) }
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Cotizaciones</h1>
+<MetricStrip label="Resumen cotizaciones consultadas" loading={query.isLoading} items={[
+  { label: 'Cotizaciones', value: summary?.total ?? '—' },
+  { label: 'Borradores', value: summary?.draft ?? '—' },
+  { label: 'Enviadas', value: summary?.sent ?? '—' },
+  { label: 'Aceptadas', value: summary?.accepted ?? '—' },
+]} />
+
 <CompactFilterPanel actions={<>{hasPermission('quotes.create') && <Button className="h-12 rounded-xl bg-brand-orange px-6 text-white hover:bg-brand-orange/90" onClick={() => navigate('/cotizaciones/nueva')}><Plus className="mr-2 h-4 w-4" />Nueva cotización</Button>}</>} title="Filtros de cotizaciones" summary="Cliente, estado y período" activeCount={activeFilters} onClear={reset} contentClassName="grid items-end gap-3 lg:grid-cols-[minmax(200px,2fr)_minmax(200px,1.5fr)_1fr_1fr_1fr]" search={<div className="space-y-2"><Label htmlFor="quote-search">Buscar</Label><div className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="quote-search" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cliente, folio o referencia…" /></div></div>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(status !== 'ALL' ? [{label: `Estado: ${QUOTE_STATUS_LABELS[status as keyof typeof QUOTE_STATUS_LABELS] || status}`,onRemove: () => {setStatus('ALL');setPage(1)}}] : []),...(customerId !== '__none__' ? [{label: `Cliente: ${customerName || 'Seleccionado'}`,onRemove: () => {setCustomerId('__none__');setCustomerName('');setPage(1)}}] : []),...(from ? [{label: `Desde: ${from}`,onRemove: () => {setFrom('');setPage(1)}}] : []),...(to ? [{label: `Hasta: ${to}`,onRemove: () => {setTo('');setPage(1)}}] : [])]}>
 
       <div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customerId} linkedDisplayName={customerName} onPick={(c) => { setCustomerId(c.id); setCustomerName(c.name); setPage(1) }} onClear={() => { setCustomerId('__none__'); setCustomerName(''); setPage(1) }} /></div>

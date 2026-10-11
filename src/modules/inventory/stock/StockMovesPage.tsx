@@ -1,12 +1,14 @@
 /** Copyright (c) 2026 Diego Patzán. All Rights Reserved. Proprietary License. */
 import { useEffect, useMemo, useState } from 'react'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useQuery } from '@tanstack/react-query'
 import { History, MoveRight, PackageSearch, Scale, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsContent } from '@/components/ui/tabs'
+import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { Pagination } from '@/components/shared/Pagination'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
@@ -49,8 +51,8 @@ function StockMovesWorkspace() {
   const replenishmentQuery = useQuery({ queryKey: ['stock-replenishment', branch?.id], queryFn: fetchReplenishment, enabled: Boolean(branch) && tab === 'replenishment' })
   const invalidRange = Boolean(from && to && from > to)
   const movementQuery = useQuery({
-    queryKey: ['stock-moves', branch?.id, page, pageSize, debouncedSearch, locationId, reason, from, to],
-    queryFn: () => fetchMovementPage({ page, pageSize, search: debouncedSearch || undefined, location_id: locationId === 'all' ? undefined : locationId, reason: reason === 'all' ? undefined : reason, from: from || undefined, to: to || undefined }),
+    queryKey: ['stock-moves', branch?.id, page, pageSize, debouncedSearch, locationId, reason, from, to, 'summary'],
+    queryFn: () => fetchMovementPage({ page, pageSize, search: debouncedSearch || undefined, location_id: locationId === 'all' ? undefined : locationId, reason: reason === 'all' ? undefined : reason, from: from || undefined, to: to || undefined, includeSummary: true }),
     enabled: Boolean(branch) && tab === 'history' && !invalidRange,
   })
   const data = movementQuery.data
@@ -69,13 +71,15 @@ function StockMovesWorkspace() {
   ]
 
   const pageActions = <>{branch && <div className="flex flex-wrap gap-2">{canAdjust && <Button variant="outline" disabled={!locations.length} onClick={() => openOperation('adjust')}><Scale className="h-4 w-4" aria-hidden="true" />Ajustar existencias</Button>}{canMove && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={locations.length < 2} onClick={() => openOperation('move')}><MoveRight className="h-4 w-4" aria-hidden="true" />Mover mercancía</Button>}</div>}</>
-  return <div className="min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+  return <div className="min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Existencias y movimientos</h1>
     {!branch ? <EmptyState icon={PackageSearch} title="Selecciona una sucursal" description="Los movimientos y ajustes pertenecen a una sucursal concreta. Elígela en el selector superior." /> : <>
       {warehouseQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"><p>No se pudieron cargar las ubicaciones.</p><Button variant="outline" size="sm" onClick={() => warehouseQuery.refetch()}>Reintentar</Button></div> : !warehouseQuery.isLoading && (canMove || canAdjust) && locations.length < 2 ? <p className="text-sm text-muted-foreground">{locations.length === 0 ? 'Para operar necesitas una ubicación activa.' : 'Para mover mercancía necesitas dos ubicaciones activas.'} Configúralas en Sucursales → Almacenes.</p> : null}
       <Tabs value={tab} onValueChange={setTab}>
-        <div className="overflow-x-auto"><TabsList variant="detail"><TabsTrigger value="history"><History className="mr-2 h-4 w-4" aria-hidden="true" />Movimientos</TabsTrigger><TabsTrigger value="replenishment"><PackageSearch className="mr-2 h-4 w-4" aria-hidden="true" />Reposición</TabsTrigger></TabsList></div>
+        <div className="max-w-full overflow-x-auto pb-1"><ModuleTabsList aria-label="Existencias y movimientos"><ModuleTabsTrigger value="history"><History className="h-4 w-4" aria-hidden="true" />Movimientos</ModuleTabsTrigger><ModuleTabsTrigger value="replenishment"><PackageSearch className="h-4 w-4" aria-hidden="true" />Reposición</ModuleTabsTrigger></ModuleTabsList></div>
         <TabsContent value="history" className="space-y-3 pt-2">
+          <MetricStrip label="Resumen de movimientos" loading={movementQuery.isLoading && !invalidRange} items={([['total', 'Movimientos'], ['incoming', 'Entradas'], ['outgoing', 'Salidas']] as const).map(([key, label]) => ({ label, value: movementQuery.isError || invalidRange ? '—' : data?.summary?.[key] ?? '—' }))} />
+
           <CompactFilterPanel actions={pageActions} title="Filtros de movimientos" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={() => { setSearch(''); setDebouncedSearch(''); setLocationId('all'); setReason('all'); setFrom(''); setTo(''); setPage(1) }} search={<div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar movimientos" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder="Producto, código o nota…" /></div>}>
             <div className="space-y-2"><Label htmlFor="stock-location-filter">Ubicación</Label><select id="stock-location-filter" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => resetFilter(setLocationId, e.target.value)}><option value="all">Todas las ubicaciones</option>{locations.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></div>
             <div className="space-y-2"><Label htmlFor="stock-reason-filter">Motivo</Label><select id="stock-reason-filter" className="auna-control auna-control-select auna-receipt-select" value={reason} onChange={e => { setReason(e.target.value as typeof reason); setPage(1) }}><option value="all">Todos los motivos</option>{Object.entries(REASON_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
@@ -95,6 +99,8 @@ function StockMovesWorkspace() {
           <p className="text-xs text-muted-foreground">El saldo corresponde al producto en esa ubicación después del movimiento. Mover entre ubicaciones no cambia el total de la sucursal.</p>
         </TabsContent>
         <TabsContent value="replenishment" className="space-y-3 pt-2">
+          <MetricStrip label="Resumen de reposición" loading={replenishmentQuery.isLoading} items={[{ label: 'Destinos por reponer', value: replenishmentQuery.isError || !replenishmentQuery.data ? '—' : replenishments.length }, { label: 'Con origen disponible', value: replenishmentQuery.isError || !replenishmentQuery.data ? '—' : replenishments.filter(row => row.from_location_id && row.suggested_qty > 0).length }, { label: 'Unidades faltantes', value: replenishmentQuery.isError || !replenishmentQuery.data ? '—' : replenishments.reduce((sum, row) => sum + row.missing, 0) }]} />
+
           <div className="flex flex-wrap items-center gap-3"><div className="relative min-w-0 flex-1"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar reposiciones" className="pl-9" value={replenishmentSearch} onChange={e => { setReplenishmentSearch(e.target.value); setReplenishmentPage(1) }} placeholder="Producto, código o ubicación…" /></div><p className="text-sm text-muted-foreground">Reubica mercancía disponible; no genera una compra.</p><div className="compact-filter-actions">{pageActions}</div></div>
           <><section className="auna-data-table-shell" aria-busy={replenishmentQuery.isFetching}>
             {replenishmentQuery.isFetching && !replenishmentQuery.isLoading && <LoadingIndicator message="Actualizando reposiciones…" className="px-4 py-2" />}

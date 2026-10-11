@@ -10,14 +10,14 @@
 
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { LoadingState } from '@/components/shared/LoadingState'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
-import { BookText, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { getLedger, type Account, type LedgerResponse } from '@/services/accountingService'
@@ -33,6 +33,8 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
   const [data, setData] = useState<LedgerResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [loadError, setLoadError] = useState(false)
+  const [retry, setRetry] = useState(0)
 
   const postables = accounts.filter((a) => !a.is_group)
 
@@ -40,36 +42,35 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
     if (!accountId) { setData(null); return }
     let active = true
     setLoading(true)
+    setLoadError(false)
     getLedger(Number(accountId), { from: from || undefined, to: to || undefined })
       .then((res) => { if (active) setData(res) })
       .catch((e) => {
+        if (active) { setLoadError(true); setData(null) }
         if (active) toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo cargar el mayor', variant: 'destructive' })
       })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [accountId, from, to, toast])
+  }, [accountId, from, to, toast, retry])
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <BookText className="h-5 w-5" />Libro Mayor
-          </CardTitle>
-          <Button
+    <section className="space-y-5" aria-label="Libro Mayor">
+      <MetricStrip label="Resumen del mayor" loading={loading} items={[
+        { label: 'Saldo inicial', value: data ? fmtQ(data.initialBalance) : '—' },
+        { label: 'Debe del período', value: data ? fmtQ(data.totals.debit) : '—' },
+        { label: 'Haber del período', value: data ? fmtQ(data.totals.credit) : '—' },
+        { label: 'Saldo final', value: data ? fmtQ(data.finalBalance) : '—' },
+      ]} />
+        <CompactFilterPanel title="Filtros de mayor" actions={<Button
             variant="outline" size="sm"
             disabled={!data || loading}
             onClick={() => setExportOpen(true)}
           >
             <Download className="h-4 w-4 mr-2" />Exportar
-          </Button>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <CompactFilterPanel title="Filtros de mayor" activeCount={Number(from !== '')+Number(to !== '')} onClear={() => {setFrom('');setTo('');}} appliedFilters={[...(from ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom('')}] : []),...(to ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo('')}] : [])]} search={<div className="space-y-1">
+          </Button>} activeCount={Number(from !== '')+Number(to !== '')} onClear={() => {setFrom('');setTo('');}} appliedFilters={[...(from ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom('')}] : []),...(to ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo('')}] : [])]} search={<div className="space-y-1">
             <Label className="text-xs">Cuenta</Label>
             <Select value={accountId} onValueChange={setAccountId}>
-              <SelectTrigger aria-label="Cuenta del mayor" className="w-[280px]">
+              <SelectTrigger aria-label="Cuenta del mayor" className="w-full sm:max-w-md">
                 <SelectValue placeholder="Seleccionar cuenta" />
               </SelectTrigger>
               <SelectContent>
@@ -94,9 +95,11 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
           <p className="py-10 text-center text-muted-foreground">Seleccione una cuenta para ver su mayor.</p>
         ) : loading ? (
           <LoadingState message="Cargando mayor…" columns={['Fecha', 'Asiento', 'Descripción', 'Debe', 'Haber', 'Saldo']} />
+        ) : loadError ? (
+          <div role="alert" className="py-8 text-center"><p>No se pudo cargar el mayor.</p><Button variant="outline" className="mt-3" onClick={() => setRetry(value => value + 1)}>Reintentar</Button></div>
         ) : data && (
-          <div className="rounded-md border overflow-x-auto">
-            <table className="w-full text-sm">
+          <div className="auna-data-table-shell overflow-x-auto">
+            <table className="auna-data-table">
               <thead>
                 <tr className="bg-muted/50 text-xs text-muted-foreground">
                   <th className="text-left font-medium px-3 py-2">Fecha</th>
@@ -137,7 +140,6 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
             </table>
           </div>
         )}
-      </CardContent>
       <ExportDialog
         open={exportOpen}
         onOpenChange={setExportOpen}
@@ -150,6 +152,6 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
           setExportOpen(false)
         }}
       />
-    </Card>
+    </section>
   )
 }

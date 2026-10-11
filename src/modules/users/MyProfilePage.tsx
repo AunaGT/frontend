@@ -22,6 +22,7 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useTheme } from 'next-themes'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -196,15 +197,15 @@ export default function MyProfilePage() {
           <AunaPanel className="flex flex-col items-center justify-center text-center p-6" bodyClassName="p-0 w-full flex flex-col items-center">
             <div className="relative mb-3.5">
               <UserAvatar name={user.name} photo={user.photo_url} extraLarge />
-              <button
+              <Button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploadingPhoto}
                 title="Cambiar foto de perfil"
-                className="absolute bottom-0 right-0 h-7 w-7 rounded-full bg-orange-500 hover:bg-orange-600 text-white flex items-center justify-center shadow-md border-2 border-[hsl(var(--card))] transition-transform hover:scale-105"
+                variant="default" size="icon" className="absolute bottom-0 right-0 rounded-full" aria-label="Cambiar foto de perfil"
               >
                 {isUploadingPhoto ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-              </button>
+              </Button>
             </div>
             <h2 className="text-lg font-bold text-foreground">{user.name}</h2>
             <p className="users-muted text-xs mt-0.5 font-medium">{user.role?.name || 'No registrado'}</p>
@@ -220,29 +221,29 @@ export default function MyProfilePage() {
             icon={UserIcon}
             actions={
               !isEditing ? (
-                <button type="button" onClick={handleStartEdit} className="btn-auna-outline">
+                <Button type="button" onClick={handleStartEdit} variant="outline">
                   <Pencil size={13} />
                   <span>Editar</span>
-                </button>
+                </Button>
               ) : (
                 <div className="flex items-center gap-2">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setIsEditing(false)}
-                    className="text-xs users-muted hover:text-foreground px-2 py-1"
+                    variant="ghost"
                     disabled={isSavingProfile}
                   >
                     Cancelar
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => void handleSaveProfile()}
                     disabled={isSavingProfile}
-                    className="btn-auna-primary py-1 px-3 text-xs"
+                    variant="default"
                   >
                     {isSavingProfile ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                     Guardar
-                  </button>
+                  </Button>
                 </div>
               )
             }
@@ -337,10 +338,10 @@ export default function MyProfilePage() {
                     <p className="users-muted text-xs">Cambiarla cierra tus sesiones anteriores.</p>
                   </div>
                 </div>
-                <button type="button" onClick={() => setPasswordDialogOpen(true)} className="btn-auna-outline">
+                <Button type="button" onClick={() => setPasswordDialogOpen(true)} variant="outline">
                   <KeyRound size={13} />
                   <span>Cambiar</span>
-                </button>
+                </Button>
               </div>
 
               {/* Autenticación de dos factores */}
@@ -381,20 +382,20 @@ export default function MyProfilePage() {
             subtitle="Gestiona los dispositivos con acceso a tu cuenta"
             icon={Laptop}
             actions={
-              <button
+              <Button
                 type="button"
                 onClick={() => void handleCloseSession('all')}
                 disabled={closingSession === 'all'}
-                className="btn-auna-outline text-xs"
+                variant="outline"
               >
                 <LogOut size={13} />
                 <span>Cerrar todas</span>
-              </button>
+              </Button>
             }
           >
             <div className="divide-y divide-border/40">
               {sessionsQuery.isLoading && <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando sesiones…" />}
-              {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <button onClick={() => void sessionsQuery.refetch()}>Reintentar</button></p>}
+              {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <Button variant="ghost" onClick={() => void sessionsQuery.refetch()}>Reintentar</Button></p>}
               {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <p className="users-muted py-4">No hay sesiones registradas.</p>}
               {displayedSessions.map((session) => {
                 const DeviceIcon = getDeviceIcon(session.device)
@@ -422,9 +423,9 @@ export default function MyProfilePage() {
                       {!session.is_current && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <button type="button" className="p-1 rounded hover:bg-muted users-muted hover:text-foreground">
+                            <Button type="button" variant="ghost" size="icon" aria-label={`Acciones de la sesión ${deviceLabel(session.device)}`}>
                               <MoreHorizontal size={14} />
-                            </button>
+                            </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="users-overlay text-xs">
                             <DropdownMenuItem
@@ -587,22 +588,22 @@ export default function MyProfilePage() {
             </div>
           </div>
           <DialogFooter className="gap-2">
-            <button
+            <Button
               type="button"
               onClick={() => setPasswordDialogOpen(false)}
-              className="text-xs users-muted hover:text-foreground px-3 py-1.5"
+              variant="ghost"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={changingPwd || !currentPwd || !newPwd || !confirmPwd}
               onClick={() => void handleChangePassword()}
-              className="btn-auna-primary"
+              variant="default"
             >
               {changingPwd ? <Loader2 size={13} className="animate-spin" /> : null}
               Actualizar contraseña
-            </button>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

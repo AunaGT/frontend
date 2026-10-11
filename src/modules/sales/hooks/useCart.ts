@@ -14,6 +14,8 @@
 import { useState, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { getApiBaseUrl } from '@/services/api'
+import {normalizeQuantityInput,previewLineTotal,stepQuantity} from '@/lib/commercialQuantity'
+import {useSystemSettings} from '@/hooks/useSystemSettings'
 import type { Product } from '@/types/product'
 import type { CartProduct, AvailabilityDialogState, AdminAuthDialogState } from '../types'
 
@@ -28,6 +30,8 @@ interface UseCartOptions {
 interface UseCartReturn {
     cartItems: CartProduct[]
     cartTotal: number
+    hasInvalidQuantities: boolean
+    lineTotals: Record<string,string|null>
     adminAuthorizedProducts: Set<string>
     availabilityDialog: AvailabilityDialogState
     adminAuthDialog: AdminAuthDialogState
@@ -38,11 +42,11 @@ interface UseCartReturn {
     // Actions
     addToCart: (product: Product) => void
     removeFromCart: (productId: string) => void
-    updateQuantity: (productId: string, newQty: number) => void
+    updateQuantity: (productId: string, newQty: string | number) => void
     clearCart: () => void
     /** Restaura líneas desde borrador; devuelve productIds no encontrados en catálogo. */
     hydrateFromLines: (
-        lines: { productId: string; qty: number }[],
+        lines: { productId: string; qty: string | number }[],
         adminAuthorizedIds: string[]
     ) => { missingProductIds: string[]; qtyAdjustedIds: string[] }
     /** Recalcula precios en carrito (p. ej. tras cambiar canal o cliente). */
@@ -59,6 +63,8 @@ interface UseCartReturn {
 
 export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: UseCartOptions): UseCartReturn => {
     const { toast } = useToast()
+    const {locale}=useSystemSettings()
+    const normalize=useCallback((qty:string,product:Product)=>normalizeQuantityInput(qty,{kind:product.kind ?? 'STANDARD',quantityDecimals:product.quantityDecimals ?? 0},locale),[locale])
 
     // Cart state
     const [cartItems, setCartItems] = useState<CartProduct[]>([])
@@ -84,7 +90,10 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
     const [isAuthenticating, setIsAuthenticating] = useState(false)
 
     // Computed
-    const cartTotal = cartItems.reduce((sum, item) => sum + item.price * item.qty, 0)
+    const lineTotals=Object.fromEntries(cartItems.map(item=>{try{return[item.id,previewLineTotal(normalize(item.qty,availableProducts.find(product=>product.id===item.id) ?? item),item.price.toFixed(2))]}catch{return[item.id,null]}})) as Record<string,string|null>
+    const totalCents=Object.values(lineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n)
+    const hasInvalidQuantities=totalCents>999999999999n || cartItems.some(item=>lineTotals[item.id]===null || !availableProducts.some(product=>product.id===item.id))
+    const cartTotal=Number(totalCents)/100
 
     const resolveAvailable = useCallback(
         (product: Product) => (getAvailableQty ? getAvailableQty(product) : Number(product.stock ?? 0)),
@@ -96,17 +105,17 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
         const unit = getUnitPrice ? getUnitPrice(product) : Number(product.price ?? 0)
         const available = resolveAvailable(product)
         const existing = cartItems.find(i => i.id === product.id)
-        const currentQty = existing?.qty ?? 0
+        const currentQty = Number(existing?.qty || 0)
         const requestedQty = currentQty + 1
 
-        if (requestedQty <= available) {
+        if (product.kind === 'SERVICE' || requestedQty <= available) {
             // La decisión de fusionar se toma con `prev`, no con el `cartItems` del
             // closure: dos llamadas en el mismo tick veían ambas "no está" y metían
             // dos renglones del mismo producto.
             setCartItems(prev => {
                 const found = prev.find(i => i.id === product.id)
-                if (found) return prev.map(i => i.id === product.id ? { ...i, qty: i.qty + 1 } : i)
-                return [...prev, { ...product, price: unit, qty: 1 }]
+                if (found) return prev.map(i => i.id === product.id ? { ...i, qty: stepQuantity(i.qty,1) } : i)
+                return [...prev, { ...product, price: unit, qty: '1' }]
             })
             return
         }
@@ -125,23 +134,28 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
         })
     }, [])
 
-    const updateQuantity = useCallback((productId: string, newQty: number) => {
-        if (newQty <= 0) return removeFromCart(productId)
+    const updateQuantity = useCallback((productId: string, newQty: string | number) => {
+        if (String(newQty)==='0') return removeFromCart(productId)
 
         const prod = availableProducts.find(p => p.id === productId)
         if (!prod) return
+        let qty:string
+        try {qty=normalize(String(newQty),prod)} catch {
+            setCartItems(prev=>prev.map(item=>item.id===productId ? {...item,qty:String(newQty)} : item))
+            return
+        }
 
         const available = resolveAvailable(prod)
 
-        if (newQty <= available) {
-            setCartItems(prev => prev.map(i => i.id === productId ? { ...i, qty: newQty } : i))
+        if (prod.kind === 'SERVICE' || Number(qty) <= available) {
+            setCartItems(prev => prev.map(i => i.id === productId ? { ...i, qty } : i))
             return
         }
 
         // Insufficient stock
-        setAvailabilityDialog({ open: true, product: prod, requestedQty: newQty, availableStock: available })
+        setAvailabilityDialog({ open: true, product: prod, requestedQty: Number(qty), availableStock: available })
         setAdditionalQty('')
-    }, [availableProducts, removeFromCart, resolveAvailable])
+    }, [availableProducts, removeFromCart, resolveAvailable,normalize])
 
     const clearCart = useCallback(() => {
         setCartItems([])
@@ -149,14 +163,14 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
     }, [])
 
     const hydrateFromLines = useCallback(
-        (lines: { productId: string; qty: number }[], adminAuthorizedIds: string[]) => {
+        (lines: { productId: string; qty: string | number }[], adminAuthorizedIds: string[]) => {
             const adminSet = new Set(adminAuthorizedIds)
             const missingProductIds: string[] = []
             const qtyAdjustedIds: string[] = []
             const built: CartProduct[] = []
 
             for (const line of lines) {
-                const q = Math.max(1, Math.floor(Number(line.qty) || 1))
+                const q = String(line.qty)
                 const p = availableProducts.find((x) => x.id === line.productId)
                 if (!p) {
                     missingProductIds.push(line.productId)
@@ -164,9 +178,9 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
                 }
                 const stock = resolveAvailable(p)
                 let qty = q
-                if (!adminSet.has(line.productId) && qty > stock) {
-                    qty = Math.max(0, stock)
-                    if (qty === 0) {
+                if (p.kind !== 'SERVICE' && !adminSet.has(line.productId) && Number(qty) > stock) {
+                    qty = String(Math.max(0, stock))
+                    if (qty === '0') {
                         missingProductIds.push(line.productId)
                         continue
                     }
@@ -251,11 +265,11 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
 
                 if (existing) {
                     setCartItems(prev => prev.map(i =>
-                        i.id === product.id ? { ...i, qty: requestedQty } : i
+                        i.id === product.id ? { ...i, qty: String(requestedQty) } : i
                     ))
                 } else {
                     const unit = getUnitPrice ? getUnitPrice(product) : Number(product.price ?? 0)
-                    setCartItems(prev => [...prev, { ...product, price: unit, qty: requestedQty }])
+                    setCartItems(prev => [...prev, { ...product, price: unit, qty: String(requestedQty) }])
                 }
 
                 setAdminAuthorizedProducts(prev => new Set(prev).add(product.id))
@@ -302,6 +316,8 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty }: Us
     return {
         cartItems,
         cartTotal,
+        hasInvalidQuantities,
+        lineTotals,
         adminAuthorizedProducts,
         availabilityDialog,
         adminAuthDialog,

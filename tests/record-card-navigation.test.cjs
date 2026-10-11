@@ -1,0 +1,15 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { loadReportModule } = require('./helpers/loadReportModule.cjs')
+test('whole-card navigation supports keys, respects permission and ignores nested controls', () => {
+  const { recordCardNavigation } = loadReportModule('../../components/shared/recordCardNavigation.ts')
+  let calls = 0
+  const props = recordCardNavigation(() => calls++)
+  props.onClick({ target: { closest: () => null } })
+  for (const key of ['Enter', ' ']) props.onKeyDown({ key, preventDefault() {} })
+  assert.equal(calls, 3)
+  props.onClick({ target: { closest: () => ({}) } })
+  props.onKeyDown({ key: 'Enter', target: {}, currentTarget: {}, preventDefault() {} })
+  assert.equal(calls, 3)
+  assert.deepEqual(recordCardNavigation(undefined), {})
+})

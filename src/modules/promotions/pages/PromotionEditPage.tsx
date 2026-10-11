@@ -329,8 +329,8 @@ export default function PromotionEditPage() {
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
       <h1 className="sr-only">Editar promoción</h1><div className="auna-page-toolbar"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-lg px-3 py-2 text-xs font-semibold ${active ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'}`}>{active ? 'Habilitada' : 'Desactivada'}</span><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-edit-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar cambios</Button></div></div>
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
       {fetchingPromotion && <LoadingIndicator message="Actualizando promoción…" />}
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
       <form id="promotion-edit-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
         <Card className="auna-surface">
@@ -656,6 +656,7 @@ export default function PromotionEditPage() {
               supportsProductCategoryScope(selectedType.name) &&
               !formData.applies_to_all && (
                 <PromotionApplicableScopeFields
+                  allowServices={selectedType?.name==='PERCENTAGE'}
                   products={applicableProducts}
                   categories={applicableCategories}
                   onProductsChange={setApplicableProducts}

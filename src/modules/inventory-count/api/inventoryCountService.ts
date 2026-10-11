@@ -89,12 +89,14 @@ export type InventoryCountLineRow = {
 const path = (p: string) => `/inventory-counts${p}`;
 
 export async function listInventorySessions(params?: {
+  includeSummary?: boolean;
   q?: string;
   status?: string;
   offset?: number;
   limit?: number;
-}): Promise<{ data: InventoryCountSessionSummary[]; total: number }> {
+}): Promise<{ data: InventoryCountSessionSummary[]; total: number; summary?: Record<string, number> }> {
   const sp = new URLSearchParams();
+  if (params?.includeSummary) sp.set('includeSummary', 'true');
   if (params?.q) sp.set("q", params.q);
   if (params?.status) sp.set("status", params.status);
   if (params?.offset != null) sp.set("offset", String(params.offset));

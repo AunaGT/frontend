@@ -20,7 +20,11 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { Pagination } from '@/components/shared/Pagination'
+import './pos.css'
+import {stepQuantity,previewPartialLineTotal} from '@/lib/commercialQuantity'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import {
   DropdownMenu,
@@ -47,7 +51,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, ChevronRight, PauseCircle, RotateCcw, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal } from 'lucide-react'
+import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, PauseCircle, RotateCcw, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2, Minus } from 'lucide-react'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useToast } from '@/hooks/use-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -98,6 +102,7 @@ import { closeCashSession, fetchCashSessionCurrent } from '@/services/cashSessio
 import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/modules/cash-closure'
 import type { CashRegisterSessionDto, CashSessionCurrentResult } from '@/services/cashSessionsService'
 import type { CartProduct } from './types'
+import {useTenant} from '@/context/useTenant'
 
 type ProductBrowseLayout = 'flat' | 'byCategory'
 
@@ -154,27 +159,30 @@ const ProductCard = ({
   /** La caja despacha de una ubicación concreta: el total de sucursal no sirve acá. */
   posMode?: boolean
 }) => (
-  <Card className="overflow-hidden transition-shadow hover:shadow-md">
-    <div className="aspect-square bg-muted relative">
+  <article className="pos-product-row">
+    <div className="pos-product-image">
       {product.imageUrl ? (
         <img
           src={product.imageUrl}
           alt={product.name}
-          className="w-full h-full object-cover"
+          className="h-full w-full object-contain"
+          loading="lazy"
+          width={64}
+          height={64}
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-          Sin imagen
+          <Package className="h-6 w-6" aria-hidden="true" />
         </div>
       )}
     </div>
-    <CardContent className="p-3">
+    <div className="min-w-0 flex-1">
       <p className="font-medium text-sm truncate" title={product.name}>
         {product.name}
       </p>
       <p className="text-xs text-muted-foreground">
         {formatPrice(displayUnitPrice)}
-        {posMode
+        {product.kind==='SERVICE' ? ` · ${product.serviceUnitLabel} · Sin control de existencias` : posMode
           ? // Mientras no llegue el dato de la ubicación no se enseña el total de
             // sucursal: en la caja ese número miente sobre lo que hay a la mano.
             posQty != null
@@ -185,21 +193,22 @@ const ProductCard = ({
             : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
       </p>
       {posQty != null && availableQty != null && availableQty > posQty ? (
-        <p className="text-xs text-amber-600">
+        <p className="text-xs text-amber-700 dark:text-amber-300">
           {availableQty - posQty} en otros almacenes
         </p>
       ) : null}
+    </div>
       <Button
         size="sm"
-        className="w-full mt-2"
+        aria-label={`Agregar ${product.name}`}
+        className="shrink-0"
         onClick={onAdd}
         disabled={disabled}
       >
         <Plus className="w-4 h-4 mr-1" />
         Agregar
       </Button>
-    </CardContent>
-  </Card>
+  </article>
 )
 
 const CategoryBrowseCard = ({
@@ -215,40 +224,16 @@ const CategoryBrowseCard = ({
   onSelect: () => void
   disabled?: boolean
 }) => (
-  <Card
-    className="overflow-hidden transition-shadow hover:shadow-md cursor-pointer"
-    role="button"
-    tabIndex={disabled ? -1 : 0}
-    onClick={() => !disabled && onSelect()}
-    onKeyDown={(e) => {
-      if (disabled) return
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        onSelect()
-      }
-    }}
-  >
-    <div className="aspect-square bg-muted relative">
-      {imageUrl ? (
-        <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-          <ImageIcon className="h-10 w-10" />
-        </div>
-      )}
-    </div>
-    <CardContent className="p-3 text-center">
-      <p className="font-medium text-sm truncate" title={name}>
-        {name}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        {count} {count === 1 ? 'producto' : 'productos'}
-      </p>
-    </CardContent>
-  </Card>
+  <button type="button" className="pos-category-row" onClick={onSelect} disabled={disabled}>
+    <span className="pos-category-image">
+      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" width={48} height={48} className="h-full w-full object-contain" /> : <ImageIcon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+    </span>
+    <span className="min-w-0 text-left"><span className="block truncate font-medium">{name}</span><span className="text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span>
+  </button>
 )
 
 export default function NewSalePage() {
+  const {company,branch}=useTenant()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { toast } = useToast()
@@ -278,7 +263,8 @@ export default function NewSalePage() {
   const paymentMethodsQuery = usePaymentMethods()
   const paymentMethods = useMemo(() => paymentMethodsQuery.data ?? [], [paymentMethodsQuery.data])
   // Solo lo que maneja esta sucursal: no se puede vender lo que no está aquí.
-  const productsQuery = useAllProducts({ forSaleOnly: true, inBranchOnly: true })
+  const {inventoryServicesEnabled}=useSystemSettings()
+  const productsQuery = useAllProducts({ forSaleOnly: true, inBranchOnly: true,catalogType:inventoryServicesEnabled ? 'all' : 'goods' })
   const availableProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
   const categoriesQuery = useCategories()
 
@@ -352,10 +338,12 @@ export default function NewSalePage() {
 
   const getUnitPrice = useCallback(
     (p: Product) => {
+      const original=loadedOrder?.lines.find(line=>line.product_id===p.id)
+      if (original) return Number(original.unit_price)
       const u = unitPricesById[p.id]
       return u != null && Number.isFinite(u) ? u : Number(p.price ?? 0)
     },
-    [unitPricesById]
+    [unitPricesById,loadedOrder]
   )
 
   const getAvailableQty = useCallback(
@@ -363,7 +351,23 @@ export default function NewSalePage() {
     [availabilityById]
   )
 
-  const cart = useCart({ availableProducts, getUnitPrice, getAvailableQty })
+  const cartProducts=useMemo(()=>{
+    if (!loadedOrder) return availableProducts
+    const byId=new Map(availableProducts.map(product=>[product.id,product]))
+    for (const line of loadedOrder.lines) {
+      const current=byId.get(line.product_id)
+      if (!current && line.item_kind!=='SERVICE') continue
+      const product=current ?? {id:line.product_id,name:line.item_name || 'Servicio',category:'',brand:'',size:'',stock:0,minStock:0,price:Number(line.unit_price),cost:0,supplier:'',barcode:line.product?.barcode || '',description:'',status:'Disponible'}
+      byId.set(line.product_id,{...product,name:line.item_name ?? product.name,kind:line.item_kind ?? product.kind,serviceUnitLabel:line.unit_label ?? product.serviceUnitLabel,quantityDecimals:line.quantity_decimals ?? product.quantityDecimals})
+    }
+    return [...byId.values()]
+  },[availableProducts,loadedOrder])
+  const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty })
+  const hydrateOrderCartRef=useRef(cart.hydrateFromLines)
+  hydrateOrderCartRef.current=cart.hydrateFromLines
+  useEffect(()=>{
+    if (loadedOrder) hydrateOrderCartRef.current(loadedOrder.lines.filter(line=>pendingOrderLineQty(line)>0).map(line=>({productId:line.product_id,qty:String(pendingOrderLineQty(line))})),[])
+  },[loadedOrder])
 
   /**
    * El mostrador despacha de SU ubicación. Si ahí ya no queda, no se bloquea la
@@ -375,6 +379,7 @@ export default function NewSalePage() {
   const decisionPendienteRef = useRef(false)
 
   const addProduct = async (product: Product) => {
+    if (product.kind==='SERVICE') {cart.addToCart(product);return}
     if (posSinConfigurar) {
       toast({
         title: 'Falta configurar el punto de venta',
@@ -397,7 +402,7 @@ export default function NewSalePage() {
         queryFn: () => fetchStockByLocation(product.id),
         staleTime: 30_000,
       })
-      const enCarrito = cart.cartItems.find((i) => i.id === product.id)?.qty ?? 0
+      const enCarrito = Number(cart.cartItems.find((i) => i.id === product.id)?.qty || 0)
       const atPos = rows.find((r) => r.location.id === posLocationId)?.stock ?? 0
       const otras = rows
         .filter((r) => r.location.id !== posLocationId && r.stock > 0)
@@ -442,6 +447,7 @@ export default function NewSalePage() {
         product_id: item.id,
         price: Number(item.price),
         qty: item.qty,
+        kind:item.kind,
       })),
     [cart.cartItems]
   )
@@ -449,15 +455,20 @@ export default function NewSalePage() {
   const canCreateClientContact = hasPermission('contacts.clients.create')
 
   const promotions = usePromotions({
+    contextKey:JSON.stringify([company?.id,branch?.id,salesChannel,pickedCustomerId]),
     cartItems: promotionCartItems,
     cartTotal: cart.cartTotal,
     locale,
     currencyCode,
   })
 
+  const pricingContext=JSON.stringify([availableProducts.map(product=>[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
+  const pricingReadyRef=useRef<string|null>(null)
   useEffect(() => {
     let cancelled = false
     const ids = availableProducts.map((p) => p.id)
+    pricingReadyRef.current=null
+    setUnitPricesById({})
     if (ids.length === 0) {
       setUnitPricesById({})
       return
@@ -469,7 +480,7 @@ export default function NewSalePage() {
           sales_channel: salesChannel,
           customer_contact_id: customerContactIdForPricing ?? null,
         })
-        if (!cancelled) setUnitPricesById(r.unit_prices ?? {})
+        if (!cancelled) {pricingReadyRef.current=ids.every(id=>Object.prototype.hasOwnProperty.call(r.unit_prices ?? {},id)) ? pricingContext : null;setUnitPricesById(r.unit_prices ?? {})}
       } catch {
         if (!cancelled) setUnitPricesById({})
       }
@@ -477,7 +488,7 @@ export default function NewSalePage() {
     return () => {
       cancelled = true
     }
-  }, [availableProducts, salesChannel, customerContactIdForPricing])
+  }, [availableProducts, salesChannel, customerContactIdForPricing,pricingContext])
 
   useEffect(() => {
     repriceCartRef.current()
@@ -568,7 +579,11 @@ export default function NewSalePage() {
     }
   }, [pageProducts, cart.cartItems])
 
-  const displayTotal = loadedOrder || !promotionsEnabled
+  const displayLineTotals=loadedOrder ? Object.fromEntries(cart.cartItems.map(item=>{
+    const original=loadedOrder.lines.find(line=>line.product_id===item.id)
+    try {return [item.id,original ? previewPartialLineTotal(String(original.qty),String(original.line_total),item.qty,String(original.qty_fulfilled || 0)) : null]} catch {return [item.id,null]}
+  })) : cart.lineTotals
+  const displayTotal = loadedOrder ? Number(Object.values(displayLineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n))/100 : !promotionsEnabled
     ? cart.cartTotal
     : (promotions.finalTotal ?? cart.cartTotal)
   const changeAmount =
@@ -1054,7 +1069,6 @@ export default function NewSalePage() {
       }
       orderLineIdByProductRef.current = map
       setUnitPricesById(prices)
-      cart.hydrateFromLines(lines, [])
       setLoadedOrder(order)
       if (order.payment_condition === 'CREDIT') setPaymentMethod(paymentMethods.find(method => method.is_credit) ?? null)
       setInitialCreditPayment('')
@@ -1067,7 +1081,7 @@ export default function NewSalePage() {
       promotions.clearPromotions()
       toast({ title: 'Pedido cargado', description: order.reference ?? order.id })
     },
-    [cart, promotions, toast, paymentMethods]
+    [promotions, toast, paymentMethods]
   )
 
   const handleLoadOrder = useCallback(async () => {
@@ -1116,6 +1130,8 @@ export default function NewSalePage() {
   }, [canLoadOrders, loadedOrder])
 
   const handleSubmit = async () => {
+    if (cart.hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Cada partida debe tener una cantidad válida para su unidad de cobro.',variant:'destructive'});return}
+    if (pricingReadyRef.current!==pricingContext && !loadedOrder) {toast({title:'Precios pendientes',description:'Espera a que se actualicen los precios antes de cobrar.',variant:'destructive'});return}
     if (!canCreate) {
       toast({ title: 'Sin permiso para crear ventas', variant: 'destructive' })
       return
@@ -1217,7 +1233,7 @@ export default function NewSalePage() {
             line_id: orderLineIdByProductRef.current.get(item.id) ?? '',
             qty: item.qty,
           }))
-          .filter((x) => x.line_id && x.qty > 0)
+          .filter((x) => x.line_id && Number(x.qty) > 0)
         const [{ company_name: companyNameFromApi }, result] = await Promise.all([
           getCompanyNamePublic().catch(() => ({ company_name: '' })),
           convertOrderToSale(loadedOrder.id, {
@@ -1382,35 +1398,25 @@ export default function NewSalePage() {
 
   if (!cashSessionOpen) {
     return (
-      <>
-        <div className="px-4 sm:px-8 lg:px-14 py-4 w-full">
-          <div className="flex items-center gap-3 mb-2">
-            <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-            <h1 className="text-xl font-bold text-muted-foreground">Nueva venta</h1>
-          </div>
-        </div>
         <OpenCashRegisterPrompt
           registerName={cashRegisterMeta?.name}
           registerId={cashRegisterMeta?.id}
           onOpened={handleCashSessionOpened}
           onBack={() => setSelectedRegisterId(null)}
         />
-      </>
     )
   }
 
   return (
-    <div className="px-4 sm:px-8 lg:px-14 py-4 sm:py-6 w-full animate-fade-in">
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+    <div className="pos-page">
+      <div className="auna-page-toolbar pos-toolbar">
         <div className="flex items-start gap-3 min-w-0">
-          <Button variant="ghost" size="icon" className="shrink-0 mt-0.5" onClick={() => navigate('/ventas')}>
+          <Button variant="outline" size="sm" aria-label="Volver a ventas" className="shrink-0" onClick={() => navigate('/ventas')}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold">Nueva Venta</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="sr-only">Nueva venta</h1>
+            <p className="text-xs text-muted-foreground">
               {loadedOrder
                 ? `Venta desde pedido ${loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}`
                 : isCompact
@@ -1427,7 +1433,7 @@ export default function NewSalePage() {
         )}
 
         {activeCashSession && (
-          <div className="flex flex-wrap items-center gap-2 pl-11 sm:pl-0 sm:justify-end sm:max-w-[min(100%,28rem)] lg:max-w-[32rem]">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
             <div
               className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs text-muted-foreground sm:text-sm"
               title={`${cashRegisterMeta?.name ?? 'Caja principal'} · Fondo Q${Number(activeCashSession.opening_float).toFixed(2)} · ${new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}${activeCashSession.openedBy?.name ? ` · ${activeCashSession.openedBy.name}` : ''}`}
@@ -1523,95 +1529,23 @@ export default function NewSalePage() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="pos-workspace">
         {/* Columna izquierda: información de la venta */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between gap-3 text-base">
-                <span>Cobro</span>
+        <div className="pos-sale-column">
+          <section className="auna-surface rounded-xl border pos-context" aria-labelledby="pos-context-title">
+            <header className="pos-section-heading">
+              <h2 id="pos-context-title" className="flex items-center justify-between gap-3 text-base font-semibold">
+                <span>Cliente y pago</span>
                 <span className="text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
                   Perfil {EXPERIENCE_PROFILE_LABELS[profile]}
                 </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Método de pago *</Label>
-                {visiblePaymentMethods.length === 0 ? (
-                  <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
-                    No hay métodos de pago disponibles para esta empresa.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {visiblePaymentMethods.map((method) => (
-                      <Button
-                        key={method.id}
-                        type="button"
-                        variant={paymentMethod?.id === method.id ? 'default' : 'outline'}
-                        className="h-10 justify-start px-3"
-                        onClick={() => setPaymentMethod(method)}
-                      >
-                        {method.name}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {isCreditSale && (
-                <Alert className="py-3">
-                  <UserRound className="h-4 w-4" />
-                  <AlertTitle>Venta al crédito</AlertTitle>
-                  <AlertDescription>
-                    Selecciona un cliente registrado y confirma su vencimiento.
-                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
-                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
-                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
-                  </AlertDescription>
-                </Alert>
-              )}
-              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="amount">Monto recibido</Label>
-                    {displayTotal > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
-                      >
-                        Monto exacto
-                      </Button>
-                    )}
-                  </div>
-                  <Input
-                    id="amount"
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    min={displayTotal}
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    step="0.01"
-                    className="font-semibold"
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
-                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
-                  )}
-                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
-                    <p className="text-sm text-destructive">
-                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
-                    </p>
-                  )}
-                </div>
-              )}
-
+              </h2>
+            </header>
+            <div className="pos-context-fields">
               <Collapsible
                 open={showCustomerDetails || isCreditSale}
                 onOpenChange={setShowCustomerDetails}
-                className="rounded-lg border"
+                className="pos-customer"
               >
                 <CollapsibleTrigger asChild>
                   <Button type="button" variant="ghost" className="h-auto w-full justify-between p-3">
@@ -1628,7 +1562,7 @@ export default function NewSalePage() {
                     <ChevronDown className={`h-4 w-4 transition-transform ${(showCustomerDetails || isCreditSale) ? 'rotate-180' : ''}`} />
                   </Button>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-4 border-t p-3">
+                <CollapsibleContent className="space-y-3 pt-3">
                   {canPickSavedCustomer && (
                     <SavedCustomerMany2One
                       valueId={pickedCustomerId}
@@ -1758,8 +1692,84 @@ export default function NewSalePage() {
                 </CollapsibleContent>
               </Collapsible>
 
+              <div className="pos-payment-fields">
+              <div className="space-y-2">
+                <Label>Método de pago *</Label>
+                {visiblePaymentMethods.length === 0 ? (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                    No hay métodos de pago disponibles para esta empresa.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {visiblePaymentMethods.map((method) => (
+                      <Button
+                        key={method.id}
+                        type="button"
+                        variant={paymentMethod?.id === method.id ? 'default' : 'outline'}
+                        className="h-10 justify-start px-3"
+                        aria-pressed={paymentMethod?.id === method.id}
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        {method.name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {isCreditSale && (
+                <Alert className="py-3">
+                  <UserRound className="h-4 w-4" />
+                  <AlertTitle>Venta al crédito</AlertTitle>
+                  <AlertDescription>
+                    Selecciona un cliente registrado y confirma su vencimiento.
+                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="amount">Monto recibido</Label>
+                    {displayTotal > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
+                      >
+                        Monto exacto
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="amount"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    min={displayTotal}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    step="0.01"
+                    className="font-semibold"
+                  />
+                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
+                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
+                  )}
+                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
+                    <p className="text-sm text-destructive">
+                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
+                    </p>
+                  )}
+                </div>
+              )}
+
+
+              </div>
               {salesShowChannels && (
-                <Collapsible open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
+                <Collapsible className="pos-advanced" open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
                   <CollapsibleTrigger asChild>
                     <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
                       <span className="flex items-center gap-2">
@@ -1789,75 +1799,92 @@ export default function NewSalePage() {
                   </CollapsibleContent>
                 </Collapsible>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* Carrito y total */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                Productos en la venta ({cart.cartItems.length})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {cart.cartItems.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  Agrega productos desde la lista de la derecha
-                </p>
-              ) : (
-                <ul className="space-y-2 max-h-48 overflow-y-auto">
-                  {cart.cartItems.map((item) => (
-                    <li
-                      key={item.id}
-                      className="flex justify-between items-center text-sm py-1 border-b border-border/50"
-                    >
-                      <span className="truncate flex-1">{item.name}</span>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => cart.updateQuantity(item.id, item.qty - 1)}
-                        >
-                          -
-                        </Button>
-                        <Input
-                          type="number"
-                          min={1}
-                          className="w-14 px-2 text-center"
-                          data-control-size="compact"
-                          value={item.qty}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value || '0', 10)
-                            if (!Number.isNaN(val) && val > 0) {
-                              cart.updateQuantity(item.id, val)
-                            }
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 w-7 p-0"
-                          onClick={() => cart.updateQuantity(item.id, item.qty + 1)}
-                        >
-                          +
-                        </Button>
-                        <span className="w-24 text-right">
-                          {fmt(item.qty * item.price)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0"
-                          onClick={() => cart.removeFromCart(item.id)}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
+          <section className="auna-data-table-shell pos-cart" aria-label="Productos en la venta">
+            <header className="pos-section-heading">
+              <h2 className="text-base font-semibold">Productos en la venta ({cart.cartItems.length})</h2>
+            </header>
+            {cart.cartItems.length === 0 ? (
+              <EmptyState icon={Package} title="Agrega productos a la venta" description="Busca un producto en el catálogo o introduce su código de barras." />
+            ) : (
+              <div className="pos-cart-scroll">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead className="text-right">Precio unitario</TableHead>
+                      <TableHead className="text-center">Cantidad</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cart.cartItems.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="flex min-w-40 items-center gap-3">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt="" loading="lazy" width={40} height={40} className="h-10 w-10 shrink-0 rounded-md border bg-background object-contain" />
+                            ) : <Package className="h-8 w-8 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                            <div>
+                              <p className="font-medium">{item.name}</p>
+                              <p className="text-xs text-muted-foreground">{item.barcode || 'Sin código de barras'}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(item.price)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,-1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                              <Minus className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Input
+                              type="text"
+                              inputMode={item.kind==='SERVICE' ? 'decimal' : 'numeric'}
+                              className="w-16 text-center"
+                              data-control-size="compact"
+                              aria-label={`Cantidad de ${item.name}`}
+                              value={item.qty}
+                              disabled={isProcessing}
+                              aria-invalid={displayLineTotals[item.id]===null}
+                              onChange={event => cart.updateQuantity(item.id,event.target.value)}
+                            />
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                              <Plus className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </div>
+                          {item.kind==='SERVICE' && <p className="mt-1 text-center text-xs text-muted-foreground">{item.serviceUnitLabel}</p>}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{displayLineTotals[item.id]!==null ? fmt(Number(displayLineTotals[item.id])) : '—'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Quitar ${item.name}`} onClick={() => cart.removeFromCart(item.id)} disabled={isProcessing}>
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </section>
+
+          {promotionsEnabled && !loadedOrder && (
+          <PromotionCodeInput
+            appliedPromotions={promotions.appliedPromotions ?? []}
+            totalDiscount={promotions.totalDiscount ?? 0}
+            isValidating={promotions.isValidating ?? false}
+            onApplyCode={promotions.applyCode}
+            onRemovePromotion={promotions.removePromotion}
+          />
+
+          )}
+
+          <section className="pos-checkout auna-surface rounded-xl border" aria-label="Total y registro de la venta">
+            <div className="pos-checkout-summary">
               {promotionsEnabled && promotions.appliedPromotions?.length ? (
                 <div className="pt-2 border-t">
                   <p className="text-xs text-muted-foreground">Descuentos aplicados</p>
@@ -1876,25 +1903,13 @@ export default function NewSalePage() {
                 <span>Total</span>
                 <span>{fmt(displayTotal)}</span>
               </div>
-            </CardContent>
-          </Card>
 
-          {promotionsEnabled && !loadedOrder && (
-          <PromotionCodeInput
-            appliedPromotions={promotions.appliedPromotions ?? []}
-            totalDiscount={promotions.totalDiscount ?? 0}
-            isValidating={promotions.isValidating ?? false}
-            onApplyCode={promotions.applyCode}
-            onRemovePromotion={promotions.removePromotion}
-          />
-
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2">
+            </div>
+          <div className="pos-checkout-actions">
             <Button
               type="button"
               variant="secondary"
-              className="flex-1 border-dashed"
+              className="flex-1"
               onClick={handleSaveForLater}
               disabled={isProcessing || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}
             >
@@ -1902,10 +1917,11 @@ export default function NewSalePage() {
               Guardar y continuar después
             </Button>
             <Button
-              className="flex-1 bg-primary"
+              className="flex-1 bg-brand-orange text-white hover:bg-brand-orange-strong"
               onClick={handleSubmit}
               disabled={
                 cart.cartItems.length === 0 ||
+                cart.hasInvalidQuantities || promotions.isValidating || (pricingReadyRef.current!==pricingContext && !loadedOrder) ||
                 !paymentMethod ||
                 isProcessing ||
                 (paymentMethod?.name?.toLowerCase() === 'efectivo' &&
@@ -1933,16 +1949,19 @@ export default function NewSalePage() {
               )}
             </Button>
           </div>
+          </section>
         </div>
 
-        {/* Columna derecha: productos en cards */}
-        <div className="lg:col-span-3">
-          <Card>
-            <CardHeader className="space-y-3">
+        {/* Columna derecha: catálogo */}
+        <div className="pos-catalog-column">
+          <aside className="auna-surface rounded-xl border pos-catalog" aria-labelledby="pos-catalog-title">
+            <header className="pos-catalog-heading">
+              <h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
+                    aria-label="Buscar productos"
                     ref={productSearchRef}
                     placeholder="Buscar por nombre o código de barras..."
                     value={productSearch}
@@ -2017,8 +2036,8 @@ export default function NewSalePage() {
                   Todas las categorías
                 </Button>
               ) : null}
-            </CardHeader>
-            <CardContent>
+            </header>
+            <div className="pos-catalog-body">
               <p className="text-xs text-muted-foreground mb-3">
                 Solo se muestran productos marcados como disponibles para la venta. Puedes cambiarlo en el detalle del
                 producto en Inventario.
@@ -2044,15 +2063,23 @@ export default function NewSalePage() {
                 </div>
               ) : null}
               {productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
+              {productsQuery.isError && availableProducts.length > 0 && (
+                <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                  <p className="text-muted-foreground">No se pudieron actualizar los productos. Últimos datos disponibles.</p>
+                  <Button variant="outline" size="sm" disabled={productsQuery.isFetching} onClick={() => void productsQuery.refetch()}>Reintentar</Button>
+                </div>
+              )}
               {productsQuery.isLoading ? (
                 <LoadingState variant="cards" message="Cargando productos…" />
+              ) : productsQuery.isError && availableProducts.length === 0 ? (
+                <div role="alert" className="py-8 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => void productsQuery.refetch()}>Reintentar</Button></div>
               ) : showCategoryPicker ? (
                 categorySummaries.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground">
                     No hay categorías con productos que coincidan
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[calc(100vh-16rem)] overflow-y-auto">
+                  <div className="pos-category-list">
                     {categorySummaries.map((cat) => (
                       <CategoryBrowseCard
                         key={cat.name}
@@ -2077,7 +2104,7 @@ export default function NewSalePage() {
                   {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
                     <p className="text-sm font-medium text-foreground mb-3">{selectedCategoryName}</p>
                   ) : null}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[calc(100vh-16rem)] overflow-y-auto">
+                  <div className="pos-product-list">
                     {pageProducts.map((product) => (
                       <ProductCard
                         key={product.id}
@@ -2093,54 +2120,20 @@ export default function NewSalePage() {
                       />
                     ))}
                   </div>
-                  {!showCategoryPicker ? (
-                  <div className="flex flex-wrap items-center justify-between gap-4 mt-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">Productos por página:</span>
-                      <Select
-                        value={String(productPageSize)}
-                        onValueChange={(v) => { setProductPageSize(Number(v)); setProductPage(1); }}
-                      >
-                        <SelectTrigger className="w-[72px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {[9, 18, 36, 54].map((n) => (
-                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-muted-foreground">
-                        Página {safePage} de {totalPages}
-                      </span>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setProductPage((p) => Math.max(1, p - 1))}
-                        disabled={safePage <= 1}
-                      >
-                        <ChevronLeft className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setProductPage((p) => Math.min(totalPages, p + 1))}
-                        disabled={safePage >= totalPages}
-                      >
-                        <ChevronRight className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  ) : null}
+
                 </>
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </aside>
+          {!productsQuery.isLoading && !showCategoryPicker && browseProducts.length > 0 && <div className="auna-pagination-outside">
+            <div className="flex items-center justify-end gap-2"><Label htmlFor="pos-page-size">Productos por página</Label><Select value={String(productPageSize)} onValueChange={v => { setProductPageSize(Number(v)); setProductPage(1) }}><SelectTrigger id="pos-page-size" className="w-20"><SelectValue /></SelectTrigger><SelectContent>{[9, 18, 36, 54].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
+            <Pagination currentPage={safePage} totalPages={totalPages} totalItems={browseProducts.length} pageSize={pageSize} count={pageProducts.length} itemLabel="productos" onPageChange={setProductPage} loading={productsQuery.isFetching} />
+          </div>}
         </div>
       </div>
 
       <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && cerrarElsewhere()}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>
               {/* El nombre va en las dos ramas: sin él, dos avisos seguidos de
@@ -2202,7 +2195,7 @@ export default function NewSalePage() {
       />
 
       <AlertDialog open={showCloseCashDialog} onOpenChange={setShowCloseCashDialog}>
-        <AlertDialogContent>
+        <AlertDialogContent variant="auna">
           <AlertDialogHeader>
             <AlertDialogTitle>¿Cerrar el turno de caja?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
@@ -2235,7 +2228,7 @@ export default function NewSalePage() {
       </AlertDialog>
 
       <Dialog open={canLoadOrders && loadOrderOpen} onOpenChange={setLoadOrderOpen}>
-        <DialogContent>
+        <DialogContent variant="auna">
           <DialogHeader>
             <DialogTitle>Cargar pedido en POS</DialogTitle>
             <DialogDescription>

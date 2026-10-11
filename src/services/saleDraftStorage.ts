@@ -8,7 +8,7 @@ export const SALE_DRAFT_VERSION = 1 as const
 
 export interface NewSaleDraftLine {
   productId: string
-  qty: number
+  qty: string | number
 }
 
 export interface NewSaleDraft {

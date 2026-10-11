@@ -10,129 +10,30 @@
 
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-    ArrowRight,
-    BellRing,
-    CalendarDays,
-    ChevronRight,
-    Search,
-    X,
-} from 'lucide-react'
+import { CalendarDays, Search, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
-import { getVisibleModules, type AppModule, getUserRole, MODULE_DESCRIPTIONS } from '@/config/appModules'
+import { getVisibleModules, orderModuleCatalog, type AppModule, getUserRole, MODULE_DESCRIPTIONS } from '@/config/appModules'
 import type { AuthUser } from '@/context/AuthContext'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
 import { useModules } from '@/context/useModules'
 import { AunaBrand } from '@/components/branding/AunaBrand'
 import { HomeModuleLoading } from '@/components/layout/HomeLoadingPage'
-
-const MONTHS = [
-    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-]
-const WEEKDAYS = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
-
-function ModuleTile({
-    module,
-    index,
-    badgeCount,
-    onClick,
-}: {
-    module: AppModule
-    index: number
-    badgeCount?: number
-    onClick: () => void
-}) {
-    const Icon = module.icon
-    const orange = index % 3 === 0 || index % 3 === 2
-
-    return (
-        <button
-            type="button"
-            onClick={onClick}
-            className={cn(
-                'group relative min-h-36 overflow-hidden rounded-2xl p-5 text-left text-white shadow-lg transition duration-200',
-                'hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:ring-offset-2',
-                orange
-                    ? 'bg-gradient-to-br from-orange-500 to-brand-orange-strong'
-                    : 'bg-gradient-to-br from-blue-500 to-blue-700',
-            )}
-        >
-            <span className="absolute right-4 top-3 text-4xl font-semibold text-white/20">
-                {String(index + 1).padStart(2, '0')}
-            </span>
-            {badgeCount ? (
-                <span className="absolute right-4 top-4 flex h-6 min-w-6 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold shadow-sm ring-2 ring-white/30">
-                    {badgeCount > 99 ? '99+' : badgeCount}
-                </span>
-            ) : null}
-            <Icon className="h-10 w-10 text-white transition-transform duration-200 group-hover:scale-105" />
-            <div className="mt-5 flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                    <h2 className="truncate text-lg font-semibold">{module.label}</h2>
-                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-white/85">
-                        {MODULE_DESCRIPTIONS[module.id] || 'Gestión del módulo'}
-                    </p>
-                </div>
-                <ChevronRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" aria-hidden />
-            </div>
-        </button>
-    )
-}
-
-function CalendarCard({ now }: { now: Date }) {
-    const year = now.getFullYear()
-    const month = now.getMonth()
-    const firstDay = new Date(year, month, 1)
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-    const mondayOffset = (firstDay.getDay() + 6) % 7
-    const cells = Array.from({ length: mondayOffset + daysInMonth }, (_, index) =>
-        index < mondayOffset ? null : index - mondayOffset + 1,
-    )
-
-    return (
-        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm" aria-label="Calendario">
-            <div className="flex items-center gap-2">
-                <CalendarDays className="h-5 w-5 text-brand-orange" aria-hidden />
-                <h2 className="font-semibold">Calendario</h2>
-            </div>
-            <p className="mt-5 text-center text-sm font-semibold capitalize">
-                {MONTHS[month]} {year}
-            </p>
-            <div className="mt-4 grid grid-cols-7 gap-y-2 text-center text-xs">
-                {WEEKDAYS.map((day, index) => (
-                    <span key={`${day}-${index}`} className="font-medium text-muted-foreground">{day}</span>
-                ))}
-                {cells.map((day, index) => (
-                    <span
-                        key={`${day ?? 'empty'}-${index}`}
-                        className={cn(
-                            'mx-auto flex h-7 w-7 items-center justify-center rounded-full tabular-nums',
-                            day === now.getDate() && 'bg-brand-orange font-semibold text-white',
-                        )}
-                    >
-                        {day}
-                    </span>
-                ))}
-            </div>
-        </section>
-    )
-}
+import { ModuleCatalogCard } from '@/components/layout/ModuleCatalogCard'
 
 export const HomePage = () => {
     const [search, setSearch] = useState('')
     const navigate = useNavigate()
     const now = new Date()
-    const { user: rawUser, isSeller, isAdmin } = getUserRole()
+    const { user: rawUser, isAdmin } = getUserRole()
     const user = rawUser as AuthUser | null
     const { companyName } = useSystemSettings()
     const { data: activeAlertsCount = 0 } = useActiveAlertsCount()
     const { enabledModuleCodes, isLoading, isError, refetch } = useModules()
 
-    const modules = useMemo(() => getVisibleModules(enabledModuleCodes), [enabledModuleCodes])
+    const modules = useMemo(() => orderModuleCatalog(getVisibleModules(enabledModuleCodes)),
+    [enabledModuleCodes])
     const filteredModules = useMemo(() => {
         const term = search.trim().toLowerCase()
         if (!term) return modules
@@ -140,166 +41,92 @@ export const HomePage = () => {
             `${module.label} ${module.id} ${MODULE_DESCRIPTIONS[module.id] || ''}`.toLowerCase().includes(term),
         )
     }, [modules, search])
-
-    const alertsModule = modules.find((module) => module.id === 'alerts')
     const quickModules = ['sales', 'inventory', 'contacts', 'reports']
         .map((id) => modules.find((module) => module.id === id))
         .filter((module): module is AppModule => Boolean(module))
-
-    const hour = now.getHours()
-    const greeting = hour < 12 ? 'Buenos días' : hour < 18 ? 'Buenas tardes' : 'Buenas noches'
     const formattedWeekday = new Intl.DateTimeFormat('es-GT', { weekday: 'long' }).format(now)
     const formattedMonth = new Intl.DateTimeFormat('es-GT', { month: 'long', year: 'numeric' }).format(now)
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
     return (
-        <div className="min-h-full bg-brand-surface dark:bg-brand-navy">
-            <div className="mx-auto max-w-[1560px] px-4 py-6 sm:px-6 lg:px-8">
-                <header className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
-                    <div>
-                        <p className="text-sm font-medium text-brand-orange">{companyName}</p>
-                        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-brand-navy dark:text-white sm:text-3xl">
-                            ¡{greeting}, {user?.name?.split(' ')[0] || 'Usuario'}!
-                        </h1>
-                        <p className="mt-2 text-sm text-muted-foreground sm:text-base">
-                            {isSeller ? 'Accede a tus herramientas de trabajo.' : 'Todo lo que necesitas para gestionar tu negocio, en un solo lugar.'}
+        <div className="home-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+            <header className="flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                    <p className="text-sm font-medium text-muted-foreground">{companyName}</p>
+                    <h1 className="mt-1 text-2xl font-semibold tracking-tight">Tu espacio de trabajo</h1>
+                </div>
+                <time dateTime={localDate} aria-label="Fecha actual" className="auna-surface flex shrink-0 items-center gap-3 rounded-lg border px-4 py-3">
+                    <CalendarDays className="h-5 w-5 text-muted-foreground" aria-hidden />
+                    <span className="text-3xl font-semibold tabular-nums">{now.getDate()}</span>
+                    <span className="h-9 w-px bg-border" aria-hidden />
+                    <span className="text-xs leading-5">
+                        <span className="block font-semibold capitalize">{formattedWeekday}</span>
+                        <span className="block text-muted-foreground">{formattedMonth}</span>
+                    </span>
+                </time>
+            </header>
+
+            <div className="home-toolbar flex flex-wrap items-end justify-between gap-4">
+                {!isLoading && !isError && quickModules.length > 0 && (
+                    <nav aria-label="Acciones rápidas" className="min-w-0">
+                        <h2 className="mb-2 text-xs font-medium">Acciones rápidas</h2>
+                        <div className="flex flex-wrap gap-2">
+                            {quickModules.map((module) => {
+                                const Icon = module.icon
+                                return <Button key={module.id} type="button" variant="outline" aria-label={`Acceso rápido a ${module.label}`} onClick={() => navigate(module.path)}>
+                                    <Icon className="h-6 w-6 shrink-0" />{module.label}
+                                </Button>
+                            })}
+                        </div>
+                    </nav>
+                )}
+                <div className="home-search w-full max-w-[420px] min-w-0">
+                    <label htmlFor="home-module-search" className="mb-2 block text-xs font-medium">Buscar módulo</label>
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                        <Input id="home-module-search" value={search} onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Busca un módulo…" className="pl-10 pr-12" autoComplete="off" />
+                        {search && <Button type="button" variant="ghost" size="icon"
+                            className="absolute right-0 top-0" onClick={() => setSearch('')} aria-label="Limpiar búsqueda">
+                            <X className="h-4 w-4" aria-hidden />
+                        </Button>}
+                    </div>
+                </div>
+            </div>
+
+            <section aria-label="Catálogo de módulos" className="min-w-0">
+                {isLoading ? <HomeModuleLoading /> : isError ? (
+                    <div role="alert" className="auna-surface rounded-lg border px-4 py-10 text-center">
+                        <p className="font-semibold">No pudimos cargar los módulos</p>
+                        <p className="mt-2 text-sm text-muted-foreground">Revisa tu conexión e inténtalo nuevamente.</p>
+                        <Button className="mt-4" onClick={() => refetch()}>Reintentar</Button>
+                    </div>
+                ) : filteredModules.length === 0 ? (
+                    <div role="status" className="py-10 text-center">
+                        <p className="font-semibold">{search.trim() ? 'No encontramos módulos' : 'No hay módulos disponibles'}</p>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            {search.trim() ? 'Prueba con otro término de búsqueda.'
+                                : Array.isArray(user?.permissions) && !isAdmin && user.permissions.length === 0
+                                    ? 'Solicita a un administrador que revise tus permisos.'
+                                    : 'Contacta al administrador si crees que se trata de un error.'}
                         </p>
                     </div>
-                    <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3 shadow-sm">
-                        <span className="text-4xl font-semibold tabular-nums text-brand-navy dark:text-white">{now.getDate()}</span>
-                        <span className="h-10 w-px bg-border" aria-hidden />
-                        <div className="text-sm">
-                            <p className="font-semibold capitalize">{formattedWeekday}</p>
-                            <p className="capitalize text-muted-foreground">{formattedMonth}</p>
-                        </div>
+                ) : (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                        {filteredModules.map((module) => <ModuleCatalogCard key={module.id} module={module}
+                            badgeCount={module.id === 'alerts' ? activeAlertsCount : undefined}
+                            onClick={() => navigate(module.path)} />)}
                     </div>
-                </header>
+                )}
+            </section>
 
-                <div className="mt-6 rounded-2xl border border-border/70 bg-card p-2 shadow-sm">
-                    <div className="relative">
-                        <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" aria-hidden />
-                        <Input
-                            value={search}
-                            onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Buscar módulos, reportes, contactos..."
-                            className="pl-12 pr-12"
-                            autoComplete="off"
-                        />
-                        {search ? (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="absolute right-1 top-1/2 h-9 w-9 -translate-y-1/2 rounded-full"
-                                onClick={() => setSearch('')}
-                                aria-label="Limpiar búsqueda"
-                            >
-                                <X className="h-4 w-4" />
-                            </Button>
-                        ) : null}
-                    </div>
-                </div>
-
-                <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-                    <div className="min-w-0">
-                        {isLoading ? (
-                            <HomeModuleLoading />
-                        ) : isError ? (
-                            <div className="rounded-2xl border border-destructive/30 bg-card px-6 py-14 text-center shadow-sm">
-                                <p className="text-lg font-semibold">No pudimos cargar los módulos</p>
-                                <p className="mt-2 text-sm text-muted-foreground">Revisa tu conexión e inténtalo nuevamente.</p>
-                                <Button className="mt-5 bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => refetch()}>
-                                    Reintentar
-                                </Button>
-                            </div>
-                        ) : filteredModules.length === 0 ? (
-                            <div className="rounded-2xl border border-dashed border-border bg-card px-6 py-14 text-center shadow-sm">
-                                <p className="text-lg font-semibold">
-                                    {search.trim() ? 'No encontramos módulos' : 'No hay módulos disponibles'}
-                                </p>
-                                <p className="mt-2 text-sm text-muted-foreground">
-                                    {search.trim()
-                                        ? 'Prueba con otro término de búsqueda.'
-                                        : Array.isArray(user?.permissions) && !isAdmin && user.permissions.length === 0
-                                            ? 'Solicita a un administrador que revise tus permisos.'
-                                            : 'Contacta al administrador si crees que se trata de un error.'}
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                {filteredModules.map((module, index) => (
-                                    <ModuleTile
-                                        key={module.id}
-                                        module={module}
-                                        index={index}
-                                        badgeCount={module.id === 'alerts' ? activeAlertsCount : undefined}
-                                        onClick={() => navigate(module.path)}
-                                    />
-                                ))}
-                            </div>
-                        )}
-
-                        {quickModules.length > 0 && !search.trim() ? (
-                            <section className="mt-6 rounded-2xl border border-border/70 bg-card p-4 shadow-sm" aria-label="Acciones rápidas">
-                                <h2 className="text-sm font-semibold">Acciones rápidas</h2>
-                                <div className="mt-3 flex flex-wrap gap-2">
-                                    {quickModules.map((module) => {
-                                        const Icon = module.icon
-                                        return (
-                                            <Button key={module.id} variant="outline" className="h-11 rounded-xl" onClick={() => navigate(module.path)}>
-                                                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-orange/10 text-brand-orange">
-                                                    <Icon className="h-4 w-4" />
-                                                </span>
-                                                {module.label}
-                                            </Button>
-                                        )
-                                    })}
-                                </div>
-                            </section>
-                        ) : null}
-                    </div>
-
-                    <aside className="grid content-start gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                        <CalendarCard now={now} />
-                        <section className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
-                            <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <BellRing className="h-5 w-5 text-brand-orange" aria-hidden />
-                                    <h2 className="font-semibold">Alertas</h2>
-                                </div>
-                                <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-muted px-2 text-xs font-semibold">
-                                    {activeAlertsCount}
-                                </span>
-                            </div>
-                            <div className="mt-5 rounded-xl border border-border/70 bg-muted/35 p-4">
-                                <p className="text-sm font-medium">
-                                    {activeAlertsCount > 0
-                                        ? `${activeAlertsCount} ${activeAlertsCount === 1 ? 'pendiente requiere' : 'pendientes requieren'} atención`
-                                        : 'Todo está al día'}
-                                </p>
-                                <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                                    {activeAlertsCount > 0
-                                        ? 'Consulta el detalle para priorizar las acciones del negocio.'
-                                        : 'No tienes alertas activas en este momento.'}
-                                </p>
-                            </div>
-                            {alertsModule ? (
-                                <Button variant="ghost" className="mt-3 w-full justify-between text-brand-orange hover:text-brand-orange" onClick={() => navigate(alertsModule.path)}>
-                                    Ver todas las alertas
-                                    <ArrowRight className="h-4 w-4" aria-hidden />
-                                </Button>
-                            ) : null}
-                        </section>
-                    </aside>
-                </div>
-
-                <footer className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-5 text-xs text-muted-foreground sm:flex-row">
-                    <span>© {now.getFullYear()} {companyName}. Todos los derechos reservados.</span>
-                    <span className="flex items-center gap-2.5">
-                        <AunaBrand logoClassName="w-16 sm:w-16" />
-                        <span className="text-xs font-medium">Plataforma ERP</span>
-                    </span>
-                </footer>
-            </div>
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4 text-xs text-muted-foreground">
+                <span role="status" aria-live="polite">{!isLoading && !isError &&
+                    `${filteredModules.length} ${filteredModules.length === 1 ? 'módulo' : 'módulos'} ${search.trim() ? (filteredModules.length === 1 ? 'encontrado' : 'encontrados') : (filteredModules.length === 1 ? 'disponible' : 'disponibles')}`}</span>
+                <span className="flex items-center gap-2">
+                    <AunaBrand logoClassName="w-14 sm:w-14" /><span>Plataforma ERP</span>
+                </span>
+            </footer>
         </div>
     )
 }

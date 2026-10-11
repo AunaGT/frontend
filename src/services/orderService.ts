@@ -5,6 +5,7 @@
  */
 
 import { apiFetch } from "./api";
+import { remainingQuantity } from '@/lib/commercialQuantity';
 import type { QuoteLine, QuoteLinePayload } from "./quoteService";
 
 export type OrderStatus =
@@ -19,7 +20,7 @@ export type Order = {
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   fulfillment_mode?: 'LEGACY' | 'SEPARATE';
-  deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number; qty_invoiced: number }> }>;
+  deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number | string; qty_invoiced: number | string }> }>;
   id: string;
   reference?: string | null;
   branch_id?: string;
@@ -74,7 +75,7 @@ export type Order = {
   createdBy?: { id: string; name: string; email?: string };
   created_at: string;
   updated_at: string;
-  lines: Array<QuoteLine & { qty_invoiced?: number }>;
+  lines: Array<QuoteLine & { qty_invoiced?: string | number }>;
   stock_reservations?: Array<{
     id: string;
     product_id: string;
@@ -118,7 +119,7 @@ export type ConvertOrderToSalePayload = {
   payment_method_id: number;
   amount_received?: number;
   change?: number;
-  lines?: Array<{ line_id: string; qty: number }>;
+  lines?: Array<{ line_id: string; qty: string | number }>;
   /** Caja seleccionada en el POS; valida el turno contra ella */
   cash_register_id?: string;
 };
@@ -163,9 +164,12 @@ export type PublicOrder = {
   company_logo_url?: string;
   lines: Array<{
     product_name?: string | null;
+    item_kind?: 'STANDARD' | 'KIT' | 'SERVICE';
+    unit_label?: string | null;
+    quantity_decimals?: number;
     barcode?: string | null;
-    qty: number;
-    qty_fulfilled: number;
+    qty: number | string;
+    qty_fulfilled: number | string;
     unit_price: number | string;
     line_total: number | string;
   }>;
@@ -178,9 +182,7 @@ export type PublicOrder = {
 };
 
 export function pendingOrderLineQty(line: QuoteLine): number {
-  const total = Number(line.qty || 0);
-  const fulfilled = Number(line.qty_fulfilled || 0);
-  return Math.max(0, total - fulfilled);
+  return Number(remainingQuantity(String(line.qty || 0), String(line.qty_fulfilled || 0)));
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -301,7 +303,7 @@ export async function convertOrderToSale(
   });
 }
 
-export function deliverOrder(id: string, payload: { request_key: string; lines: Array<{ line_id: string; qty: number }> }) {
+export function deliverOrder(id: string, payload: { request_key: string; lines: Array<{ line_id: string; qty: string | number }> }) {
   return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries`, { method: 'POST', body: JSON.stringify(payload) });
 }
 

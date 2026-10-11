@@ -86,7 +86,7 @@ export const PayrollRunsManagement = () => {
   })
 
   return (
-    <div className="mx-auto max-w-[1520px] space-y-5 p-4 md:p-6">
+    <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
       <h1 className="sr-only">Corridas de nómina</h1>
 
       <MetricStrip loading={isLoading} label="Última corrida activa" items={[{label:'Empleados · última corrida',value:latest?._count?.payslips ?? 0},{label:'Total bruto',value:money(latest?.total_earnings ?? 0)},{label:'Deducciones',value:money(latest?.total_deductions ?? 0)},{label:'Total neto',value:money(latest?.total_net ?? 0)}]} />

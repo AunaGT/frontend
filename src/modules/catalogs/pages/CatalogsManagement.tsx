@@ -70,6 +70,7 @@ import '../catalogs.css'
 import { PaymentMethodsTab } from '../components/PaymentMethodsTab'
 import { CashRegistersTab } from '../components/CashRegistersTab'
 import { Pagination } from '@/components/shared/Pagination'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
@@ -122,12 +123,12 @@ export function CatalogsManagement() {
 
 
   return (
-    <div className="catalogs-page space-y-6">
+    <div className="catalogs-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
       <h1 className="sr-only">Datos maestros</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0">
-          <ModuleTabsList>
+          <ModuleTabsList aria-label="Catálogos de datos maestros">
             <ModuleTabsTrigger value="categories"><Tags className="h-4 w-4" />Categorías</ModuleTabsTrigger>
             <ModuleTabsTrigger value="cash-registers"><Wallet className="h-4 w-4" />Cajas</ModuleTabsTrigger>
             <ModuleTabsTrigger value="payment-methods" className="whitespace-nowrap">
@@ -139,11 +140,11 @@ export function CatalogsManagement() {
           </ModuleTabsList>
         </div>
 
-        <TabsContent value="payment-methods" className="space-y-4 mt-4">
+        <TabsContent value="payment-methods" className="space-y-5 mt-5">
           <PaymentMethodsTab />
         </TabsContent>
 
-        <TabsContent value="payment-terms" className="space-y-4 mt-4">
+        <TabsContent value="payment-terms" className="space-y-5 mt-5">
           <PaymentTermsTab
             showDeleted={showDeleted}
             setShowDeleted={setShowDeleted}
@@ -155,7 +156,7 @@ export function CatalogsManagement() {
           />
         </TabsContent>
 
-        <TabsContent value="categories" className="space-y-4 mt-4">
+        <TabsContent value="categories" className="space-y-5 mt-5">
           <ProductCategoriesTab
             showDeleted={showDeleted}
             setShowDeleted={setShowDeleted}
@@ -167,7 +168,7 @@ export function CatalogsManagement() {
           />
         </TabsContent>
 
-        <TabsContent value="cash-registers" className="space-y-4 mt-4">
+        <TabsContent value="cash-registers" className="space-y-5 mt-5">
           <CashRegistersTab />
         </TabsContent>
       </Tabs>
@@ -214,6 +215,7 @@ function PaymentTermsTab({
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
 
   const { data: paymentTermsData, isLoading, isFetching, error: termsError } = usePaymentTerms({
+    includeSummary: true,
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
@@ -264,12 +266,16 @@ function PaymentTermsTab({
   }
 
   return (
-    <><Card className="auna-data-table-shell">
+    <><MetricStrip className="mb-5" label="Resumen de términos de pago" loading={isLoading} items={[
+      { label: 'Términos', value: termsError ? '—' : paymentTermsData?.summary?.total ?? '—' },
+      { label: 'Pago inmediato', value: termsError ? '—' : paymentTermsData?.summary?.immediate ?? '—' },
+      { label: 'Con plazo', value: termsError ? '—' : paymentTermsData?.summary?.credit ?? '—' },
+      { label: 'Sin plazo definido', value: termsError ? '—' : paymentTermsData?.summary?.unspecified ?? '—' },
+    ]} />
 
-      <CatalogFilters actions={<><div className="flex gap-2">
+      <CatalogFilters actions={<><div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => setShowDeleted(!showDeleted)}
               className="text-xs sm:text-sm"
             >
@@ -279,7 +285,6 @@ function PaymentTermsTab({
               <>
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={onImportClick}
                   className="text-xs sm:text-sm"
                 >
@@ -287,9 +292,7 @@ function PaymentTermsTab({
                   <span>Importar</span>
                 </Button>
                 <Button
-                  size="sm"
                   onClick={() => setDialog({ open: true, mode: 'create' })}
-                  className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong"
                 >
                   <Plus className="w-4 h-4 sm:mr-2" />
                   <span>Nuevo término</span>
@@ -297,6 +300,7 @@ function PaymentTermsTab({
               </>
             )}
           </div></>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+      <Card className="auna-data-table-shell auna-surface">
       <CardContent className="catalog-content">
         {isFetching && paymentTermsData && <LoadingIndicator message="Actualizando términos de pago…" />}
         {termsError ? <p role="alert" className="p-6 text-destructive">{termsError.message}</p> : (
@@ -352,6 +356,7 @@ function PaymentTermsTab({
         )}
 
       </CardContent>
+      </Card>
 
       <AlertDialog
         open={!!deleteConfirmTerm}
@@ -413,7 +418,6 @@ function PaymentTermsTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
 <div className="auna-pagination-outside">{paymentTermsData && paymentTermsData.totalPages > 0 && paymentTermsData.totalItems > 0 && (
           <div className="mt-4">
             <Pagination
@@ -459,6 +463,7 @@ function ProductCategoriesTab({
   useResetPageOnFilterChange(setCurrentPage, [showDeleted, query, order])
 
   const { data: categoriesData, isLoading, isFetching, error: categoriesError } = useProductCategories({
+    includeSummary: true,
     page: currentPage,
     pageSize,
     includeDeleted: showDeleted,
@@ -509,12 +514,15 @@ function ProductCategoriesTab({
   }
 
   return (
-    <><Card className="auna-data-table-shell">
+    <><MetricStrip className="mb-5" label="Resumen de categorías" loading={isLoading} items={[
+      { label: 'Categorías', value: categoriesError ? '—' : categoriesData?.summary?.total ?? '—' },
+      { label: 'Activas', value: categoriesError ? '—' : categoriesData?.summary?.active ?? '—' },
+      { label: 'Eliminadas', value: categoriesError ? '—' : categoriesData?.summary?.deleted ?? '—' },
+    ]} />
 
-      <CatalogFilters actions={<><div className="flex gap-2">
+      <CatalogFilters actions={<><div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
-              size="sm"
               onClick={() => setShowDeleted(!showDeleted)}
               className="text-xs sm:text-sm"
             >
@@ -524,7 +532,6 @@ function ProductCategoriesTab({
               <>
                 <Button
                   variant="outline"
-                  size="sm"
                   onClick={onImportClick}
                   className="text-xs sm:text-sm"
                 >
@@ -532,9 +539,7 @@ function ProductCategoriesTab({
                   <span>Importar</span>
                 </Button>
                 <Button
-                  size="sm"
                   onClick={() => setDialog({ open: true, mode: 'create' })}
-                  className="h-11 rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong"
                 >
                   <Plus className="w-4 h-4 sm:mr-2" />
                   <span>Nueva categoría</span>
@@ -542,6 +547,7 @@ function ProductCategoriesTab({
               </>
             )}
           </div></>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
+      <Card className="auna-data-table-shell auna-surface">
       <CardContent className="catalog-content">
         {isFetching && categoriesData && <LoadingIndicator message="Actualizando categorías…" />}
         {categoriesError ? <p role="alert" className="p-6 text-destructive">{categoriesError.message}</p> : (
@@ -611,6 +617,7 @@ function ProductCategoriesTab({
         )}
 
       </CardContent>
+      </Card>
 
       <AlertDialog
         open={!!deleteConfirmCategory}
@@ -672,7 +679,6 @@ function ProductCategoriesTab({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
 <div className="auna-pagination-outside">{categoriesData && categoriesData.totalPages > 0 && categoriesData.totalItems > 0 && (
           <div className="mt-4">
             <Pagination

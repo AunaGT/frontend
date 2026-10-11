@@ -12,74 +12,35 @@
  * TheoreticalSummary - Display theoretical closure summary
  */
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { Calculator } from 'lucide-react'
 import type { TheoreticalData } from '../types'
 import { formatCurrency } from '../types'
 
 interface TheoreticalSummaryProps {
     data: TheoreticalData
+    showAdvancedDetails?: boolean
 }
 
-export const TheoreticalSummary = ({ data }: TheoreticalSummaryProps) => {
+export const TheoreticalSummary = ({ data, showAdvancedDetails = false }: TheoreticalSummaryProps) => {
     const { currencyCode, locale } = useSystemSettings()
     const cashSession = data.cash_session
     return (
-        <div className="border rounded-lg p-4 bg-muted/50">
-            <h3 className="font-semibold mb-3">Resumen Teórico</h3>
-            {cashSession && cashSession.opening_float > 0 && (
-                <div className="mb-4 rounded-md border border-amber-200/80 bg-amber-50/80 dark:bg-amber-950/30 dark:border-amber-900/50 px-3 py-2 text-sm">
-                    <p className="font-medium text-foreground">Efectivo en caja</p>
-                    <div className="mt-1 grid grid-cols-1 sm:grid-cols-3 gap-2 text-muted-foreground">
-                        <span>
-                            Fondo inicial:{' '}
-                            <span className="font-medium text-foreground">
-                                {formatCurrency(cashSession.opening_float, currencyCode, locale)}
-                            </span>
-                        </span>
-                        <span>
-                            + Ventas efectivo:{' '}
-                            <span className="font-medium text-foreground">
-                                {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)}
-                            </span>
-                        </span>
-                        <span>
-                            = Debe haber:{' '}
-                            <span className="font-medium text-foreground">
-                                {formatCurrency(cashSession.expected_cash_in_drawer, currencyCode, locale)}
-                            </span>
-                        </span>
-                    </div>
-                    <p className="text-xs mt-2">
-                        Cuente todo el efectivo físico en la caja (monedas y billetes), incluido el fondo con el que
-                        abrió el turno.
-                    </p>
-                </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                    <p className="text-sm text-muted-foreground">Total Teórico</p>
-                    <p className="text-lg font-bold">{formatCurrency(data.theoretical.net_total, currencyCode, locale)}</p>
-                </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Ventas Brutas</p>
-                    <p className="text-lg font-semibold">{formatCurrency(data.theoretical.total_sales, currencyCode, locale)}</p>
-                </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Devoluciones</p>
-                    <p className="text-lg font-semibold text-red-600">-{formatCurrency(data.theoretical.total_returns, currencyCode, locale)}</p>
-                </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Transacciones</p>
-                    <p className="text-lg font-semibold">{data.metrics.total_transactions}</p>
-                </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Clientes</p>
-                    <p className="text-lg font-semibold">{data.metrics.total_customers}</p>
-                </div>
-                <div>
-                    <p className="text-sm text-muted-foreground">Ticket Promedio</p>
-                    <p className="text-lg font-semibold">{formatCurrency(data.metrics.average_ticket, currencyCode, locale)}</p>
-                </div>
-            </div>
+        <div className="space-y-3">
+            <h2 className="cash-closure-panel-heading"><Calculator className="h-5 w-5 text-primary" aria-hidden="true" />Resumen teórico</h2>
+            <dl className="cash-closure-amount-list">
+                {cashSession && cashSession.opening_float > 0 && <div><dt>Fondo inicial</dt><dd>{formatCurrency(cashSession.opening_float, currencyCode, locale)}</dd></div>}
+                <div><dt>Ventas brutas</dt><dd>{formatCurrency(data.theoretical.total_sales, currencyCode, locale)}</dd></div>
+                <div><dt>Devoluciones</dt><dd>-{formatCurrency(data.theoretical.total_returns, currencyCode, locale)}</dd></div>
+                <div className="cash-closure-amount-total"><dt>Total esperado</dt><dd>{formatCurrency(data.theoretical.net_total, currencyCode, locale)}</dd></div>
+            </dl>
+            {showAdvancedDetails && <div className="border-t pt-3">
+                {cashSession && <p className="mb-3 text-xs text-muted-foreground">Ventas en efectivo: {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)} · Esperado en caja: {formatCurrency(cashSession.expected_cash_in_drawer, currencyCode, locale)}</p>}
+                <dl className="grid grid-cols-2 gap-3 text-xs">
+                    <div><dt className="text-muted-foreground">Transacciones</dt><dd className="mt-1 font-semibold">{data.metrics.total_transactions}</dd></div>
+                    <div><dt className="text-muted-foreground">Clientes</dt><dd className="mt-1 font-semibold">{data.metrics.total_customers}</dd></div>
+                    <div className="col-span-2"><dt className="text-muted-foreground">Ticket promedio</dt><dd className="mt-1 font-semibold">{formatCurrency(data.metrics.average_ticket, currencyCode, locale)}</dd></div>
+                </dl>
+            </div>}
         </div>
     )
 }

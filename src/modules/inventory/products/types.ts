@@ -34,7 +34,9 @@ export interface ProductFormData {
     /** Si es true, cada ingreso de mercancía exige fecha de caducidad (lotes). */
     tracksExpiry: boolean
     /** STANDARD = producto normal; KIT = combo armado con componentes. */
-    productKind: 'STANDARD' | 'KIT'
+    productKind: import('@/types/product').ProductKind
+    serviceUnitLabel: string
+    quantityDecimals: string
     kitComponents: import('@/types/product').ProductBomComponentDraft[]
 }
 
@@ -70,10 +72,15 @@ export const EMPTY_PRODUCT_FORM: ProductFormData = {
     availableForSale: true,
     tracksExpiry: false,
     productKind: 'STANDARD',
+    serviceUnitLabel: 'Sesión',
+    quantityDecimals: '0',
     kitComponents: [],
 }
 
 export const getProductStatusBadge = (product: Product) => {
+    if (product.kind === 'SERVICE') return product.availableForSale !== false
+        ? { variant: 'success' as const, label: 'Disponible para venta' }
+        : { variant: 'secondary' as const, label: 'No disponible' }
     if (product.stock === 0 || product.status === 'out_of_stock') {
         return { variant: 'destructive' as const, label: 'Sin Stock' }
     } else if (product.stock <= product.minStock || product.status === 'low_stock') {

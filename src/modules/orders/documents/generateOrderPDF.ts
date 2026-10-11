@@ -38,9 +38,9 @@ export function generateOrderPDF(order: Order, options: {
     head: [['Código', 'Producto', 'Cantidad', 'Entregado', 'Precio', 'Importe']],
     body: order.lines.map((line) => [
       line.product?.barcode ?? '—',
-      line.product?.name ?? line.product_id,
-      String(line.qty),
-      String(line.qty_fulfilled ?? 0),
+      line.item_name ?? line.product?.name ?? line.product_id,
+      `${line.qty} ${line.unit_label || ''}`.trim(),
+      `${line.qty_fulfilled ?? 0} ${line.unit_label || ''}`.trim(),
       money(line.unit_price),
       money(line.line_total),
     ]),

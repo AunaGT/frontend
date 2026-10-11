@@ -26,6 +26,7 @@ import {
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -268,7 +269,7 @@ export default function UserDetailPage() {
       {/* Encabezado Principal */}
       <h1 className="sr-only">Detalle de usuario y roles</h1><div className="auna-page-toolbar"><div className="flex items-center gap-2.5">
           {canEdit && (
-            <button
+            <Button
               type="button"
               onClick={() => {
                 if (isEditing) {
@@ -278,23 +279,23 @@ export default function UserDetailPage() {
                   setIsEditing(true)
                 }
               }}
-              className="btn-auna-primary"
+              variant="default"
             >
               <Pencil size={14} />
               <span>{isEditing ? 'Cancelar edición' : 'Editar usuario'}</span>
-            </button>
+            </Button>
           )}
 
           {canEdit && !isSelf && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button
+                <Button
                   type="button"
-                  className="px-3 py-2 rounded-lg border border-border bg-[hsl(var(--card))] hover:bg-muted text-foreground text-xs font-medium inline-flex items-center gap-1.5 transition-colors"
+                  variant="outline"
                 >
                   <span>Más acciones</span>
                   <ChevronDown size={14} />
-                </button>
+                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="users-overlay text-xs">
                 {user.access_status !== 'ACTIVE' && (
@@ -385,12 +386,12 @@ export default function UserDetailPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2 pt-1">
-                    <button type="button" onClick={() => void handleSaveUser()} disabled={isSaving} className="btn-auna-primary text-xs py-1.5 px-3">
+                    <Button type="button" onClick={() => void handleSaveUser()} disabled={isSaving} variant="default">
                       {isSaving ? <Loader2 size={12} className="animate-spin" /> : null} Guardar cambios
-                    </button>
-                    <button type="button" onClick={() => { setIsEditing(false); resetEdit(); }} className="text-xs users-muted hover:text-foreground px-2 py-1">
+                    </Button>
+                    <Button type="button" onClick={() => { setIsEditing(false); resetEdit(); }} variant="ghost">
                       Cancelar
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ) : (
@@ -478,10 +479,10 @@ export default function UserDetailPage() {
               icon={Shield}
               actions={
                 canEdit && (
-                  <button type="button" onClick={() => setIsEditing(true)} className="btn-auna-primary text-xs py-1.5 px-3">
+                  <Button type="button" onClick={() => setIsEditing(true)} variant="default">
                     <Plus size={13} />
                     <span>Asignar rol</span>
-                  </button>
+                  </Button>
                 )
               }
               bodyClassName="p-0 overflow-x-auto"
@@ -507,9 +508,9 @@ export default function UserDetailPage() {
                         <td className="users-muted text-xs whitespace-nowrap">No registrado</td>
                         <td className="users-muted text-xs">No registrado</td>
                         <td>
-                          <button type="button" aria-label="Administrar rol" onClick={() => setActiveTab('roles')} className="users-muted hover:text-foreground p-1">
+                          <Button type="button" aria-label="Administrar rol" onClick={() => setActiveTab('roles')} variant="ghost" size="icon">
                             <MoreVertical size={14} />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     </>
@@ -530,10 +531,10 @@ export default function UserDetailPage() {
               icon={Building2}
               actions={
                 canEdit && (
-                  <button type="button" onClick={() => setActiveTab('companies')} className="btn-auna-primary text-xs py-1.5 px-3">
+                  <Button type="button" onClick={() => setActiveTab('companies')} variant="default">
                     <Plus size={13} />
                     <span>Asignar empresa</span>
-                  </button>
+                  </Button>
                 )
               }
               bodyClassName="p-0 overflow-x-auto"
@@ -555,9 +556,9 @@ export default function UserDetailPage() {
                         <td className="users-muted text-xs">{user.role?.name || 'No registrado'}</td>
                         <td><StatusPill status={user.access_status} label={user.access_status === 'ACTIVE' ? 'Activa' : user.access_status === 'BLOCKED' ? 'Bloqueada' : 'Inactiva'} /></td>
                         <td>
-                          <button type="button" aria-label={`Administrar acceso a ${c.name}`} onClick={() => setActiveTab('companies')} className="users-muted hover:text-foreground p-1">
+                          <Button type="button" aria-label={`Administrar acceso a ${c.name}`} onClick={() => setActiveTab('companies')} variant="ghost" size="icon">
                             <MoreVertical size={14} />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))
@@ -623,9 +624,9 @@ export default function UserDetailPage() {
               title="Actividad reciente"
               icon={Clock}
               actions={
-                <button type="button" onClick={() => setActiveTab('activity')} className="text-xs text-orange-500 hover:underline font-medium">
+                <Button type="button" onClick={() => setActiveTab('activity')} variant="link" size="sm">
                   Ver toda
-                </button>
+                </Button>
               }
               bodyClassName="p-0 overflow-x-auto"
             >
@@ -647,53 +648,53 @@ export default function UserDetailPage() {
             {/* Acciones de Seguridad */}
             <AunaPanel title="Acciones de seguridad" icon={Lock} bodyClassName="p-0 flex flex-col justify-between">
               <div className="divide-y divide-border/40">
-                {canEdit && !isSelf && <button
+                {canEdit && !isSelf && <Button
                   type="button"
                   onClick={() => setActiveTab('security')}
-                  className="w-full flex items-center justify-between px-4 py-3 text-xs text-foreground hover:bg-muted/30 transition-colors text-left"
+                  variant="ghost" className="h-auto w-full justify-between whitespace-normal text-left"
                 >
                   <span className="flex items-center gap-2.5">
                     <Wrench size={14} className="users-muted" />
                     <span>Restablecer contraseña</span>
                   </span>
                   <ChevronRight size={14} className="users-muted" />
-                </button>}
+                </Button>}
 
-                {canEdit && !isSelf && user.access_status !== 'BLOCKED' && <button
+                {canEdit && !isSelf && user.access_status !== 'BLOCKED' && <Button
                   type="button"
                   onClick={() => setConfirmAction('block')}
-                  className="w-full flex items-center justify-between px-4 py-3 text-xs text-foreground hover:bg-muted/30 transition-colors text-left"
+                  variant="ghost" className="h-auto w-full justify-between whitespace-normal text-left"
                 >
                   <span className="flex items-center gap-2.5">
                     <Lock size={14} className="users-muted" />
                     <span>Bloquear usuario</span>
                   </span>
                   <ChevronRight size={14} className="users-muted" />
-                </button>}
+                </Button>}
 
-                {canEdit && !isSelf && user.access_status === 'ACTIVE' && <button
+                {canEdit && !isSelf && user.access_status === 'ACTIVE' && <Button
                   type="button"
                   onClick={() => setConfirmAction('suspend')}
-                  className="w-full flex items-center justify-between px-4 py-3 text-xs text-foreground hover:bg-muted/30 transition-colors text-left"
+                  variant="ghost" className="h-auto w-full justify-between whitespace-normal text-left"
                 >
                   <span className="flex items-center gap-2.5">
                     <Ban size={14} className="users-muted" />
                     <span>Desactivar usuario</span>
                   </span>
                   <ChevronRight size={14} className="users-muted" />
-                </button>}
+                </Button>}
 
-                <button
+                <Button
                   type="button"
                   onClick={() => setActiveTab('activity')}
-                  className="w-full flex items-center justify-between px-4 py-3 text-xs text-foreground hover:bg-muted/30 transition-colors text-left"
+                  variant="ghost" className="h-auto w-full justify-between whitespace-normal text-left"
                 >
                   <span className="flex items-center gap-2.5">
                     <FileText size={14} className="users-muted" />
                     <span>Ver historial de seguridad</span>
                   </span>
                   <ChevronRight size={14} className="users-muted" />
-                </button>
+                </Button>
               </div>
 
             </AunaPanel>
@@ -797,19 +798,19 @@ export default function UserDetailPage() {
               {canEdit && !isSelf && (
                 <div className="flex gap-2">
                   {user.access_status !== 'ACTIVE' && (
-                    <button type="button" onClick={() => setConfirmAction('reactivate')} className="btn-auna-outline text-xs">
+                    <Button type="button" onClick={() => setConfirmAction('reactivate')} variant="outline">
                       Reactivar acceso
-                    </button>
+                    </Button>
                   )}
                   {user.access_status === 'ACTIVE' && (
-                    <button type="button" onClick={() => setConfirmAction('suspend')} className="btn-auna-outline text-xs">
+                    <Button type="button" onClick={() => setConfirmAction('suspend')} variant="outline">
                       Suspender temporalmente
-                    </button>
+                    </Button>
                   )}
                   {user.access_status !== 'BLOCKED' && (
-                    <button type="button" onClick={() => setConfirmAction('block')} className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 text-xs font-medium">
+                    <Button type="button" onClick={() => setConfirmAction('block')} variant="destructive">
                       Bloquear acceso
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -830,15 +831,15 @@ export default function UserDetailPage() {
                   <label className="text-xs users-muted block mb-1">Confirmar contraseña</label>
                   <Input type="password" value={resetConfirmPwd} onChange={(e) => setResetConfirmPwd(e.target.value)} className="auna-input" />
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={() => void handleAdminResetPassword()}
                   disabled={isResettingPwd || !resetPwd || !resetConfirmPwd}
-                  className="btn-auna-primary text-xs"
+                  variant="default"
                 >
                   {isResettingPwd ? <Loader2 size={12} className="animate-spin" /> : null}
                   Restablecer contraseña
-                </button>
+                </Button>
               </div>
             </AunaPanel>
           )}
@@ -862,7 +863,6 @@ export default function UserDetailPage() {
                 e.preventDefault()
                 void handleExecuteSecurityAction()
               }}
-              className="btn-auna-primary text-xs"
             >
               {actionBusy ? <Loader2 size={13} className="mr-1.5 animate-spin" /> : null}
               Confirmar

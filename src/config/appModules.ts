@@ -416,6 +416,17 @@ export const getVisibleModules = (enabledModuleCodes?: ReadonlySet<string> | nul
     return availableModules.filter(m => !m.adminOnly || isAdmin)
 }
 
+const MODULE_CATALOG_ORDER = new Map([
+    'sales', 'quotes', 'orders', 'returns', 'promotions',
+    'inventory', 'inventory-count', 'merchandise', 'transfers', 'receivables',
+    'accounting', 'cash-closure', 'contacts', 'hr', 'payroll',
+    'branches', 'users', 'catalogs', 'config', 'analytics', 'reports', 'alerts',
+].map((id, index) => [id, index]))
+
+/** Orden visual de Inicio y lanzador; nunca modifica el catálogo ni sus permisos. */
+export const orderModuleCatalog = (modules: readonly AppModule[]) => [...modules].sort((a, b) =>
+    (MODULE_CATALOG_ORDER.get(a.id) ?? MODULE_CATALOG_ORDER.size) - (MODULE_CATALOG_ORDER.get(b.id) ?? MODULE_CATALOG_ORDER.size))
+
 /** Devuelve el módulo dueño de una URL usando el prefijo más específico. */
 export const findModuleForPath = (pathname: string): AppModule | undefined => {
     const candidates = appModules.flatMap((module) =>

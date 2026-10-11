@@ -112,7 +112,7 @@ export const NewEntryDialog = ({ open, onOpenChange, accounts, onSaved }: {
           {lines.map((line, i) => (
             <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_130px_130px_36px] gap-2 items-center">
               <Select value={line.account_id} onValueChange={(v) => setLine(i, { account_id: v })}>
-                <SelectTrigger>
+                <SelectTrigger aria-label={`Cuenta de la línea ${i + 1}`}>
                   <SelectValue placeholder="Seleccionar cuenta" />
                 </SelectTrigger>
                 <SelectContent>
@@ -124,16 +124,19 @@ export const NewEntryDialog = ({ open, onOpenChange, accounts, onSaved }: {
                 </SelectContent>
               </Select>
               <Input
+                aria-label={`Debe de la línea ${i + 1}`}
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={line.debit}
                 onChange={(e) => setLine(i, { debit: e.target.value, ...(e.target.value ? { credit: '' } : {}) })}
               />
               <Input
+                aria-label={`Haber de la línea ${i + 1}`}
                 type="number" min="0" step="0.01" placeholder="0.00"
                 value={line.credit}
                 onChange={(e) => setLine(i, { credit: e.target.value, ...(e.target.value ? { debit: '' } : {}) })}
               />
               <Button
+                aria-label={`Quitar línea ${i + 1}`}
                 variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground"
                 disabled={lines.length <= 2}
                 onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))}

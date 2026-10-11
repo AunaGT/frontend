@@ -34,6 +34,7 @@ export interface SystemSettings {
   sales_allow_credit?: string
   sales_show_fiscal_fields?: string
   sales_show_channels?: string
+  inventory_services_enabled?: string
 }
 
 export interface DenominationItem {
@@ -63,6 +64,7 @@ export async function getPublicSettings(): Promise<{
   sales_allow_credit: string
   sales_show_fiscal_fields: string
   sales_show_channels: string
+  inventory_services_enabled: string
 }> {
   return apiFetch('/settings/public')
 }

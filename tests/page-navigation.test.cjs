@@ -98,6 +98,7 @@ test('navbar keeps the current route readable without adding an unauthorized anc
     const {TopBar}=load(path.join(root,'components/layout/TopBar.tsx'))
     const render=()=>renderToStaticMarkup(React.createElement(MemoryRouter,{initialEntries:['/usuarios/u1?edit=1']},React.createElement(TopBar)))
     const denied=render()
+    assert.match(denied, /aria-label="Abrir menú de módulos" aria-haspopup="dialog" aria-expanded="false"/)
     assert.match(denied,/aria-current="page">Editar/)
     assert.doesNotMatch(denied,/href="\/usuarios"/)
     allowed=true;assert.match(render(),/href="\/usuarios"/)

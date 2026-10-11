@@ -7,6 +7,7 @@ import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Sale } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils/formatters'
+import { previewLineTotal } from '@/lib/commercialQuantity'
 import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
 
 /** Color naranja/ámbar de la plataforma para encabezados en PDF (RGB) */
@@ -73,9 +74,9 @@ export function generateSaleInvoicePDF(
 
   const tableBody = sale.products.map((p) => [
     p.name,
-    String(p.qty),
+    `${p.qty} ${p.unitLabel || ''}`.trim(),
     fmt(p.price),
-    fmt(p.price * p.qty),
+    fmt(Number(previewLineTotal(String(p.qty), String(p.price)))),
   ])
 
   autoTable(doc, {

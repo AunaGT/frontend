@@ -18,6 +18,7 @@ import { Plus, Minus, X, Search, Calculator } from 'lucide-react'
 import type { Product } from '@/types/product'
 import type { CartProduct } from '../types'
 import { LoadingState } from '@/components/shared/LoadingState'
+import {stepQuantity,previewLineTotal} from '@/lib/commercialQuantity'
 
 interface CartPanelProps {
     cartItems: CartProduct[]
@@ -28,7 +29,7 @@ interface CartPanelProps {
     isLoadingProducts: boolean
     onAddToCart: (product: Product) => void
     onRemoveFromCart: (productId: string) => void
-    onUpdateQuantity: (productId: string, newQty: number) => void
+    onUpdateQuantity: (productId: string, newQty: string | number) => void
     // Payment
     paymentMethodName?: string
     amountReceived: string
@@ -107,14 +108,14 @@ export const CartPanel = ({
                                         <div className='text-sm text-muted-foreground'>Q {item.price.toFixed(2)} c/u</div>
                                     </div>
                                     <div className='flex items-center space-x-2'>
-                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, item.qty - 1)}>
+                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, stepQuantity(item.qty,-1))}>
                                             <Minus className='w-4 h-4' />
                                         </Button>
                                         <span className='w-8 text-center'>{item.qty}</span>
-                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, item.qty + 1)}>
+                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, stepQuantity(item.qty,1))}>
                                             <Plus className='w-4 h-4' />
                                         </Button>
-                                        <div className='w-20 text-right font-medium'>Q {(item.price * item.qty).toFixed(2)}</div>
+                                        <div className='w-20 text-right font-medium'>Q {item.qty && /^\d+(?:\.\d{1,4})?$/.test(item.qty) ? previewLineTotal(item.qty,item.price.toFixed(2)) : '—'}</div>
                                         <Button size='sm' variant='ghost' onClick={() => onRemoveFromCart(item.id)}>
                                             <X className='w-4 h-4' />
                                         </Button>

@@ -27,6 +27,15 @@ test('branch toolbars separate data and nested loading tables keep only the owne
   assert.equal(values('.auna-data-table-shell .auna-loading-state > .auna-loading-status').get('border'),'0')
   assert.match(values('.auna-loading-table').get('border'),/1px/,'Standalone table loading still owns its frame')
 })
+test('branch statistics reserve twenty pixels before adjacent compact search toolbars', async () => {
+  const css = fs.readFileSync(path.join(__dirname, '../src/components/shared/compactList.css'), 'utf8')
+  const result = await require('postcss')().process(css, { from: undefined })
+  let gap
+  result.root.walkRules(rule => {
+    if (rule.selector === '.branches-page .metric-strip + .compact-filter-toolbar') rule.walkDecls('margin-top', declaration => { gap = declaration.value })
+  })
+  assert.equal(gap, '20px')
+})
 test('flat interactive rows retain hover and focus feedback and owner surfaces preserve editing rings', async () => {
   const css=fs.readFileSync(path.join(__dirname,'../src/components/shared/surfaces.css'),'utf8')
   const result=await require('postcss')().process(css,{from:undefined})
@@ -233,6 +242,97 @@ test('native selectors used across modules are styled on direct entry without lo
   assert.ok(declarations.get('color')?.includes('--auna-control-fg'), 'The selector must follow the shared control text color')
   assert.ok(declarations.get('border-radius'), 'The selector must use the shared rounded control style')
 })
+test('orders show the same scoped statistics on desktop and mobile without inventing unavailable counts', () => {
+  const saved = new Map(overrides)
+  cache.clear()
+  let state = { data: { items: [], totalItems: 61, summary: { DRAFT: 12, EXPIRED: 3, CONFIRMED: 10, PARTIALLY_FULFILLED: 2, FULFILLED: 34 } }, isLoading: false }
+  overrides.set('@tanstack/react-query', { useQuery: options => options.queryKey[0] === 'orders' ? state : { data: { items: [] } } })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => true }) })
+  overrides.set('@/hooks/useSystemSettings', { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ' }) })
+  overrides.set('@/hooks/use-toast', { useToast: () => ({ toast() {} }) })
+  for (const name of ['@/services/orderService', '@/services/supplierService', '@/utils/pdfBranding']) overrides.set(name, {})
+  overrides.set('@/modules/quotes', { isCommercialDocSearchReady: () => true, commercialDocSearchHint: () => '' })
+  try {
+    const Component = load(path.join(__dirname, '../src/modules/orders/pages/OrdersManagement.tsx')).default
+    const render = () => renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, null, React.createElement(Component)))
+    const html = render()
+    assert.doesNotMatch(html, /min-\[650px\]:hidden"><section aria-label="Resumen de pedidos"/)
+    for (const value of [15, 12, 34]) assert.match(html, new RegExp(`<strong[^>]*>${value}</strong>`))
+    state = { data: { items: [], summary: {} }, isLoading: false }
+    assert.equal((render().match(/<strong[^>]*>0<\/strong>/g) ?? []).length, 3)
+    state = { data: { items: [] }, isError: true, isLoading: false }
+    assert.equal((render().match(/<strong[^>]*>—<\/strong>/g) ?? []).length, 3)
+  } finally { overrides.clear(); saved.forEach((value, key) => overrides.set(key, value)); cache.clear() }
+})
+
+test('all four master-data tabs and companies use flat summaries outside result surfaces', () => {
+  const saved = new Map(overrides)
+  cache.clear()
+  let state = { data: { items: [], totalItems: 61, totalPages: 7, page: 1, summary: { total: 61, active: 50, deleted: 11, immediate: 12, credit: 40, unspecified: 9 } }, isLoading: false }
+  let canManage = true
+  const companies = [{ id: 'c1', name: 'Activa', code: 'C1', active: true }, { id: 'c2', name: 'Inactiva', code: 'C2', active: false }]
+  const registers = Array.from({ length: 12 }, (_, index) => ({ id: String(index), name: `Caja ${index}`, code: String(index), active: index < 11, branch: { id: 'b1', name: 'Principal' }, assigned_users: [] }))
+  overrides.set('@tanstack/react-query', { useQuery: options => options.queryKey[0] === 'companies' ? { ...state, data: companies } : options.queryKey[0] === 'cash-registers' ? { ...state, data: registers } : options.queryKey[0] === 'users' ? { data: { items: [] } } : state, useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => canManage }) })
+  overrides.set('@/hooks/use-toast', { useToast: () => ({ toast() {} }) })
+  overrides.set('@/context/useTenant', { useTenant: () => ({ branch: { id: 'b1' }, company: companies[0], companies }) })
+  overrides.set('@/context/useAuth', { useAuth: () => ({ refreshUser() {} }) })
+  overrides.set('@/services/userService', {})
+  for (const name of ['@/services/api', '../services/api', './api']) overrides.set(name, { ApiError: Error, getApiBaseUrl: () => 'http://test.invalid', apiFetch() { throw Error('No remote calls') } })
+  try {
+    const { CatalogsManagement } = load(path.join(__dirname, '../src/modules/catalogs/pages/CatalogsManagement.tsx'))
+    const render = tab => renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, { initialEntries: [`/datos-maestros?tab=${tab}`] }, React.createElement(CatalogsManagement)))
+    for (const tab of ['categories', 'payment-terms', 'payment-methods', 'cash-registers']) {
+      const html = render(tab)
+      assert.match(html, /^<div class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)
+      assert.match(html, /class="metric-strip/)
+      assert.ok(html.indexOf('metric-strip') < html.indexOf('auna-data-table-shell'))
+      assert.ok(html.indexOf('compact-filter-toolbar') < html.indexOf('auna-data-table-shell'), `${tab}: filters and actions must precede, not be inside, the result surface`)
+      assert.match(html, /auna-data-table-shell auna-surface/)
+      assert.doesNotMatch(html, /h-11 rounded-xl bg-brand-orange|h-11 bg-brand-orange/)
+      assertPaginationOutside(html)
+      assert.match(html, new RegExp(`<strong[^>]*>${tab === 'cash-registers' ? 12 : 61}</strong>`))
+      state = { ...state, error: new Error('Unavailable') }
+      assert.match(render(tab), /<strong[^>]*>—<\/strong>/)
+      delete state.error
+      canManage = false
+      assert.doesNotMatch(render(tab), /Nueva categoría|Nuevo término|Nuevo método|Nueva caja|>Importar<\/span>/)
+      canManage = true
+    }
+    const { CompaniesCard } = load(path.join(__dirname, '../src/modules/branches/pages/CompaniesCard.tsx'))
+    const html = renderToStaticMarkup(React.createElement(CompaniesCard, { canManage: true, activeBranches: [], onAddBranch() {} }))
+    assert.match(html, /metric-strip/)
+    assert.match(html, /<strong[^>]*>2<\/strong>/)
+  } finally { overrides.clear(); saved.forEach((value, key) => overrides.set(key, value)); cache.clear() }
+})
+
+test('catalog hooks request full summaries only on opt-in and preserve paging and search', async () => {
+  const saved = new Map(overrides)
+  cache.clear()
+  const requests = [], configs = []
+  overrides.set('@tanstack/react-query', { useQuery: config => { configs.push(config); return {} } })
+  const api = { apiFetch: async url => { requests.push(url); return { items: [] } } }
+  overrides.set('@/services/api', api)
+  overrides.set('../services/api', api)
+  try {
+    for (const [file, hookName] of [['useProductCategories.ts', 'useProductCategories'], ['usePaymentTerms.ts', 'usePaymentTerms'], ['usePaymentMethodsCatalog.ts', 'usePaymentMethodsCatalog']]) {
+      const hook = load(path.join(__dirname, '../src/hooks', file))[hookName]
+      hook({ page: 2, pageSize: 1, search: ' Bebidas ', includeSummary: true })
+      const summaryConfig = configs.at(-1)
+      await summaryConfig.queryFn()
+      const params = new URL(requests.at(-1), 'https://test.invalid').searchParams
+      assert.equal(params.get('includeSummary'), 'true')
+      assert.equal(params.get('page'), '2')
+      assert.equal(params.get('pageSize'), '1')
+      assert.equal(params.get('search'), 'Bebidas')
+      hook({ page: 2, pageSize: 1, search: ' Bebidas ' })
+      assert.notDeepEqual(configs.at(-1).queryKey, summaryConfig.queryKey)
+      await configs.at(-1).queryFn()
+      assert.equal(new URL(requests.at(-1), 'https://test.invalid').searchParams.has('includeSummary'), false)
+    }
+  } finally { overrides.clear(); saved.forEach((value, key) => overrides.set(key, value)); cache.clear() }
+})
+
 function load(file) {
   if (cache.has(file)) return cache.get(file).exports
   const mod = new Module(file, module)
@@ -521,6 +621,7 @@ test('cash history keeps page size visible but no advanced filter row for seller
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'cashclosure.view' }) })
   const { default: CashClosure } = load(path.join(__dirname, '../src/modules/cash-closure/CashClosureManagement.tsx'))
   const html = renderToStaticMarkup(React.createElement(CashClosure))
+  assert.match(html, /^<div class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)
   assert.match(html, /aria-label="Filtros de cierres"/)
   assert.equal((html.match(/role="combobox"/g) || []).length, 1)
   assert.doesNotMatch(html, /type="date"/)
@@ -556,6 +657,7 @@ test('lot expiry starts compact and paginates real rows with product images', ()
   const first = renderLots()
   assert.match(first, /aria-label="Buscar productos o lotes"/)
   assert.match(first, /aria-label="Filtros de lotes"/)
+  assert.ok(first.indexOf('aria-label="Resumen de los lotes consultados"') < first.indexOf('aria-label="Filtros de lotes"'))
   assert.doesNotMatch(first, /id="lots-status"/)
   assert.match(first, /src="\/producto.png"/)
   assert.match(first, /Ventana de 30 días/)
@@ -702,7 +804,7 @@ test('product details separate tasks into tabs and keep the initial view free of
   productLotsQuery = { data: { lots: [{ id: 'lot', lot_code: 'LOTE-UX', expiry_date: '2030-01-01', qty_received: 10, qty_remaining: 10, received_at: '2026-10-01', location: null }], reconciliation: null }, isLoading: false, isFetching: false, isError: false }
   productLotsPage = 1
   const { default: Page } = load(path.join(__dirname, '../src/modules/inventory/products/ProductDetailPage.tsx'))
-  const renderPage = () => { stateIndex = 0; return renderToStaticMarkup(React.createElement(Page)) }
+  const renderPage = () => { stateIndex = 0; return renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, { initialEntries: ['/inventario/product'] }, React.createElement(Page))) }
   const activePanel = html => {
     const panels = [...html.matchAll(/<div\b[^>]*role="tabpanel"[^>]*>/g)]
     const index = panels.findIndex(panel => /data-state="active"/.test(panel[0]))

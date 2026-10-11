@@ -13,7 +13,9 @@
  * Conserva todos los atributos del inventario.
  */
 import { useState, useMemo, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { usePageTrail } from '@/components/layout/PageNavigation'
+import { ServiceQuantityFields } from './ServiceQuantityFields'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,8 +52,12 @@ type CategoryItem = { id: string | number; name: string }
 
 export default function ProductCreatePage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const serviceRequested = searchParams.get('tipo') === 'services'
   const { toast } = useToast()
-  const { locale, currencyCode } = useSystemSettings()
+  const { locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
+  const isService = serviceRequested && inventoryServicesEnabled
+  usePageTrail([...(isService ? [{label:'Servicios',to:'/inventario?tipo=services'}] : []),{label:isService?'Nuevo servicio':'Nuevo producto'}])
   const currencySymbol = useMemo(() => {
     try {
       const parts = new Intl.NumberFormat(locale || 'es-GT', { style: 'currency', currency: currencyCode || 'GTQ' }).formatToParts(0)
@@ -60,7 +66,7 @@ export default function ProductCreatePage() {
       return currencyCode || 'Q'
     }
   }, [locale, currencyCode])
-  const productForm = useProductForm()
+  const productForm = useProductForm(isService ? 'SERVICE' : 'STANDARD')
   const createProductMutation = useCreateProduct()
   const { data: categoriesData } = useCategories()
   const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
@@ -143,10 +149,15 @@ export default function ProductCreatePage() {
     const payload = {
       name: formData.name.trim(),
       category_id: Number(formData.category),
+      ...(!isService ? {
       brand: formData.brand?.trim() || undefined,
       size: formData.size?.trim() || undefined,
       stock: isKit ? 0 : formData.stock ? Number(formData.stock) : 0,
       min_stock: formData.minStock ? Number(formData.minStock) : 0,
+      cost: formData.cost ? Number(formData.cost) : 0,
+      supplier_id: formData.supplier,
+      tracks_expiry: formData.tracksExpiry,
+      } : {service_unit_label:formData.serviceUnitLabel.trim(),quantity_decimals:Number(formData.quantityDecimals)}),
       price: Number(formData.price),
       price_wholesale: formData.priceWholesale?.trim()
         ? Number(formData.priceWholesale)
@@ -157,14 +168,11 @@ export default function ProductCreatePage() {
       promotion_valid_until: formData.promotionValidUntil?.trim()
         ? new Date(formData.promotionValidUntil).toISOString()
         : undefined,
-      cost: formData.cost ? Number(formData.cost) : 0,
       image_url: formData.imageUrl || undefined,
-      supplier_id: formData.supplier,
       barcode: formData.barcode?.trim() || undefined,
       description: formData.description?.trim() || undefined,
       status_id: 1,
       available_for_sale: formData.availableForSale,
-      tracks_expiry: formData.tracksExpiry,
       kind: formData.productKind,
       ...(isKit
         ? {
@@ -200,9 +208,10 @@ export default function ProductCreatePage() {
 
   const isLoading = createProductMutation.isPending || isUploadingImage
   const isKit = formData.productKind === 'KIT'
+  if (serviceRequested && !inventoryServicesEnabled) return <div role="alert" className="mx-auto max-w-[1560px] p-8">Los servicios están desactivados para esta empresa.</div>
 
   return (
-    <div className="p-6 space-y-6 animate-fade-in">
+    <div className="mx-auto w-full max-w-[1560px] p-4 sm:p-8 space-y-5 animate-fade-in">
       <h1 className="sr-only">Nuevo Producto</h1>
 
       <Card className="auna-surface">
@@ -210,9 +219,12 @@ export default function ProductCreatePage() {
           <div>
             <CardTitle>Datos esenciales</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              Nombre, categoría, precio y proveedor son suficientes para comenzar.
+              {isService ? 'Nombre, categoría, unidad de cobro y precio.' : 'Nombre, categoría, precio y proveedor son suficientes para comenzar.'}
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={()=>navigate(isService ? '/inventario?tipo=services' : '/inventario')} disabled={isLoading}>Cancelar</Button>
+          <Button type="button" onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Guardando…' : isService ? 'Guardar servicio' : 'Guardar Producto'}</Button>
           <Button
             type="button"
             variant="outline"
@@ -224,6 +236,7 @@ export default function ProductCreatePage() {
             {advancedOpen ? 'Ocultar opciones' : 'Más opciones'}
             <ChevronDown className={`h-4 w-4 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
           </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -307,7 +320,8 @@ export default function ProductCreatePage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  {advancedOpen && (
+                  {isService && <ServiceQuantityFields unit={formData.serviceUnitLabel} decimals={formData.quantityDecimals} onUnitChange={value=>onFormChange('serviceUnitLabel',value)} onDecimalsChange={value=>onFormChange('quantityDecimals',value)} />}
+                  {advancedOpen && !isService && (
                     <>
                       <div>
                         <Label className="text-muted-foreground">Marca</Label>
@@ -380,7 +394,7 @@ export default function ProductCreatePage() {
                       className="mt-1"
                     />
                   </div>}
-                  {advancedOpen && <div>
+                  {advancedOpen && !isService && <div>
                     <Label className="text-muted-foreground">Costo</Label>
                     <div className="relative mt-1">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
@@ -394,7 +408,7 @@ export default function ProductCreatePage() {
                       />
                     </div>
                   </div>}
-                  {advancedOpen && <div>
+                  {advancedOpen && !isService && <div>
                     <Label className="text-muted-foreground">Tipo de producto</Label>
                     <Select
                       value={formData.productKind}
@@ -412,7 +426,7 @@ export default function ProductCreatePage() {
                     </Select>
                   </div>}
 
-                  {advancedOpen && isKit ? (
+                  {!isService && (advancedOpen && isKit ? (
                     <div className="border-t pt-4">
                       <ProductKitComponentsEditor
                         value={formData.kitComponents}
@@ -451,10 +465,10 @@ export default function ProductCreatePage() {
                     </div>
                   </div>
                 </div>
-                  )}
+                  ))}
                 </div>
 
-                <div className="mt-4">
+                {!isService && <div className="mt-4">
                   <Label className="text-muted-foreground">Proveedor *</Label>
                   <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
                     <PopoverTrigger asChild>
@@ -489,7 +503,7 @@ export default function ProductCreatePage() {
                       </Command>
                     </PopoverContent>
                   </Popover>
-                </div>
+                </div>}
 
                 <div className="mt-4">
                   <Label className="text-muted-foreground">Código de Barras</Label>
@@ -530,7 +544,7 @@ export default function ProductCreatePage() {
                     onCheckedChange={(v) => onFormChange('availableForSale', v)}
                   />
                 </div>}
-                {advancedOpen && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
+                {advancedOpen && !isService && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
                   <div className="space-y-0.5">
                     <Label htmlFor="create-tracks-expiry">Controla caducidad</Label>
                     <p className="text-xs text-muted-foreground max-w-xl">
@@ -546,28 +560,6 @@ export default function ProductCreatePage() {
 
               </div>
 
-              <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={() => navigate('/inventario')} disabled={isLoading}>
-                  Cancelar
-                </Button>
-                <Button
-                  className="bg-liquor-amber hover:bg-liquor-amber/90 text-white"
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <svg className="animate-spin w-4 h-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                      </svg>
-                      Guardando...
-                    </>
-                  ) : (
-                    'Guardar Producto'
-                  )}
-                </Button>
-              </div>
             </div>
           </div>
         </CardContent>

@@ -51,6 +51,7 @@ export interface UseSystemSettingsReturn {
   salesAllowCredit: boolean
   salesShowFiscalFields: boolean
   salesShowChannels: boolean
+  inventoryServicesEnabled: boolean
   loading: boolean
   /** Recarga la configuración pública (útil tras guardar en Configuración). */
   refetch: () => void
@@ -75,6 +76,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       salesAllowCredit: true,
       salesShowFiscalFields: true,
       salesShowChannels: true,
+      inventoryServicesEnabled: false,
       loading: false,
       refetch: () => {}
     }
@@ -94,6 +96,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     salesAllowCredit: ctx.salesAllowCredit,
     salesShowFiscalFields: ctx.salesShowFiscalFields,
     salesShowChannels: ctx.salesShowChannels,
+    inventoryServicesEnabled: ctx.inventoryServicesEnabled,
     loading: ctx.loading,
     refetch: ctx.refetch
   }

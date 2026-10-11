@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { CreditCard } from 'lucide-react'
 import type { PaymentMethodBreakdown, TheoreticalData } from '../types'
 import { formatCurrency, isCashPaymentMethodName, toNumber } from '../types'
 
@@ -22,6 +23,7 @@ interface PaymentMethodsFormProps {
     paymentBreakdown: PaymentMethodBreakdown[]
     cashSession?: TheoreticalData['cash_session']
     showAdvancedDetails?: boolean
+    countedPaymentMethodIds?: Set<number>
     onUpdateAmount: (index: number, field: 'actual_amount' | 'actual_count' | 'notes', value: string | number) => void
 }
 
@@ -29,12 +31,14 @@ export const PaymentMethodsForm = ({
     paymentBreakdown,
     cashSession,
     showAdvancedDetails = false,
+    countedPaymentMethodIds,
     onUpdateAmount,
 }: PaymentMethodsFormProps) => {
     const { currencyCode, locale } = useSystemSettings()
     return (
         <div className="auna-section-list">
-            <h3 className="font-semibold">Desglose por Método de Pago</h3>
+            <h2 className="cash-closure-panel-heading"><CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />Métodos de pago</h2>
+            <p className="text-xs text-muted-foreground">Verifica cada monto. Escribe 0 cuando corresponda.</p>
             {paymentBreakdown.map((item, index) => {
                 const isCash =
                     isCashPaymentMethodName(item.payment_method_name) &&
@@ -42,11 +46,12 @@ export const PaymentMethodsForm = ({
                     cashSession.opening_float > 0
 
                 return (
-                    <section key={item.payment_method_id} className="auna-section-row py-4">
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between">
+                    <section key={item.payment_method_id} className="auna-section-row py-3">
+                            <div className="cash-closure-method-row">
+                              <div className="space-y-1">
+                                <div className="flex flex-wrap items-center gap-2">
                                     <h4 className="font-medium">{item.payment_method_name}</h4>
-                                    <Badge
+                                    <Badge className="text-[11px]"
                                         variant={
                                             toNumber(item.difference) === 0
                                                 ? 'default'
@@ -60,15 +65,14 @@ export const PaymentMethodsForm = ({
                                     </Badge>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <Label className="text-muted-foreground">Teórico</Label>
-                                        <p className="text-lg font-semibold">
+                                        <p className="text-xs text-muted-foreground">Esperado</p>
+                                        <p className="text-sm font-semibold tabular-nums">
                                             {formatCurrency(item.theoretical_amount, currencyCode, locale)}
                                         </p>
                                         {isCash && (
                                             <p className="text-xs text-muted-foreground mt-1">
-                                                Incluye fondo inicial (
+                                                Fondo inicial (
                                                 {formatCurrency(cashSession.opening_float, currencyCode, locale)}) + ventas
                                                 en efectivo (
                                                 {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)})
@@ -78,16 +82,18 @@ export const PaymentMethodsForm = ({
                                             <p className="text-sm text-muted-foreground">{item.theoretical_count} transacciones</p>
                                         )}
                                     </div>
+                              </div>
                                     <div className="space-y-2">
                                         <Label htmlFor={`actual-${index}`}>
                                             {isCash ? 'Efectivo contado en caja' : 'Monto verificado'}
+                                            <span className="sr-only"> para {item.payment_method_name}</span>
                                         </Label>
                                         <Input
                                             id={`actual-${index}`}
                                             type="number"
                                             step="1"
                                             min="0"
-                                            value={item.actual_amount || ''}
+                                            value={item.actual_amount || (countedPaymentMethodIds?.has(item.payment_method_id) ? 0 : '')}
                                             onChange={(e) => onUpdateAmount(index, 'actual_amount', e.target.value)}
                                             placeholder={isCash ? String(cashSession.expected_cash_in_drawer) : '0'}
                                         />
@@ -97,10 +103,8 @@ export const PaymentMethodsForm = ({
                                             </p>
                                         )}
                                     </div>
-                                </div>
-
-                                {showAdvancedDetails && <div className="space-y-2">
-                                    <Label htmlFor={`notes-${index}`}>Notas</Label>
+                                {showAdvancedDetails && <div className="cash-closure-method-note space-y-1">
+                                    <Label htmlFor={`notes-${index}`}>Notas<span className="sr-only"> para {item.payment_method_name}</span></Label>
                                     <Input
                                         id={`notes-${index}`}
                                         value={item.notes || ''}

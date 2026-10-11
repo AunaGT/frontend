@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
     AlertTriangle,
     ArrowRight,
-    Building2,
     Check,
     ChevronLeft,
     ChevronRight,
@@ -75,6 +74,8 @@ import { fetchProducts } from '@/services/productService'
 import { fetchWarehouses } from '@/services/warehouseService'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { initialTransferView, transferPaginationItems, visibleTransferViews, type TransferView } from '../transferViewModel'
+import { MetricStrip } from '@/components/shared/MetricStrip'
+import { useCardPagination } from '@/hooks/useCardPagination'
 
 const STATUS_LABEL: Record<TransferStatus, string> = {
     EN_TRANSITO: 'En tránsito',
@@ -184,16 +185,19 @@ export const TransfersManagement = () => {
     const [receiveLocation, setReceiveLocation] = useState('default')
     const [exportingId, setExportingId] = useState<string | null>(null)
 
+    const cardPagination = useCardPagination({ enabled: view === "cards", tablePageSize: 10, onPageChange: setPage })
+    const pageSize = cardPagination.pageSize
     const transferQuery = useQuery({
-        queryKey: ['transfers', status, origin, destination, deferredSearch, page, branch?.id],
+        queryKey: ['transfers', status, origin, destination, deferredSearch, page, pageSize, branch?.id, 'summary'],
         queryFn: () => fetchTransfers({
+            includeSummary: true,
             direction: 'all',
             status: status === 'all' ? undefined : status,
             search: deferredSearch || undefined,
             fromBranchId: origin === 'all' ? undefined : origin,
             toBranchId: destination === 'all' ? undefined : destination,
             page,
-            pageSize: 10,
+            pageSize,
         }),
     })
     const productsQuery = useQuery({
@@ -288,30 +292,37 @@ export const TransfersManagement = () => {
     const totalItems = transferQuery.data?.totalItems ?? 0
     const totalPages = transferQuery.data?.totalPages ?? 1
     const currentPage = transferQuery.data?.page ?? page
-    const pageSize = transferQuery.data?.pageSize ?? 10
 
     return (
         <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
-            <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+            <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
                 <h1 className="sr-only">Traslados</h1>
 
+<MetricStrip label="Resumen traslados consultados" loading={transferQuery.isLoading} items={[
+    { label: 'Traslados', value: transferQuery.isError ? '—' : transferQuery.data?.summary?.total ?? '—' },
+    { label: 'En tránsito', value: transferQuery.isError ? '—' : transferQuery.data?.summary?.inTransit ?? '—' },
+    { label: 'Recibidos', value: transferQuery.isError ? '—' : transferQuery.data?.summary?.received ?? '—' },
+    { label: 'Cancelados', value: transferQuery.isError ? '—' : transferQuery.data?.summary?.cancelled ?? '—' },
+]} />
+
 <CompactFilterPanel actions={<><div className="flex items-center gap-2 self-stretch sm:self-auto">
-                        <ModuleTabBar items={[{ value: 'table', label: '', icon: Table2 }, { value: 'cards', label: '', icon: LayoutGrid }]} value={view} ariaLabel="Vista de traslados" onValueChange={setView} />
+                        <ModuleTabBar items={[{ value: 'table', label: '', ariaLabel: 'Tabla', icon: Table2 }, { value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid }]} value={view} ariaLabel="Vista de traslados" onValueChange={setView} />
                         {canCreate && branch ? (
-                            <Button size="lg" className="h-12 flex-1 rounded-xl bg-brand-orange px-6 text-white shadow-lg shadow-orange-500/20 hover:bg-brand-orange-strong sm:flex-none" onClick={() => setCreateOpen(true)}>
+                            <Button className="flex-1 sm:flex-none" onClick={() => setCreateOpen(true)}>
                                 <Plus className="mr-2 h-5 w-5" />Nuevo traslado
                             </Button>
                         ) : null}
-                    </div></>} title="Filtros de traslados" summary="Folio, producto, origen, destino y estado" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(320px,2fr)_repeat(3,minmax(170px,1fr))]" search={<div className="relative min-w-[320px] flex-[2_1_480px]">
+                    </div></>} title="Filtros de traslados" summary="Folio, producto, origen, destino y estado" activeCount={activeFilterCount} onClear={clearFilters} contentClassName="grid items-center gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(320px,2fr)_repeat(3,minmax(170px,1fr))]" search={<div className="relative min-w-0 w-full flex-1">
                         <Search className="pointer-events-none absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" />
-                        <Input className="pl-10" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar por folio, producto, origen o destino…" />
+                        <Input aria-label="Buscar traslados" className="pl-10" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} placeholder="Buscar por folio, producto, origen o destino…" />
                     </div>} appliedFilters={[...(search.trim() ? [{label: `Búsqueda: ${search}`,onRemove: () => {setSearch('');setPage(1)}}] : []),...(origin !== 'all' ? [{label: `Origen: ${branches.find(b => b.id === origin)?.name || 'Seleccionado'}`,onRemove: () => {setOrigin('all');setPage(1)}}] : []),...(destination !== 'all' ? [{label: `Destino: ${branches.find(b => b.id === destination)?.name || 'Seleccionado'}`,onRemove: () => {setDestination('all');setPage(1)}}] : []),...(status !== 'all' ? [{label: `Estado: ${({EN_TRANSITO:'En tránsito',RECIBIDA:'Recibidos',CANCELADA:'Cancelados'} as Record<string,string>)[status] || status}`,onRemove: () => {setStatus('all');setPage(1)}}] : [])]}>
 
                     <div className="min-w-[180px] flex-1"><Select value={origin} onValueChange={(value) => resetPage(setOrigin, value)}><SelectTrigger className="w-full"><SelectValue placeholder="Origen" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los orígenes</SelectItem>{branches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="min-w-[180px] flex-1"><Select value={destination} onValueChange={(value) => resetPage(setDestination, value)}><SelectTrigger className="w-full"><SelectValue placeholder="Destino" /></SelectTrigger><SelectContent><SelectItem value="all">Todos los destinos</SelectItem>{branches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
                     <div className="min-w-[170px] flex-1"><Select value={status} onValueChange={(value) => resetPage(setStatus, value as StatusFilter)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="EN_TRANSITO">En tránsito</SelectItem><SelectItem value="RECIBIDA">Recibidos</SelectItem><SelectItem value="CANCELADA">Cancelados</SelectItem></SelectContent></Select></div>
                 </CompactFilterPanel>
-
+                <section ref={cardPagination.containerRef} aria-label="Listado de traslados">
+                {view === "cards" && <label className="mb-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">Tarjetas por página<Select value={String(pageSize)} onValueChange={value => cardPagination.setCardPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Traslados por página"><SelectValue /></SelectTrigger><SelectContent>{cardPagination.pageSizeOptions.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></label>}
                 {transferQuery.isFetching && !transferQuery.isLoading && <LoadingIndicator message="Actualizando traslados…" />}
                 {transferQuery.isError ? (
                     <Card className="rounded-2xl border-red-500/30 bg-card dark:bg-[#101f34]"><CardContent className="flex flex-col items-center gap-3 p-12 text-center"><AlertTriangle className="h-9 w-9 text-red-500" /><p className="font-semibold">No pudimos cargar los traslados</p><Button onClick={() => transferQuery.refetch()}>Reintentar</Button></CardContent></Card>
@@ -351,12 +362,19 @@ export const TransfersManagement = () => {
                         </div>
 <div className="auna-pagination-outside">{!transferQuery.isLoading && <TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} />}</div></> : null}
 
-                        {visibleViews.cards ? <div className="grid gap-4 lg:grid-cols-2">
-                            {transferQuery.isLoading ? <div className="lg:col-span-2"><LoadingState variant="cards" message="Cargando traslados…" /></div> : transfers.map((transfer) => (
-                                <button key={transfer.id} type="button" className="auna-surface w-full rounded-2xl border p-4 text-left transition active:scale-[0.99]" onClick={() => setSelected(transfer)}>
-                                    <div className="flex items-start justify-between gap-3"><div><strong className="text-lg">{transfer.reference}</strong><p className="text-xs text-muted-foreground">{dateTime(transfer.sent_at)}</p></div><StatusBadge status={transfer.status} /></div>
-                                    <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3"><div className="flex min-w-0 gap-2"><Building2 className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm font-semibold">{transfer.fromBranch?.name}</p><p className="text-xs text-muted-foreground">Origen</p></div></div><ArrowRight className="h-5 w-5 text-muted-foreground" /><div className="flex min-w-0 gap-2"><Building2 className="h-5 w-5 shrink-0 text-muted-foreground" /><div className="min-w-0"><p className="truncate text-sm font-semibold">{transfer.toBranch?.name}</p><p className="text-xs text-muted-foreground">Destino</p></div></div></div>
-                                    <div className="mt-4 flex items-center justify-between border-t border-border/70 pt-3"><span className="flex items-center gap-2 text-sm"><Package className="h-5 w-5 text-muted-foreground" /><span><strong>{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} unidades</small></span></span><ChevronRight className="h-5 w-5 text-muted-foreground" /></div>
+                        {visibleViews.cards ? <div className="auna-record-grid">
+                            {transferQuery.isLoading ? <div className="col-span-full"><LoadingState variant="cards" message="Cargando traslados…" /></div> : transfers.map((transfer) => (
+                                <button key={transfer.id} type="button" className="auna-surface auna-record-card w-full rounded-lg border text-left transition active:scale-[0.99]" onClick={() => setSelected(transfer)}>
+                                    <div className="auna-record-content space-y-1">
+                                        <strong>{transfer.reference}</strong>
+                                        <p className="text-sm text-muted-foreground">{dateTime(transfer.sent_at)}</p>
+                                        <dl className="space-y-1 text-sm">
+                                            <div className="flex flex-wrap gap-1"><dt className="text-muted-foreground">Origen:</dt><dd className="font-medium">{transfer.fromBranch?.name}</dd></div>
+                                            <div className="flex flex-wrap gap-1"><dt className="text-muted-foreground">Destino:</dt><dd className="font-medium">{transfer.toBranch?.name}</dd></div>
+                                        </dl>
+                                        <div className="auna-record-meta text-muted-foreground"><span>{transfer.lines.length} productos</span><span>{totalUnits(transfer)} unidades</span></div>
+                                    </div>
+                                    <div className="auna-record-side"><StatusBadge status={transfer.status} /></div>
                                 </button>
                             ))}
                         </div> : null}
@@ -364,6 +382,7 @@ export const TransfersManagement = () => {
                         {visibleViews.cards && !transferQuery.isLoading ? <div className="auna-surface-flat"><TransferPagination current={currentPage} totalPages={totalPages} totalItems={totalItems} pageSize={pageSize} count={transfers.length} onChange={setPage} /></div> : null}
                     </>
                 )}
+                </section>
             </div>
 
             <Dialog open={selected != null} onOpenChange={(open) => !open && setSelected(null)}>
@@ -377,7 +396,7 @@ export const TransfersManagement = () => {
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogContent variant="auna" className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl">
                     <DialogHeader><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange text-white"><Plus className="h-5 w-5" /></span><div><DialogTitle>Nuevo traslado</DialogTitle><DialogDescription>El stock sale de {branch?.name} al enviar y entra cuando el destino confirma la recepción.</DialogDescription></div></div></DialogHeader>
-                    <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr]"><div className="rounded-xl border border-border/70 p-3"><Label className="text-xs text-muted-foreground">Origen</Label><p className="mt-1 font-semibold">{branch?.name}</p></div><ArrowRight className="hidden self-center text-brand-orange sm:block" /><div><Label>Sucursal destino</Label><Select value={toBranchId} onValueChange={setToBranchId}><SelectTrigger className="mt-2"><SelectValue placeholder="Elige una sucursal" /></SelectTrigger><SelectContent>{otherBranches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor="transfer-search">Agregar productos</Label><div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input id="transfer-search" className="pl-10" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Nombre o código de barras" /></div>{productSearch ? <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-border/70">{productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="p-3" />}{productsQuery.isLoading ? <LoadingState variant="cards" rows={3} message="Buscando productos…" /> : (productsQuery.data?.items ?? []).map((product) => <button key={product.id} type="button" className="flex w-full items-center justify-between border-b border-border/60 px-4 py-3 text-left text-sm last:border-0 hover:bg-muted" onClick={() => addProduct(String(product.id), product.name)}><span>{product.name}</span><span className="text-muted-foreground">Stock: {product.stock ?? 0}</span></button>)}</div> : null}</div>{draft.length ? <div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_90px_40px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Cantidad</span><span /></div>{draft.map((row) => <div key={row.product_id} className="grid grid-cols-[1fr_90px_40px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm font-medium">{row.name}</span><Input type="number" min={1} value={row.qty} onChange={(event) => setDraft((items) => items.map((item) => item.product_id === row.product_id ? { ...item, qty: Number(event.target.value) } : item))} /><Button size="icon" variant="ghost" onClick={() => setDraft((items) => items.filter((item) => item.product_id !== row.product_id))}><X className="h-4 w-4" /></Button></div>)}</div> : null}<div><Label htmlFor="transfer-notes">Notas</Label><Input id="transfer-notes" className="mt-2" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></div></div>
+                    <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr]"><div className="rounded-xl border border-border/70 p-3"><Label className="text-xs text-muted-foreground">Origen</Label><p className="mt-1 font-semibold">{branch?.name}</p></div><ArrowRight className="hidden self-center text-brand-orange sm:block" /><div><Label>Sucursal destino</Label><Select value={toBranchId} onValueChange={setToBranchId}><SelectTrigger className="mt-2"><SelectValue placeholder="Elige una sucursal" /></SelectTrigger><SelectContent>{otherBranches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor="transfer-search">Agregar productos</Label><div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input id="transfer-search" className="pl-10" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Nombre o código de barras" /></div>{productSearch ? <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-border/70">{productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="p-3" />}{productsQuery.isLoading ? <LoadingState variant="cards" rows={3} message="Buscando productos…" /> : (productsQuery.data?.items ?? []).map((product) => <button key={product.id} type="button" className="flex w-full items-center justify-between border-b border-border/60 px-4 py-3 text-left text-sm last:border-0 hover:bg-muted" onClick={() => addProduct(String(product.id), product.name)}><span>{product.name}</span><span className="text-muted-foreground">Stock: {product.stock ?? 0}</span></button>)}</div> : null}</div>{draft.length ? <div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_90px_40px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Cantidad</span><span /></div>{draft.map((row) => <div key={row.product_id} className="grid grid-cols-[1fr_90px_40px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm font-medium">{row.name}</span><Input aria-label={`Cantidad a enviar de ${row.name}`} type="number" min={1} value={row.qty} onChange={(event) => setDraft((items) => items.map((item) => item.product_id === row.product_id ? { ...item, qty: Number(event.target.value) } : item))} /><Button size="icon" variant="ghost" aria-label={`Quitar ${row.name} del traslado`} onClick={() => setDraft((items) => items.filter((item) => item.product_id !== row.product_id))}><X className="h-4 w-4" /></Button></div>)}</div> : null}<div><Label htmlFor="transfer-notes">Notas</Label><Input id="transfer-notes" className="mt-2" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></div></div>
                     <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cerrar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={submitCreate} disabled={createMutation.isPending}>{createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}Enviar traslado</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -385,7 +404,7 @@ export const TransfersManagement = () => {
             <Dialog open={receiving != null} onOpenChange={(open) => !open && setReceiving(null)}>
                 <DialogContent variant="auna" className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl">
                     <DialogHeader><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600"><PackageCheck className="h-5 w-5" /></span><div><DialogTitle>Recibir {receiving?.reference}</DialogTitle><DialogDescription>Confirma las cantidades que llegaron realmente.</DialogDescription></div></div></DialogHeader>
-                    <div className="space-y-4">{receiveLocations.length === 1 ? <p className="rounded-xl bg-muted/50 p-3 text-sm">Entrada: <strong>{receiveLocations[0].warehouse} · {receiveLocations[0].code}</strong></p> : null}{receiveLocations.length > 1 ? <div><Label>Ubicación de recepción</Label><Select value={receiveLocation} onValueChange={setReceiveLocation}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Ubicación predeterminada</SelectItem>{receiveLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.warehouse} · {location.code}{location.name ? ` — ${location.name}` : ''}</SelectItem>)}</SelectContent></Select></div> : null}<div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_80px_100px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{receiving?.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_80px_100px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm">{line.product?.name ?? line.product_id}</span><strong className="text-center">{line.qty_sent}</strong><Input type="number" min={0} max={line.qty_sent} value={receivedQty[line.id] ?? String(line.qty_sent)} onChange={(event) => setReceivedQty((values) => ({ ...values, [line.id]: event.target.value }))} /></div>)}</div><p className="text-xs text-muted-foreground">Una cantidad menor registra un faltante de tránsito para conciliación.</p></div>
+                    <div className="space-y-4">{receiveLocations.length === 1 ? <p className="rounded-xl bg-muted/50 p-3 text-sm">Entrada: <strong>{receiveLocations[0].warehouse} · {receiveLocations[0].code}</strong></p> : null}{receiveLocations.length > 1 ? <div><Label>Ubicación de recepción</Label><Select value={receiveLocation} onValueChange={setReceiveLocation}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Ubicación predeterminada</SelectItem>{receiveLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.warehouse} · {location.code}{location.name ? ` — ${location.name}` : ''}</SelectItem>)}</SelectContent></Select></div> : null}<div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_80px_100px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{receiving?.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_80px_100px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm">{line.product?.name ?? line.product_id}</span><strong className="text-center">{line.qty_sent}</strong><Input aria-label={`Cantidad recibida de ${line.product?.name ?? line.product_id}`} type="number" min={0} max={line.qty_sent} value={receivedQty[line.id] ?? String(line.qty_sent)} onChange={(event) => setReceivedQty((values) => ({ ...values, [line.id]: event.target.value }))} /></div>)}</div><p className="text-xs text-muted-foreground">Una cantidad menor registra un faltante de tránsito para conciliación.</p></div>
                     <DialogFooter><Button variant="outline" onClick={() => setReceiving(null)}>Cerrar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={submitReceive} disabled={receiveMutation.isPending}>{receiveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Confirmar recepción</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
