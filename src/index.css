@@ -8,6 +8,14 @@ Todos los colores DEBEN ser HSL.
 
 @layer base {
   :root {
+    /* Identidad Auna: tokens compartidos para la migración visual gradual. */
+    --brand-navy: 219 37% 15%;
+    --brand-orange: 24 94% 53%;
+    --brand-orange-strong: 20 90% 46%;
+    --brand-surface: 216 33% 97%;
+    --auna-table-surface: var(--auna-surface-card);
+    --auna-table-header: var(--auna-surface-header);
+
     --background: 45 15% 97%;
     --foreground: 25 15% 15%;
 
@@ -76,6 +84,13 @@ Todos los colores DEBEN ser HSL.
   }
 
   .dark {
+    --brand-navy: 219 45% 9%;
+    --brand-orange: 24 94% 55%;
+    --brand-orange-strong: 20 92% 49%;
+    --brand-surface: 218 34% 13%;
+    --auna-table-surface: var(--auna-surface-card);
+    --auna-table-header: var(--auna-surface-header);
+
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
 
@@ -122,4 +137,161 @@ Todos los colores DEBEN ser HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Selectores nativos compartidos: no dependen del CSS de un módulo lazy. */
+.auna-receipt-select {
+  display: block;
+  width: 100%;
+}
+.auna-receipt-select:disabled { cursor: not-allowed; }
+
+/* Encabezados y tablas opt-in: solo vistas ya migradas al diseño Auna. */
+.auna-app-content {
+  min-width: 0;
+  min-height: calc(100dvh - 64px);
+}
+
+/*
+ * Lienzo compartido de las vistas ya migradas. Mantiene el mismo fondo del
+ * layout y limita el contenido a la anchura usada por Nómina, Pedidos y
+ * Traslados, evitando páginas administrativas pegadas a los bordes.
+ */
+:is(.users-page, .config-page, .alerts-page, .branches-page, .auna-import-page, .auna-import-workbench) {
+  width: min(100%, 1560px);
+  margin-inline: auto;
+}
+.dark :is(.users-page, .config-page, .alerts-page, .branches-page, .auna-import-page, .auna-import-workbench) {
+  --background: var(--brand-navy);
+  background-color: hsl(var(--brand-navy));
+}
+
+header.auna-module-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px 24px;
+}
+
+/* Cotizaciones reutiliza el lienzo, tarjetas y controles de las vistas migradas. */
+.quotes-page :is([class*="bg-card"], .auna-data-table-shell) { border-radius: 1rem; }
+.dark .quotes-page { --background: var(--brand-navy); }
+.dark .receivables-page { --background: var(--brand-navy); }
+header.auna-module-heading > div:first-child { min-width: 0; }
+header.auna-module-heading .auna-module-eyebrow {
+  margin: 0 0 4px;
+  color: hsl(var(--brand-orange));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  line-height: 1.3;
+  text-transform: uppercase;
+}
+header.auna-module-heading h1 {
+  margin: 0;
+  color: hsl(var(--brand-navy));
+  font-size: clamp(28px, 2.5vw, 38px);
+  font-weight: 700;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+}
+.dark header.auna-module-heading h1 { color: hsl(var(--foreground)); }
+header.auna-module-heading p.auna-module-description {
+  margin-top: 6px;
+  color: hsl(var(--muted-foreground));
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.auna-data-table-shell {
+  overflow: hidden;
+  border: 1px solid hsl(var(--auna-surface-border));
+  border-radius: 1rem;
+  background: hsl(var(--auna-table-surface));
+  box-shadow: none;
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table,
+table.auna-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  color: hsl(var(--foreground));
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table thead > tr > th,
+table.auna-data-table thead > tr > th {
+  height: auto;
+  padding: 16px 20px;
+  border-bottom: 1px solid hsl(var(--auna-surface-border));
+  background: hsl(var(--auna-table-header));
+  color: hsl(var(--auna-surface-muted));
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  line-height: 1.3;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr,
+table.auna-data-table tbody > tr {
+  border-bottom: 1px solid hsl(var(--auna-surface-border));
+  transition: background-color .15s ease;
+}
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:last-child,
+table.auna-data-table tbody > tr:last-child { border-bottom: 0; }
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr:is(:hover, :focus-within),
+table.auna-data-table tbody > tr:is(:hover, :focus-within) { background: hsl(var(--auna-surface-header)); }
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr > td,
+table.auna-data-table tbody > tr > td {
+  padding: 16px 20px;
+  border-top: 0;
+  vertical-align: middle;
+  font-size: 14px;
+  line-height: 1.4;
+}
+:is(.auna-data-table-shell, .users-page, .alerts-page, .config-page, .branches-page) table tbody > tr > td button[aria-label],
+table.auna-data-table tbody > tr > td button[aria-label] { border-radius: 8px; }
+
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-top: 1px solid hsl(var(--auna-surface-border));
+  color: hsl(var(--muted-foreground));
+  font-size: 13px;
+}
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) :is(nav, .alerts-pagination, .config-pages) { display: flex; align-items: center; gap: 8px; }
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) button { min-width: 36px; min-height: 36px; border-radius: 8px; }
+:is(.auna-data-table-pagination, .users-page .users-footer, .alerts-page .alerts-table-footer, .config-page .config-module-footer, .branches-page .branches-pagination) button:is([aria-current="page"], [data-active="true"], .is-current) {
+  border-color: hsl(var(--brand-orange));
+  background: hsl(var(--brand-orange));
+  color: white;
+}
+
+@media (max-width: 700px) {
+  .alerts-page table.alerts-table thead { display: none; }
+  .alerts-page table.alerts-table tbody > tr > td { padding: 0; border: 0; font-size: 12px; }
+}
+
+.auna-not-found-inner { width: 100%; max-width: 72rem; margin-inline: auto; }
+.auna-not-found-main { grid-template-columns: minmax(0, 1fr); }
+.auna-not-found-title { font-size: clamp(2.5rem, 4vw, 4rem); }
+.auna-not-found-visual {
+  width: 100%;
+  max-width: 540px;
+  aspect-ratio: 1.16;
+  border-radius: 2.5rem;
+  box-shadow: 0 35px 100px -45px rgb(23 32 51 / .3);
+}
+.auna-not-found-code { font-size: clamp(7rem, 18vw, 13rem); letter-spacing: -.1em; }
+
+@media (min-width: 1024px) {
+  .auna-not-found-main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); }
 }

@@ -41,7 +41,7 @@ export interface Warehouse {
   id: string;
   branch_id: string;
   /** Viene en el listado: sirve para etiquetar "Sucursal · Almacén". */
-  branch?: { id: string; name: string };
+  branch?: { id: string; name: string; active?: boolean };
   name: string;
   code: string;
   kind: WarehouseKind;
@@ -50,6 +50,7 @@ export interface Warehouse {
   dispatch_priority: number;
   active: boolean;
   notes: string | null;
+  stock_units?: number;
   locations: StockLocation[];
 }
 

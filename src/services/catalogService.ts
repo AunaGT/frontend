@@ -16,13 +16,22 @@ export interface ApiCategory {
   image_url?: string | null;
 }
 
-export const fetchCategories = async (): Promise<ApiCategory[]> => {
-  const data = await apiFetch<ApiCategory[] | { items: ApiCategory[] }>("/api/catalogs/product-categories?page=1&pageSize=1000", { method: "GET" });
-  // Handle paginated response
-  if (data && typeof data === 'object' && 'items' in data && Array.isArray(data.items)) {
-    return data.items;
+export interface CategoriesQueryOptions {
+  includeDeleted?: boolean;
+  allPages?: boolean;
+}
+
+export const fetchCategories = async (options: CategoriesQueryOptions = {}): Promise<ApiCategory[]> => {
+  const categories: ApiCategory[] = [];
+  let page = 1;
+  while (true) {
+    const query = new URLSearchParams({ page: String(page), pageSize: options.allPages ? '100' : '1000' });
+    if (options.includeDeleted) query.set('includeDeleted', 'true');
+    const data = await apiFetch<ApiCategory[] | { items: ApiCategory[]; nextPage?: number | null }>(`/api/catalogs/product-categories?${query}`, { method: "GET" });
+    if (Array.isArray(data)) return categories.concat(data);
+    if (!data || !Array.isArray(data.items)) return categories;
+    categories.push(...data.items);
+    if (!options.allPages || !data.nextPage || data.nextPage <= page) return categories;
+    page = data.nextPage;
   }
-  // Handle direct array response (backward compatibility)
-  if (Array.isArray(data)) return data;
-  return [];
 };

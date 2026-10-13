@@ -16,6 +16,15 @@ export interface SalesQueryParams {
   page?: number;
   pageSize?: number;
   search?: string;
+  payment?: string;
+  includeSummary?: boolean;
+}
+
+export interface SalesSummary {
+  totalSales: number;
+  transactionCount: number;
+  averageTicket: number;
+  preferredPaymentMethod: string;
 }
 
 export interface SalesListResponse {
@@ -27,6 +36,7 @@ export interface SalesListResponse {
   nextPage: number | null;
   prevPage: number | null;
   hasMore?: boolean;
+  summary?: SalesSummary;
   searchMeta?: { tooShort?: boolean; minLength?: number; mode?: string };
 }
 
@@ -37,10 +47,11 @@ export const fetchSales = async (params: SalesQueryParams = {}): Promise<SalesLi
   if (params.page) search.set("page", String(params.page));
   if (params.pageSize) search.set("pageSize", String(params.pageSize));
   if (params.search?.trim()) search.set("search", params.search.trim());
+  if (params.payment?.trim()) search.set("payment", params.payment.trim());
+  if (params.includeSummary) search.set("includeSummary", "true");
 
   const url = `/api/sales${search.toString() ? `?${search.toString()}` : ""}`;
-  const data = await apiFetch(url, { method: "GET" });
-  return data;
+  return apiFetch<SalesListResponse>(url, { method: "GET" });
 };
 
 export const updateSaleStatus = async (saleId: string, payload: { status_id?: number; status_name?: string }) => {

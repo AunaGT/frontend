@@ -1,0 +1,4 @@
+.order-lines-scroll.order-lines-scroll { min-width: 0; max-height: 420px; overflow: auto; scroll-padding-top: 64px; }
+.order-lines-scroll > div { overflow: visible; }
+.order-lines-scroll th { position: sticky; top: 0; z-index: 1; background: hsl(var(--auna-table-header)); }
+.order-lines-scroll:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }

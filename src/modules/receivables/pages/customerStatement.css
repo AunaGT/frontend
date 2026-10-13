@@ -1,0 +1,50 @@
+.statement-table-scroll {
+  max-height: 480px;
+  overflow: auto;
+  scroll-padding-top: 48px;
+}
+.statement-table-scroll:focus-visible {
+  outline: 2px solid hsl(var(--brand-orange));
+  outline-offset: -2px;
+}
+.statement-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: hsl(var(--auna-table-header));
+}
+@media (max-width: 700px) {
+  .receivables-statement .statement-table { min-width: 0; }
+  .receivables-statement .statement-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .receivables-statement .statement-table tbody { display: block; }
+  .receivables-statement .statement-table tbody > tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    padding: 16px;
+    border-radius: 0;
+  }
+  .receivables-statement .statement-table tbody > tr > td {
+    min-width: 0;
+    padding: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .statement-table td[data-label]::before {
+    display: block;
+    content: attr(data-label);
+    margin-bottom: 4px;
+    color: hsl(var(--auna-surface-muted));
+    font-size: 12px;
+    font-weight: 400;
+  }
+  .statement-table td:is([data-label="Descripción"], [data-label="Acciones"], [colspan]) { grid-column: 1 / -1; }
+  .statement-table td[data-label="Descripción"] > p { max-width: none; white-space: normal; }
+  .statement-table td[data-label="Estado"] > span { white-space: normal; }
+}

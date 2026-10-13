@@ -1,0 +1,27 @@
+.contact-create-page { display:grid; gap:16px; min-width:0; }
+.contact-create-toolbar { display:grid; gap:16px; }
+.contact-create-kind { display:grid; align-content:start; gap:8px; min-width:0; }
+.contact-create-choices.contact-create-choices { display:flex; flex-wrap:wrap; gap:8px; }
+.contact-create-choice { display:flex; align-items:center; gap:8px; min-height:44px; padding:8px 12px; border:1px solid hsl(var(--auna-surface-border)); border-radius:8px; cursor:pointer; font-size:14px; }
+.contact-create-choice[data-selected="true"] { border-color:hsl(var(--brand-orange)); background:hsl(var(--brand-orange) / .08); }
+.contact-create-choice:focus-within { outline:2px solid hsl(var(--ring)); outline-offset:2px; }
+.contact-create-section { min-width:0; padding:16px; border:1px solid hsl(var(--auna-surface-border)); border-radius:12px; }
+.contact-create-heading { display:flex; align-items:center; gap:10px; margin-bottom:16px; font-size:16px; font-weight:600; }
+.contact-create-heading > svg { flex-shrink:0; width:22px; height:22px; color:hsl(var(--brand-orange)); }
+.contact-create-fields, .contact-create-identity { display:grid; gap:16px; min-width:0; align-items:start; }
+.contact-create-fields > *, .contact-create-identity > * { min-width:0; }
+.contact-create-field-wide { grid-column:1 / -1; }
+.contact-create-photo { display:grid; gap:8px; }
+.contact-create-photo-summary { display:flex; align-items:center; gap:12px; }
+.contact-create-photo-toggle { width:fit-content; min-height:44px; padding:10px 0; color:hsl(var(--foreground)); font-size:14px; font-weight:500; cursor:pointer; }
+.contact-create-photo-toggle:focus-visible { outline:2px solid hsl(var(--ring)); outline-offset:2px; border-radius:4px; }
+.contact-create-photo details > .w-full { margin-top:8px; }
+.contact-create-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; padding-block:4px; }
+@media (min-width:768px) {
+  .contact-create-toolbar, .contact-create-fields-two { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .contact-create-fields-three { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+@media (min-width:1100px) {
+  .contact-create-identity-with-photo { grid-template-columns:minmax(0,1fr) 240px; }
+  .contact-create-photo { border-left:1px solid hsl(var(--auna-surface-border)); padding-left:16px; }
+}

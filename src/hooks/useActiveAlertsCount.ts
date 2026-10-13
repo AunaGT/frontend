@@ -11,13 +11,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/services/api";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
+import { useModules } from "@/context/useModules";
 
 export const ACTIVE_ALERTS_QUERY_KEY = ["alerts", "active-count"] as const;
 
 /** Cantidad de alertas activas (sin resolver) para la burbuja de notificación de la campana y el módulo. */
 export const useActiveAlertsCount = () => {
   const { hasPermission } = useAuthPermissions();
-  const enabled = hasPermission("alerts.view") || hasPermission("alerts.manage");
+  const { enabledModuleCodes, isEnabled } = useModules();
+  const enabled = enabledModuleCodes !== null && isEnabled("alerts") &&
+    (hasPermission("alerts.view") || hasPermission("alerts.manage"));
 
   return useQuery({
     queryKey: ACTIVE_ALERTS_QUERY_KEY,

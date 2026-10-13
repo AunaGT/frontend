@@ -12,9 +12,10 @@
  * TopBar - Top navigation bar with app launcher trigger
  * Replaces the traditional sidebar with a clean top bar
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Wallet } from 'lucide-react'
+import { useTheme } from 'next-themes'
+import { Menu, Bell, LogOut, ChevronDown, ChevronRight, Moon, Sun, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -27,10 +28,12 @@ import {
 import { AppLauncher } from './AppLauncher'
 import { TenantSwitcher } from './TenantSwitcher'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
-import { appModules, getUserRole } from '@/config/appModules'
+import { findModuleForPath, getUserRole } from '@/config/appModules'
+import { PageBreadcrumbs, usePageNavigation } from './PageNavigation'
+import { getRouteTrail, selectPageTrail } from './pageTrail'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useActiveAlertsCount } from '@/hooks/useActiveAlertsCount'
-import { useOverdueReceivablesCount } from '@/hooks/useOverdueReceivablesCount'
+import { useOverdueReceivablesCount } from '@/modules/receivables'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useAuth } from '@/context/useAuth'
 import type { User as UserType } from '@/services/userService'
@@ -55,11 +58,13 @@ function userPhotoUrl(user: CurrentUser) {
 
 export const TopBar = () => {
     const [launcherOpen, setLauncherOpen] = useState(false)
+    const launcherTriggerRef = useRef<HTMLButtonElement>(null)
     const [imageError, setImageError] = useState(false)
     const location = useLocation()
     const navigate = useNavigate()
     const { user: roleUser } = getUserRole()
     const { user: authUser, logout } = useAuth()
+    const { resolvedTheme, setTheme } = useTheme()
     const { companyName, companyLogoUrl } = useSystemSettings()
     const { hasPermission } = useAuthPermissions()
     const canViewAlerts = hasPermission('alerts.view') || hasPermission('alerts.manage')
@@ -82,9 +87,11 @@ export const TopBar = () => {
     const overdueCount = vencidas?.count ?? 0
 
     // Find current module based on path
-    const currentModule = appModules.find(
-        (m) => location.pathname === m.path || location.pathname.startsWith(`${m.path}/`),
-    )
+    const currentModule = findModuleForPath(location.pathname)
+    const navigation = usePageNavigation()
+    const fallbackTrail = getRouteTrail(location.pathname, location.search, currentModule ? { code: currentModule.id, label: currentModule.label, path: currentModule.path } : undefined)
+    const trail = selectPageTrail(location.pathname + location.search, fallbackTrail, navigation?.override ?? null).map(item =>
+        item.to && item.permissions?.length && !item.permissions.some(code => hasPermission(code)) ? { ...item, to: undefined } : item)
 
     const handleLogout = () => {
         logout()
@@ -93,12 +100,16 @@ export const TopBar = () => {
 
     return (
         <>
-            <header className='h-14 bg-card border-b border-border flex items-center px-2 sm:px-4 gap-2 sm:gap-3 shadow-sm'>
+            <header className='auna-topbar bg-card border-b border-border flex items-center px-2 sm:px-4 gap-2 sm:gap-3 shadow-sm'>
                 {/* App Launcher Button */}
                 <Button
                     variant='ghost'
                     size='icon'
                     onClick={() => setLauncherOpen(true)}
+                    ref={launcherTriggerRef}
+                    aria-label="Abrir menú de módulos"
+                    aria-haspopup="dialog"
+                    aria-expanded={launcherOpen}
                     className='hover:bg-primary/10 h-9 w-9 sm:h-10 sm:w-10'
                 >
                     <Menu className='w-5 h-5' />
@@ -119,17 +130,7 @@ export const TopBar = () => {
                     </span>
                 </div>
 
-                {/* Current Module Name - Hidden on mobile */}
-                {currentModule && location.pathname !== '/' && (
-                    <div className='hidden lg:flex items-center gap-2 ml-4 pl-4 border-l'>
-                        {currentModule.icon && (
-                            <currentModule.icon className='w-4 h-4 text-muted-foreground' />
-                        )}
-                        <span className='text-sm font-medium text-muted-foreground'>
-                            {currentModule.label}
-                        </span>
-                    </div>
-                )}
+                {trail.length > 0 && <div className='auna-topbar-trail'><PageBreadcrumbs items={trail} /></div>}
 
                 {/* Spacer */}
                 <div className='flex-1' />
@@ -137,6 +138,21 @@ export const TopBar = () => {
                 {/* Zona derecha: sucursal + alertas + cuenta */}
                 <div className='flex items-center gap-1 sm:gap-2 shrink-0'>
                     <TenantSwitcher />
+
+                    <Button
+                        type='button'
+                        variant='ghost'
+                        size='icon'
+                        className='h-10 w-10 rounded-lg text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                        onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+                        aria-label={resolvedTheme === 'dark' ? 'Usar tema claro' : 'Usar tema oscuro'}
+                    >
+                        {resolvedTheme === 'dark' ? (
+                            <Sun className='h-5 w-5' aria-hidden />
+                        ) : (
+                            <Moon className='h-5 w-5' aria-hidden />
+                        )}
+                    </Button>
 
                     {/* Alertas */}
                     {canViewAlerts && (
@@ -274,7 +290,7 @@ export const TopBar = () => {
             </header>
 
             {/* App Launcher Modal */}
-            <AppLauncher open={launcherOpen} onOpenChange={setLauncherOpen} />
+            <AppLauncher open={launcherOpen} onOpenChange={setLauncherOpen} triggerRef={launcherTriggerRef} />
         </>
     )
 }

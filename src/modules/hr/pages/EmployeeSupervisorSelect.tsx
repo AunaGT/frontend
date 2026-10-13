@@ -1,0 +1,15 @@
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
+import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useParams } from 'react-router-dom'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
+import { fetchEmployeeDirectory } from '@/services/hrService'
+
+export function EmployeeSupervisorSelect({ value, onChange, disabled }: { value?: string | null; onChange: (id: string | null) => void; disabled: boolean }) {
+  const { id } = useParams(), [search, setSearch] = useState(''), [q, setQ] = useState(''), [page, setPage] = useState(1), [open, setOpen] = useState(false), [picked, setPicked] = useState('')
+  useEffect(() => { const timer = setTimeout(() => { setQ(search); setPage(1) }, 300); return () => clearTimeout(timer) }, [search])
+  const query = useQuery({ queryKey: ['hr-supervisor-directory', id, q, page], queryFn: () => fetchEmployeeDirectory('supervisor', { q, page, pageSize: 8, excludeId: id }), enabled: open && !disabled })
+  return <div className="sm:col-span-2 xl:col-span-3"><Label>Supervisor directo</Label><div className="mt-1 flex gap-2"><Button type="button" variant="outline" disabled={disabled} onClick={() => setOpen(!open)}>{value ? picked || 'Supervisor vinculado · cambiar' : 'Buscar supervisor…'}</Button>{value && <Button type="button" variant="ghost" disabled={disabled} onClick={() => { onChange(null); setPicked('') }}>Desvincular</Button>}</div>{open && <div className="hr-document-row mt-2 space-y-2">{query.isFetching && query.data && <LoadingIndicator message="Actualizando supervisores…" />}<Input aria-label="Buscar supervisor" placeholder="Nombre, apellido, código o puesto…" value={search} disabled={disabled} onChange={e => setSearch(e.target.value)} />{query.isPending ? <LoadingState variant="detail" size="sm" message="Buscando supervisores…" /> : query.isError ? <div><p className="text-sm">No se pudo buscar supervisores.</p><Button type="button" variant="outline" onClick={() => query.refetch()}>Reintentar</Button></div> : <>{query.data.items.map(item => <Button key={item.id} type="button" variant="ghost" className="w-full justify-start" onClick={() => { onChange(item.id); setPicked(`${item.first_name} ${item.last_name}`); setOpen(false) }}>{item.first_name} {item.last_name} · {item.code}</Button>)}{!query.data.items.length && <p className="text-sm text-muted-foreground">No hay coincidencias en este ámbito.</p>}<div className="flex items-center justify-between gap-2"><Button type="button" variant="outline" size="sm" disabled={page <= 1 || query.isFetching} onClick={() => setPage(page - 1)}>Anterior</Button><span className="text-xs">{query.data.page} / {query.data.totalPages}</span><Button type="button" variant="outline" size="sm" disabled={page >= query.data.totalPages || query.isFetching} onClick={() => setPage(page + 1)}>Siguiente</Button></div></>}</div>}</div>
+}

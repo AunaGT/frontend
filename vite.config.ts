@@ -5,9 +5,12 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  // Concurrent development servers must not replace each other's optimized modules.
+  cacheDir: path.resolve(__dirname, "node_modules", `.vite-dev-${process.pid}`),
   server: {
     host: "::",
     port: 8080,
+    strictPort: true,
     proxy: {
       "/api": {
         target: "http://localhost:3000",

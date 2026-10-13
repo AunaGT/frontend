@@ -66,7 +66,7 @@ export const adaptApiProduct = (p: ApiProduct): Product => {
       (p.supplier_id != null ? String(p.supplier_id) : "");
 
   const statusRaw: string | number | undefined =
-    (typeof p.status === "object" && (p.status as { id?: string | number; name?: string }).name)
+    (typeof p.status === "object" && p.status?.name)
       ? (p.status as { id?: string | number; name?: string }).name!
       : (typeof p.status === "string" ? p.status : undefined) ??
       (typeof p.status_id !== "undefined" ? Number(p.status_id) : undefined);
@@ -75,7 +75,7 @@ export const adaptApiProduct = (p: ApiProduct): Product => {
 
   // Extraer supplier_id si está disponible (para uso interno)
   const supplierId = 
-    (typeof p.supplier === "object" && (p.supplier as { id?: string | number }).id)
+    (typeof p.supplier === "object" && p.supplier?.id)
       ? String((p.supplier as { id: string | number }).id)
       : (p.supplier_id != null ? String(p.supplier_id) : undefined);
 
@@ -112,7 +112,9 @@ export const adaptApiProduct = (p: ApiProduct): Product => {
     deleted_at: (p as { deleted_at?: string | null }).deleted_at || null,
     availableForSale: (p as { available_for_sale?: boolean }).available_for_sale !== false,
     tracksExpiry: (p as { tracks_expiry?: boolean }).tracks_expiry === true,
-    kind: (p.kind === "KIT" ? "KIT" : "STANDARD") as import("@/types/product").ProductKind,
+    kind: p.kind ?? "STANDARD",
+    serviceUnitLabel: p.service_unit_label ?? null,
+    quantityDecimals: p.quantity_decimals ?? 0,
     inBranch: (p as { in_branch?: boolean }).in_branch !== false,
     stockAssembled: p.stock_assembled === true,
     kitComponents: Array.isArray(p.kit_components) ? p.kit_components : undefined,
@@ -120,12 +122,15 @@ export const adaptApiProduct = (p: ApiProduct): Product => {
 };
 
 export interface ProductsQueryParams {
+  catalogType?: 'goods' | 'services' | 'all';
+  includeSummary?: boolean;
   page?: number;
   pageSize?: number;
   search?: string;
   category?: string;
   supplier?: string;
   includeDeleted?: boolean;
+  deletedOnly?: boolean;
   /** Solo productos disponibles para venta (POS). */
   forSaleOnly?: boolean;
   /** Solo los productos que maneja la sucursal del alcance (los demás ni aparecen). */
@@ -137,6 +142,7 @@ export interface ProductsQueryParams {
 }
 
 export interface ProductsResponse {
+  summary?: Record<string, number>;
   items: ApiProduct[];
   page: number;
   pageSize: number;
@@ -148,12 +154,15 @@ export interface ProductsResponse {
 
 export const fetchProducts = async (params?: ProductsQueryParams): Promise<ProductsResponse> => {
   const search = new URLSearchParams();
+  if (params?.catalogType) search.set('catalog_type', params.catalogType);
+  if (params?.includeSummary) search.set('includeSummary', 'true');
   if (params?.page) search.set("page", String(params.page));
   if (params?.pageSize) search.set("pageSize", String(params.pageSize));
   if (params?.search) search.set("search", params.search);
   if (params?.category && params.category !== 'all') search.set("category", params.category);
   if (params?.supplier) search.set("supplier", params.supplier);
   if (params?.includeDeleted) search.set("includeDeleted", "true");
+  if (params?.deletedOnly) search.set("deletedOnly", "true");
   if (params?.forSaleOnly) search.set("forSale", "true");
   if (params?.inBranchOnly) search.set("in_branch", "1");
   if (params?.branchId) search.set("branch_id", params.branchId);
@@ -166,14 +175,18 @@ export const fetchProducts = async (params?: ProductsQueryParams): Promise<Produ
 };
 
 // Legacy function for backward compatibility (returns all products)
-export const fetchAllProducts = async (options?: { forSaleOnly?: boolean; inBranchOnly?: boolean }): Promise<Product[]> => {
-  const search = new URLSearchParams();
-  search.set("pageSize", "10000");
-  if (options?.forSaleOnly) search.set("forSale", "true");
-  if (options?.inBranchOnly) search.set("in_branch", "1");
-  const data = await apiFetch<ProductsResponse>(`/api/products?${search.toString()}`, { method: "GET" });
-  if (!data || !data.items || !Array.isArray(data.items)) return [];
-  return data.items.map(adaptApiProduct);
+export const fetchAllProducts = async (options?: Pick<ProductsQueryParams, 'forSaleOnly' | 'inBranchOnly' | 'catalogType'>): Promise<Product[]> => {
+  const products: Product[] = [];
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const data = await fetchProducts({ ...options, page, pageSize: 100 });
+    if (!Array.isArray(data?.items)) throw new Error('Respuesta de catálogo inválida');
+    products.push(...data.items.map(adaptApiProduct));
+    totalPages = data.totalPages ?? 1;
+    page += 1;
+  } while (page <= totalPages);
+  return products;
 };
 
 export const fetchProductById = async (id: string): Promise<ApiProduct | null> => {
@@ -321,6 +334,7 @@ export const removeProductFromBranch = async (id: string): Promise<{ ok?: boolea
 // options.ids: optional list of product IDs to export only those (if empty or omitted, exports all).
 // options.includeSummary: if false, omits the summary block (productos registrados, unidades, valor inventario). Default true.
 export interface ProductExportOptions {
+  fileName?: string;
   /** Columnas elegidas en el diálogo; sin ellas sale la ficha completa. */
   fields?: string[];
   /** Selección explícita de productos: manda sobre los filtros de pantalla. */
@@ -329,6 +343,7 @@ export interface ProductExportOptions {
   format?: "pdf" | "csv";
   /** Mismo alcance y filtros que la lista, para que salga lo que se ve. */
   scope?: {
+    catalogType?: 'goods' | 'services' | 'all';
     branchId?: string;
     warehouseId?: string;
     locationId?: string;
@@ -346,6 +361,7 @@ export const exportProducts = async (options?: ProductExportOptions): Promise<vo
   if (options?.includeSummary === false) params.set("includeSummary", "0");
   if (options?.format === "csv") params.set("format", "csv");
   const scope = options?.scope;
+  if (scope?.catalogType) params.set('catalog_type', scope.catalogType);
   if (scope?.branchId) params.set("branch_id", scope.branchId);
   if (scope?.warehouseId) params.set("warehouse_id", scope.warehouseId);
   if (scope?.locationId) params.set("location_id", scope.locationId);
@@ -356,7 +372,7 @@ export const exportProducts = async (options?: ProductExportOptions): Promise<vo
   const qs = params.toString();
   await downloadFile(
     `/products/report.pdf${qs ? `?${qs}` : ""}`,
-    options?.format === "csv" ? "inventario.csv" : "inventario.pdf",
+    options?.fileName || (options?.format === "csv" ? "inventario.csv" : "inventario.pdf"),
   );
 };
 

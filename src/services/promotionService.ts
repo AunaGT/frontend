@@ -48,7 +48,7 @@ export interface Promotion {
 export interface CartItemForPromotion {
     product_id: string
     price: number
-    qty: number
+    qty: number | string
     category_id?: number
 }
 

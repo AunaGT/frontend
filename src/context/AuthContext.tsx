@@ -10,13 +10,21 @@
 
 /* eslint-disable react-refresh/only-export-components */
 import { createContext } from "react";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface Company {
   id: string;
   name: string;
   code: string;
   logo_url?: string | null;
+  tax_id?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  branch_count?: number;
+  branches?: Branch[];
   active?: boolean;
+  /** Densidad visual dentro de esta empresa; no concede permisos. */
+  experience_profile?: ExperienceProfile | null;
 }
 
 export interface Branch {
@@ -26,9 +34,19 @@ export interface Branch {
   code: string;
   active?: boolean;
   is_default?: boolean;
+  address?: string | null;
+  phone?: string | null;
+  operational_status?: 'OPERATING' | 'MAINTENANCE';
+  manager_user_id?: string | null;
+  manager?: { id: string; name: string } | null;
+  state?: 'operating' | 'maintenance' | 'inactive';
 }
 
 export interface AuthUser {
+  must_change_password?: boolean;
+  access_status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  updated_at?: string;
+  password_changed_at?: string | null;
   id: string;
   name: string;
   email: string;

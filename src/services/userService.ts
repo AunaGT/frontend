@@ -9,8 +9,14 @@
  */
 
 import { apiFetch } from "./api";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface User {
+  must_change_password?: boolean;
+  access_status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  last_login_at?: string | null;
+  shared_account?: boolean;
+  permissions?: string[];
   id: string;
   name: string;
   email: string;
@@ -24,6 +30,7 @@ export interface User {
   employee?: {
     id: string; code: string; first_name: string; last_name: string;
     status: string; phone: string | null;
+    position?: string | null; department?: string | null;
   } | null;
   photo_url?: string | null;
   phone?: string | null;
@@ -37,7 +44,7 @@ export interface User {
   /** false = quedó sin ninguna empresa; sale en la lista para poder recuperarlo. */
   in_company?: boolean;
   /** Empresas a las que pertenece (solo en el detalle) */
-  companies?: { id: string; name: string; code: string }[];
+  companies?: { id: string; name: string; code: string; experience_profile?: ExperienceProfile | null }[];
   default_branch_id?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -53,12 +60,18 @@ export interface Permission {
 }
 
 export interface Role {
+  description?: string | null;
+  company_id?: string | null;
+  protected?: boolean;
+  usersCount?: number;
   id: number;
   name: string;
   permissions?: Permission[];
 }
 
 export interface CreateUserPayload {
+  must_change_password?: boolean;
+  access_status?: 'ACTIVE' | 'INACTIVE';
   name: string;
   email: string;
   password: string;
@@ -76,6 +89,10 @@ export interface UpdateUserPayload {
 }
 
 export interface UsersQueryParams {
+  includeSummary?: boolean;
+  status?: string;
+  sort?: string;
+  direction?: string;
   page?: number;
   pageSize?: number;
   role_id?: number;
@@ -84,6 +101,7 @@ export interface UsersQueryParams {
 }
 
 export interface UsersResponse {
+  summary?: Record<string, number>;
   items: User[];
   page: number;
   pageSize: number;
@@ -95,11 +113,13 @@ export interface UsersResponse {
 
 export const getUsers = async (params?: UsersQueryParams): Promise<UsersResponse> => {
   const search = new URLSearchParams();
+  if (params?.includeSummary) search.set('includeSummary', 'true');
   if (params?.page) search.set("page", String(params.page));
   if (params?.pageSize) search.set("pageSize", String(params.pageSize));
   if (params?.role_id) search.set("role_id", String(params.role_id));
   if (params?.branch_id) search.set("branch_id", params.branch_id);
   if (params?.search) search.set("search", params.search);
+  for (const key of ['status', 'sort', 'direction'] as const) if (params?.[key]) search.set(key, params[key]!);
 
   const url = `/api/auth/users${search.toString() ? `?${search.toString()}` : ""}`;
   return apiFetch<UsersResponse>(url, {
@@ -113,8 +133,8 @@ export const getUserById = async (id: string): Promise<User> => {
   });
 };
 
-export const createUser = async (payload: CreateUserPayload): Promise<{ user: User; token: string }> => {
-  return apiFetch<{ user: User; token: string }>("/api/auth/register", {
+export const createUser = async (payload: CreateUserPayload): Promise<{ user: User }> => {
+  return apiFetch<{ user: User }>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -140,6 +160,7 @@ export const getRoles = async (): Promise<Role[]> => {
 };
 
 export interface RolesWithPermissionsResponse {
+  stats?: { totalRoles: number; assignedUsers: number; modules: number };
   items: Role[];
   page: number;
   pageSize: number;
@@ -150,11 +171,13 @@ export interface RolesWithPermissionsResponse {
 }
 
 export const getRolesWithPermissions = async (
-  params?: { page?: number; pageSize?: number }
+  params?: { page?: number; pageSize?: number; search?: string; module?: string; kind?: string }
 ): Promise<RolesWithPermissionsResponse> => {
   const search = new URLSearchParams();
   if (params?.page) search.set("page", String(params.page));
   if (params?.pageSize) search.set("pageSize", String(params.pageSize));
+
+  for (const key of ['search', 'module', 'kind'] as const) if (params?.[key]) search.set(key, params[key]!);
 
   const url = `/api/auth/roles/with-permissions${search.toString() ? `?${search.toString()}` : ""}`;
   return apiFetch<RolesWithPermissionsResponse>(url, {
@@ -176,7 +199,7 @@ export const getPermissions = async (): Promise<Permission[]> => {
 
 export const updateRole = async (
   id: number,
-  payload: { name?: string; permissions?: string[] }
+  payload: { name?: string; description?: string; permissions?: string[] }
 ): Promise<Role> => {
   return apiFetch<Role>(`/api/auth/roles/${id}`, {
     method: "PUT",
@@ -185,7 +208,7 @@ export const updateRole = async (
 };
 
 export const createRole = async (
-  payload: { name: string; permissions?: string[] }
+  payload: { name: string; description?: string; permissions?: string[] }
 ): Promise<Role> => {
   return apiFetch<Role>("/api/auth/roles", {
     method: "POST",
@@ -207,7 +230,7 @@ export const deleteRole = async (id: number): Promise<DeleteRoleResponse> => {
   });
 };
 
-export const uploadUserPhoto = async (id: string, file: File): Promise<User> => {
+export const uploadUserPhoto = async (id: string, file: File, self = false): Promise<User> => {
   const formData = new FormData();
   formData.append("file", file);
   
@@ -218,7 +241,7 @@ export const uploadUserPhoto = async (id: string, file: File): Promise<User> => 
   }
   
   // Limpiar el path para evitar duplicar /api
-  let cleanPath = `/auth/users/${id}/photo`;
+  let cleanPath = self ? '/auth/me/photo' : `/auth/users/${id}/photo`;
   if (cleanPath.startsWith('/api/')) {
     cleanPath = cleanPath.substring(4); // Remove '/api'
   } else if (!cleanPath.startsWith('/')) {
@@ -255,3 +278,94 @@ export const uploadUserPhoto = async (id: string, file: File): Promise<User> => 
 
   return data as User;
 };
+
+// ─── Autoservicio (Mi Perfil) ────────────────────────────────────────────────
+
+export interface UpdateMePayload {
+  name?: string;
+  photo_url?: string | null;
+}
+
+export const updateMe = async (payload: UpdateMePayload): Promise<{ ok: boolean }> =>
+  apiFetch<{ ok: boolean }>('/api/auth/me', { method: 'PATCH', body: JSON.stringify(payload) });
+
+export interface ChangePasswordPayload {
+  current_password: string;
+  new_password: string;
+}
+
+export const changeMyPassword = async (payload: ChangePasswordPayload): Promise<{ message: string }> =>
+  apiFetch<{ message: string }>('/api/auth/me/password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword: payload.current_password, newPassword: payload.new_password }),
+  });
+
+// ─── Sesiones ────────────────────────────────────────────────────────────────
+
+export interface Session {
+  id: string;
+  device?: string | null;
+  ip?: string | null;
+  user_agent?: string | null;
+  created_at: string;
+  last_used_at?: string | null;
+  is_current?: boolean;
+}
+
+export const getMySessions = async (): Promise<Session[]> => {
+  const rows = await apiFetch<{ id: string; device: string; current: boolean; last_activity_at: string }[]>('/api/auth/me/sessions', { method: 'GET' });
+  return rows.map(s => ({ id: s.id, device: s.device, created_at: s.last_activity_at, last_used_at: s.last_activity_at, is_current: s.current }));
+};
+
+export const deleteMySession = async (sessionId: string): Promise<{ message: string }> =>
+  apiFetch<{ message: string }>(`/api/auth/me/sessions/${sessionId}`, { method: 'DELETE' });
+
+export const deleteAllMySessions = async (): Promise<{ message: string }> =>
+  apiFetch<{ message: string }>('/api/auth/me/sessions/all', { method: 'DELETE' });
+
+// ─── Actividad de usuario ────────────────────────────────────────────────────
+
+export interface ActivityEvent {
+  id: string;
+  action: string;
+  actor_name?: string | null;
+  description?: string | null;
+  company_name?: string | null;
+  created_at: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+}
+
+export interface ActivityResponse {
+  items: ActivityEvent[];
+  page: number;
+  totalPages: number;
+  totalItems: number;
+}
+
+export const getUserActivity = async (
+  userId: string,
+  params?: { page?: number; pageSize?: number }
+): Promise<ActivityResponse> => {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.pageSize) qs.set('pageSize', String(params.pageSize));
+  const query = qs.toString() ? `?${qs.toString()}` : '';
+  return apiFetch<ActivityResponse>(`/api/auth/users/${userId}/activity${query}`, { method: 'GET' });
+};
+
+// ─── Acceso de membresía ─────────────────────────────────────────────────────
+
+export interface UpdateUserAccessPayload {
+  status?: 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  role_override_id?: number | null;
+}
+
+export const updateUserAccess = async (
+  userId: string,
+  payload: UpdateUserAccessPayload
+): Promise<{ message: string; status?: string }> =>
+  apiFetch<{ message: string; status?: string }>(`/api/auth/users/${userId}/access`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });

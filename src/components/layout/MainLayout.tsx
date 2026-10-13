@@ -13,22 +13,30 @@
  * Includes TopBar and content area.
  * SystemSettingsProvider hace una sola petición GET /settings/public compartida por toda la app privada.
  */
-import { Outlet } from 'react-router-dom'
 import { TopBar } from './TopBar'
 import { DocumentBranding } from '@/components/branding/DocumentBranding'
 import { SystemSettingsProvider } from '@/context/SystemSettingsContext'
+import { ModuleProvider } from '@/context/ModuleProvider'
+import { ModuleAccessBoundary } from '@/routes/ModuleAccessBoundary'
+import { BrandLoading } from '@/components/branding/BrandLoading'
+import { Suspense } from 'react'
+import { PageNavigationProvider } from './PageNavigation'
 
 export const MainLayout = () => {
     return (
-        <SystemSettingsProvider>
-            <DocumentBranding />
-            <div className='min-h-screen bg-background flex flex-col'>
-                <TopBar />
-                <main className='flex-1 overflow-auto'>
-                    <Outlet />
-                </main>
-            </div>
-        </SystemSettingsProvider>
+        <ModuleProvider>
+            <SystemSettingsProvider>
+                <DocumentBranding />
+                <PageNavigationProvider><div className='min-h-screen bg-brand-surface/70 dark:bg-brand-navy flex flex-col'>
+                    <TopBar />
+                    <main className='auna-app-content flex-1 overflow-auto bg-brand-surface/70 dark:bg-brand-navy'>
+                        <Suspense fallback={<BrandLoading message="Cargando módulo…" />}>
+                            <ModuleAccessBoundary />
+                        </Suspense>
+                    </main>
+                </div></PageNavigationProvider>
+            </SystemSettingsProvider>
+        </ModuleProvider>
     )
 }
 

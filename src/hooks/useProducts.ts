@@ -13,7 +13,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchProducts, fetchAllProducts, type ProductsQueryParams, type ProductsResponse } from "@/services/productService";
 import { apiFetch } from "@/services/api";
 import type { Product } from "@/types";
-import { adaptApiProduct } from "@/services/productService";
 
 export const PRODUCTS_QUERY_KEY = ["products"] as const;
 
@@ -29,29 +28,22 @@ export const useProducts = (params?: ProductsQueryParams) => {
 };
 
 /** Catálogo completo en memoria (p. ej. POS). Con `forSaleOnly`, excluye productos marcados solo para inventario. */
-export const useAllProducts = (options?: { forSaleOnly?: boolean; inBranchOnly?: boolean }) => {
+export const useAllProducts = (options?: Pick<ProductsQueryParams, 'forSaleOnly' | 'inBranchOnly' | 'catalogType'>) => {
   const forSaleOnly = options?.forSaleOnly === true;
   const inBranchOnly = options?.inBranchOnly === true;
+  const catalogType = options?.catalogType ?? 'goods';
   return useQuery<Product[], Error>({
-    queryKey: [...PRODUCTS_QUERY_KEY, "all", forSaleOnly, inBranchOnly],
-    queryFn: async () => fetchAllProducts({ forSaleOnly, inBranchOnly }),
+    queryKey: [...PRODUCTS_QUERY_KEY, "all", forSaleOnly, inBranchOnly, catalogType],
+    queryFn: async () => fetchAllProducts({ forSaleOnly, inBranchOnly, catalogType }),
     staleTime: 60 * 1000, // 1 min
   });
 };
 
-export const useDeletedProducts = (options?: { enabled?: boolean }) => {
-  const enabled = options?.enabled !== false;
-  return useQuery<Product[], Error>({
-    queryKey: ["products", "deleted"],
-    queryFn: async () => {
-      const response = await fetchProducts({
-        page: 1,
-        pageSize: 1000,
-        includeDeleted: true,
-      });
-      const allProducts = response.items.map(adaptApiProduct);
-      return allProducts.filter((p) => p.deleted === true);
-    },
+export const useDeletedProducts = (options?: ProductsQueryParams & { enabled?: boolean }) => {
+  const { enabled = true, ...params } = options ?? {};
+  return useQuery<ProductsResponse, Error>({
+    queryKey: [...PRODUCTS_QUERY_KEY, "deleted", params],
+    queryFn: () => fetchProducts({ ...params, deletedOnly: true }),
     staleTime: 30 * 1000,
     enabled,
   });

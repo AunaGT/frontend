@@ -13,7 +13,7 @@ import { apiFetch } from "./api";
 export interface SaleItemPayload {
   product_id: string;
   price: number;
-  qty: number;
+  qty: string | number;
 }
 
 export interface CreateSalePayload {
@@ -40,9 +40,15 @@ export interface SaleItem {
     id: string;
     name: string;
     barcode?: string;
+    image_url?: string | null;
   };
   price: number;
-  qty: number;
+  qty: number | string;
+  item_name?: string;
+  item_kind?: 'STANDARD' | 'KIT' | 'SERVICE';
+  unit_label?: string | null;
+  quantity_decimals?: number;
+  net_total?: number | string | null;
 }
 
 /** Documento tributario electrónico (certificación SAT/InFile) vinculado a la venta */
@@ -82,12 +88,17 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
+  payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';
+  due_date?: string | null;
+  paymentEntries?: Array<{ amount: number | string }>;
   id: string;
   /** Referencia legible (ej. V-000001). Generada en backend al crear la venta. */
   reference?: string;
   date: string;
   customer?: string;
   customer_nit?: string;
+  customerContact?: { id: string; name: string; image_url?: string | null; address?: string | null; phone?: string | null; email?: string | null; tax_id?: string | null } | null;
+  branch?: { name: string };
   is_final_consumer: boolean;
   subtotal?: number;
   discount_total?: number;
@@ -110,6 +121,7 @@ export interface Sale {
   payment_method: {
     id: number;
     name: string;
+    is_credit?: boolean;
   };
   sale_items: SaleItem[];
   sale_dtes?: SaleDte[];

@@ -10,7 +10,7 @@
 
 import { BaseEntity, ProductCategory, StockStatus } from "./common";
 
-export type ProductKind = "STANDARD" | "KIT";
+export type ProductKind = "STANDARD" | "KIT" | "SERVICE";
 
 export type ProductBomComponentDraft = {
   component_product_id: string;
@@ -60,6 +60,8 @@ export interface Product extends BaseEntity {
   /** Si es true, cada ingreso de mercancía exige fecha de caducidad (lotes). */
   tracksExpiry?: boolean;
   kind?: ProductKind;
+  serviceUnitLabel?: string | null;
+  quantityDecimals?: number;
   /** false = el catálogo lo tiene, pero esta sucursal no lo maneja (no es "hay cero"). */
   inBranch?: boolean;
   /** Solo aplica a kits: true si ya se armó stock propio (permanente, ya no se calcula desde componentes). */
@@ -87,7 +89,13 @@ export interface CartProduct {
   id: string;
   name: string;
   price: number;
-  qty: number;
+  qty: number | string;
+  itemKind?: ProductKind;
+  unitLabel?: string;
+  quantityDecimals?: number;
+  barcode?: string;
+  imageUrl?: string;
+  lineTotal?: number;
 }
 
 // Interfaz para producto disponible en ventas
@@ -131,7 +139,7 @@ export interface ApiProduct {
   promotion_valid_until?: string | null;
   cost?: number | string;
    image_url?: string | null;
-  supplier?: string | { id: string | number; name: string };
+  supplier?: string | { id: string | number; name: string } | null;
   supplier_id?: string | number;
   supplier_name?: string;
   barcode?: string;
@@ -141,6 +149,8 @@ export interface ApiProduct {
   available_for_sale?: boolean;
   tracks_expiry?: boolean;
   kind?: ProductKind;
+  service_unit_label?: string | null;
+  quantity_decimals?: number;
   stock_assembled?: boolean;
   in_branch?: boolean;
   kit_components?: ProductBomLineApi[];
@@ -168,6 +178,8 @@ export interface CreateProductPayload {
   available_for_sale?: boolean;
   tracks_expiry?: boolean;
   kind?: ProductKind;
+  service_unit_label?: string;
+  quantity_decimals?: number;
   bom_components?: ProductBomComponentDraft[];
 }
 

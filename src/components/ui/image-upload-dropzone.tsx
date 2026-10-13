@@ -23,6 +23,9 @@ export interface ImageUploadDropzoneProps {
   isUploading?: boolean
   accept?: string
   maxSizeBytes?: number
+  fileLabel?: string
+  formatsLabel?: string
+  validateFile?: (file: File) => string | null
   helperText?: ReactNode
   className?: string
   /** Nombre del archivo elegido + botón quitar (solo creación / estado local) */
@@ -37,6 +40,9 @@ export function ImageUploadDropzone({
   isUploading = false,
   accept = 'image/*',
   maxSizeBytes = DEFAULT_MAX,
+  fileLabel = 'imagen',
+  formatsLabel = 'PNG, JPG, WebP',
+  validateFile,
   helperText,
   className,
   selectionLabel,
@@ -50,8 +56,9 @@ export function ImageUploadDropzone({
   const validateAndSelect = useCallback(
     (file: File | undefined) => {
       if (!file) return
-      if (!file.type.startsWith('image/')) {
-        onReject?.('Solo se permiten archivos de imagen.')
+      const problem = validateFile?.(file)
+      if (problem || (!validateFile && !file.type.startsWith('image/'))) {
+        onReject?.(problem || 'Solo se permiten archivos de imagen.')
         return
       }
       if (file.size > maxSizeBytes) {
@@ -61,7 +68,7 @@ export function ImageUploadDropzone({
       onFileSelect(file)
       if (inputRef.current) inputRef.current.value = ''
     },
-    [maxSizeBytes, mb, onFileSelect, onReject]
+    [maxSizeBytes, mb, onFileSelect, onReject, validateFile]
   )
 
   const openPicker = useCallback(() => {
@@ -100,7 +107,7 @@ export function ImageUploadDropzone({
         className="sr-only"
         onChange={onInputChange}
         disabled={blocked}
-        aria-label="Seleccionar imagen"
+        aria-label={`Seleccionar ${fileLabel}`}
       />
 
       <div
@@ -127,12 +134,10 @@ export function ImageUploadDropzone({
           if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false)
         }}
         onDrop={onDrop}
+        data-dragging={isDragging}
+        aria-disabled={blocked}
         className={cn(
-          'group relative flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-5 text-center outline-none transition-all',
-          'focus-visible:ring-2 focus-visible:ring-liquor-amber/50 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-          isDragging && 'scale-[1.01] border-liquor-amber bg-liquor-amber/10 shadow-sm',
-          !isDragging && 'border-muted-foreground/20 bg-background/50 hover:border-liquor-amber/45 hover:bg-muted/30',
-          blocked && 'cursor-not-allowed opacity-60 hover:border-muted-foreground/20 hover:bg-background/50'
+          'auna-file-dropzone group relative flex min-h-[112px] cursor-pointer flex-col items-center justify-center gap-2 px-4 py-5 text-center'
         )}
       >
         {isUploading ? (
@@ -148,9 +153,9 @@ export function ImageUploadDropzone({
         )}
         <div className="space-y-0.5">
           <p className="text-sm font-medium text-foreground">
-            {isUploading ? 'Subiendo imagen…' : isDragging ? 'Suelta para cargar' : 'Arrastra una imagen o haz clic aquí'}
+            {isUploading ? `Subiendo ${fileLabel}…` : isDragging ? 'Suelta para cargar' : `Arrastra ${fileLabel === 'imagen' ? 'una' : 'un'} ${fileLabel} o haz clic aquí`}
           </p>
-          <p className="text-xs text-muted-foreground">PNG, JPG, WebP · máx. {mb} MB</p>
+          <p className="text-xs text-muted-foreground">{formatsLabel} · máx. {mb} MB</p>
         </div>
         <span className="pointer-events-none mt-0.5 inline-flex items-center rounded-full bg-liquor-amber/15 px-3.5 py-1 text-xs font-semibold text-liquor-amber ring-1 ring-liquor-amber/25">
           Elegir archivo
@@ -173,7 +178,7 @@ export function ImageUploadDropzone({
                 onClearSelection()
                 if (inputRef.current) inputRef.current.value = ''
               }}
-              aria-label="Quitar imagen seleccionada"
+              aria-label={`Quitar ${fileLabel} seleccionado`}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -181,7 +186,7 @@ export function ImageUploadDropzone({
         </div>
       ) : null}
 
-      {helperText ? <p className="text-xs text-muted-foreground text-center leading-relaxed">{helperText}</p> : null}
+      {helperText ? <p className="auna-field-message text-center">{helperText}</p> : null}
     </div>
   )
 }

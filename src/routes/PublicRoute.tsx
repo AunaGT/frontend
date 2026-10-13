@@ -13,8 +13,8 @@ import { useAuth } from "@/context/useAuth";
 
 // Public pages accessible only when NOT authenticated (e.g., login)
 const PublicRoute = () => {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? <Navigate to="/" replace /> : <Outlet />;
+  const { isAuthenticated, user } = useAuth();
+  return isAuthenticated ? <Navigate to={user?.must_change_password ? '/cambiar-contrasena' : '/'} replace /> : <Outlet />;
 };
 
 export default PublicRoute;
