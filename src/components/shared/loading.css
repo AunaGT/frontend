@@ -1,0 +1,22 @@
+.auna-skeleton { background: #d8e1eb; }
+.dark .auna-skeleton { background: #34485f; }
+.auna-loading-state { min-width:0; padding:16px; }
+.auna-loading-page { max-width:1560px; margin:auto; padding:24px 32px; }
+.auna-loading-chart { display:flex; flex-direction:column; height:100%; min-height:0; overflow:hidden; }
+.auna-loading-chart > .auna-loading-status { flex-shrink:0; }
+.auna-loading-status { position:relative; display:flex; align-items:center; gap:12px; min-height:40px; padding:12px 16px; color:hsl(var(--muted-foreground)); font-size:13px; line-height:1.5; font-weight:500; }
+.auna-loading-status::before { content:""; position:absolute; top:0; left:0; width:72px; height:3px; border-radius:999px; background:hsl(var(--brand-orange)); animation:auna-loading-soft-pulse 1.6s ease-in-out infinite; }
+.auna-loading-state > .auna-loading-status { margin-bottom:12px; border:1px solid hsl(var(--border) / .7); border-radius:8px; }
+.auna-loading-segment { display:inline-flex; gap:4px; flex-shrink:0; }
+.auna-loading-segment > i { width:4px; height:4px; border-radius:50%; background:hsl(var(--brand-orange)); animation:auna-loading-soft-pulse 1.6s ease-in-out infinite; }
+.auna-loading-segment > i:nth-child(2) { animation-delay:.15s; }
+.auna-loading-segment > i:nth-child(3) { animation-delay:.3s; }
+.auna-loading-table { width:100%; table-layout:fixed; border-collapse:collapse; border:1px solid hsl(var(--border) / .7); }
+.auna-loading-table th { padding:12px 16px; text-align:left; font-size:12px; font-weight:600; color:hsl(var(--muted-foreground)); background:hsl(var(--muted) / .35); }
+.auna-loading-row { height:56px; border-bottom:1px solid hsl(var(--border) / .7); }
+.auna-loading-row:last-child { border-bottom:0; }
+.auna-loading-row td { padding:16px; }
+.auna-loading-panel { min-width:0; padding:16px; border:1px solid hsl(var(--border) / .7); border-radius:8px; background:hsl(var(--card)); }
+@keyframes auna-loading-soft-pulse { 0%,100% { opacity:.6; } 50% { opacity:1; } }
+@media(max-width:639px) { .auna-loading-page { padding:20px 16px; } .auna-loading-table th,.auna-loading-row td { padding:12px 8px; } }
+@media(prefers-reduced-motion:reduce) { .auna-skeleton,.auna-loading-status::before,.auna-loading-segment > i { animation:none !important; } }

@@ -1,0 +1,41 @@
+.reports-page { width: 100%; max-width: 1560px; margin: 0 auto; padding: 1rem; min-width: 0; }
+@media(min-width:640px) { .reports-page { padding: 2rem; } }
+.report-catalog-toolbar,.report-workspace-toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.report-type-select { width: min(300px,100%); }
+.report-catalog-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,320px),1fr)); gap: 1rem; margin-top: 1.25rem; }
+.report-catalog-entry,.report-panel { border: 1px solid hsl(var(--auna-surface-border)); background: hsl(var(--auna-surface-card)); color: hsl(var(--foreground)); border-radius: .65rem; padding: 1rem; min-width: 0; }
+.report-catalog-entry .report-help,.report-panel .report-help,.report-catalog-entry .text-muted-foreground,.report-panel .text-muted-foreground { color: hsl(var(--auna-surface-muted)); }
+.report-catalog-entry { display: grid; grid-template-columns: auto 1fr; gap: .75rem; align-items: start; }
+.report-catalog-entry>button { grid-column: 2; justify-self: start; margin-top: .5rem; }
+.report-panel h2 { font-size: .95rem; font-weight: 600; margin-bottom: 1rem; }
+.report-help { color: hsl(var(--muted-foreground)); font-size: .875rem; line-height: 1.5; }
+.report-config-grid { display: grid; grid-template-columns: minmax(240px,.9fr) minmax(0,1.4fr); gap: 1rem; margin-top: 1rem; align-items: start; }
+.report-field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; }
+.report-field-grid>.report-help { grid-column: 1/-1; }
+.report-column-options { display: grid; gap: 1rem; max-height: 55vh; overflow-y: auto; padding: 2px; }
+.report-column-options fieldset { border-bottom: 1px solid hsl(var(--border)); padding-bottom: 1rem; }
+.report-column-options legend { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; width: 100%; }
+.report-column-options legend label { font-weight: 600; }
+.report-column-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: .6rem; padding-left: 1.5rem; }
+.report-charts { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,320px),1fr)); gap: 1rem; }
+.report-table-scroll { overflow-x: auto; }
+.report-table { width: 100%; font-size: .8125rem; border-collapse: collapse; }
+.report-table th,.report-table td { padding: .7rem 1rem; border-bottom: 1px solid hsl(var(--auna-surface-border)); vertical-align: top; }
+.report-table th { background: hsl(var(--auna-surface-header)); color: hsl(var(--auna-surface-muted)); font-weight: 600; white-space: nowrap; }
+.report-table td { min-width: 90px; max-width: 380px; overflow-wrap: anywhere; }
+.report-table tfoot { font-weight: 600; }
+.report-notes { border-left: 2px solid hsl(var(--primary)); padding-left: 1rem; font-size: .8125rem; color: hsl(var(--muted-foreground)); }
+.report-notes p+p { margin-top: .5rem; }
+.report-document-viewer { border: 1px solid hsl(var(--auna-surface-border)); border-radius: .65rem; overflow: hidden; background: hsl(var(--auna-surface-card)); }
+.report-document-viewer:fullscreen { width: 100vw; height: 100vh; }
+.report-viewer-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: .35rem; padding: .7rem; border-bottom: 1px solid hsl(var(--auna-surface-border)); background: hsl(var(--auna-surface-header)); }
+.report-viewer-body { display: flex; min-width: 0; height: min(72vh,850px); }
+.report-document-viewer:fullscreen .report-viewer-body { height: calc(100vh - 80px); }
+.report-document-stage { flex: 1; min-width: 0; padding: 20px; overflow: auto; background: hsl(var(--muted)); }
+.report-document-stage canvas { display: block; margin: 0 auto; background: white; box-shadow: 0 2px 12px #0002; }
+.report-thumbnails { flex: 0 0 130px; overflow: auto; padding: .75rem; border-right: 1px solid hsl(var(--border)); }
+.report-thumbnails button { display: flex; align-items: center; flex-direction: column; gap: .3rem; margin-bottom: .75rem; border: 2px solid transparent; padding: .3rem; border-radius: .3rem; }
+.report-thumbnails button.is-active { border-color: hsl(var(--primary)); }
+.report-viewer-error { padding: 1rem; display: grid; gap: .8rem; }
+@media(max-width:900px) { .report-config-grid { grid-template-columns: 1fr; } .report-column-options { max-height: none; } }
+@media(max-width:520px) { .report-field-grid,.report-column-grid { grid-template-columns: 1fr; } .report-workspace-toolbar>div { margin-left: 0; width: 100%; } }

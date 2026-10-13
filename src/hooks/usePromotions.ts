@@ -13,7 +13,7 @@
  * Manages promotion codes state for sales
  */
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { formatMoney } from '@/utils'
 import {
@@ -32,6 +32,7 @@ function maxPromoCodesPerSale(): number {
 }
 
 interface UsePromotionsProps {
+    contextKey?: string
     cartItems: CartItemForPromotion[]
     cartTotal: number
     locale?: string
@@ -55,12 +56,22 @@ interface UsePromotionsReturn {
 export function usePromotions({
     cartItems,
     cartTotal,
+    contextKey = '',
     locale = 'es-GT',
     currencyCode = 'GTQ'
 }: UsePromotionsProps): UsePromotionsReturn {
     const { toast } = useToast()
-    const [appliedPromotions, setAppliedPromotions] = useState<AppliedPromotion[]>([])
+    const context = JSON.stringify([contextKey, cartItems, cartTotal])
+    const currentContext = useRef(context)
+    currentContext.current = context
+    const [applied, setApplied] = useState<{context:string; promotions:AppliedPromotion[]}>({context, promotions:[]})
+    const appliedPromotions = useMemo(() => applied.context === context ? applied.promotions : [], [applied,context])
     const [isValidating, setIsValidating] = useState(false)
+    useEffect(() => {
+        if (applied.context === context) return
+        setApplied({context,promotions:[]})
+        if (applied.promotions.length) toast({title:'Promociones actualizadas',description:'El carrito o su contexto cambió. Vuelve a aplicar los códigos para validar el descuento.'})
+    }, [applied,context,toast])
 
     // Calculate totals
     const totalDiscount = useMemo(() => {
@@ -121,6 +132,7 @@ export function usePromotions({
             }))
 
             const result = await validatePromotionCode(normalizedCode, items)
+            if (currentContext.current !== context) return false
 
             if (!result.valid) {
                 toast({
@@ -153,7 +165,7 @@ export function usePromotions({
                     : undefined
             }
 
-            setAppliedPromotions(prev => [...prev, appliedPromo])
+            setApplied(prev => ({context, promotions:[...(prev.context===context ? prev.promotions : []), appliedPromo]}))
 
             const discountFmt =
                 result.discount > 0
@@ -180,21 +192,21 @@ export function usePromotions({
         } finally {
             setIsValidating(false)
         }
-    }, [cartItems, appliedPromotions, toast, locale, currencyCode])
+    }, [cartItems, appliedPromotions, toast, locale, currencyCode,context])
 
     // Remove a promotion
     const removePromotion = useCallback((promotionId: string) => {
-        setAppliedPromotions(prev => prev.filter(p => p.id !== promotionId))
+        setApplied(prev => ({context,promotions:prev.context===context ? prev.promotions.filter(p => p.id !== promotionId) : []}))
         toast({
             title: 'Promoción removida',
             description: 'Se eliminó la promoción de la venta'
         })
-    }, [toast])
+    }, [toast,context])
 
     // Clear all promotions
     const clearPromotions = useCallback(() => {
-        setAppliedPromotions([])
-    }, [])
+        setApplied({context,promotions:[]})
+    }, [context])
 
     return {
         appliedPromotions,

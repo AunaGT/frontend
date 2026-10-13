@@ -8,6 +8,7 @@ export default {
 		"./components/**/*.{ts,tsx}",
 		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+		"./src/components/ui/dialogAppearance.mjs",
 	],
 	prefix: "",
 	theme: {
@@ -20,6 +21,12 @@ export default {
 		},
 		extend: {
 			colors: {
+				brand: {
+					navy: 'hsl(var(--brand-navy))',
+					orange: 'hsl(var(--brand-orange))',
+					'orange-strong': 'hsl(var(--brand-orange-strong))',
+					'surface': 'hsl(var(--brand-surface))',
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

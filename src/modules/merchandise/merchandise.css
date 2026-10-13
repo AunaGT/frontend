@@ -1,0 +1,1 @@
+.merchandise-page .bg-card:not(.auna-surface-flat) { background: hsl(var(--auna-table-surface)); border-radius: 1rem; }

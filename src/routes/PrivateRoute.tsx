@@ -8,23 +8,22 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/useAuth";
-import { Loader2 } from "lucide-react";
+import { HomeLoadingPage } from "@/components/layout/HomeLoadingPage";
 
 const PrivateRoute = () => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
-  // Show loading spinner while checking auth state
+  // Keep the entry layout stable, without mounting private content before /auth/me resolves.
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <HomeLoadingPage />;
   }
 
-  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.must_change_password && location.pathname !== '/cambiar-contrasena') return <Navigate to="/cambiar-contrasena" replace />;
+  return <Outlet />;
 };
 
 export default PrivateRoute;

@@ -31,8 +31,8 @@ import { RotateCcw, Search, Eye, Check, X, Package } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { useReturns, useUpdateReturnStatus } from '@/hooks/useReturns'
-import { Return } from '@/services/returnService'
+import { useReturns, useUpdateReturnStatus } from '@/modules/returns/hooks/useReturns'
+import { Return } from '@/modules/returns/api/returnService'
 
 //  Import shared utilities instead of defining locally
 import { formatMoney, formatDateTime } from '@/utils'
@@ -372,7 +372,7 @@ const ReturnsManagementRefactored = () => {
                       <div className="text-right">
                         <div className="font-medium">{formatMoney(item.refund_amount)}</div>
                         <div className="text-sm text-muted-foreground">
-                          {formatMoney(item.refund_amount / item.qty_returned)}/u
+                          {formatMoney(item.refund_amount / Number(item.qty_returned))}/u
                         </div>
                       </div>
                     </div>

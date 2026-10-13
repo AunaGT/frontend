@@ -18,7 +18,8 @@
  */
 import { useCallback, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, FileSpreadsheet, Loader2, Upload } from 'lucide-react'
+import { Download, FileSpreadsheet, Upload } from 'lucide-react'
+import { LoadingState } from './LoadingState'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -29,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { downloadFile } from '@/services/api'
+import { ImportWizardSteps } from './ImportWizardSteps'
 
 /** 10 MB: por encima de eso el navegador se traba al pasarlo a base64. */
 const MAX_BYTES = 10 * 1024 * 1024
@@ -132,7 +134,7 @@ export const ImportDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : close())}>
-            <DialogContent className="max-w-lg">
+            <DialogContent variant="auna" className="auna-import-dialog">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileSpreadsheet className="h-5 w-5" />
@@ -140,12 +142,10 @@ export const ImportDialog = ({
                     </DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
                 </DialogHeader>
+                <ImportWizardSteps current={1} />
 
                 {busy ? (
-                    <div className="flex flex-col items-center justify-center py-12">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                        <p className="font-medium">Procesando archivo…</p>
-                    </div>
+                    <LoadingState message="Procesando archivo…" columns={['Columna', 'Datos', 'Validación']} />
                 ) : errorMessage ? (
                     <div className="text-center py-8">
                         <p className="text-destructive mb-4">{errorMessage}</p>
@@ -176,7 +176,7 @@ export const ImportDialog = ({
                         </div>
 
                         <div
-                            className={`relative border-2 border-dashed rounded-lg p-10 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer ${
+                            className={`auna-file-dropzone relative p-10 flex flex-col items-center justify-center gap-4 transition-colors cursor-pointer ${
                                 isDragging
                                     ? 'border-primary bg-primary/5'
                                     : 'border-muted-foreground/25 hover:border-primary/50'

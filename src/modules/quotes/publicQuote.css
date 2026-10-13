@@ -1,0 +1,47 @@
+.public-quote-page { min-height:100dvh; background:hsl(var(--brand-surface)); color:hsl(var(--foreground)); }
+.public-quote-container { width:100%; max-width:1440px; margin-inline:auto; padding:20px 24px; }
+.public-quote-brand { border-bottom:1px solid hsl(var(--border)); background:hsl(var(--card)); }
+.public-quote-brand .public-quote-container { padding-block:12px; }
+.public-quote-identity { margin-bottom:20px; }
+.public-quote-identity h1 { font-size:28px; line-height:1.25; font-weight:700; overflow-wrap:anywhere; }
+.public-quote-identity > p { margin-top:8px; font-size:13px; color:hsl(var(--muted-foreground)); }
+.public-quote-info { display:grid; grid-template-columns:1.1fr 1fr 1fr; gap:20px; padding:16px; margin-bottom:16px; border:1px solid hsl(var(--auna-surface-border)); border-radius:12px; }
+.public-quote-info-item { display:flex; align-items:flex-start; gap:12px; min-width:0; }
+.public-quote-info-item + .public-quote-info-item { padding-inline-start:20px; border-inline-start:1px solid hsl(var(--border)); }
+.public-quote-info-item > svg { width:20px; height:20px; flex-shrink:0; color:hsl(var(--brand-orange)); }
+.public-quote-info-item strong { font-size:14px; font-weight:600; }
+.public-quote-label { margin-bottom:4px; font-size:12px; color:hsl(var(--muted-foreground)); }
+.public-quote-layout { display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,.95fr); gap:16px; align-items:start; }
+.public-quote-sidebar { display:grid; gap:16px; min-width:0; }
+.public-quote-section,.public-quote-products,.public-quote-sidebar > .auna-surface { min-width:0; border:1px solid hsl(var(--auna-surface-border)); border-radius:12px; overflow:hidden; }
+.public-quote-section-heading { display:flex; align-items:center; gap:10px; padding:14px 16px; border-bottom:1px solid hsl(var(--border)); }
+.public-quote-section-heading h2 { min-width:0; font-size:16px; line-height:1.4; font-weight:600; }
+.public-quote-section-heading > svg { width:19px; height:19px; flex-shrink:0; color:hsl(var(--brand-orange)); }
+.public-quote-section-body { padding:16px; }
+.public-quote-sidebar > .auna-surface > div:first-child { padding:14px 16px; border-bottom:1px solid hsl(var(--border)); }
+.public-quote-sidebar > .auna-surface > div + div { padding:16px; }
+.public-quote-sidebar > .auna-surface h3 { font-size:16px; }
+.public-quote-products-scroll,.public-quote-mobile-products { max-height:420px; overflow:auto; }
+.public-quote-products-scroll > div { overflow:visible; }
+.public-quote-products-scroll thead { position:sticky; top:0; z-index:1; background:hsl(var(--auna-table-header)); }
+.public-quote-products-scroll:focus-visible,.public-quote-mobile-products:focus-visible { outline:2px solid hsl(var(--brand-orange)); outline-offset:-2px; }
+.public-quote-mobile-products > li { padding:14px 16px; overflow-wrap:anywhere; }
+.public-quote-response { display:flex; align-items:center; justify-content:space-between; gap:16px 24px; margin-top:20px; padding:16px; border:1px solid hsl(var(--auna-surface-border)); border-radius:12px; }
+.public-quote-response > div:first-child { max-width:580px; }
+.public-quote-response-actions { display:flex; flex-wrap:wrap; gap:8px; flex-shrink:0; }
+.public-quote-footer { display:flex; flex-wrap:wrap; justify-content:space-between; gap:12px; margin-top:24px; padding-top:16px; border-top:1px solid hsl(var(--border)); font-size:12px; color:hsl(var(--muted-foreground)); }
+.public-quote-unavailable { display:grid; place-items:center; padding:24px; }
+.public-quote-unavailable > section { width:100%; max-width:460px; padding-inline:24px; }
+@media(max-width:1000px) {
+  .public-quote-response { flex-wrap:wrap; }
+  .public-quote-response-actions { flex-shrink:1; }
+}
+@media(max-width:767px) {
+  .public-quote-container { padding:16px 12px; }
+  .public-quote-layout,.public-quote-info { grid-template-columns:minmax(0,1fr); }
+  .public-quote-identity h1 { font-size:24px; }
+  .public-quote-info { gap:12px; }
+  .public-quote-info-item + .public-quote-info-item { padding-inline-start:0; border-inline-start:0; padding-top:12px; border-top:1px solid hsl(var(--border)); }
+  .public-quote-response-actions { width:100%; }
+  .public-quote-response-actions > button { flex:1 1 180px; }
+}

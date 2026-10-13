@@ -26,6 +26,9 @@ export interface ProductCategoriesQueryParams {
   page?: number
   pageSize?: number
   includeDeleted?: boolean
+  includeSummary?: boolean
+  search?: string
+  order?: 'asc' | 'desc'
 }
 
 export interface ProductCategoriesResponse {
@@ -36,19 +39,23 @@ export interface ProductCategoriesResponse {
   totalItems: number
   nextPage: number | null
   prevPage: number | null
+  summary?: { total: number; active: number; deleted: number }
 }
 
 // Obtener categorías con paginación
 export function useProductCategories(params?: ProductCategoriesQueryParams) {
-  const { page = 1, pageSize = 10, includeDeleted = false } = params || {}
+  const { page = 1, pageSize = 10, includeDeleted = false, includeSummary = false, search: query = '', order = 'asc' } = params || {}
   
   return useQuery<ProductCategoriesResponse>({
-    queryKey: ['productCategories', page, pageSize, includeDeleted],
+    queryKey: ['productCategories', page, pageSize, includeDeleted, query, order, includeSummary],
     queryFn: async () => {
       const search = new URLSearchParams()
       if (page) search.set('page', String(page))
       if (pageSize) search.set('pageSize', String(pageSize))
       if (includeDeleted) search.set('includeDeleted', 'true')
+      if (includeSummary) search.set('includeSummary', 'true')
+      if (query.trim()) search.set('search', query.trim())
+      search.set('order', order)
       
       const url = `/catalogs/product-categories${search.toString() ? `?${search.toString()}` : ''}`
       return apiFetch<ProductCategoriesResponse>(url)

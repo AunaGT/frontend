@@ -12,14 +12,15 @@
  * ConfirmDialog - Reusable confirmation dialog component
  */
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { AlertTriangle, Info, CheckCircle, XCircle } from 'lucide-react'
 
 interface ConfirmDialogProps {
@@ -33,6 +34,7 @@ interface ConfirmDialogProps {
   onCancel?: () => void
   variant?: 'default' | 'destructive' | 'warning' | 'info' | 'success'
   loading?: boolean
+  appearance?: 'default' | 'auna'
 }
 
 export const ConfirmDialog = ({
@@ -46,6 +48,7 @@ export const ConfirmDialog = ({
   onCancel,
   variant = 'default',
   loading = false,
+  appearance = 'default',
 }: ConfirmDialogProps) => {
   const handleConfirm = async () => {
     await onConfirm()
@@ -74,38 +77,35 @@ export const ConfirmDialog = ({
     }
   }
 
-  const getConfirmButtonVariant = () => {
-    if (variant === 'destructive') return 'destructive'
-    return 'default'
-  }
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent variant={appearance}>
+        <AlertDialogHeader>
           <div className="flex items-center gap-3">
-            {getIcon()}
-            <DialogTitle>{title}</DialogTitle>
+            {getIcon() && <span className="grid size-10 place-items-center rounded-xl bg-muted">{getIcon()}</span>}
+            <AlertDialogTitle>{title}</AlertDialogTitle>
           </div>
-          <DialogDescription className="pt-2">{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter className="gap-2">
-          <Button
-            variant="outline"
+          <AlertDialogDescription className="pt-2">{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter className="gap-2">
+          <AlertDialogCancel
             onClick={handleCancel}
             disabled={loading}
           >
             {cancelText}
-          </Button>
-          <Button
-            variant={getConfirmButtonVariant()}
-            onClick={handleConfirm}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className={variant === 'destructive' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            onClick={(event) => {
+              event.preventDefault()
+              void handleConfirm()
+            }}
             disabled={loading}
           >
             {loading ? 'Procesando...' : confirmText}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }

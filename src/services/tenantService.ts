@@ -10,8 +10,9 @@
 
 import { apiFetch } from "./api";
 import type { Branch, Company } from "@/context/AuthContext";
+import type { ExperienceProfile } from "@/config/experienceProfiles";
 
-export const fetchCompanies = () => apiFetch<Company[]>("/api/companies", { method: "GET" });
+export const fetchCompanies = (all = false) => apiFetch<Company[]>(`/api/companies${all ? '?all=1' : ''}`, { method: "GET" });
 
 export interface CreateCompanyPayload {
   name: string;
@@ -49,12 +50,15 @@ export const createBranch = (payload: CreateBranchPayload) =>
 
 export const updateBranch = (
   id: string,
-  payload: Partial<CreateBranchPayload> & { active?: boolean; is_default?: boolean }
+  payload: Partial<CreateBranchPayload> & { active?: boolean; is_default?: boolean; operational_status?: 'OPERATING' | 'MAINTENANCE'; manager_user_id?: string | null }
 ) =>
   apiFetch<Branch>(`/api/branches/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
   });
+
+export const fetchBranchManagers = (id: string) =>
+  apiFetch<{ id: string; name: string }[]>(`/api/branches/${encodeURIComponent(id)}/managers`, { method: "GET" });
 
 export const fetchUserBranches = (userId: string) =>
   apiFetch<{ branches: Branch[]; default_branch_id: string | null }>(
@@ -80,6 +84,19 @@ export const removeUserFromCompany = (companyId: string, userId: string) =>
     { method: "DELETE" }
   );
 
+export const updateUserExperienceProfile = (
+  companyId: string,
+  userId: string,
+  experienceProfile: ExperienceProfile | null
+) =>
+  apiFetch<{ experience_profile: ExperienceProfile | null }>(
+    `/api/companies/${encodeURIComponent(companyId)}/users/${encodeURIComponent(userId)}/experience-profile`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ experience_profile: experienceProfile }),
+    }
+  );
+
 // ---------- Traslados entre sucursales ----------
 
 export type TransferStatus = "EN_TRANSITO" | "RECIBIDA" | "CANCELADA";
@@ -89,7 +106,7 @@ export interface TransferLine {
   product_id: string;
   qty_sent: number;
   qty_received: number | null;
-  product?: { id: string; name: string; barcode?: string | null };
+  product?: { id: string; name: string; barcode?: string | null; image_url?: string | null };
 }
 
 export interface Transfer {
@@ -109,6 +126,7 @@ export interface Transfer {
 }
 
 export interface TransfersResponse {
+  summary?: Record<string, number>;
   items: Transfer[];
   page: number;
   pageSize: number;
@@ -117,14 +135,24 @@ export interface TransfersResponse {
 }
 
 export const fetchTransfers = (params?: {
+  includeSummary?: boolean;
   direction?: "in" | "out" | "all";
   status?: TransferStatus;
+  search?: string;
+  fromBranchId?: string;
+  toBranchId?: string;
   page?: number;
+  pageSize?: number;
 }) => {
   const q = new URLSearchParams();
+  if (params?.includeSummary) q.set("includeSummary", "true");
   if (params?.direction) q.set("direction", params.direction);
   if (params?.status) q.set("status", params.status);
+  if (params?.search) q.set("search", params.search);
+  if (params?.fromBranchId) q.set("from_branch_id", params.fromBranchId);
+  if (params?.toBranchId) q.set("to_branch_id", params.toBranchId);
   if (params?.page) q.set("page", String(params.page));
+  if (params?.pageSize) q.set("pageSize", String(params.pageSize));
   const qs = q.toString();
   return apiFetch<TransfersResponse>(`/api/transfers${qs ? `?${qs}` : ""}`, { method: "GET" });
 };

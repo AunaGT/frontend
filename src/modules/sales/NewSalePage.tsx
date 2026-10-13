@@ -1,0 +1,2259 @@
+/**
+ * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
+ *
+ * This source code is licensed under a Proprietary License.
+ * Unauthorized copying, modification, distribution, or use of this file,
+ * via any medium, is strictly prohibited without express written permission.
+ *
+ * For licensing inquiries: GitHub @dpatzan2
+ */
+
+/**
+ * NewSalePage - Página de nueva venta con layout de dos columnas:
+ * Izquierda: información de la venta (cliente, pago, carrito, total, registrar).
+ * Derecha: productos en cards con imagen y opción de agregar a la venta.
+ * Al registrar, la venta queda en estado Completada y se descuenta stock.
+ */
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { EmptyState } from '@/components/shared/EmptyState'
+import { Pagination } from '@/components/shared/Pagination'
+import './pos.css'
+import {stepQuantity,previewPartialLineTotal} from '@/lib/commercialQuantity'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, PauseCircle, RotateCcw, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2, Minus } from 'lucide-react'
+import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
+import { useToast } from '@/hooks/use-toast'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { fetchWarehouses } from '@/services/warehouseService'
+import { fetchStockByLocation } from '@/services/stockMoveService'
+import { useAllProducts, PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
+import { useCategories } from '@/hooks/useCategories'
+import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import { EXPERIENCE_PROFILE_LABELS } from '@/config/experienceProfiles'
+import { checkCustomerCredit } from '@/modules/receivables'
+import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
+import { formatMoney } from '@/utils'
+import { createSale } from '@/services/saleService'
+import {
+  convertOrderToSale,
+  fetchOrderById,
+  pendingOrderLineQty,
+  type Order,
+} from '@/services/orderService'
+import { postPricingPreview, fetchPosAvailability, type ProductAvailability } from '@/services/productService'
+import {
+  saveNewSaleDraft,
+  loadNewSaleDraft,
+  clearNewSaleDraft,
+  hasNewSaleDraft,
+  type NewSaleDraft,
+} from '@/services/saleDraftStorage'
+import { useAuth } from '@/context/useAuth'
+import { useModules } from '@/context/useModules'
+import { getCompanyNamePublic } from '@/services/settingsService'
+import { generateSaleTicket } from './documents/generateSaleTicket'
+import type { Product } from '@/types/product'
+
+import { useCart, useSalesData } from './hooks'
+import { usePromotions } from '@/hooks/usePromotions'
+import {
+  AvailabilityDialog,
+  AdminAuthDialog,
+  PromotionCodeInput,
+  SavedCustomerMany2One,
+} from './components'
+import { OpenCashRegisterPrompt } from './OpenCashRegisterPrompt'
+import { CashRegisterPicker } from './CashRegisterPicker'
+import { closeCashSession, fetchCashSessionCurrent } from '@/services/cashSessionsService'
+import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/modules/cash-closure'
+import type { CashRegisterSessionDto, CashSessionCurrentResult } from '@/services/cashSessionsService'
+import type { CartProduct } from './types'
+import {useTenant} from '@/context/useTenant'
+
+type ProductBrowseLayout = 'flat' | 'byCategory'
+
+const PRODUCT_LAYOUT_STORAGE_KEY = 'deposito:listUi:v1:ventas/nueva/productos-layout'
+
+function readProductBrowseLayout(): ProductBrowseLayout {
+  try {
+    const v = sessionStorage.getItem(PRODUCT_LAYOUT_STORAGE_KEY)
+    if (v === 'flat') return 'flat'
+    if (v === 'byCategory') return 'byCategory'
+  } catch {
+    /* ignore */
+  }
+  return 'byCategory'
+}
+
+function writeProductBrowseLayout(layout: ProductBrowseLayout) {
+  try {
+    sessionStorage.setItem(PRODUCT_LAYOUT_STORAGE_KEY, layout)
+  } catch {
+    /* ignore */
+  }
+}
+
+function getProductCategoryName(product: Product): string {
+  const c = product.category
+  if (typeof c === 'string' && c.trim()) return c.trim()
+  if (c && typeof c === 'object' && 'name' in c && typeof c.name === 'string' && c.name.trim()) {
+    return c.name.trim()
+  }
+  return 'Sin categoría'
+}
+
+const ProductCard = ({
+  product,
+  onAdd,
+  disabled,
+  formatPrice,
+  displayUnitPrice,
+  availableQty,
+  physicalStock,
+  posQty,
+  posMode,
+}: {
+  product: Product
+  onAdd: () => void
+  disabled?: boolean
+  formatPrice: (n: number) => string
+  displayUnitPrice: number
+  availableQty?: number
+  physicalStock?: number
+  /** Existencias en la ubicación desde la que despacha la caja. */
+  posQty?: number | null
+  /** La caja despacha de una ubicación concreta: el total de sucursal no sirve acá. */
+  posMode?: boolean
+}) => (
+  <article className="pos-product-row">
+    <div className="pos-product-image">
+      {product.imageUrl ? (
+        <img
+          src={product.imageUrl}
+          alt={product.name}
+          className="h-full w-full object-contain"
+          loading="lazy"
+          width={64}
+          height={64}
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
+          <Package className="h-6 w-6" aria-hidden="true" />
+        </div>
+      )}
+    </div>
+    <div className="min-w-0 flex-1">
+      <p className="font-medium text-sm truncate" title={product.name}>
+        {product.name}
+      </p>
+      <p className="text-xs text-muted-foreground">
+        {formatPrice(displayUnitPrice)}
+        {product.kind==='SERVICE' ? ` · ${product.serviceUnitLabel} · Sin control de existencias` : posMode
+          ? // Mientras no llegue el dato de la ubicación no se enseña el total de
+            // sucursal: en la caja ese número miente sobre lo que hay a la mano.
+            posQty != null
+            ? ` · Mostrador: ${posQty}`
+            : ' · Mostrador: …'
+          : availableQty != null && physicalStock != null && physicalStock !== availableQty
+            ? ` · Disp: ${availableQty} (${physicalStock} fís.)`
+            : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
+      </p>
+      {posQty != null && availableQty != null && availableQty > posQty ? (
+        <p className="text-xs text-amber-700 dark:text-amber-300">
+          {availableQty - posQty} en otros almacenes
+        </p>
+      ) : null}
+    </div>
+      <Button
+        size="sm"
+        aria-label={`Agregar ${product.name}`}
+        className="shrink-0"
+        onClick={onAdd}
+        disabled={disabled}
+      >
+        <Plus className="w-4 h-4 mr-1" />
+        Agregar
+      </Button>
+  </article>
+)
+
+const CategoryBrowseCard = ({
+  name,
+  count,
+  imageUrl,
+  onSelect,
+  disabled,
+}: {
+  name: string
+  count: number
+  imageUrl?: string | null
+  onSelect: () => void
+  disabled?: boolean
+}) => (
+  <button type="button" className="pos-category-row" onClick={onSelect} disabled={disabled}>
+    <span className="pos-category-image">
+      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" width={48} height={48} className="h-full w-full object-contain" /> : <ImageIcon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+    </span>
+    <span className="min-w-0 text-left"><span className="block truncate font-medium">{name}</span><span className="text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span>
+  </button>
+)
+
+export default function NewSalePage() {
+  const {company,branch}=useTenant()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const { hasPermission } = useAuthPermissions()
+  const { isEnabled } = useModules()
+  const canLoadOrders = isEnabled('orders') && hasPermission('orders.view')
+  const promotionsEnabled = isEnabled('promotions')
+  const userId = user?.id ?? ''
+  const {
+    locale,
+    timezone,
+    currencyCode,
+    companyName,
+    companyLogoUrl,
+    vatRegime,
+    ivaRate,
+    salesAllowCredit,
+    salesShowFiscalFields,
+    salesShowChannels,
+  } = useSystemSettings()
+  const { profile, isCompact, showAdvancedByDefault } = useExperienceProfile()
+  const fmt = (n: number) => formatMoney(n, locale, currencyCode)
+  const salesData = useSalesData()
+
+  const paymentMethodsQuery = usePaymentMethods()
+  const paymentMethods = useMemo(() => paymentMethodsQuery.data ?? [], [paymentMethodsQuery.data])
+  // Solo lo que maneja esta sucursal: no se puede vender lo que no está aquí.
+  const {inventoryServicesEnabled}=useSystemSettings()
+  const productsQuery = useAllProducts({ forSaleOnly: true, inBranchOnly: true,catalogType:inventoryServicesEnabled ? 'all' : 'goods' })
+  const availableProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
+  const categoriesQuery = useCategories()
+
+  // Ubicación desde la que despacha este punto de venta (si la sucursal la marcó).
+  const warehousesQuery = useQuery({ queryKey: ['warehouses'], queryFn: () => fetchWarehouses() })
+  const posLocationId = useMemo(
+    () => warehousesQuery.data?.flatMap((w) => w.locations).find((l) => l.is_sales)?.id ?? null,
+    [warehousesQuery.data]
+  )
+  // Sin ubicación de venta, la caja no sabe de dónde despacha: el stock que
+  // mostraría es la suma de todos los almacenes de la sucursal, que no es lo que
+  // tiene a mano. Antes esto se ignoraba en silencio y se vendía igual.
+  const posSinConfigurar = warehousesQuery.isSuccess && !posLocationId
+
+  const [productSearch, setProductSearch] = useState('')
+  const productSearchRef = useRef<HTMLInputElement | null>(null)
+  const [productPage, setProductPage] = useState(1)
+  const [productPageSize, setProductPageSize] = useState(9)
+  const [productLayout, setProductLayout] = useState<ProductBrowseLayout>(readProductBrowseLayout)
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null)
+  const [customer, setCustomer] = useState('Consumidor final')
+  const [customerNit, setCustomerNit] = useState('')
+  const [pickedCustomerId, setPickedCustomerId] = useState<string>('__none__')
+  const [salesChannel, setSalesChannel] = useState<'POS' | 'WHOLESALE' | 'ONLINE'>('POS')
+  const [unitPricesById, setUnitPricesById] = useState<Record<string, number>>({})
+  const [availabilityById, setAvailabilityById] = useState<Record<string, ProductAvailability>>({})
+  const [isFinalConsumer, setIsFinalConsumer] = useState(true)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null)
+  const [amountReceived, setAmountReceived] = useState('')
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [showCustomerDetails, setShowCustomerDetails] = useState(showAdvancedByDefault)
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(showAdvancedByDefault)
+  const [promoCodesToRestore, setPromoCodesToRestore] = useState<string[] | null>(null)
+  /** Fuerza recomputar si hay borrador en localStorage (React no observa el storage). */
+  const [storedDraftRevision, setStoredDraftRevision] = useState(0)
+  const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
+  const visiblePaymentMethods = useMemo(
+    () => paymentMethods.filter((method) => salesAllowCredit || !method.is_credit),
+    [paymentMethods, salesAllowCredit]
+  )
+  /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
+  type ElsewhereState = { product: Product; atPos: number; rows: { label: string; stock: number }[] }
+  const [elsewhere, setElsewhere] = useState<ElsewhereState | null>(null)
+  // El AlertDialog sigue montado durante la animación de cierre, cuando `elsewhere`
+  // ya es null: leerlo directo pintaba "Solo quedan undefined en el mostrador".
+  const elsewhereShownRef = useRef<ElsewhereState | null>(null)
+  if (elsewhere) elsewhereShownRef.current = elsewhere
+  const elsewhereView = elsewhere ?? elsewhereShownRef.current
+  const [loadOrderRef, setLoadOrderRef] = useState('')
+  const [loadOrderOpen, setLoadOrderOpen] = useState(false)
+  const orderLineIdByProductRef = useRef<Map<string, string>>(new Map())
+  // Clave del intento de cobro. Sobrevive a un error para que reintentar sea el
+  // mismo intento y no una segunda venta; se renueva al terminar uno.
+  const intentoDeCobroRef = useRef<string>(crypto.randomUUID())
+  const pedidoLoadedRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    productSearchRef.current?.focus()
+  }, [])
+
+  const customerContactIdForPricing =
+    pickedCustomerId !== '__none__' && pickedCustomerId.trim() ? pickedCustomerId : undefined
+
+  // ---- Venta al crédito ----
+  const [creditDueDate, setCreditDueDate] = useState('')
+  const [initialCreditPayment, setInitialCreditPayment] = useState('')
+  const [initialCreditMethod, setInitialCreditMethod] = useState('')
+  const [creditOverride, setCreditOverride] = useState(false)
+  const isCreditSale = Boolean(paymentMethod?.is_credit)
+  const canOverrideCredit = hasPermission('sales.credit.override')
+
+  const getUnitPrice = useCallback(
+    (p: Product) => {
+      const original=loadedOrder?.lines.find(line=>line.product_id===p.id)
+      if (original) return Number(original.unit_price)
+      const u = unitPricesById[p.id]
+      return u != null && Number.isFinite(u) ? u : Number(p.price ?? 0)
+    },
+    [unitPricesById,loadedOrder]
+  )
+
+  const getAvailableQty = useCallback(
+    (p: Product) => availabilityById[p.id]?.available ?? Number(p.stock ?? 0),
+    [availabilityById]
+  )
+
+  const cartProducts=useMemo(()=>{
+    if (!loadedOrder) return availableProducts
+    const byId=new Map(availableProducts.map(product=>[product.id,product]))
+    for (const line of loadedOrder.lines) {
+      const current=byId.get(line.product_id)
+      if (!current && line.item_kind!=='SERVICE') continue
+      const product=current ?? {id:line.product_id,name:line.item_name || 'Servicio',category:'',brand:'',size:'',stock:0,minStock:0,price:Number(line.unit_price),cost:0,supplier:'',barcode:line.product?.barcode || '',description:'',status:'Disponible'}
+      byId.set(line.product_id,{...product,name:line.item_name ?? product.name,kind:line.item_kind ?? product.kind,serviceUnitLabel:line.unit_label ?? product.serviceUnitLabel,quantityDecimals:line.quantity_decimals ?? product.quantityDecimals})
+    }
+    return [...byId.values()]
+  },[availableProducts,loadedOrder])
+  const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty })
+  const hydrateOrderCartRef=useRef(cart.hydrateFromLines)
+  hydrateOrderCartRef.current=cart.hydrateFromLines
+  useEffect(()=>{
+    if (loadedOrder) hydrateOrderCartRef.current(loadedOrder.lines.filter(line=>pendingOrderLineQty(line)>0).map(line=>({productId:line.product_id,qty:String(pendingOrderLineQty(line))})),[])
+  },[loadedOrder])
+
+  /**
+   * El mostrador despacha de SU ubicación. Si ahí ya no queda, no se bloquea la
+   * venta: se dice en qué anaquel está el producto y el cajero decide. Después
+   * sigue el flujo de siempre (cantidad adicional, autorización de admin).
+   */
+  const addingRef = useRef<Set<string>>(new Set())
+  /** Hay un aviso de "está en otro almacén" esperando que el cajero decida. */
+  const decisionPendienteRef = useRef(false)
+
+  const addProduct = async (product: Product) => {
+    if (product.kind==='SERVICE') {cart.addToCart(product);return}
+    if (posSinConfigurar) {
+      toast({
+        title: 'Falta configurar el punto de venta',
+        description:
+          'Esta sucursal no tiene una ubicación de venta marcada, así que la caja no sabe de qué almacén despacha. Configurala en Sucursales → Almacenes antes de vender.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!posLocationId) { cart.addToCart(product); return }
+    // Un clic a la vez por producto: la consulta de abajo tarda, y sin esto dos
+    // clics seguidos leen el mismo carrito viejo, no ven que el mostrador ya se
+    // agotó y se saltan el aviso.
+    if (addingRef.current.has(product.id)) return
+    addingRef.current.add(product.id)
+    let esperaDecision = false
+    try {
+      const rows = await queryClient.fetchQuery({
+        queryKey: ['stock-by-location', product.id],
+        queryFn: () => fetchStockByLocation(product.id),
+        staleTime: 30_000,
+      })
+      const enCarrito = Number(cart.cartItems.find((i) => i.id === product.id)?.qty || 0)
+      const atPos = rows.find((r) => r.location.id === posLocationId)?.stock ?? 0
+      const otras = rows
+        .filter((r) => r.location.id !== posLocationId && r.stock > 0)
+        .map((r) => ({ label: `${r.location.warehouse.name} · ${r.location.code}`, stock: r.stock }))
+      if (enCarrito + 1 > atPos && otras.length > 0) {
+        // Un solo aviso a la vez. Con dos productos en vuelo, el segundo abría su
+        // aviso justo después de que el cajero resolvía el primero, y parecía que
+        // el mismo diálogo reaparecía. Ese clic se descarta: el cajero lo repite.
+        if (decisionPendienteRef.current) return
+        // El candado NO se suelta acá: sigue puesto hasta que el cajero decida.
+        // Si se soltara al abrir, un segundo clic pendiente volvía a abrir el
+        // aviso que el cajero ya había resuelto.
+        decisionPendienteRef.current = true
+        esperaDecision = true
+        setElsewhere({ product, atPos, rows: otras })
+        return
+      }
+    } catch {
+      // Si no se pudo consultar, no se estorba la venta: sigue el flujo normal.
+    } finally {
+      if (!esperaDecision) addingRef.current.delete(product.id)
+    }
+    cart.addToCart(product)
+  }
+
+  /**
+   * Cierra el aviso y suelta los candados. Se limpian todos, no solo el del
+   * producto mostrado: si dos productos quedaron en vuelo, el segundo aviso pisa
+   * al primero y el candado del primero se quedaría puesto para siempre.
+   */
+  const cerrarElsewhere = () => {
+    addingRef.current.clear()
+    decisionPendienteRef.current = false
+    setElsewhere(null)
+  }
+
+  const repriceCartRef = useRef(cart.repriceCartLines)
+  repriceCartRef.current = cart.repriceCartLines
+  const promotionCartItems = useMemo(
+    () =>
+      cart.cartItems.map((item) => ({
+        product_id: item.id,
+        price: Number(item.price),
+        qty: item.qty,
+        kind:item.kind,
+      })),
+    [cart.cartItems]
+  )
+  const canPickSavedCustomer = hasPermission('contacts.clients.view')
+  const canCreateClientContact = hasPermission('contacts.clients.create')
+
+  const promotions = usePromotions({
+    contextKey:JSON.stringify([company?.id,branch?.id,salesChannel,pickedCustomerId]),
+    cartItems: promotionCartItems,
+    cartTotal: cart.cartTotal,
+    locale,
+    currencyCode,
+  })
+
+  const pricingContext=JSON.stringify([availableProducts.map(product=>[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
+  const pricingReadyRef=useRef<string|null>(null)
+  useEffect(() => {
+    let cancelled = false
+    const ids = availableProducts.map((p) => p.id)
+    pricingReadyRef.current=null
+    setUnitPricesById({})
+    if (ids.length === 0) {
+      setUnitPricesById({})
+      return
+    }
+    void (async () => {
+      try {
+        const r = await postPricingPreview({
+          product_ids: ids,
+          sales_channel: salesChannel,
+          customer_contact_id: customerContactIdForPricing ?? null,
+        })
+        if (!cancelled) {pricingReadyRef.current=ids.every(id=>Object.prototype.hasOwnProperty.call(r.unit_prices ?? {},id)) ? pricingContext : null;setUnitPricesById(r.unit_prices ?? {})}
+      } catch {
+        if (!cancelled) setUnitPricesById({})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [availableProducts, salesChannel, customerContactIdForPricing,pricingContext])
+
+  useEffect(() => {
+    repriceCartRef.current()
+  }, [unitPricesById])
+
+  const filteredProducts = useMemo(
+    () =>
+      availableProducts.filter(
+        (p) =>
+          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+          (p.barcode ?? '').includes(productSearch)
+      ),
+    [availableProducts, productSearch]
+  )
+
+  const isProductSearchActive = productSearch.trim().length > 0
+
+  const categoryImageByName = useMemo(() => {
+    const map = new Map<string, string | null>()
+    for (const c of categoriesQuery.data ?? []) {
+      map.set(c.name, c.image_url ?? null)
+    }
+    return map
+  }, [categoriesQuery.data])
+
+  const categorySummaries = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const p of filteredProducts) {
+      const name = getProductCategoryName(p)
+      counts.set(name, (counts.get(name) ?? 0) + 1)
+    }
+    return Array.from(counts.entries())
+      .map(([name, count]) => ({
+        name,
+        count,
+        imageUrl: categoryImageByName.get(name) ?? null,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  }, [filteredProducts, categoryImageByName])
+
+  const browseProducts = useMemo(() => {
+    if (productLayout === 'flat' || isProductSearchActive) return filteredProducts
+    if (!selectedCategoryName) return []
+    return filteredProducts.filter((p) => getProductCategoryName(p) === selectedCategoryName)
+  }, [productLayout, isProductSearchActive, filteredProducts, selectedCategoryName])
+
+  const showCategoryPicker =
+    productLayout === 'byCategory' && !isProductSearchActive && selectedCategoryName === null
+
+  useEffect(() => {
+    writeProductBrowseLayout(productLayout)
+  }, [productLayout])
+
+  useEffect(() => {
+    setProductPage(1)
+  }, [productSearch, productLayout, selectedCategoryName])
+
+  const pageSize = productPageSize
+  const totalPages = Math.max(1, Math.ceil(browseProducts.length / pageSize))
+  const safePage = Math.min(productPage, totalPages)
+  const pageProducts = useMemo(() => {
+    const start = (safePage - 1) * pageSize
+    return browseProducts.slice(start, start + pageSize)
+  }, [browseProducts, safePage, pageSize])
+
+  useEffect(() => {
+    let cancelled = false
+    const ids = [
+      ...new Set([
+        ...pageProducts.map((p) => p.id),
+        ...cart.cartItems.map((i) => i.id),
+      ]),
+    ]
+    if (ids.length === 0) {
+      setAvailabilityById({})
+      return
+    }
+    void (async () => {
+      try {
+        const { availability } = await fetchPosAvailability(ids)
+        if (!cancelled) setAvailabilityById(availability)
+      } catch {
+        if (!cancelled) setAvailabilityById({})
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [pageProducts, cart.cartItems])
+
+  const displayLineTotals=loadedOrder ? Object.fromEntries(cart.cartItems.map(item=>{
+    const original=loadedOrder.lines.find(line=>line.product_id===item.id)
+    try {return [item.id,original ? previewPartialLineTotal(String(original.qty),String(original.line_total),item.qty,String(original.qty_fulfilled || 0)) : null]} catch {return [item.id,null]}
+  })) : cart.lineTotals
+  const displayTotal = loadedOrder ? Number(Object.values(displayLineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n))/100 : !promotionsEnabled
+    ? cart.cartTotal
+    : (promotions.finalTotal ?? cart.cartTotal)
+  const changeAmount =
+    paymentMethod?.name?.toLowerCase() === 'efectivo' && amountReceived
+      ? Math.max(0, parseFloat(amountReceived) - displayTotal)
+      : 0
+
+  const canCreate = hasPermission('sales.create')
+
+  // En mostrador la opción habitual queda lista. El usuario aún puede cambiarla;
+  // un método de crédito nunca se autoselecciona.
+  useEffect(() => {
+    if (paymentMethod && visiblePaymentMethods.some((method) => method.id === paymentMethod.id)) return
+    const cash = visiblePaymentMethods.find((method) => method.name.toLowerCase() === 'efectivo')
+    setPaymentMethod(cash ?? visiblePaymentMethods.find((method) => !method.is_credit) ?? null)
+  }, [paymentMethod, salesAllowCredit, visiblePaymentMethods])
+
+  useEffect(() => {
+    if (!salesShowChannels && salesChannel !== 'POS') setSalesChannel('POS')
+  }, [salesShowChannels, salesChannel])
+
+  useEffect(() => {
+    if (isCreditSale || pickedCustomerId !== '__none__' || loadedOrder) {
+      setShowCustomerDetails(true)
+    }
+  }, [isCreditSale, pickedCustomerId, loadedOrder])
+
+  useEffect(() => {
+    if (!showAdvancedByDefault) return
+    setShowCustomerDetails(true)
+    setShowAdvancedOptions(true)
+  }, [showAdvancedByDefault])
+
+  /**
+   * ¿Puede el cliente llevarse este total al crédito? Se consulta al servidor
+   * porque el saldo depende de todas sus facturas abiertas, no solo de esta venta.
+   */
+  const creditCheck = useQuery({
+    queryKey: ['credit-check', customerContactIdForPricing, displayTotal, initialCreditPayment],
+    queryFn: () => checkCustomerCredit(customerContactIdForPricing!, Math.max(0, displayTotal - Number(initialCreditPayment || 0))),
+    enabled: isCreditSale && Boolean(customerContactIdForPricing) && displayTotal > 0,
+    staleTime: 15 * 1000,
+  })
+
+  // El plazo del cliente se aplicaba solo en el servidor: el cajero no veía qué
+  // fecha iba a quedar, y un cliente sin plazo generaba una venta sin
+  // vencimiento en silencio. Ahora la sugerencia se muestra y se puede editar.
+  const sugerida = creditCheck.data?.due_date_sugerida
+  useEffect(() => {
+    if (!isCreditSale) return
+    let suggestion = sugerida
+    if (loadedOrder?.payment_condition === 'CREDIT' && loadedOrder.credit_days != null) {
+      const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date())
+      const part = (type: string) => Number(parts.find(item => item.type === type)?.value)
+      suggestion = new Date(Date.UTC(part('year'), part('month') - 1, part('day') + loadedOrder.credit_days)).toISOString().slice(0, 10)
+    }
+    if (suggestion) setCreditDueDate((actual) => actual || suggestion.slice(0, 10))
+  }, [isCreditSale, sugerida, loadedOrder, timezone])
+
+  // La ayuda del campo decía "Sugerido por su plazo" pasara lo que pasara, así
+  // que prometía una fecha que muchas veces no llegaba: sin productos todavía
+  // no se consulta, el término puede no tener días definidos (net_days es
+  // opcional en el catálogo) y la consulta puede fallar. Cada caso se dice.
+  const term = creditCheck.data?.payment_term
+  const dueDateHint: { text: string; bad: boolean } = creditCheck.isError
+    ? { text: 'No se pudo consultar el plazo del cliente: elegí la fecha a mano.', bad: true }
+    : creditCheck.isFetching
+      ? { text: 'Consultando el plazo del cliente…', bad: false }
+      : !creditCheck.data
+        ? { text: 'El vencimiento sugerido aparece al agregar productos.', bad: false }
+        : !term
+          ? {
+              text: 'Este cliente no tiene término de pago: elegí la fecha a mano, o asignáselo en su ficha de contacto.',
+              bad: true,
+            }
+          : term.net_days == null
+            ? {
+                text: `Su término «${term.name}» no tiene días definidos, así que no hay fecha que sugerir: elegila a mano, o ponéle los días en Catálogos → Términos de pago.`,
+                bad: true,
+              }
+            : {
+                text: `Sugerido por su plazo (${term.name}, ${term.net_days} días). Se puede cambiar.`,
+                bad: false,
+              }
+
+  // Caja elegida en el selector previo; null = aún no se ha elegido (se muestra el picker)
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
+  const [cashCheckDone, setCashCheckDone] = useState(false)
+  const [cashCheckError, setCashCheckError] = useState<string | null>(null)
+  const [cashSessionOpen, setCashSessionOpen] = useState(false)
+  const [cashRegisterMeta, setCashRegisterMeta] = useState<{ id: string; name: string } | null>(null)
+  const [activeCashSession, setActiveCashSession] = useState<CashRegisterSessionDto | null>(null)
+  // La caja resuelta ya tiene un turno abierto, pero de otra persona: no es "mi" turno
+  // aunque el backend haya encontrado uno abierto — hay que bloquear, no dejar vender.
+  const [openedByOther, setOpenedByOther] = useState<{ id: string; name: string | null } | null>(null)
+  const [showCloseCashDialog, setShowCloseCashDialog] = useState(false)
+  const [isClosingCashSession, setIsClosingCashSession] = useState(false)
+
+  const isAdminUser = String(user?.role?.name ?? '').toLowerCase() === 'admin'
+
+  /**
+   * `/cash-sessions/current` devuelve el turno abierto en la caja resuelta sin
+   * importar quién lo abrió (otras pantallas, como el cierre de caja, sí
+   * necesitan verlo así). Acá hay que decidir "¿puedo vender con este turno?" —
+   * un no-admin solo puede si es el suyo; si es de otra persona, se trata como
+   * si no hubiera turno, pero guardando de quién es para bloquear con el
+   * mensaje correcto en vez de mandarlo a "Abrir caja" (que fallaría igual,
+   * la caja ya tiene turno).
+   */
+  const applyCashCheckResult = useCallback(
+    (r: Extract<CashSessionCurrentResult, { ok: true }>) => {
+      const session = r.session ?? null
+      const belongsToOther = Boolean(
+        session && !isAdminUser && String(session.opened_by_id) !== String(user?.id)
+      )
+      setCashRegisterMeta(
+        r.register?.id ? { id: r.register.id, name: r.register.name } : null
+      )
+      setCashSessionOpen(Boolean(session) && !belongsToOther)
+      setActiveCashSession(session)
+      setOpenedByOther(
+        belongsToOther && session
+          ? { id: session.opened_by_id, name: session.openedBy?.name ?? null }
+          : null
+      )
+    },
+    [isAdminUser, user?.id]
+  )
+
+  const runCashCheck = useCallback(async (registerId: string) => {
+    setCashCheckError(null)
+    setCashCheckDone(false)
+    const r = await fetchCashSessionCurrent(registerId)
+    setCashCheckDone(true)
+    if (!r.ok) {
+      setCashCheckError(r.message)
+      setCashSessionOpen(false)
+      setCashRegisterMeta(null)
+      setActiveCashSession(null)
+      setOpenedByOther(null)
+      return
+    }
+    applyCashCheckResult(r)
+  }, [applyCashCheckResult])
+
+  useEffect(() => {
+    if (selectedRegisterId) void runCashCheck(selectedRegisterId)
+  }, [selectedRegisterId, runCashCheck])
+
+  const handleCashSessionOpened = useCallback(async () => {
+    const r = await fetchCashSessionCurrent(selectedRegisterId ?? undefined)
+    setCashCheckDone(true)
+    setCashCheckError(null)
+    if (!r.ok) {
+      setCashCheckError(r.message)
+      setCashSessionOpen(false)
+      setCashRegisterMeta(null)
+      setActiveCashSession(null)
+      setOpenedByOther(null)
+      return
+    }
+    applyCashCheckResult(r)
+    if (!r.session) {
+      toast({
+        title: 'Sesión no detectada',
+        description: 'Abra de nuevo o contacte a un supervisor.',
+        variant: 'destructive',
+      })
+    }
+  }, [applyCashCheckResult, toast])
+
+  const canUserCloseCashTurn = useMemo(() => {
+    if (!activeCashSession || !user) return false
+    const roleName = String(user.role?.name ?? '').toLowerCase()
+    if (roleName === 'admin') return true
+    if (String(activeCashSession.opened_by_id) === String(user.id)) return true
+    return hasPermission('cashclosure.create') || hasPermission('cashclosure.create_day')
+  }, [activeCashSession, user, hasPermission])
+
+  const confirmCloseCashSession = useCallback(async () => {
+    setIsClosingCashSession(true)
+    try {
+      await closeCashSession(
+        cashRegisterMeta?.id ? { cash_register_id: cashRegisterMeta.id } : {}
+      )
+      await queryClient.invalidateQueries({ queryKey: CASH_SESSION_CURRENT_QUERY_KEY })
+      setShowCloseCashDialog(false)
+      setCashSessionOpen(false)
+      setActiveCashSession(null)
+      toast({
+        title: 'Turno cerrado',
+        description:
+          'Ya puede abrir otro turno si lo necesita. El arqueo y cierre contable siguen en «Cierre de caja».',
+      })
+    } catch (e) {
+      toast({
+        title: 'No se pudo cerrar el turno',
+        description: e instanceof Error ? e.message : 'Error desconocido',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsClosingCashSession(false)
+    }
+  }, [cashRegisterMeta?.id, toast, queryClient])
+
+  const [hasStoredDraft, setHasStoredDraft] = useState(false)
+  useEffect(() => {
+    setHasStoredDraft(userId ? hasNewSaleDraft(userId) : false)
+  }, [userId, storedDraftRevision])
+
+  const applyDraftToForm = useCallback(
+    (draft: NewSaleDraft) => {
+      promotions.clearPromotions()
+      setCustomer(draft.customer ?? '')
+      setCustomerNit(draft.customerNit ?? '')
+      setPickedCustomerId(
+        draft.pickedCustomerId && String(draft.pickedCustomerId).trim()
+          ? String(draft.pickedCustomerId)
+          : '__none__'
+      )
+      setIsFinalConsumer(Boolean(draft.isFinalConsumer))
+      const ch = draft.salesChannel
+      if (ch === 'WHOLESALE' || ch === 'ONLINE' || ch === 'POS') {
+        setSalesChannel(ch)
+      } else {
+        setSalesChannel('POS')
+      }
+      setAmountReceived(draft.amountReceived ?? '')
+      setCreditDueDate(draft.creditDueDate ?? '')
+      setInitialCreditPayment(draft.initialCreditPayment ?? '')
+      setInitialCreditMethod(draft.initialCreditMethod ?? '')
+      if (draft.productPageSize && [9, 18, 36, 54].includes(draft.productPageSize)) {
+        setProductPageSize(draft.productPageSize)
+      }
+
+      if (draft.paymentMethodId != null) {
+        const pm = paymentMethods.find((p) => p.id === draft.paymentMethodId)
+        if (pm) setPaymentMethod(pm)
+      } else {
+        setPaymentMethod(null)
+      }
+
+      const lines = draft.lines ?? []
+      if (lines.length > 0) {
+        const { missingProductIds, qtyAdjustedIds } = cart.hydrateFromLines(
+          lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+          draft.adminAuthorizedProductIds ?? []
+        )
+        const promos = (draft.promotionCodes ?? []).filter((c) => String(c).trim().length > 0)
+        if (promos.length) setPromoCodesToRestore(promos)
+
+        if (missingProductIds.length > 0) {
+          toast({
+            title: 'Venta recuperada',
+            description: `${missingProductIds.length} producto(s) ya no están en el catálogo o sin stock.`,
+          })
+        } else {
+          toast({
+            title: 'Venta recuperada',
+            description: 'Continúa con el registro o pagos.',
+          })
+        }
+        if (qtyAdjustedIds.length > 0) {
+          toast({
+            title: 'Cantidades ajustadas',
+            description: 'Algunas líneas se ajustaron al stock disponible (sin autorización admin).',
+          })
+        }
+      } else {
+        cart.clearCart()
+        toast({
+          title: 'Venta recuperada',
+          description: 'Se restauraron datos del cliente y pago.',
+        })
+      }
+    },
+    [cart, paymentMethods, promotions, toast]
+  )
+
+  const recoverDraftIfReady = useCallback(
+    (draft: NewSaleDraft): boolean => {
+      const lines = draft.lines ?? []
+      if (!productsQuery.isSuccess) {
+        toast({
+          title: 'Espera un momento',
+          description: 'Aún se cargan los productos.',
+          variant: 'destructive',
+        })
+        return false
+      }
+      if (lines.length > 0 && availableProducts.length === 0) {
+        toast({
+          title: 'Sin productos',
+          description: 'No hay productos en catálogo para armar el carrito.',
+          variant: 'destructive',
+        })
+        return false
+      }
+      if (draft.paymentMethodId != null && paymentMethods.length === 0) {
+        toast({
+          title: 'Espera un momento',
+          description: 'Aún se cargan los métodos de pago.',
+          variant: 'destructive',
+        })
+        return false
+      }
+      applyDraftToForm(draft)
+      return true
+    },
+    [
+      productsQuery.isSuccess,
+      availableProducts.length,
+      paymentMethods.length,
+      applyDraftToForm,
+      toast,
+    ]
+  )
+
+  const handleRecoverSavedSale = useCallback(() => {
+    if (!userId) {
+      toast({ title: 'Inicia sesión', variant: 'destructive' })
+      return
+    }
+    const draft = loadNewSaleDraft(userId)
+    if (!draft) {
+      toast({
+        title: 'No hay venta guardada',
+        variant: 'destructive',
+      })
+      setStoredDraftRevision((r) => r + 1)
+      return
+    }
+    recoverDraftIfReady(draft)
+  }, [userId, recoverDraftIfReady, toast])
+
+  const recuperarQueryHandledRef = useRef(false)
+  const applyDraftRef = useRef(applyDraftToForm)
+  applyDraftRef.current = applyDraftToForm
+
+  useEffect(() => {
+    if (searchParams.get('recuperar') !== '1') {
+      recuperarQueryHandledRef.current = false
+      return
+    }
+    if (!userId) return
+    if (recuperarQueryHandledRef.current) return
+
+    const draft = loadNewSaleDraft(userId)
+    if (!draft) {
+      toast({
+        title: 'No hay venta guardada',
+        description: 'Primero guarda una venta con «Continuar después».',
+        variant: 'destructive',
+      })
+      setSearchParams({}, { replace: true })
+      return
+    }
+
+    const lines = draft.lines ?? []
+    if (!productsQuery.isSuccess) return
+    if (lines.length > 0 && availableProducts.length === 0) return
+    if (draft.paymentMethodId != null && paymentMethods.length === 0) return
+
+    applyDraftRef.current(draft)
+    recuperarQueryHandledRef.current = true
+    setSearchParams({}, { replace: true })
+  }, [
+    searchParams,
+    userId,
+    productsQuery.isSuccess,
+    availableProducts.length,
+    paymentMethods.length,
+    setSearchParams,
+    toast,
+  ])
+
+  useEffect(() => {
+    if (!promotionsEnabled) return
+    if (!promoCodesToRestore?.length) return
+    if (cart.cartItems.length === 0) {
+      setPromoCodesToRestore(null)
+      return
+    }
+    const codes = [...promoCodesToRestore]
+    setPromoCodesToRestore(null)
+    let cancelled = false
+    void (async () => {
+      for (const code of codes) {
+        if (cancelled) break
+        await promotions.applyCode(code)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- applyCode al restaurar códigos del borrador
+  }, [promoCodesToRestore, cart.cartItems.length, promotionsEnabled])
+
+  const handleSaveForLater = () => {
+    if (!userId) {
+      toast({
+        title: 'No se puede guardar',
+        description: 'Debes iniciar sesión.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const hasCart = cart.cartItems.length > 0
+    const hasCustomer = !isFinalConsumer && customer.trim().length > 0
+    if (!hasCart && !hasCustomer) {
+      toast({
+        title: 'Nada que guardar',
+        description: 'Agrega productos o al menos el nombre del cliente.',
+        variant: 'destructive',
+      })
+      return
+    }
+    saveNewSaleDraft(userId, {
+      customer,
+      customerNit,
+      pickedCustomerId: pickedCustomerId === '__none__' ? undefined : pickedCustomerId,
+      isFinalConsumer,
+      salesChannel,
+      paymentMethodId: paymentMethod?.id ?? null,
+      amountReceived,
+      creditDueDate,
+      initialCreditPayment,
+      initialCreditMethod,
+      lines: cart.cartItems.map((item) => ({ productId: item.id, qty: item.qty })),
+      adminAuthorizedProductIds: [...cart.adminAuthorizedProducts],
+      promotionCodes: promotions.promotionCodes,
+      productPageSize,
+    })
+    cart.clearCart()
+    promotions.clearPromotions()
+    setCustomer('Consumidor final')
+    setCustomerNit('')
+    setPickedCustomerId('__none__')
+    setSalesChannel('POS')
+    setIsFinalConsumer(true)
+    setCreditDueDate('')
+    setInitialCreditPayment('')
+    setInitialCreditMethod('')
+    setAmountReceived('')
+    setProductSearch('')
+    setProductPage(1)
+    setPromoCodesToRestore(null)
+    setStoredDraftRevision((r) => r + 1)
+    toast({
+      title: 'Venta guardada',
+      description:
+        'Puedes empezar otra venta aquí. Recupera la guardada con «Recuperar venta guardada» o desde el listado de Ventas.',
+    })
+  }
+
+  const applyOrderToPos = useCallback(
+    (order: Order) => {
+      if (!['CONFIRMED', 'PARTIALLY_FULFILLED'].includes(order.status)) {
+        toast({
+          title: 'Pedido no disponible',
+          description: 'Solo pedidos confirmados o parciales se cargan en POS.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (order.fulfillment_mode === 'SEPARATE') {
+        toast({ title: 'Pedido con entregas independientes', description: 'Registra las entregas y factura sus cantidades desde el detalle del pedido.' })
+        return
+      }
+      const prices: Record<string, number> = {}
+      const lines: { productId: string; qty: number }[] = []
+      const map = new Map<string, string>()
+      for (const line of order.lines) {
+        const pending = pendingOrderLineQty(line)
+        if (pending <= 0) continue
+        lines.push({ productId: line.product_id, qty: pending })
+        prices[line.product_id] = Number(line.unit_price)
+        map.set(line.product_id, line.id)
+      }
+      if (lines.length === 0) {
+        toast({ title: 'Sin líneas pendientes', variant: 'destructive' })
+        return
+      }
+      orderLineIdByProductRef.current = map
+      setUnitPricesById(prices)
+      setLoadedOrder(order)
+      if (order.payment_condition === 'CREDIT') setPaymentMethod(paymentMethods.find(method => method.is_credit) ?? null)
+      setInitialCreditPayment('')
+      setCreditDueDate('')
+      setCustomer(order.customer || order.customerContact?.name || '')
+      setCustomerNit(order.is_final_consumer ? '' : order.customer_nit || '')
+      setIsFinalConsumer(order.is_final_consumer)
+      if (order.customer_contact_id) setPickedCustomerId(order.customer_contact_id)
+      setSalesChannel(order.sales_channel === 'POS' ? 'POS' : order.sales_channel === 'ONLINE' ? 'ONLINE' : 'WHOLESALE')
+      promotions.clearPromotions()
+      toast({ title: 'Pedido cargado', description: order.reference ?? order.id })
+    },
+    [promotions, toast, paymentMethods]
+  )
+
+  const handleLoadOrder = useCallback(async () => {
+    const ref = loadOrderRef.trim()
+    if (!ref) return
+    try {
+      const order = await fetchOrderById(ref)
+      applyOrderToPos(order)
+      setLoadOrderOpen(false)
+      setLoadOrderRef('')
+    } catch (e) {
+      toast({
+        title: 'No se encontró el pedido',
+        description: e instanceof Error ? e.message : 'Error',
+        variant: 'destructive',
+      })
+    }
+  }, [loadOrderRef, applyOrderToPos, toast])
+
+  useEffect(() => {
+    const pedidoRef = searchParams.get('pedido')?.trim()
+    if (!canLoadOrders || !pedidoRef || pedidoLoadedRef.current === pedidoRef || !productsQuery.isSuccess) return
+    pedidoLoadedRef.current = pedidoRef
+    void fetchOrderById(pedidoRef)
+      .then(applyOrderToPos)
+      .catch((e: Error) => {
+        toast({ title: 'Pedido', description: e.message, variant: 'destructive' })
+      })
+  }, [searchParams, productsQuery.isSuccess, applyOrderToPos, toast, canLoadOrders])
+
+  const clearLoadedOrder = () => {
+    setLoadedOrder(null)
+    orderLineIdByProductRef.current = new Map()
+    cart.clearCart()
+    pedidoLoadedRef.current = null
+    setSearchParams((prev) => {
+      prev.delete('pedido')
+      return prev
+    })
+  }
+
+  useEffect(() => {
+    if (canLoadOrders || !loadedOrder) return
+    clearLoadedOrder()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- descarta un pedido si desaparece su capacidad
+  }, [canLoadOrders, loadedOrder])
+
+  const handleSubmit = async () => {
+    if (cart.hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Cada partida debe tener una cantidad válida para su unidad de cobro.',variant:'destructive'});return}
+    if (pricingReadyRef.current!==pricingContext && !loadedOrder) {toast({title:'Precios pendientes',description:'Espera a que se actualicen los precios antes de cobrar.',variant:'destructive'});return}
+    if (!canCreate) {
+      toast({ title: 'Sin permiso para crear ventas', variant: 'destructive' })
+      return
+    }
+    if (!cashSessionOpen) {
+      toast({
+        title: 'Caja cerrada',
+        description: 'Abra la caja antes de registrar la venta.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!paymentMethod) {
+      toast({ title: 'Selecciona un método de pago', variant: 'destructive' })
+      return
+    }
+    if (cart.cartItems.length === 0) {
+      toast({ title: 'Agrega al menos un producto', variant: 'destructive' })
+      return
+    }
+    if (isCreditSale) {
+      const initial = Number(initialCreditPayment || 0)
+      if (!Number.isFinite(initial) || initial < 0 || initial >= displayTotal || (initial > 0 && !initialCreditMethod)) {
+        toast({ title: 'Revisa el abono inicial', description: 'Debe ser menor al total y tener un medio de cobro. Para cobrar todo, selecciona contado.', variant: 'destructive' })
+        return
+      }
+      if (!customerContactIdForPricing) {
+        toast({
+          title: 'Falta el cliente',
+          description: 'Una venta al crédito debe ir a nombre de un cliente del maestro.',
+          variant: 'destructive',
+        })
+        return
+      }
+      if (!creditDueDate) {
+        toast({
+          title: 'Falta el vencimiento',
+          description:
+            'Una venta al crédito sin fecha de vencimiento nunca aparece como vencida. ' +
+            'Indicá la fecha o configurá un término de pago para este cliente.',
+          variant: 'destructive',
+        })
+        return
+      }
+      // El servidor vuelve a validar; esto solo evita el viaje perdido.
+      if (creditCheck.data && !creditCheck.data.ok && !(canOverrideCredit && creditOverride)) {
+        toast({
+          title: 'Crédito no disponible',
+          description: creditCheck.data.motivo ?? 'El cliente no puede llevar esta venta al crédito.',
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    const isCash = paymentMethod.name?.toLowerCase() === 'efectivo'
+    if (isCash) {
+      const received = parseFloat(amountReceived || '0')
+      if (Number.isNaN(received) || received < displayTotal) {
+        toast({
+          title: 'Monto insuficiente',
+          description: `El monto en efectivo (${fmt(received)}) no puede ser menor al total a pagar (${fmt(displayTotal)}).`,
+          variant: 'destructive',
+        })
+        return
+      }
+    }
+    const payload = {
+      customer,
+      customer_nit: customerNit,
+      is_final_consumer: isFinalConsumer,
+      payment_method_id: paymentMethod.id,
+      status_id: 0,
+      customer_contact_id: pickedCustomerId !== '__none__' ? pickedCustomerId : undefined,
+      sales_channel: salesChannel,
+      cash_register_id: cashRegisterMeta?.id ?? selectedRegisterId ?? undefined,
+      items: cart.cartItems.map((item: CartProduct) => ({
+        product_id: item.id,
+        price: item.price,
+        qty: item.qty,
+      })),
+      amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
+      change: isCash ? changeAmount : undefined,
+      admin_authorized_products: Array.from(cart.adminAuthorizedProducts),
+      promotion_codes: promotionsEnabled ? promotions.promotionCodes : [],
+      idempotency_key: intentoDeCobroRef.current,
+      ...(isCreditSale
+        ? {
+            due_date: creditDueDate || undefined,
+            initial_payment: Number(initialCreditPayment) > 0 ? { amount: Number(initialCreditPayment), payment_method_id: Number(initialCreditMethod) } : undefined,
+            credit_override: canOverrideCredit && creditOverride ? true : undefined,
+          }
+        : {}),
+    }
+    setIsProcessing(true)
+    try {
+      if (loadedOrder) {
+        const lines = cart.cartItems
+          .map((item) => ({
+            line_id: orderLineIdByProductRef.current.get(item.id) ?? '',
+            qty: item.qty,
+          }))
+          .filter((x) => x.line_id && Number(x.qty) > 0)
+        const [{ company_name: companyNameFromApi }, result] = await Promise.all([
+          getCompanyNamePublic().catch(() => ({ company_name: '' })),
+          convertOrderToSale(loadedOrder.id, {
+            due_date: isCreditSale ? creditDueDate : undefined,
+            initial_payment: isCreditSale && Number(initialCreditPayment) > 0 ? { amount: Number(initialCreditPayment), payment_method_id: Number(initialCreditMethod) } : undefined,
+            payment_method_id: paymentMethod.id,
+            amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
+            change: isCash ? changeAmount : undefined,
+            lines,
+            cash_register_id: cashRegisterMeta?.id ?? selectedRegisterId ?? undefined,
+          }),
+        ])
+        const created = result.sale as { id?: string; reference?: string }
+        const saleId = created?.id
+        if (saleId && created) {
+          const nameForTicket = (companyNameFromApi && String(companyNameFromApi).trim()) || companyName
+          const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
+          generateSaleTicket(created as Parameters<typeof generateSaleTicket>[0], {
+            companyName: nameForTicket,
+            logoDataUrl,
+            locale,
+            currencyCode,
+          })
+        }
+        toast({ title: 'Venta desde pedido registrada' })
+        salesData.refreshSales()
+        await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
+        clearLoadedOrder()
+        setCustomer('Consumidor final')
+        setCustomerNit('')
+        setPickedCustomerId('__none__')
+        setIsFinalConsumer(true)
+        setAmountReceived('')
+        if (saleId) navigate(`/ventas/${saleId}/factura`)
+        return
+      }
+
+      // POST devuelve la venta completa; getCompanyNamePublic en paralelo (antes era secuencial + GET extra)
+      const [{ company_name: companyNameFromApi }, created] = await Promise.all([
+        getCompanyNamePublic().catch(() => ({ company_name: '' })),
+        createSale(payload),
+      ])
+      const saleId = created?.id
+      if (saleId) {
+        const nameForTicket = (companyNameFromApi && String(companyNameFromApi).trim()) || companyName
+        const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
+        generateSaleTicket(created, {
+          companyName: nameForTicket,
+          logoDataUrl,
+          locale,
+          currencyCode,
+        })
+      }
+      intentoDeCobroRef.current = crypto.randomUUID()
+      toast({ title: isCreditSale ? 'Venta a crédito registrada' : 'Venta registrada correctamente', description: isCreditSale ? `Abono: ${fmt(Number(initialCreditPayment || 0))} · Saldo en Cartera: ${fmt(displayTotal - Number(initialCreditPayment || 0))}` : undefined })
+      void queryClient.invalidateQueries({ queryKey: ['receivables'] })
+      void queryClient.invalidateQueries({ queryKey: ['credit-check'] })
+      salesData.refreshSales()
+      await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
+      if (userId) {
+        clearNewSaleDraft(userId)
+        setStoredDraftRevision((r) => r + 1)
+      }
+      cart.clearCart()
+      promotions.clearPromotions()
+      setCustomer('Consumidor final')
+      setCustomerNit('')
+      setPickedCustomerId('__none__')
+      setSalesChannel('POS')
+      setIsFinalConsumer(true)
+      setAmountReceived('')
+      setProductSearch('')
+      setInitialCreditPayment('')
+      setInitialCreditMethod('')
+      setCreditDueDate('')
+      requestAnimationFrame(() => productSearchRef.current?.focus())
+    } catch (e) {
+      toast({
+        title: 'Error al registrar la venta',
+        description: (e as Error)?.message,
+        variant: 'destructive',
+      })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  if (!selectedRegisterId) {
+    return (
+      <CashRegisterPicker
+        onSelect={(id) => setSelectedRegisterId(id)}
+        onBack={() => navigate('/ventas')}
+      />
+    )
+  }
+
+  if (!cashCheckDone) {
+    return (
+      <div className="px-4 sm:px-8 lg:px-14 py-16 w-full flex flex-col items-center justify-center gap-4 min-h-[50vh]">
+        <LoadingState variant="detail" message="Comprobando turno de caja…" />
+        <Button variant="outline" size="sm" onClick={() => setSelectedRegisterId(null)}>
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Cambiar de caja
+        </Button>
+      </div>
+    )
+  }
+
+  if (cashCheckError) {
+    return (
+      <div className="px-4 sm:px-8 lg:px-14 py-8 w-full max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-xl font-bold">Nueva venta</h1>
+        </div>
+        <Alert variant="destructive">
+          <AlertTitle>No se pudo verificar la caja</AlertTitle>
+          <AlertDescription className="mt-2">{cashCheckError}</AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void runCashCheck(selectedRegisterId)}>
+            Reintentar
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setSelectedRegisterId(null)}>
+            Cambiar de caja
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (openedByOther) {
+    return (
+      <div className="px-4 sm:px-8 lg:px-14 py-8 w-full max-w-lg mx-auto space-y-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <h1 className="text-xl font-bold">Nueva venta</h1>
+        </div>
+        <Alert variant="destructive">
+          <AlertTitle>Caja en uso</AlertTitle>
+          <AlertDescription className="mt-2">
+            {cashRegisterMeta?.name ? `La caja "${cashRegisterMeta.name}"` : 'Esta caja'} ya tiene un
+            turno abierto por {openedByOther.name ?? 'otro usuario'}. Debe cerrar ese turno o utilizar
+            una caja asignada.
+          </AlertDescription>
+        </Alert>
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" onClick={() => void runCashCheck(selectedRegisterId as string)}>
+            Reintentar
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setSelectedRegisterId(null)}>
+            Cambiar de caja
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!cashSessionOpen) {
+    return (
+        <OpenCashRegisterPrompt
+          registerName={cashRegisterMeta?.name}
+          registerId={cashRegisterMeta?.id}
+          onOpened={handleCashSessionOpened}
+          onBack={() => setSelectedRegisterId(null)}
+        />
+    )
+  }
+
+  return (
+    <div className="pos-page">
+      <div className="auna-page-toolbar pos-toolbar">
+        <div className="flex items-start gap-3 min-w-0">
+          <Button variant="outline" size="sm" aria-label="Volver a ventas" className="shrink-0" onClick={() => navigate('/ventas')}>
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="sr-only">Nueva venta</h1>
+            <p className="text-xs text-muted-foreground">
+              {loadedOrder
+                ? `Venta desde pedido ${loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}`
+                : isCompact
+                  ? 'Agrega productos, recibe el pago y cobra'
+                  : 'Agrega productos; cliente y opciones especiales aparecen cuando hacen falta'}
+            </p>
+          </div>
+        </div>
+        {canLoadOrders && !loadedOrder && (
+          <Button variant="outline" size="sm" className="shrink-0" onClick={() => setLoadOrderOpen(true)}>
+            <Package className="h-4 w-4 mr-2" />
+            Cargar pedido
+          </Button>
+        )}
+
+        {activeCashSession && (
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
+            <div
+              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs text-muted-foreground sm:text-sm"
+              title={`${cashRegisterMeta?.name ?? 'Caja principal'} · Fondo Q${Number(activeCashSession.opening_float).toFixed(2)} · ${new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}${activeCashSession.openedBy?.name ? ` · ${activeCashSession.openedBy.name}` : ''}`}
+            >
+              <Landmark className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+              <span className="truncate">
+                <span className="text-foreground/80 font-medium">Turno abierto</span>
+                <span className="mx-1.5 text-border">·</span>
+                {cashRegisterMeta?.name ?? 'Caja principal'}
+                <span className="mx-1.5">·</span>
+                Q{Number(activeCashSession.opening_float).toFixed(2)}
+                <span className="mx-1.5">·</span>
+                {new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT', {
+                  dateStyle: 'short',
+                  timeStyle: 'short',
+                })}
+                {activeCashSession.openedBy?.name ? (
+                  <>
+                    <span className="mx-1.5">·</span>
+                    {activeCashSession.openedBy.name}
+                  </>
+                ) : null}
+              </span>
+            </div>
+            {canUserCloseCashTurn ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 border-border/80 bg-background"
+                    disabled={isProcessing || isClosingCashSession}
+                    aria-label="Acciones del turno de caja"
+                  >
+                    <Settings className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" sideOffset={6} className="w-56">
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
+                    disabled={isProcessing || isClosingCashSession}
+                    onSelect={() => setShowCloseCashDialog(true)}
+                  >
+                    Cerrar caja (fin de turno)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <span className="text-[11px] leading-tight text-muted-foreground sm:text-xs sm:max-w-[12rem] sm:text-right">
+                Solo quien abrió el turno o un supervisor puede cerrarlo.
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+
+      {loadedOrder && (
+        <Alert className="mb-6">
+          <Package className="h-4 w-4" />
+          <AlertTitle>Pedido {loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}</AlertTitle>
+          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+            <span>Registrar venta desde pedido (precios congelados del pedido).</span>
+            <Button type="button" size="sm" variant="outline" onClick={clearLoadedOrder}>
+              Quitar pedido
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {hasStoredDraft && (
+        <Alert className="mb-6 border-amber-500/50 bg-amber-500/5">
+          <RotateCcw className="h-4 w-4 text-amber-700" />
+          <AlertTitle className="text-amber-900 dark:text-amber-100">
+            Tienes una venta guardada
+          </AlertTitle>
+          <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <span>
+              No se carga sola: pulsa recuperar para continuar con esa venta o empieza otra abajo.
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="border-amber-700 text-amber-900 shrink-0"
+              onClick={handleRecoverSavedSale}
+              disabled={isProcessing}
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Recuperar venta guardada
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <div className="pos-workspace">
+        {/* Columna izquierda: información de la venta */}
+        <div className="pos-sale-column">
+          <section className="auna-surface rounded-xl border pos-context" aria-labelledby="pos-context-title">
+            <header className="pos-section-heading">
+              <h2 id="pos-context-title" className="flex items-center justify-between gap-3 text-base font-semibold">
+                <span>Cliente y pago</span>
+                <span className="text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
+                  Perfil {EXPERIENCE_PROFILE_LABELS[profile]}
+                </span>
+              </h2>
+            </header>
+            <div className="pos-context-fields">
+              <Collapsible
+                open={showCustomerDetails || isCreditSale}
+                onOpenChange={setShowCustomerDetails}
+                className="pos-customer"
+              >
+                <CollapsibleTrigger asChild>
+                  <Button type="button" variant="ghost" className="h-auto w-full justify-between p-3">
+                    <span className="flex min-w-0 items-center gap-2 text-left">
+                      <UserRound className="h-4 w-4 shrink-0" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium">Cliente y factura</span>
+                        <span className="block truncate text-xs font-normal text-muted-foreground">
+                          {isFinalConsumer ? 'Consumidor final' : customer || 'Sin nombre'}
+                          {customerNit ? ` · ${customerNit}` : ''}
+                        </span>
+                      </span>
+                    </span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${(showCustomerDetails || isCreditSale) ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  {canPickSavedCustomer && (
+                    <SavedCustomerMany2One
+                      valueId={pickedCustomerId}
+                      linkedDisplayName={customer}
+                      onPick={(row) => {
+                        if (String(row.id) !== pickedCustomerId) setCreditDueDate('')
+                        setPickedCustomerId(String(row.id))
+                        setCustomer(row.name)
+                        setCustomerNit(row.taxId ?? '')
+                        setIsFinalConsumer(false)
+                      }}
+                      onClear={() => { setPickedCustomerId('__none__'); setCreditDueDate('') }}
+                      canCreateContact={canCreateClientContact}
+                    />
+                  )}
+                  <div>
+                    <Label htmlFor="customer">Nombre o razón social</Label>
+                    <Input
+                      id="customer"
+                      placeholder="Consumidor final"
+                      value={customer}
+                      onChange={(e) => {
+                        setCustomer(e.target.value)
+                        setPickedCustomerId('__none__')
+                        if (salesShowFiscalFields && e.target.value.trim() !== 'Consumidor final') {
+                          setIsFinalConsumer(false)
+                        }
+                      }}
+                    />
+                  </div>
+                  {salesShowFiscalFields && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="cf"
+                          checked={isFinalConsumer}
+                          onChange={(e) => {
+                            setIsFinalConsumer(e.target.checked)
+                            if (e.target.checked) {
+                              setCustomer('Consumidor final')
+                              setCustomerNit('')
+                              setPickedCustomerId('__none__')
+                            }
+                          }}
+                          className="auna-checkbox"
+                        />
+                        <Label htmlFor="cf">Consumidor final (CF)</Label>
+                      </div>
+                      {!isFinalConsumer && (
+                        <div>
+                          <Label htmlFor="nit">ID fiscal</Label>
+                          <Input
+                            id="nit"
+                            placeholder="NIT, VAT, RFC, etc."
+                            value={customerNit}
+                            onChange={(e) => {
+                              setCustomerNit(e.target.value)
+                              setPickedCustomerId('__none__')
+                            }}
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {isCreditSale && (
+                    <div className="space-y-2 border-t pt-3">
+                  {!customerContactIdForPricing ? (
+                    <p className="text-xs text-destructive">
+                      Una venta al crédito necesita un cliente del maestro: seleccionalo arriba.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <Label htmlFor="due-date">Vence el</Label>
+                        <Input
+                          id="due-date"
+                          type="date"
+                          value={creditDueDate}
+                          onChange={(e) => setCreditDueDate(e.target.value)}
+                        />
+                        <p
+                          className={`mt-1 text-xs ${
+                            dueDateHint.bad ? 'text-destructive' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {dueDateHint.text}
+                        </p>
+                      </div>
+                      {creditCheck.data && !creditCheck.data.ok && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
+                          <p className="font-medium text-destructive">{creditCheck.data.motivo}</p>
+                          <p className="mt-1 text-muted-foreground">
+                            Saldo actual {fmt(creditCheck.data.saldo_actual)}
+                            {creditCheck.data.credito_disponible > 0 &&
+                              ` (a favor ${fmt(creditCheck.data.credito_disponible)} · neto ${fmt(creditCheck.data.saldo_neto)})`}
+                            {creditCheck.data.limite != null &&
+                              ` · Límite ${fmt(creditCheck.data.limite)}`}
+                          </p>
+                          {canOverrideCredit ? (
+                            <label className="mt-2 flex items-center gap-2 text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={creditOverride}
+                                onChange={(e) => setCreditOverride(e.target.checked)}
+                                className="auna-checkbox w-3.5"
+                              />
+                              Autorizar de todas formas
+                            </label>
+                          ) : (
+                            <p className="mt-1 text-muted-foreground">
+                              Requiere permiso para autorizarla.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {creditCheck.data?.ok && creditCheck.data.limite != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Disponible tras esta venta:{' '}
+                          {fmt(creditCheck.data.limite - creditCheck.data.saldo_resultante)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                    </div>
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+
+              <div className="pos-payment-fields">
+              <div className="space-y-2">
+                <Label>Método de pago *</Label>
+                {visiblePaymentMethods.length === 0 ? (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                    No hay métodos de pago disponibles para esta empresa.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {visiblePaymentMethods.map((method) => (
+                      <Button
+                        key={method.id}
+                        type="button"
+                        variant={paymentMethod?.id === method.id ? 'default' : 'outline'}
+                        className="h-10 justify-start px-3"
+                        aria-pressed={paymentMethod?.id === method.id}
+                        onClick={() => setPaymentMethod(method)}
+                      >
+                        {method.name}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {isCreditSale && (
+                <Alert className="py-3">
+                  <UserRound className="h-4 w-4" />
+                  <AlertTitle>Venta al crédito</AlertTitle>
+                  <AlertDescription>
+                    Selecciona un cliente registrado y confirma su vencimiento.
+                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
+                  </AlertDescription>
+                </Alert>
+              )}
+              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="amount">Monto recibido</Label>
+                    {displayTotal > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
+                      >
+                        Monto exacto
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="amount"
+                    type="number"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    min={displayTotal}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value)}
+                    step="0.01"
+                    className="font-semibold"
+                  />
+                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
+                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
+                  )}
+                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
+                    <p className="text-sm text-destructive">
+                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
+                    </p>
+                  )}
+                </div>
+              )}
+
+
+              </div>
+              {salesShowChannels && (
+                <Collapsible className="pos-advanced" open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
+                  <CollapsibleTrigger asChild>
+                    <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
+                      <span className="flex items-center gap-2">
+                        <SlidersHorizontal className="h-4 w-4" /> Más opciones
+                      </span>
+                      <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="pt-2">
+                    <Label>Canal de venta</Label>
+                    <Select
+                      value={salesChannel}
+                      onValueChange={(v) => {
+                        if (v === 'WHOLESALE' || v === 'ONLINE' || v === 'POS') setSalesChannel(v)
+                      }}
+                    >
+                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="POS">Mostrador (POS)</SelectItem>
+                        <SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem>
+                        <SelectItem value="ONLINE">En línea</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      El canal puede cambiar precios y promociones aplicables.
+                    </p>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </div>
+          </section>
+
+          {/* Carrito y total */}
+          <section className="auna-data-table-shell pos-cart" aria-label="Productos en la venta">
+            <header className="pos-section-heading">
+              <h2 className="text-base font-semibold">Productos en la venta ({cart.cartItems.length})</h2>
+            </header>
+            {cart.cartItems.length === 0 ? (
+              <EmptyState icon={Package} title="Agrega productos a la venta" description="Busca un producto en el catálogo o introduce su código de barras." />
+            ) : (
+              <div className="pos-cart-scroll">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Producto</TableHead>
+                      <TableHead className="text-right">Precio unitario</TableHead>
+                      <TableHead className="text-center">Cantidad</TableHead>
+                      <TableHead className="text-right">Subtotal</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {cart.cartItems.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell>
+                          <div className="flex min-w-40 items-center gap-3">
+                            {item.imageUrl ? (
+                              <img src={item.imageUrl} alt="" loading="lazy" width={40} height={40} className="h-10 w-10 shrink-0 rounded-md border bg-background object-contain" />
+                            ) : <Package className="h-8 w-8 shrink-0 text-muted-foreground" aria-hidden="true" />}
+                            <div>
+                              <p className="font-medium">{item.name}</p>
+                              <p className="text-xs text-muted-foreground">{item.barcode || 'Sin código de barras'}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmt(item.price)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,-1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                              <Minus className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                            <Input
+                              type="text"
+                              inputMode={item.kind==='SERVICE' ? 'decimal' : 'numeric'}
+                              className="w-16 text-center"
+                              data-control-size="compact"
+                              aria-label={`Cantidad de ${item.name}`}
+                              value={item.qty}
+                              disabled={isProcessing}
+                              aria-invalid={displayLineTotals[item.id]===null}
+                              onChange={event => cart.updateQuantity(item.id,event.target.value)}
+                            />
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                              <Plus className="h-4 w-4" aria-hidden="true" />
+                            </Button>
+                          </div>
+                          {item.kind==='SERVICE' && <p className="mt-1 text-center text-xs text-muted-foreground">{item.serviceUnitLabel}</p>}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{displayLineTotals[item.id]!==null ? fmt(Number(displayLineTotals[item.id])) : '—'}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Quitar ${item.name}`} onClick={() => cart.removeFromCart(item.id)} disabled={isProcessing}>
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </section>
+
+          {promotionsEnabled && !loadedOrder && (
+          <PromotionCodeInput
+            appliedPromotions={promotions.appliedPromotions ?? []}
+            totalDiscount={promotions.totalDiscount ?? 0}
+            isValidating={promotions.isValidating ?? false}
+            onApplyCode={promotions.applyCode}
+            onRemovePromotion={promotions.removePromotion}
+          />
+
+          )}
+
+          <section className="pos-checkout auna-surface rounded-xl border" aria-label="Total y registro de la venta">
+            <div className="pos-checkout-summary">
+              {promotionsEnabled && promotions.appliedPromotions?.length ? (
+                <div className="pt-2 border-t">
+                  <p className="text-xs text-muted-foreground">Descuentos aplicados</p>
+                  <p className="text-green-600 font-medium">
+                    -{fmt(promotions.totalDiscount ?? 0)}
+                  </p>
+                </div>
+              ) : null}
+              {vatRegime === 'general' && displayTotal > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground pt-2">
+                  <span>IVA incluido ({ivaRate}%)</span>
+                  <span>{fmt(displayTotal - displayTotal / (1 + ivaRate / 100))}</span>
+                </div>
+              )}
+              <div className={`flex justify-between font-semibold text-lg ${vatRegime === 'general' ? '' : 'pt-2'}`}>
+                <span>Total</span>
+                <span>{fmt(displayTotal)}</span>
+              </div>
+
+            </div>
+          <div className="pos-checkout-actions">
+            <Button
+              type="button"
+              variant="secondary"
+              className="flex-1"
+              onClick={handleSaveForLater}
+              disabled={isProcessing || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}
+            >
+              <PauseCircle className="w-4 h-4 mr-2" />
+              Guardar y continuar después
+            </Button>
+            <Button
+              className="flex-1 bg-brand-orange text-white hover:bg-brand-orange-strong"
+              onClick={handleSubmit}
+              disabled={
+                cart.cartItems.length === 0 ||
+                cart.hasInvalidQuantities || promotions.isValidating || (pricingReadyRef.current!==pricingContext && !loadedOrder) ||
+                !paymentMethod ||
+                isProcessing ||
+                (paymentMethod?.name?.toLowerCase() === 'efectivo' &&
+                  (!amountReceived ||
+                    Number.isNaN(parseFloat(amountReceived)) ||
+                    parseFloat(amountReceived) < displayTotal)) ||
+                (isCreditSale &&
+                  (!customerContactIdForPricing ||
+                    !creditDueDate || Number(initialCreditPayment) < 0 || !Number.isFinite(Number(initialCreditPayment)) || Number(initialCreditPayment) >= displayTotal || (Number(initialCreditPayment) > 0 && !initialCreditMethod) ||
+                    (creditCheck.data != null &&
+                      !creditCheck.data.ok &&
+                      !(canOverrideCredit && creditOverride))))
+              }
+            >
+              {isProcessing ? (
+                <span className="flex items-center gap-2">
+                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
+                  Procesando...
+                </span>
+              ) : (
+                <>
+                  <Receipt className="w-4 h-4 mr-2" />
+                  {isCreditSale ? 'Registrar venta a crédito' : 'Cobrar'}
+                </>
+              )}
+            </Button>
+          </div>
+          </section>
+        </div>
+
+        {/* Columna derecha: catálogo */}
+        <div className="pos-catalog-column">
+          <aside className="auna-surface rounded-xl border pos-catalog" aria-labelledby="pos-catalog-title">
+            <header className="pos-catalog-heading">
+              <h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Buscar productos"
+                    ref={productSearchRef}
+                    placeholder="Buscar por nombre o código de barras..."
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value)
+                      setProductPage(1)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      const term = productSearch.trim().toLowerCase()
+                      if (!term) return
+                      const exact = availableProducts.find(
+                        (product) => (product.barcode ?? '').trim().toLowerCase() === term
+                      )
+                      if (!exact) return
+                      event.preventDefault()
+                      void addProduct(exact)
+                      setProductSearch('')
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                <div
+                  className="flex items-center border rounded-md bg-background/80 shrink-0 self-end sm:self-auto"
+                  role="group"
+                  aria-label="Forma de ver productos"
+                >
+                  <Button
+                    type="button"
+                    variant={productLayout === 'flat' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-9 rounded-r-none gap-1.5 px-3"
+                    onClick={() => {
+                      setProductLayout('flat')
+                      setSelectedCategoryName(null)
+                    }}
+                    aria-pressed={productLayout === 'flat'}
+                    title="Lista de todos los productos"
+                  >
+                    <List className="w-4 h-4" />
+                    <span className="hidden sm:inline text-xs">Lista</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={productLayout === 'byCategory' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="h-9 rounded-l-none gap-1.5 px-3"
+                    onClick={() => {
+                      setProductLayout('byCategory')
+                      setSelectedCategoryName(null)
+                    }}
+                    aria-pressed={productLayout === 'byCategory'}
+                    title="Primero elegir categoría"
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span className="hidden sm:inline text-xs">Categorías</span>
+                  </Button>
+                </div>
+              </div>
+              {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit h-8 px-2 -ml-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    setSelectedCategoryName(null)
+                    setProductPage(1)
+                  }}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-1" />
+                  Todas las categorías
+                </Button>
+              ) : null}
+            </header>
+            <div className="pos-catalog-body">
+              <p className="text-xs text-muted-foreground mb-3">
+                Solo se muestran productos marcados como disponibles para la venta. Puedes cambiarlo en el detalle del
+                producto en Inventario.
+                {productLayout === 'byCategory' && !isProductSearchActive && !selectedCategoryName ? (
+                  <span className="block mt-1">
+                    Elige una categoría para ver sus productos.
+                  </span>
+                ) : null}
+                {productLayout === 'byCategory' && isProductSearchActive ? (
+                  <span className="block mt-1">
+                    Con búsqueda activa se muestran coincidencias en todas las categorías.
+                  </span>
+                ) : null}
+              </p>
+              {posSinConfigurar ? (
+                <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-medium">Falta configurar el punto de venta</p>
+                  <p className="text-xs mt-0.5">
+                    Esta sucursal no tiene una ubicación de venta marcada, así que las
+                    existencias que se ven suman todos los almacenes y no reflejan lo que hay
+                    en el mostrador. Marcá la ubicación en Sucursales → Almacenes para poder vender.
+                  </p>
+                </div>
+              ) : null}
+              {productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
+              {productsQuery.isError && availableProducts.length > 0 && (
+                <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                  <p className="text-muted-foreground">No se pudieron actualizar los productos. Últimos datos disponibles.</p>
+                  <Button variant="outline" size="sm" disabled={productsQuery.isFetching} onClick={() => void productsQuery.refetch()}>Reintentar</Button>
+                </div>
+              )}
+              {productsQuery.isLoading ? (
+                <LoadingState variant="cards" message="Cargando productos…" />
+              ) : productsQuery.isError && availableProducts.length === 0 ? (
+                <div role="alert" className="py-8 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => void productsQuery.refetch()}>Reintentar</Button></div>
+              ) : showCategoryPicker ? (
+                categorySummaries.length === 0 ? (
+                  <div className="py-12 text-center text-muted-foreground">
+                    No hay categorías con productos que coincidan
+                  </div>
+                ) : (
+                  <div className="pos-category-list">
+                    {categorySummaries.map((cat) => (
+                      <CategoryBrowseCard
+                        key={cat.name}
+                        name={cat.name}
+                        count={cat.count}
+                        imageUrl={cat.imageUrl}
+                        disabled={isProcessing}
+                        onSelect={() => {
+                          setSelectedCategoryName(cat.name)
+                          setProductPage(1)
+                        }}
+                      />
+                    ))}
+                  </div>
+                )
+              ) : browseProducts.length === 0 ? (
+                <div className="py-12 text-center text-muted-foreground">
+                  No hay productos que coincidan
+                </div>
+              ) : (
+                <>
+                  {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
+                    <p className="text-sm font-medium text-foreground mb-3">{selectedCategoryName}</p>
+                  ) : null}
+                  <div className="pos-product-list">
+                    {pageProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onAdd={() => void addProduct(product)}
+                        disabled={isProcessing}
+                        formatPrice={fmt}
+                        displayUnitPrice={getUnitPrice(product)}
+                        availableQty={availabilityById[product.id]?.available ?? product.stock}
+                        physicalStock={availabilityById[product.id]?.stock ?? product.stock}
+                        posQty={posLocationId ? availabilityById[product.id]?.location_stock ?? null : null}
+                        posMode={Boolean(posLocationId)}
+                      />
+                    ))}
+                  </div>
+
+                </>
+              )}
+            </div>
+          </aside>
+          {!productsQuery.isLoading && !showCategoryPicker && browseProducts.length > 0 && <div className="auna-pagination-outside">
+            <div className="flex items-center justify-end gap-2"><Label htmlFor="pos-page-size">Productos por página</Label><Select value={String(productPageSize)} onValueChange={v => { setProductPageSize(Number(v)); setProductPage(1) }}><SelectTrigger id="pos-page-size" className="w-20"><SelectValue /></SelectTrigger><SelectContent>{[9, 18, 36, 54].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
+            <Pagination currentPage={safePage} totalPages={totalPages} totalItems={browseProducts.length} pageSize={pageSize} count={pageProducts.length} itemLabel="productos" onPageChange={setProductPage} loading={productsQuery.isFetching} />
+          </div>}
+        </div>
+      </div>
+
+      <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && cerrarElsewhere()}>
+        <AlertDialogContent variant="auna">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {/* El nombre va en las dos ramas: sin él, dos avisos seguidos de
+                  productos distintos se ven idénticos. */}
+              {elsewhereView == null
+                ? ''
+                : elsewhereView.atPos === 0
+                  ? `No queda ${elsewhereView.product.name} en el mostrador`
+                  : `Solo quedan ${elsewhereView.atPos} de ${elsewhereView.product.name} en el mostrador`}
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p>Pero sí hay en:</p>
+                <ul className="mt-2 space-y-1">
+                  {elsewhereView?.rows.map((r) => (
+                    <li key={r.label} className="text-foreground">
+                      <span className="font-mono">{r.label}</span>
+                      <span className="text-muted-foreground"> — {r.stock} unidad(es)</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3">
+                  Si continúas, la venta saldrá de ahí. Conviene traerlo al mostrador con un
+                  movimiento interno para que las existencias digan la verdad.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (elsewhere) cart.addToCart(elsewhere.product)
+                cerrarElsewhere()
+              }}
+            >
+              Continuar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AvailabilityDialog
+        state={cart.availabilityDialog}
+        additionalQty={cart.additionalQty}
+        onAdditionalQtyChange={cart.setAdditionalQty}
+        onConfirm={cart.handleConfirmAdditionalQty}
+        onCancel={cart.handleCancelAvailability}
+      />
+      <AdminAuthDialog
+        state={cart.adminAuthDialog}
+        username={cart.adminUsername}
+        password={cart.adminPassword}
+        isAuthenticating={cart.isAuthenticating}
+        onUsernameChange={cart.setAdminUsername}
+        onPasswordChange={cart.setAdminPassword}
+        onConfirm={cart.handleAdminAuth}
+        onCancel={cart.closeAdminAuthDialog}
+      />
+
+      <AlertDialog open={showCloseCashDialog} onOpenChange={setShowCloseCashDialog}>
+        <AlertDialogContent variant="auna">
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar el turno de caja?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <span>
+                Cierra el turno en el sistema <strong>sin</strong> generar un cierre contable ni arqueo. Para cuadrar
+                efectivo y dejar constancia oficial use la pantalla <strong>Cierre de caja</strong>.
+              </span>
+              {cart.cartItems.length > 0 ? (
+                <span className="block text-amber-800 dark:text-amber-200">
+                  Hay {cart.cartItems.length} línea(s) en el carrito: puede vaciarlas antes o cerrar igual; no se
+                  registrará ninguna venta hasta abrir un turno nuevo.
+                </span>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isClosingCashSession}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isClosingCashSession}
+              onClick={(e) => {
+                e.preventDefault()
+                void confirmCloseCashSession()
+              }}
+            >
+              {isClosingCashSession ? 'Cerrando…' : 'Sí, cerrar turno'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={canLoadOrders && loadOrderOpen} onOpenChange={setLoadOrderOpen}>
+        <DialogContent variant="auna">
+          <DialogHeader>
+            <DialogTitle>Cargar pedido en POS</DialogTitle>
+            <DialogDescription>
+              Trae al carrito las líneas de un pedido ya confirmado, buscándolo por su referencia
+              o su identificador interno.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <Label htmlFor="load-order-ref">Referencia P- o UUID</Label>
+            <Input
+              id="load-order-ref"
+              placeholder="P-000001"
+              value={loadOrderRef}
+              onChange={(e) => setLoadOrderRef(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && void handleLoadOrder()}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoadOrderOpen(false)}>Cancelar</Button>
+            <Button onClick={() => void handleLoadOrder()} disabled={!loadOrderRef.trim()}>
+              Cargar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

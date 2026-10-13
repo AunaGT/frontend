@@ -1,0 +1,31 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { loadReportModule } = require('./helpers/loadReportModule.cjs')
+const { normalizeQuantityInput, quantityTicks, formatQuantity, previewLineTotal } = loadReportModule('../../lib/commercialQuantity.ts')
+test('remaining commercial quantity is exact and never negative',()=>{
+  const {remainingQuantity}=loadReportModule('../../lib/commercialQuantity.ts')
+  assert.equal(remainingQuantity('0.3','0.2'),'0.1')
+  assert.equal(remainingQuantity('1.25','1.25'),'0')
+  assert.equal(remainingQuantity('1','2'),'0')
+})
+const rules = { kind: 'SERVICE', quantityDecimals: 3 }
+test('partial invoice preview gives the final fraction its residual cents',()=>{
+  const {previewPartialLineTotal}=loadReportModule('../../lib/commercialQuantity.ts')
+  assert.equal(previewPartialLineTotal('1','19.99','0.5','0'),'10.00')
+  assert.equal(previewPartialLineTotal('1','19.99','0.5','0.5'),'9.99')
+  assert.equal(previewPartialLineTotal('1','0.01','0.5','0.5'),'0.00')
+})
+test('normalizes the locale decimal separator without silently accepting thousands or blank input', () => {
+  assert.equal(normalizeQuantityInput('1,5', rules, 'es-ES'), '1.5')
+  assert.equal(normalizeQuantityInput('0.1250', rules, 'es-GT'), '0.125')
+  for (const raw of ['', '1,000.5', '1.000,5', '-1', '0', 'Infinity', '1e2', '100000000', '0.1251']) assert.throws(() => normalizeQuantityInput(raw, rules, 'es-GT'))
+  assert.throws(() => normalizeQuantityInput('1.5', { kind: 'STANDARD', quantityDecimals: 0 }, 'es-GT'))
+})
+test('uses exact ticks and money rounding while displaying all significant quantity decimals', () => {
+  assert.equal(quantityTicks('0.125'), 1250n)
+  assert.equal(previewLineTotal('1.25', '19.99'), '24.99')
+  assert.equal(previewLineTotal('0.125', '100'), '12.50')
+  assert.equal(formatQuantity('0.125', 'es-GT'), '0.125')
+  assert.equal(formatQuantity('1.5000', 'es-ES'), '1,5')
+  assert.throws(() => quantityTicks('0.00001'))
+})

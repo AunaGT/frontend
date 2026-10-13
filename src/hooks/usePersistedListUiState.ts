@@ -56,22 +56,24 @@ type Opts = {
   defaultPage?: number
   defaultPageSize?: number
   defaultView?: TableCardsView
+  pageSizeOptions?: readonly number[]
 }
 
 export function usePersistedListUiState(storageKey: string, opts: Opts = {}) {
   const dp = opts.defaultPage ?? 1
-  const dps = opts.defaultPageSize ?? 18
+  const dps = opts.defaultPageSize ?? 10
   const dv = opts.defaultView
 
   const [page, setPage] = useState(() => {
     const s = readListUiPersisted(storageKey)
+    if (s.pageSize !== undefined && opts.pageSizeOptions && !opts.pageSizeOptions.includes(Math.floor(Number(s.pageSize)))) return dp
     const p = Number(s.page)
     return Number.isFinite(p) && p >= 1 ? Math.floor(p) : dp
   })
   const [pageSize, setPageSize] = useState(() => {
     const s = readListUiPersisted(storageKey)
     const n = Number(s.pageSize)
-    return Number.isFinite(n) && n >= 1 ? Math.floor(n) : dps
+    return Number.isFinite(n) && n >= 1 && (!opts.pageSizeOptions || opts.pageSizeOptions.includes(Math.floor(n))) ? Math.floor(n) : dps
   })
   const [viewMode, setViewMode] = useState<TableCardsView>(() => {
     if (dv === undefined) return 'cards'

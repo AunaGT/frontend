@@ -1,0 +1,104 @@
+.contacts-list .contacts-record-card {
+  gap: 10px;
+  padding: 12px;
+  text-align: left;
+}
+
+.contacts-list .contacts-record-card .auna-record-media {
+  width: 52px;
+  min-height: 52px;
+}
+
+.contacts-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.contacts-card-heading h2 {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.contacts-card-heading > :last-child {
+  flex-shrink: 0;
+  font-size: 11px;
+}
+
+.contacts-card-identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 16px;
+  color: hsl(var(--muted-foreground));
+}
+
+.contacts-card-identity > :first-child {
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.contacts-card-category {
+  margin-top: 4px;
+  color: hsl(var(--muted-foreground));
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.contacts-card-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 12px;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.contacts-card-lines p {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.contacts-card-lines .contacts-card-short {
+  flex: 0 1 auto;
+  max-width: 100%;
+}
+
+.contacts-card-lines svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 16px;
+  color: hsl(var(--muted-foreground));
+}
+
+.contacts-table-scroll {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.contacts-table-scroll:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 3px;
+}
+
+.contacts-table-scroll td {
+  max-width: 260px;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+
+.contacts-table-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: hsl(var(--auna-table-header));
+}

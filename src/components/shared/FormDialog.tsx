@@ -34,6 +34,7 @@ interface FormDialogProps {
     loading?: boolean
     submitDisabled?: boolean
     maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl'
+    appearance?: 'default' | 'auna'
 }
 
 export const FormDialog = ({
@@ -48,6 +49,7 @@ export const FormDialog = ({
     loading = false,
     submitDisabled = false,
     maxWidth = 'md',
+    appearance = 'default',
 }: FormDialogProps) => {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -65,7 +67,7 @@ export const FormDialog = ({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className={`${maxWidthClass} max-h-[90vh] overflow-y-auto`}>
+            <DialogContent variant={appearance} className={`${maxWidthClass} max-h-[90vh] overflow-y-auto`}>
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
                         <DialogTitle>{title}</DialogTitle>

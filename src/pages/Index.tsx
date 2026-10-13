@@ -10,22 +10,33 @@
 
 import { useState } from "react";
 import Header from "@/components/Header";
-import Dashboard from "@/components/Dashboard";
-import ProductManagement from "@/components/ProductManagement";
-import Analytics from "@/components/Analytics";
-import SalesManagement from "@/components/SalesManagement";
-import SuppliersManagement from "@/components/SuppliersManagement";
-import ReportsManagement from "@/components/ReportsManagement";
-import AlertsManagement from "@/components/AlertsManagement";
-import ScannerManagement from "@/components/ScannerManagement";
-import UserManagement from "@/components/UserManagement";
-import { CatalogsManagement } from "@/components/CatalogsManagement";
-import ReturnsManagement from "@/components/ReturnsManagement";
-import CashClosureManagement from "@/components/CashClosureManagement";
-import PromotionsManagement from "@/components/PromotionsManagement";
+import { alertsModule } from "@/modules/alerts/manifest";
+import { analyticsModule } from "@/modules/analytics/manifest";
+import { promotionsModule } from "@/modules/promotions/manifest";
+import { returnsModule } from "@/modules/returns/manifest";
+import { inventoryModule } from "@/modules/inventory/manifest";
+import { salesModule } from "@/modules/sales/manifest";
+import { contactsModule } from "@/modules/contacts/manifest";
+import { reportsModule } from "@/modules/reports/manifest";
+import { usersModule } from "@/modules/users/manifest";
+import { catalogsModule } from "@/modules/catalogs/manifest";
+import { cashClosureModule } from "@/modules/cash-closure/manifest";
+
+const AlertsManagement = alertsModule.pages.Management;
+const Analytics = analyticsModule.pages.Management;
+const PromotionsManagement = promotionsModule.pages.Management;
+const ReturnsManagement = returnsModule.pages.Management;
+const ProductManagement = inventoryModule.pages.Management;
+const ScannerManagement = inventoryModule.pages.Scanner;
+const SalesManagement = salesModule.pages.Management;
+const SuppliersManagement = contactsModule.pages.Management;
+const ReportsManagement = reportsModule.pages.Management;
+const UserManagement = usersModule.pages.Management;
+const CatalogsManagement = catalogsModule.pages.Management;
+const CashClosureManagement = cashClosureModule.pages.Management;
 
 const Index = () => {
-  const [activeSection, setActiveSectionState] = useState("dashboard");
+  const [activeSection, setActiveSectionState] = useState("analytics");
 
   // determine role from localStorage
   let storedUser = null;
@@ -46,8 +57,6 @@ const Index = () => {
 
   const renderContent = () => {
     switch (activeSection) {
-      case "dashboard":
-        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Dashboard onSectionChange={setActiveSection} />;
       case "products":
       case "inventory":
         return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <ProductManagement />;
@@ -72,7 +81,7 @@ const Index = () => {
       case "promotions":
         return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <PromotionsManagement />;
       default:
-        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Dashboard />;
+        return isSeller ? <SalesManagement onSectionChange={setActiveSection} /> : <Analytics />;
     }
   };
 

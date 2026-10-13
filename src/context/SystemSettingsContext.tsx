@@ -5,8 +5,9 @@
  * Una sola petición GET /api/settings/public por árbol de rutas privadas.
  */
 
-import { createContext, useCallback, useEffect, useState } from 'react'
+import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { getPublicSettings } from '@/services/settingsService'
+import type { ExperienceProfile } from '@/config/experienceProfiles'
 
 const DEFAULT_TIMEZONE = 'America/Guatemala'
 const DEFAULT_COMPANY_NAME = 'Auna'
@@ -31,6 +32,11 @@ export interface SystemSettingsState {
   vatRegime: 'general' | 'pequeno'
   /** Tasa de IVA general en % (SystemSetting iva_rate) */
   ivaRate: number
+  defaultExperienceProfile: ExperienceProfile
+  salesAllowCredit: boolean
+  salesShowFiscalFields: boolean
+  salesShowChannels: boolean
+  inventoryServicesEnabled: boolean
   loading: boolean
   error: boolean
   /** Recarga la configuración pública desde el servidor (p. ej. tras guardar en Configuración). */
@@ -48,6 +54,11 @@ const defaultState: Omit<SystemSettingsState, 'refetch'> = {
   cashClosureMaxDiffPct: DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT,
   vatRegime: 'general',
   ivaRate: DEFAULT_IVA_RATE,
+  defaultExperienceProfile: 'CASHIER',
+  salesAllowCredit: true,
+  salesShowFiscalFields: true,
+  salesShowChannels: true,
+  inventoryServicesEnabled: false,
   loading: true,
   error: false
 }
@@ -56,11 +67,14 @@ export const SystemSettingsContext = createContext<SystemSettingsState | undefin
 
 export function SystemSettingsProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<Omit<SystemSettingsState, 'refetch'>>(defaultState)
+  const generation = useRef(0)
 
   const load = useCallback(() => {
-    setState((s) => ({ ...s, loading: true, error: false }))
+    const request = ++generation.current
+    setState((s) => ({ ...s, inventoryServicesEnabled: false, loading: true, error: false }))
     getPublicSettings()
       .then((d) => {
+        if (request !== generation.current) return
         const pctRaw = d?.cash_closure_max_diff_pct != null ? String(d.cash_closure_max_diff_pct).trim() : ''
         const pct = pctRaw === '' ? DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT : Math.max(0, parseFloat(pctRaw) || DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT)
         setState({
@@ -74,11 +88,19 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           cashClosureMaxDiffPct: pct,
           vatRegime: /peque/i.test(d?.vat_affiliation || '') ? 'pequeno' : 'general',
           ivaRate: (() => { const n = parseFloat(String(d?.iva_rate ?? '')); return Number.isFinite(n) && n >= 0 && n < 100 ? n : DEFAULT_IVA_RATE })(),
+          defaultExperienceProfile: ['CASHIER', 'MANAGER', 'OWNER', 'ADVANCED'].includes(String(d?.default_experience_profile))
+            ? d.default_experience_profile
+            : 'CASHIER',
+          salesAllowCredit: String(d?.sales_allow_credit ?? 'true').toLowerCase() === 'true',
+          salesShowFiscalFields: String(d?.sales_show_fiscal_fields ?? 'true').toLowerCase() === 'true',
+          salesShowChannels: String(d?.sales_show_channels ?? 'true').toLowerCase() === 'true',
+          inventoryServicesEnabled: String(d?.inventory_services_enabled ?? 'false').toLowerCase() === 'true',
           loading: false,
           error: false
         })
       })
       .catch(() => {
+        if (request !== generation.current) return
         setState((s) => ({
           ...s,
           timezone: DEFAULT_TIMEZONE,
@@ -91,6 +113,11 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           cashClosureMaxDiffPct: DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT,
           vatRegime: 'general',
           ivaRate: DEFAULT_IVA_RATE,
+          defaultExperienceProfile: 'CASHIER',
+          salesAllowCredit: true,
+          salesShowFiscalFields: true,
+          salesShowChannels: true,
+          inventoryServicesEnabled: false,
           loading: false,
           error: true
         }))
@@ -98,7 +125,9 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
   }, [])
 
   useEffect(() => {
+    const requests = generation
     load()
+    return () => { requests.current++ }
   }, [load])
 
   const value: SystemSettingsState = { ...state, refetch: load }

@@ -13,84 +13,114 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { Suspense } from "react";
 import NotFound from "./pages/NotFound";
 import PublicRoute from "@/routes/PublicRoute";
 import PrivateRoute from "@/routes/PrivateRoute";
 import PermissionRoute from "@/routes/PermissionRoute";
 import Login from "@/pages/Login";
-import NewReturn from "./pages/NewReturn";
 import HomePage from "./pages/HomePage";
-import ImportPage from "./pages/ImportPage";
-import DeletedProductsPage from "./pages/DeletedProductsPage";
-import SupplierImportPage from "./pages/SupplierImportPage";
-import CatalogImportPage from "./pages/CatalogImportPage";
-import UserImportPage from "./pages/UserImportPage";
-import { RegisterIncomingMerchandise } from "./pages/RegisterIncomingMerchandise";
-import LotsExpiryPage from "./pages/LotsExpiryPage";
-import StockMovesPage from "@/components/stock/StockMovesPage";
 import AuthProvider from "@/context/AuthProvider";
 import TenantProvider from "@/context/TenantProvider";
+import { HomeLoadingPage } from "@/components/layout/HomeLoadingPage";
 
 // Layout
 import { MainLayout } from "@/components/layout";
 
-// Page Components (direct imports to avoid circular deps)
-import Dashboard from "@/components/Dashboard";
-import ProductManagement from "@/components/ProductManagement";
-import Analytics from "@/components/Analytics";
-import AccountingManagement from "@/components/accounting/AccountingManagement";
-import AccountingImportPage from "@/pages/AccountingImportPage";
-import SalesManagement from "@/components/SalesManagement";
-import NewSalePage from "@/components/sales/NewSalePage";
-import { SaleInvoicePage } from "@/components/sales/SaleInvoicePage";
-import SuppliersManagement from "@/components/SuppliersManagement";
-import SupplierDetailPage from "./components/suppliers/SupplierDetailPage";
-import SupplierCreatePage from "./components/suppliers/SupplierCreatePage";
-import ProductDetailPage from "./components/products/ProductDetailPage";
-import ProductCreatePage from "./components/products/ProductCreatePage";
-import ReportsManagement from "./components/ReportsManagement";
-import AlertsManagement from "./components/AlertsManagement";
-import ScannerManagement from "@/components/ScannerManagement";
-import UserManagement from "@/components/UserManagement";
-import UserDetailPage from "@/components/users/UserDetailPage";
-import MyProfilePage from "@/components/users/MyProfilePage";
-import UserCreatePage from "@/components/users/UserCreatePage";
-import RolesPermissionsManagement from "@/components/users/RolesPermissionsManagement";
-import RolePermissionsDetail from "@/components/users/RolePermissionsDetail";
-import RoleCreatePage from "@/components/users/RoleCreatePage";
-import { CatalogsManagement } from "@/components/CatalogsManagement";
-import BranchesManagement from "@/components/branches/BranchesManagement";
-import TransfersManagement from "@/components/transfers/TransfersManagement";
-import ReturnsManagement from "@/components/ReturnsManagement";
-import CashClosureManagement from "@/components/CashClosureManagement";
-import { CashClosureCreatePage } from "@/components/cash-closure/CashClosureCreatePage";
-import { ClosureDetailPage } from "@/components/cash-closure/ClosureDetailPage";
-import PromotionsManagement from "@/components/PromotionsManagement";
-import PromotionCreatePage from "@/components/promotions/PromotionCreatePage";
-import PromotionEditPage from "@/components/promotions/PromotionEditPage";
-import IncomingMerchandiseManagement from "@/components/IncomingMerchandiseManagement";
-import IncomingMerchandiseDetailPage from "@/pages/IncomingMerchandiseDetailPage";
-import ConfigManagement from "@/components/config/ConfigManagement";
-import InventoryCountListPage from "@/components/inventoryCounts/InventoryCountListPage";
-import InventoryCountNewPage from "@/components/inventoryCounts/InventoryCountNewPage";
-import InventoryCountSessionPage from "@/components/inventoryCounts/InventoryCountSessionPage";
-import QuotesManagement from "@/components/quotes/QuotesManagement";
-import NewQuotePage from "@/components/quotes/NewQuotePage";
-import QuoteDetailPage from "@/components/quotes/QuoteDetailPage";
-import OrdersManagement from "@/components/orders/OrdersManagement";
-import OrderDetailPage from "@/components/orders/OrderDetailPage";
-import HrPage from "@/components/hr/HrPage";
-import EmployeeCreatePage from "@/components/hr/EmployeeCreatePage";
-import EmployeeDetailPage from "@/components/hr/EmployeeDetailPage";
-import ReceivablesManagement from "@/components/receivables/ReceivablesManagement";
-import CustomerStatementPage from "@/components/receivables/CustomerStatementPage";
-import PayrollRunsManagement from "@/components/payroll/PayrollRunsManagement";
-import PayrollRunDetail from "@/components/payroll/PayrollRunDetail";
-import PublicQuotePage from "@/pages/PublicQuotePage";
+import MyProfilePage from "@/modules/users/MyProfilePage";
+import MandatoryPasswordPage from "@/modules/users/MandatoryPasswordPage";
+import {
+  accountingModule,
+  alertsModule,
+  analyticsModule,
+  branchesModule,
+  cashClosureModule,
+  catalogsModule,
+  configModule,
+  contactsModule,
+  hrModule,
+  inventoryCountModule,
+  inventoryModule,
+  merchandiseModule,
+  ordersModule,
+  payrollModule,
+  promotionsModule,
+  quotesModule,
+  receivablesModule,
+  reportsModule,
+  returnsModule,
+  salesModule,
+  transfersModule,
+  usersModule,
+} from "@/modules/catalog";
+
+// Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
+// perfil sí permanecen en el bundle inicial.
+const OrdersManagement = ordersModule.pages.Management;
+const NewOrderPage = ordersModule.pages.Create;
+const OrderDetailPage = ordersModule.pages.Detail;
+const PublicOrderPage = ordersModule.pages.Public;
+const InventoryCountListPage = inventoryCountModule.pages.Management;
+const InventoryCountNewPage = inventoryCountModule.pages.Create;
+const InventoryCountSessionPage = inventoryCountModule.pages.Session;
+const ReturnsManagement = returnsModule.pages.Management;
+const ReturnDetailPage = returnsModule.pages.Detail;
+const NewReturn = returnsModule.pages.Create;
+const CashClosureManagement = cashClosureModule.pages.Management;
+const CashClosureCreatePage = cashClosureModule.pages.Create;
+const ClosureDetailPage = cashClosureModule.pages.Detail;
+const RegisterIncomingMerchandise = merchandiseModule.pages.Create;
+const IncomingMerchandiseManagement = merchandiseModule.pages.Management;
+const IncomingMerchandiseDetailPage = merchandiseModule.pages.Detail;
+const Analytics = analyticsModule.pages.Management;
+const AccountingManagement = accountingModule.pages.Management;
+const AccountingImportPage = accountingModule.pages.Import;
+const ReportsManagement = reportsModule.pages.Management;
+const AlertsManagement = alertsModule.pages.Management;
+const BranchesManagement = branchesModule.pages.Management;
+const TransfersManagement = transfersModule.pages.Management;
+const CatalogsManagement = catalogsModule.pages.Management;
+const CatalogImportPage = catalogsModule.pages.Import;
+const HrPage = hrModule.pages.Management;
+const EmployeeCreatePage = hrModule.pages.Create;
+const EmployeeDetailPage = hrModule.pages.Detail;
+const ReceivablesManagement = receivablesModule.pages.Management;
+const CustomerStatementPage = receivablesModule.pages.Statement;
+const PayrollRunsManagement = payrollModule.pages.Management;
+const PayrollRunDetail = payrollModule.pages.Detail;
+const UserManagement = usersModule.pages.Management;
+const UserDetailPage = usersModule.pages.Detail;
+const UserCreatePage = usersModule.pages.Create;
+const UserImportPage = usersModule.pages.Import;
+const RolesPermissionsManagement = usersModule.pages.Roles;
+const RolePermissionsDetail = usersModule.pages.RoleDetail;
+const RoleCreatePage = usersModule.pages.RoleCreate;
+const ConfigManagement = configModule.pages.Management;
+const PromotionsManagement = promotionsModule.pages.Management;
+const PromotionCreatePage = promotionsModule.pages.Create;
+const PromotionEditPage = promotionsModule.pages.Edit;
+const SalesManagement = salesModule.pages.Management;
+const NewSalePage = salesModule.pages.Create;
+const SaleInvoicePage = salesModule.pages.Invoice;
+const SuppliersManagement = contactsModule.pages.Management;
+const SupplierCreatePage = contactsModule.pages.Create;
+const SupplierImportPage = contactsModule.pages.Import;
+const SupplierDetailPage = contactsModule.pages.Detail;
+const ProductManagement = inventoryModule.pages.Management;
+const ProductCreatePage = inventoryModule.pages.Create;
+const ProductDetailPage = inventoryModule.pages.Detail;
+const ImportPage = inventoryModule.pages.Import;
+const DeletedProductsPage = inventoryModule.pages.Deleted;
+const LotsExpiryPage = inventoryModule.pages.Lots;
+const StockMovesPage = inventoryModule.pages.Movements;
+const QuotesManagement = quotesModule.pages.Management;
+const NewQuotePage = quotesModule.pages.Create;
+const QuoteDetailPage = quotesModule.pages.Detail;
+const PublicQuotePage = quotesModule.pages.Public;
 
 function LegacyProveedorIdRedirect() {
   const { id } = useParams<{ id: string }>();
-  return <Navigate to={`/contactos/${id ?? ""}`} replace />;
+  return <Navigate to={`${contactsModule.paths.list}/${id ?? ""}`} replace />;
 }
 
 const queryClient = new QueryClient();
@@ -103,19 +133,22 @@ const App = () => (
       <AuthProvider>
        <TenantProvider>
         <BrowserRouter>
+          <Suspense fallback={<HomeLoadingPage />}>
           <Routes>
             {/* Public routes (only when NOT authenticated) */}
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<Login />} />
             </Route>
 
-            <Route path="/q/:token" element={<PublicQuotePage />} />
+            <Route path={quotesModule.paths.public} element={<PublicQuotePage />} />
+            <Route path={ordersModule.paths.public} element={<PublicOrderPage />} />
 
             {/* Global 404 route (sin layout) */}
             <Route path="/404" element={<NotFound />} />
 
             {/* Private routes with MainLayout */}
             <Route element={<PrivateRoute />}>
+              <Route path="/cambiar-contrasena" element={<MandatoryPasswordPage />} />
               <Route element={<MainLayout />}>
                 {/* Home - App Grid (siempre accesible tras login) */}
                 <Route path="/" element={<HomePage />} />
@@ -123,19 +156,12 @@ const App = () => (
                 {/* Mi perfil - sin permisos: todo usuario puede verse a sí mismo */}
                 <Route path="/mi-perfil" element={<MyProfilePage />} />
 
-                {/* Dashboard - requiere ver analíticas */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <PermissionRoute any={["analytics.view"]}>
-                      <Dashboard />
-                    </PermissionRoute>
-                  }
-                />
+                {/* Alias temporal: Análisis es la única pantalla canónica. */}
+                <Route path="/dashboard" element={<Navigate to={analyticsModule.paths.list} replace />} />
 
                 {/* Sales */}
                 <Route
-                  path="/ventas"
+                  path={salesModule.paths.list}
                   element={
                     <PermissionRoute any={["sales.view", "sales.create"]}>
                       <SalesManagement />
@@ -143,7 +169,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/ventas/nueva"
+                  path={salesModule.paths.create}
                   element={
                     <PermissionRoute any={["sales.create"]}>
                       <NewSalePage />
@@ -151,7 +177,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/ventas/:id/factura"
+                  path={salesModule.paths.invoice}
                   element={
                     <PermissionRoute any={["sales.view_invoice", "sales.view_detail"]}>
                       <SaleInvoicePage />
@@ -161,7 +187,7 @@ const App = () => (
 
                 {/* Cotizaciones */}
                 <Route
-                  path="/cotizaciones"
+                  path={quotesModule.paths.list}
                   element={
                     <PermissionRoute any={["quotes.view", "quotes.create"]}>
                       <QuotesManagement />
@@ -169,7 +195,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cotizaciones/nueva"
+                  path={quotesModule.paths.create}
                   element={
                     <PermissionRoute any={["quotes.create"]}>
                       <NewQuotePage />
@@ -177,7 +203,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cotizaciones/:id"
+                  path={quotesModule.paths.detail}
                   element={
                     <PermissionRoute any={["quotes.view", "quotes.create"]}>
                       <QuoteDetailPage />
@@ -187,7 +213,7 @@ const App = () => (
 
                 {/* Pedidos */}
                 <Route
-                  path="/pedidos"
+                  path={ordersModule.paths.list}
                   element={
                     <PermissionRoute any={["orders.view", "orders.create"]}>
                       <OrdersManagement />
@@ -195,7 +221,15 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/pedidos/:id"
+                  path={ordersModule.paths.create}
+                  element={
+                    <PermissionRoute any={["orders.create"]}>
+                      <NewOrderPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path={ordersModule.paths.detail}
                   element={
                     <PermissionRoute any={["orders.view", "orders.create"]}>
                       <OrderDetailPage />
@@ -205,7 +239,7 @@ const App = () => (
 
                 {/* Products & Inventory */}
                 <Route
-                  path="/productos"
+                  path={inventoryModule.paths.legacyList}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductManagement />
@@ -213,7 +247,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario"
+                  path={inventoryModule.paths.list}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductManagement />
@@ -221,7 +255,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/nuevo"
+                  path={inventoryModule.paths.create}
                   element={
                     <PermissionRoute any={["products.create", "products.view"]}>
                       <ProductCreatePage />
@@ -229,7 +263,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/inventariado/nuevo"
+                  path={inventoryCountModule.paths.create}
                   element={
                     <PermissionRoute any={["inventory_count.create"]}>
                       <InventoryCountNewPage />
@@ -237,7 +271,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/inventariado/:sessionId"
+                  path={inventoryCountModule.paths.session}
                   element={
                     <PermissionRoute
                       any={[
@@ -252,7 +286,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/inventariado"
+                  path={inventoryCountModule.paths.list}
                   element={
                     <PermissionRoute
                       any={["inventory_count.view", "inventory_count.create", "inventory_count.count"]}
@@ -262,7 +296,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/lotes"
+                  path={inventoryModule.paths.lots}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <LotsExpiryPage />
@@ -270,7 +304,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/movimientos"
+                  path={inventoryModule.paths.movements}
                   element={
                     <PermissionRoute any={["stock_moves.view", "stock_moves.create"]}>
                       <StockMovesPage />
@@ -278,7 +312,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/eliminados"
+                  path={inventoryModule.paths.deleted}
                   element={
                     <PermissionRoute any={["products.delete"]}>
                       <DeletedProductsPage />
@@ -286,7 +320,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/:id"
+                  path={inventoryModule.paths.detail}
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductDetailPage />
@@ -294,7 +328,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/importar"
+                  path={inventoryModule.paths.import}
                   element={
                     <PermissionRoute any={["products.import"]}>
                       <ImportPage />
@@ -302,7 +336,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/inventario/registrar-ingreso"
+                  path={merchandiseModule.paths.create}
                   element={
                     <PermissionRoute any={["products.register_incoming"]}>
                       <RegisterIncomingMerchandise />
@@ -312,7 +346,7 @@ const App = () => (
 
                 {/* Returns */}
                 <Route
-                  path="/devoluciones"
+                  path={returnsModule.paths.list}
                   element={
                     <PermissionRoute any={["returns.view"]}>
                       <ReturnsManagement />
@@ -320,17 +354,25 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/returns/new"
+                  path={returnsModule.paths.create}
                   element={
                     <PermissionRoute any={["returns.manage"]}>
                       <NewReturn />
                     </PermissionRoute>
                   }
                 />
+                <Route
+                  path={returnsModule.paths.detail}
+                  element={
+                    <PermissionRoute any={["returns.view"]}>
+                      <ReturnDetailPage />
+                    </PermissionRoute>
+                  }
+                />
 
                 {/* Cash Closure */}
                 <Route
-                  path="/cierre-caja"
+                  path={cashClosureModule.paths.list}
                   element={
                     <PermissionRoute any={["cashclosure.view", "cashclosure.create"]}>
                       <CashClosureManagement />
@@ -338,7 +380,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cierre-caja/nuevo"
+                  path={cashClosureModule.paths.create}
                   element={
                     <PermissionRoute any={["cashclosure.create", "cashclosure.create_day", "cashclosure.create_own"]}>
                       <CashClosureCreatePage />
@@ -346,7 +388,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cierre-caja/:id"
+                  path={cashClosureModule.paths.detail}
                   element={
                     <PermissionRoute any={["cashclosure.view", "cashclosure.create"]}>
                       <ClosureDetailPage />
@@ -355,12 +397,12 @@ const App = () => (
                 />
 
                 {/* Contactos (API /suppliers; rutas antiguas /proveedores redirigen) */}
-                <Route path="/proveedores" element={<Navigate to="/contactos" replace />} />
-                <Route path="/proveedores/nuevo" element={<Navigate to="/contactos/nuevo" replace />} />
-                <Route path="/proveedores/importar" element={<Navigate to="/contactos/importar" replace />} />
-                <Route path="/proveedores/:id" element={<LegacyProveedorIdRedirect />} />
+                <Route path={contactsModule.paths.legacyList} element={<Navigate to={contactsModule.paths.list} replace />} />
+                <Route path={contactsModule.paths.legacyCreate} element={<Navigate to={contactsModule.paths.create} replace />} />
+                <Route path={contactsModule.paths.legacyImport} element={<Navigate to={contactsModule.paths.import} replace />} />
+                <Route path={contactsModule.paths.legacyDetail} element={<LegacyProveedorIdRedirect />} />
                 <Route
-                  path="/contactos"
+                  path={contactsModule.paths.list}
                   element={
                     <PermissionRoute any={["contacts.suppliers.view", "contacts.clients.view"]}>
                       <SuppliersManagement />
@@ -368,7 +410,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/nuevo"
+                  path={contactsModule.paths.create}
                   element={
                     <PermissionRoute any={["contacts.suppliers.create", "contacts.clients.create"]}>
                       <SupplierCreatePage />
@@ -376,7 +418,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/importar"
+                  path={contactsModule.paths.import}
                   element={
                     <PermissionRoute any={["contacts.suppliers.import"]}>
                       <SupplierImportPage />
@@ -384,7 +426,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contactos/:id"
+                  path={contactsModule.paths.detail}
                   element={
                     <PermissionRoute any={["contacts.suppliers.view", "contacts.clients.view"]}>
                       <SupplierDetailPage />
@@ -394,7 +436,7 @@ const App = () => (
 
                 {/* Incoming Merchandise */}
                 <Route
-                  path="/mercancia/:id"
+                  path={merchandiseModule.paths.detail}
                   element={
                     <PermissionRoute any={["merchandise.view"]}>
                       <IncomingMerchandiseDetailPage />
@@ -402,7 +444,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/mercancia"
+                  path={merchandiseModule.paths.list}
                   element={
                     <PermissionRoute any={["merchandise.view"]}>
                       <IncomingMerchandiseManagement />
@@ -412,7 +454,7 @@ const App = () => (
 
                 {/* Analytics */}
                 <Route
-                  path="/analisis"
+                  path={analyticsModule.paths.list}
                   element={
                     <PermissionRoute any={["analytics.view"]}>
                       <Analytics />
@@ -422,7 +464,7 @@ const App = () => (
 
                 {/* Contabilidad */}
                 <Route
-                  path="/contabilidad"
+                  path={accountingModule.paths.list}
                   element={
                     <PermissionRoute any={["accounting.view"]}>
                       <AccountingManagement />
@@ -430,7 +472,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/contabilidad/importar"
+                  path={accountingModule.paths.import}
                   element={
                     <PermissionRoute any={["accounting.create", "accounting.manage"]}>
                       <AccountingImportPage />
@@ -440,7 +482,7 @@ const App = () => (
 
                 {/* Reports */}
                 <Route
-                  path="/reportes"
+                  path={reportsModule.paths.list}
                   element={
                     <PermissionRoute any={["reports.view"]}>
                       <ReportsManagement />
@@ -450,7 +492,7 @@ const App = () => (
 
                 {/* Alerts */}
                 <Route
-                  path="/alertas"
+                  path={alertsModule.paths.list}
                   element={
                     <PermissionRoute any={["alerts.view", "alerts.manage"]}>
                       <AlertsManagement />
@@ -470,7 +512,7 @@ const App = () => (
 
                 {/* Sucursales y traslados (multi-empresa) */}
                 <Route
-                  path="/sucursales"
+                  path={branchesModule.paths.list}
                   element={
                     <PermissionRoute any={["branches.manage", "companies.manage"]}>
                       <BranchesManagement />
@@ -478,7 +520,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/traslados"
+                  path={transfersModule.paths.list}
                   element={
                     <PermissionRoute any={["transfers.view", "transfers.create"]}>
                       <TransfersManagement />
@@ -488,7 +530,7 @@ const App = () => (
 
                 {/* Promotions (Admin / permisos de promociones) */}
                 <Route
-                  path="/promociones"
+                  path={promotionsModule.paths.list}
                   element={
                     <PermissionRoute any={["promotions.view", "promotions.manage"]}>
                       <PromotionsManagement />
@@ -496,7 +538,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/promociones/nueva"
+                  path={promotionsModule.paths.create}
                   element={
                     <PermissionRoute any={["promotions.manage"]}>
                       <PromotionCreatePage />
@@ -504,7 +546,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/promociones/:id/editar"
+                  path={promotionsModule.paths.edit}
                   element={
                     <PermissionRoute any={["promotions.manage"]}>
                       <PromotionEditPage />
@@ -514,7 +556,7 @@ const App = () => (
 
                 {/* Datos maestros (Admin) */}
                 <Route
-                  path="/datos-maestros"
+                  path={catalogsModule.paths.list}
                   element={
                     <PermissionRoute any={["catalogs.view", "catalogs.manage"]}>
                       <CatalogsManagement />
@@ -522,19 +564,19 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/datos-maestros/importar"
+                  path={catalogsModule.paths.import}
                   element={
                     <PermissionRoute any={["catalogs.manage"]}>
                       <CatalogImportPage />
                     </PermissionRoute>
                   }
                 />
-                <Route path="/catalogos" element={<Navigate to="/datos-maestros" replace />} />
-                <Route path="/catalogos/importar" element={<Navigate to="/datos-maestros/importar" replace />} />
+                <Route path={catalogsModule.paths.legacyList} element={<Navigate to={catalogsModule.paths.list} replace />} />
+                <Route path={catalogsModule.paths.legacyImport} element={<Navigate to={catalogsModule.paths.import} replace />} />
 
                 {/* RRHH */}
                 <Route
-                  path="/rrhh"
+                  path={hrModule.paths.list}
                   element={
                     <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
                       <HrPage />
@@ -542,7 +584,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/rrhh/empleados/nuevo"
+                  path={hrModule.paths.create}
                   element={
                     <PermissionRoute any={["hr.employees.create"]}>
                       <EmployeeCreatePage />
@@ -550,7 +592,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/rrhh/empleados/:id"
+                  path={hrModule.paths.detail}
                   element={
                     <PermissionRoute any={["hr.employees.view"]}>
                       <EmployeeDetailPage />
@@ -560,7 +602,7 @@ const App = () => (
 
                 {/* Cartera (cuentas por cobrar) */}
                 <Route
-                  path="/cartera"
+                  path={receivablesModule.paths.list}
                   element={
                     <PermissionRoute any={["receivables.view"]}>
                       <ReceivablesManagement />
@@ -568,7 +610,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/cartera/:id"
+                  path={receivablesModule.paths.statement}
                   element={
                     <PermissionRoute any={["receivables.view"]}>
                       <CustomerStatementPage />
@@ -578,7 +620,7 @@ const App = () => (
 
                 {/* Nómina */}
                 <Route
-                  path="/nomina"
+                  path={payrollModule.paths.list}
                   element={
                     <PermissionRoute any={["payroll.view"]}>
                       <PayrollRunsManagement />
@@ -586,7 +628,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/nomina/:id"
+                  path={payrollModule.paths.detail}
                   element={
                     <PermissionRoute any={["payroll.view"]}>
                       <PayrollRunDetail />
@@ -596,7 +638,7 @@ const App = () => (
 
                 {/* Users (Admin) */}
                 <Route
-                  path="/usuarios"
+                  path={usersModule.paths.list}
                   element={
                     <PermissionRoute any={["users.view", "roles.manage"]}>
                       <UserManagement />
@@ -604,7 +646,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/usuarios/nuevo"
+                  path={usersModule.paths.create}
                   element={
                     <PermissionRoute any={["users.create"]}>
                       <UserCreatePage />
@@ -612,7 +654,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/usuarios/importar"
+                  path={usersModule.paths.import}
                   element={
                     <PermissionRoute any={["users.import"]}>
                       <UserImportPage />
@@ -620,7 +662,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/usuarios/roles-permisos"
+                  path={usersModule.paths.roles}
                   element={
                     <PermissionRoute any={["roles.manage", "roles.view"]}>
                       <RolesPermissionsManagement />
@@ -628,7 +670,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/usuarios/roles-permisos/nuevo"
+                  path={usersModule.paths.roleCreate}
                   element={
                     <PermissionRoute any={["roles.manage"]}>
                       <RoleCreatePage />
@@ -636,15 +678,15 @@ const App = () => (
                   }
                 />
                 <Route
-                  path="/usuarios/roles-permisos/:id"
+                  path={usersModule.paths.roleDetail}
                   element={
-                    <PermissionRoute any={["roles.manage"]}>
+                    <PermissionRoute any={["roles.manage", "roles.view"]}>
                       <RolePermissionsDetail />
                     </PermissionRoute>
                   }
                 />
                 <Route
-                  path="/usuarios/:id"
+                  path={usersModule.paths.detail}
                   element={
                     <PermissionRoute any={["users.view", "roles.manage"]}>
                       <UserDetailPage />
@@ -654,7 +696,7 @@ const App = () => (
 
                 {/* Configuración del sistema */}
                 <Route
-                  path="/configuracion"
+                  path={configModule.paths.list}
                   element={
                     <PermissionRoute any={["settings.view", "settings.manage"]}>
                       <ConfigManagement />
@@ -667,6 +709,7 @@ const App = () => (
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
        </TenantProvider>
       </AuthProvider>
