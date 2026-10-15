@@ -16,6 +16,8 @@ Migración `202610150001_company_roles` aplicada con API pausada y reiniciada; `
 
 Instantánea privada recuperable (0600, directorio 0700): `/home/DiegoPatzan/.local/state/auna-roles-Qwv8lb/before.json`; resultado `after.json` en el mismo directorio. No contiene contraseñas, correos ni credenciales. El CLI valida identidad del proyecto, checksum, frescura y bloquea tablas antes de aplicar.
 
+Las bitácoras y resultados de esta ejecución se conservaron junto al respaldo, en `backend-verification` y `frontend-verification`, retirando únicamente el espacio temporal propio de este plan; no se tocaron bitácoras de otros trabajos.
+
 Antes: 42 roles y 57 membresías. Se crearon 40 definiciones locales conservando exactamente permisos efectivos, estados y sucursales. Admin heredado 67 apunta al canónico. Se conservaron los originales para procedencia; el rol global 20, sin empresa inferible, queda fuera de selectores, sin borrarlo.
 
 Enlace Bodega 61:

@@ -10,7 +10,7 @@
 
 **Spec:** /home/DiegoPatzan/Documents/CODE/Auna/deposito-frontend/docs/superpowers/specs/2026-10-15-company-roles-management-design.md, aprobado por el usuario con «sí veo bien aprobado» el 2026-10-15.
 
-Estado: aprobado y ejecutado nativamente en esta sesión. Código y migración aplicados; suites verificadas y revisión independiente final en curso. Evidencia y limitaciones en `docs/USERS_ROLES_VERIFICATION.md`.
+Estado: aprobado y ejecutado nativamente en esta sesión. Código y migración aplicados; suites verificadas; revisión independiente cerrada con una pasada de correcciones verificadas. QA visual pendiente por restricción guardada. Evidencia y limitaciones en `docs/USERS_ROLES_VERIFICATION.md`.
 
 ## Global Constraints
 

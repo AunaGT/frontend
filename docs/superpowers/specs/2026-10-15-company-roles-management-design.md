@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-15, Guatemala.
 
-Estado: diseño y ejecución nativa aprobados por el usuario el 2026-10-15. Implementación y migración de roles aplicadas; revisión independiente final en curso. Ver evidencia y limitaciones en `docs/USERS_ROLES_VERIFICATION.md`.
+Estado: diseño y ejecución nativa aprobados por el usuario el 2026-10-15. Implementación, migración y revisión independiente final terminadas; los dos hallazgos Important se corrigieron con regresiones RED→GREEN y suites completas. QA visual interactiva pendiente. Ver evidencia y limitaciones en `docs/USERS_ROLES_VERIFICATION.md`.
 
 ## Resultado esperado
 
@@ -132,4 +132,4 @@ Fuera del cambio: creación de empresas, contratación de módulos, concesión m
 
 ## Siguiente paso
 
-Cerrar la revisión independiente y registrar sus correcciones verificadas. La revisión visual interactiva permanece pendiente mientras siga la restricción guardada de localhost. No se concedieron permisos nuevos ni activaron módulos durante la normalización.
+Realizar QA visual interactiva cuando se habilite el navegador. No se concedieron permisos nuevos ni activaron módulos durante la normalización; no hay menores de revisión diferidos.
