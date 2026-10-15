@@ -1,6 +1,6 @@
 # Auna — métodos de pago por empresa
 
-Fecha: 15 de octubre de 2026. Estado: diseño de la siguiente entrega, pendiente de revisión del usuario. No se ha implementado ni aplicado una migración.
+Fecha: 15 de octubre de 2026. Estado: diseño aprobado por el usuario, incluida la regla de desactivación. No se ha implementado ni aplicado una migración. El plan técnico requiere revisión antes de ejecutar.
 
 ## 1. Propósito
 
@@ -74,7 +74,7 @@ La identificación de básicos se valida durante la preparación de la migració
 
 ## 6. Activar y desactivar
 
-**Regla propuesta para aprobar:** desactivar un método lo bloquea para nuevas ventas, cobros, pagos y reintegros. No desaparece de documentos anteriores ni de sus reportes.
+**Regla aprobada:** desactivar un método lo bloquea para nuevas ventas, cobros, pagos y reintegros. No desaparece de documentos anteriores ni de sus reportes.
 
 Si se necesita devolver dinero por un medio desactivado, el usuario autorizado debe reactivarlo o seleccionar otro medio real permitido. No se añade una excepción silenciosa para reintegros “al medio original”. Los permisos, referencias y requisitos de caja continúan aplicándose.
 
