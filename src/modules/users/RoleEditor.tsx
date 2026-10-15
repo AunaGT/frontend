@@ -1,5 +1,5 @@
 import { usePageTrail } from '@/components/layout/PageNavigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trash2 } from 'lucide-react'
@@ -25,6 +25,9 @@ export default function RoleEditor({ id }: { id?: number }) {
   const protectedRole = !!role.data?.protected, canonical = id === undefined || role.data?.id === id
   const canManage = available && hasPermission('roles.manage') && canonical && validId
   const readOnly = !canManage || protectedRole
+  const scope = JSON.stringify([context.companyId, context.userId, id, canManage]), live = useRef(scope)
+  live.current = scope
+  useEffect(() => () => { live.current = '' }, [])
   const draft = useRoleDraft({ context, id, role: role.data, canManage: !readOnly })
   const [deleting, setDeleting] = useState(false), deleteKey = `${context.companyId}:${context.userId}:${id}`
   useEffect(() => { setDeleting(false) }, [deleteKey, canManage])
@@ -38,8 +41,9 @@ export default function RoleEditor({ id }: { id?: number }) {
   }, [draft.dirty, readOnly])
   async function save() {
     const saved = await draft.save()
-    if (!saved) return
+    if (!saved || live.current !== scope) return
     await invalidateRoleQueries(cache, context)
+    if (live.current !== scope) return
     if (!id) navigate(`/usuarios/roles-permisos/${saved.id}`, { replace: true })
     toast({ title: 'Rol guardado' })
   }

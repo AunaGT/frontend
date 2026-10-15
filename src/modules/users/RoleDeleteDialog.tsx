@@ -11,7 +11,7 @@ export async function invalidateRoleQueries(cache: QueryClient, context: RoleCon
 }
 export function RoleDeleteDialog({ role, context, onClose, onDeleted }: { role: Role; context: RoleContext; onClose: () => void; onDeleted: () => void }) {
   const { hasPermission, permissionsReady } = useAuthPermissions(), cache = useQueryClient()
-  const allowed = permissionsReady && hasPermission('roles.manage') && !role.protected
+  const allowed = permissionsReady && hasPermission('roles.manage') && !role.protected && (!role.company_id || role.company_id === context.companyId)
   const key = JSON.stringify([context.companyId, context.userId, role.id, allowed])
   const live = useRef({ key, pending: false, epoch: 0 })
   if (live.current.key !== key) live.current = { key, pending: false, epoch: live.current.epoch + 1 }

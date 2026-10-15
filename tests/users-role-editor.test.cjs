@@ -18,4 +18,7 @@ test('double click sends once and late response after context change is ignored'
  const m=mount();let resolve;m.pending(r=>resolve=r);m.render();m.render().setSelected(['products.view']);const d=m.render(),p=d.save();await d.save();assert.equal(m.requests.length,1)
  m.setContext({companyId:'b',userId:'u'});m.setRole(undefined);m.render();resolve({id:101,name:'Bodega',revision:1,permissions:[]});assert.equal(await p,undefined);assert.equal(m.render().name,'')
 })
+test('an old callback cannot edit the draft of a different company',()=>{
+ const m=mount();m.render();const old=m.render();m.setContext({companyId:'b',userId:'u'});m.setRole(undefined);m.render();old.setName('Company A draft');assert.equal(m.render().name,'')
+})
 module.exports={mount}

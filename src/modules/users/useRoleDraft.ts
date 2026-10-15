@@ -25,7 +25,7 @@ export function useRoleDraft({ context, id, role, canManage }: { context: RoleCo
   }, [key, role])
   useEffect(() => () => { live.current.epoch++; live.current.pending = false }, [])
   function field<K extends keyof Draft>(name: K, value: Draft[K]) {
-    if (!canManage || role?.protected || live.current.pending) return
+    if (live.current.key !== key || !canManage || role?.protected || live.current.pending) return
     setState(s => ({ ...s, value: { ...s.value, [name]: value }, error: null }))
   }
   async function save(): Promise<Role | undefined> {

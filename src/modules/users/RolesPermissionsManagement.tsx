@@ -23,7 +23,9 @@ export default function RolesPermissionsManagement() {
   const scope = JSON.stringify([context.companyId, context.userId, canManage]), live = useRef(scope), inFlight = useRef(false)
   live.current = scope
   const [page,setPage] = useState(1), [search,setSearch] = useState(''), [kind,setKind] = useState(''), [module,setModule] = useState('')
-  const [action,setAction] = useState<{role: Role; type: 'copy' | 'delete'} | null>(null), [name,setName] = useState(''), [busy,setBusy] = useState(false)
+  const [rawAction,setRawAction] = useState<{role: Role; type: 'copy' | 'delete'; scope: string} | null>(null), [name,setName] = useState(''), [busy,setBusy] = useState(false)
+  const action = rawAction?.scope === scope ? rawAction : null
+  const setAction = (value: {role: Role; type: 'copy' | 'delete'} | null) => setRawAction(value ? {...value, scope} : null)
   useEffect(() => { setAction(null); setBusy(false); inFlight.current = false; setPage(1) }, [scope])
   useEffect(() => () => { live.current = '' }, [])
   const query = useQuery({ queryKey: ['roles-with-permissions', company?.id, user?.id, page, search, kind, module], queryFn: () => getRolesWithPermissions({ page, pageSize: 10, search, kind, module }), enabled: !!company && !!user && permissionsReady && hasPermission('roles.view', 'roles.manage') })
