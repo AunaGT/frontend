@@ -22,6 +22,7 @@ import { getTrialBalance, type TrialBalanceResponse } from '@/services/accountin
 import { fmtQ, TYPE_LABELS, todayISO , rangoTexto } from './format'
 import { exportTrialBalance } from './exportExcel'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { useTenant } from '@/context/useTenant'
 
 const firstOfMonthISO = () => {
   const d = new Date()
@@ -30,6 +31,7 @@ const firstOfMonthISO = () => {
 
 export const TrialBalanceTab = () => {
   const { toast } = useToast()
+  const { company } = useTenant()
   const [from, setFrom] = useState(firstOfMonthISO())
   const [to, setTo] = useState(todayISO())
   const [data, setData] = useState<TrialBalanceResponse | null>(null)
@@ -37,6 +39,7 @@ export const TrialBalanceTab = () => {
   const [exportOpen, setExportOpen] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -64,7 +67,7 @@ export const TrialBalanceTab = () => {
       ]} />
       <CompactFilterPanel title="Filtros de balanza" search={<div className="flex flex-wrap items-center gap-2 py-2"><span className="text-sm text-muted-foreground">Período: {rangoTexto(from, to)}</span>{data && !loading && <Badge variant={squared ? 'outline' : 'destructive'}>{squared ? 'Cuadrada' : 'Descuadrada'}</Badge>}</div>} actions={<Button
               variant="outline" size="sm"
-              disabled={!data || data.rows.length === 0 || loading}
+              disabled={!data || data.rows.length === 0 || loading || exporting}
               onClick={() => setExportOpen(true)}
             >
               <Download className="h-4 w-4 mr-2" />Exportar
@@ -128,9 +131,16 @@ export const TrialBalanceTab = () => {
         fileName="balanza-comprobacion"
         summary={`${rangoTexto(from, to)} (${data?.rows.length ?? 0} cuenta(s)).`}
         formats={['xlsx']}
-        onExport={({ fileName }) => {
-          if (data) exportTrialBalance(data, { from: from || undefined, to: to || undefined }, fileName)
-          setExportOpen(false)
+        pending={exporting}
+        onExport={async ({ fileName }) => {
+          if (!data || loading || exporting) return
+          setExporting(true)
+          try {
+            await exportTrialBalance(data, { from: from || undefined, to: to || undefined }, fileName, { companyName: company?.name || 'Empresa' })
+            setExportOpen(false)
+          } catch (error) {
+            toast({ title: 'Error', description: error instanceof Error ? error.message : 'No se pudo exportar', variant: 'destructive' })
+          } finally { setExporting(false) }
         }}
       />
     </section>

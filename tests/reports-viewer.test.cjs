@@ -12,7 +12,7 @@ test('each viewer effect destroys its own loading task and ignores a late old do
   global.document = { addEventListener() {}, removeEventListener() {} }
   try {
     const { ReportDocumentPreview } = loadReportModule('components/ReportDocumentPreview.tsx', { react: h.hooks,
-      '../documents/reportPdfViewer': { pdfjs: { getDocument: () => { let tResolve; const t = { destroyed: false, destroy: async () => { t.destroyed = true }, promise: new Promise(resolve => { tResolve = resolve }) }; t.resolve = value => tResolve(value); tasks.push(t); return t } } },
+      './pdfViewer': { pdfjs: { getDocument: () => { let tResolve; const t = { destroyed: false, destroy: async () => { t.destroyed = true }, promise: new Promise(resolve => { tResolve = resolve }) }; t.resolve = value => tResolve(value); tasks.push(t); return t } } },
     })
     const a = new Blob(['A']), b = new Blob(['B'])
     h.render(() => ReportDocumentPreview({ pdf: a, onDownload() {} })); await new Promise(resolve => setImmediate(resolve))

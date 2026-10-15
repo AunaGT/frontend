@@ -24,6 +24,18 @@ test('public and private quotation rows retain the service unit with all quantit
     assert.match(view.html,/Hora/);assert.match(view.html,/0.125/)
   }
 })
+test('public and private quotation show the frozen public service conditions in each row',()=>{
+  const data={...quote,lines:[{...quote.lines[0],service_schedule_snapshot:{version:1,schedulingStyle:'WORK',durationPolicy:'FIXED',durationMinutes:60,allowedVenueKinds:['HOME'],publicInstructions:'Entrada QA'}}]}
+  for(const privateLines of [false,true]){
+    const {html}=render({data,privateLines})
+    for(const expected of ['Entrada QA','60 min','A domicilio','disponibilidad']) assert.ok(html.includes(expected),expected)
+  }
+})
+test('historical services without conditions are identified internally without inventing public conditions',()=>{
+  const data={...quote,lines:[{...quote.lines[0],item_kind:'SERVICE',service_schedule_snapshot:null}]}
+  assert.ok(render({data,privateLines:true}).html.includes('Condiciones de programación no registradas'))
+  assert.ok(!render({data}).html.includes('Condiciones de programación no registradas'))
+})
 
 // Keep actual page, rules and controls. Only network, query lifecycle and PDF output stay offline.
 function render({ data = quote, token = 'public-qa-token', decision = null, pdfBusy = false, pdfError = null, page = 1, mutation = {}, logoFailure = false, pdfFailure = false, privateLines = false, ...queryState } = {}) {

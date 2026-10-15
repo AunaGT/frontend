@@ -14,7 +14,7 @@
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Supplier } from '@/types'
-import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
+import { addJsPdfCompanyHeader, addDocumentFooter, documentTableStyles, ensureDocumentSpace } from '@/utils/pdfBranding'
 
 export interface CustomerPDFMetrics {
   totalPurchases: number
@@ -47,9 +47,6 @@ const defaultOptions: SupplierPDFOptions = {
   includeProducts: true,
   includeMerchandiseEntries: false,
 }
-
-/** Color naranja/ámbar de la plataforma para encabezados en PDF (RGB) */
-const PDF_HEADER_COLOR: [number, number, number] = [217, 119, 6] // amber-600 / liquor-amber
 
 const formatCurrency = (value: number | string | null | undefined): string => {
   const num = typeof value === 'number' ? value : typeof value === 'string' ? parseFloat(value) || 0 : 0
@@ -117,84 +114,34 @@ export const generateSupplierPDF = (
     doc.text('INFORMACIÓN BÁSICA', margin, yPos)
     yPos += 10
 
-    doc.setFontSize(10)
-    doc.setFont('helvetica', 'bold')
-    
-    const leftCol = margin
-    const rightCol = pageWidth / 2 + 10
-    let leftY = yPos
-    let rightY = yPos
-
-    doc.setFont('helvetica', 'bold')
-    doc.text(isPerson ? 'Nombre completo:' : 'Nombre de la empresa:', leftCol, leftY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(supplier.name || 'N/A', leftCol + 50, leftY)
-    leftY += 7
-
-    if (!isPerson) {
-      doc.setFont('helvetica', 'bold')
-      doc.text('Persona de contacto:', leftCol, leftY)
-      doc.setFont('helvetica', 'normal')
-      doc.text(supplier.contact || 'N/A', leftCol + 50, leftY)
-      leftY += 7
-    }
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Teléfono:', leftCol, leftY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(supplier.phone || 'N/A', leftCol + 50, leftY)
-    leftY += 7
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Email:', leftCol, leftY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(supplier.email || 'N/A', leftCol + 50, leftY)
-    leftY += 7
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Dirección:', leftCol, leftY)
-    doc.setFont('helvetica', 'normal')
-    const addressLines = doc.splitTextToSize(supplier.address || 'N/A', pageWidth / 2 - margin - 10)
-    doc.text(addressLines, leftCol + 50, leftY)
-    leftY += addressLines.length * 5 + 3
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Categorías:', rightCol, rightY)
-    doc.setFont('helvetica', 'normal')
-    const categoriesLabel = supplier.categoriesLabel || String(supplier.category || 'N/A')
-    const categoriesMaxWidth = pageWidth - (rightCol + 30) - margin
-    const categoriesLines = doc.splitTextToSize(categoriesLabel, categoriesMaxWidth > 0 ? categoriesMaxWidth : 80)
-    doc.text(categoriesLines, rightCol + 30, rightY)
-    rightY += categoriesLines.length * 5 + 3
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Estado:', rightCol, rightY)
-    doc.setFont('helvetica', 'normal')
-    const estadoLabel = supplier.estado === 0 ? 'Inactivo' : 'Activo'
-    doc.text(estadoLabel, rightCol + 30, rightY)
-    rightY += 7
-
-    doc.setFont('helvetica', 'bold')
-    doc.text('Términos de Pago:', rightCol, rightY)
-    doc.setFont('helvetica', 'normal')
-    doc.text(supplier.paymentTerms || 'N/A', rightCol + 30, rightY)
-    rightY += 7
-
-    doc.setFont('helvetica', 'bold')
-    doc.text(isCustomer ? 'Última compra:' : 'Último Pedido:', rightCol, rightY)
-    doc.setFont('helvetica', 'normal')
     const lastActivityLabel = isCustomer
       ? opts.customerMetrics?.lastSaleDate
         ? formatDateForPDF(opts.customerMetrics.lastSaleDate)
         : 'N/A'
       : supplier.lastOrder || 'N/A'
-    doc.text(lastActivityLabel, rightCol + 30, rightY)
-
-    yPos = Math.max(leftY, rightY) + 15
+    autoTable(doc, {
+      ...documentTableStyles,
+      startY: yPos,
+      head: [['Dato', 'Información']],
+      body: [
+        [isPerson ? 'Nombre completo' : 'Nombre de la empresa', supplier.name || 'N/A'],
+        ...(!isPerson ? [['Persona de contacto', supplier.contact || 'N/A']] : []),
+        ['Teléfono', supplier.phone || 'N/A'], ['Email', supplier.email || 'N/A'],
+        ['Dirección', supplier.address || 'N/A'],
+        ['Categorías', supplier.categoriesLabel || String(supplier.category || 'N/A')],
+        ['Estado', supplier.estado === 0 ? 'Inactivo' : 'Activo'],
+        ['Términos de pago', supplier.paymentTerms || 'N/A'],
+        [isCustomer ? 'Última compra' : 'Último pedido', lastActivityLabel],
+      ],
+      columnStyles: { 0: { cellWidth: 50, fontStyle: 'bold' } },
+      margin: { left: margin, right: margin, top: 20, bottom: 20 },
+    })
+    yPos = doc.lastAutoTable.finalY + 10
   }
 
   // Métricas
   if (opts.includeMetrics) {
+    yPos = ensureDocumentSpace(doc, yPos, 35)
     if (yPos > 240) {
       doc.addPage()
       yPos = 20
@@ -231,11 +178,12 @@ export const generateSupplierPDF = (
         ]
 
     autoTable(doc, {
+      ...documentTableStyles,
       startY: yPos,
       head: [['Concepto', 'Valor']],
       body: metricsData,
       theme: 'grid',
-      headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+      margin: { left: margin, right: margin, top: 20, bottom: 20 },
       columnStyles: {
         0: { cellWidth: 100, fontStyle: 'bold' },
         1: { cellWidth: 'auto', halign: 'left' }
@@ -264,11 +212,12 @@ export const generateSupplierPDF = (
     ])
 
     autoTable(doc, {
+      ...documentTableStyles,
       startY: yPos,
       head: [['Producto', 'Stock', 'Precio']],
       body: productsData,
       theme: 'grid',
-      headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+      margin: { left: margin, right: margin, top: 20, bottom: 20 },
       columnStyles: {
         0: { cellWidth: 'auto' },
         1: { cellWidth: 40, halign: 'center' },
@@ -309,11 +258,12 @@ export const generateSupplierPDF = (
     ])
 
     autoTable(doc, {
+      ...documentTableStyles,
       startY: yPos,
       head: [['Fecha', 'Registrado por', 'Productos', 'Total']],
       body: merchData,
       theme: 'grid',
-      headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+      margin: { left: margin, right: margin, top: 20, bottom: 20 },
       columnStyles: {
         0: { cellWidth: 45 },
         1: { cellWidth: 'auto' },
@@ -334,20 +284,7 @@ export const generateSupplierPDF = (
     yPos += 10
   }
 
-  // Footer con información adicional
-  const pageHeight = doc.internal.pageSize.getHeight()
-  if (yPos < pageHeight - 30) {
-    yPos = pageHeight - 20
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'italic')
-    doc.setTextColor(128, 128, 128)
-    doc.text(
-      `Reporte generado automáticamente - ${supplier.name}`,
-      pageWidth / 2,
-      yPos,
-      { align: 'center' }
-    )
-  }
+  addDocumentFooter(doc, isCustomer ? 'Ficha de cliente' : 'Ficha de proveedor')
 
   // Save PDF
   const safeName = supplier.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()

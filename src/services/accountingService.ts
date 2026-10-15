@@ -11,7 +11,7 @@
 import { apiFetch } from '@/services/api'
 
 export type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'COST' | 'EXPENSE'
-export type JournalSourceType = 'MANUAL' | 'SALE' | 'RETURN' | 'PURCHASE' | 'PURCHASE_PAYMENT' | 'CLOSING' | 'STOCK_ADJUSTMENT' | 'PAYROLL' | 'PAYROLL_PAYMENT' | 'PAYROLL_ADVANCE'
+export type JournalSourceType = 'MANUAL' | 'SALE' | 'RETURN' | 'PURCHASE' | 'PURCHASE_PAYMENT' | 'CLOSING' | 'STOCK_ADJUSTMENT' | 'PAYROLL' | 'PAYROLL_PAYMENT' | 'PAYROLL_ADVANCE' | 'CUSTOMER_ADVANCE' | 'CUSTOMER_ADVANCE_APPLIED' | 'CUSTOMER_PAYMENT_REFUND'
 
 export type Account = {
   id: number

@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import {useQuery} from '@tanstack/react-query';
 import "./quoteLines.css";
 import {normalizeQuantityInput,previewLineTotal,stepQuantity} from '@/lib/commercialQuantity'
 import { useNavigate } from "react-router-dom";
@@ -26,12 +27,12 @@ import { useToast } from "@/hooks/use-toast";
 import { ProductPicker } from "@/components/shared/ProductPicker";
 import { CommercialPaymentFields, type CommercialPaymentTerms } from "@/components/shared/CommercialPaymentFields";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { QuoteProductImage, QuoteSummary } from "./QuotePresentation";
+import { QuoteProductImage, QuoteSummary, QuoteServiceConditions } from "./QuotePresentation";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { formatMoney } from "@/utils/formatters";
 import { postPricingPreview, fetchProductsAvailability } from "@/services/productService";
-import { createQuote, updateQuoteStatus } from "@/services/quoteService";
+import { createQuote, updateQuoteStatus, previewQuoteServiceConditions } from "@/services/quoteService";
 import { useTenant } from "@/context/useTenant";
 import { adaptApiSupplier, fetchSupplierById } from "@/services/supplierService";
 import { SavedCustomerMany2One } from "@/modules/sales";
@@ -80,12 +81,14 @@ export default function NewQuotePage() {
     Record<string, { stock: number; reserved: number; available: number }>
   >({});
   const [isSaving, setIsSaving] = useState(false);
-  const { branches, branch } = useTenant();
+  const { branches, branch, company } = useTenant();
   const [targetBranchId, setTargetBranchId] = useState(branch?.id ?? "");
   const [manualPriceTier, setManualPriceTier] = useState(false);
   const [selectedPriceTier, setSelectedPriceTier] = useState<QuotePriceTier>("WHOLESALE");
   const [resolvedPriceTier, setResolvedPriceTier] = useState<QuotePriceTier>("WHOLESALE");
   const [pickedCustomer, setPickedCustomer] = useState<Supplier | null>(null);
+  const serviceIds=cartItems.filter(line=>line.product.kind==='SERVICE').map(line=>line.id).sort();
+  const serviceConditions=useQuery({queryKey:['quote-service-conditions',company?.id,targetBranchId,serviceIds],queryFn:({signal})=>previewQuoteServiceConditions(serviceIds,signal),enabled:canCreate&&!!company?.id&&serviceIds.length>0});
 
   const salesChannel = "WHOLESALE" as const;
   const customerContactId = pickedCustomerId !== "__none__" ? pickedCustomerId : undefined;
@@ -390,7 +393,7 @@ export default function NewQuotePage() {
           <ProductPicker branchId={branch?.id} money={fmt} onPick={addProduct} />
           {!cartItems.length ? <div className="rounded-xl border border-dashed py-8 text-center text-sm text-muted-foreground">Busca un producto para agregarlo a la cotización.</div>
             : <section className="auna-data-table-shell auna-table-embedded quote-lines-scroll" tabIndex={0} role="region" aria-label="Partidas de la cotización"><Table className="auna-data-table min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
-              <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || 'Sin código'} · {line.product.kind==='SERVICE' ? `${line.product.serviceUnitLabel} · Sin control de existencias` : `Disponible: ${getAvailableQty(line.product)}`}</p></div></div></TableCell>
+              <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || 'Sin código'} · {line.product.kind==='SERVICE' ? `${line.product.serviceUnitLabel} · Sin control de existencias` : `Disponible: ${getAvailableQty(line.product)}`}</p>{line.product.kind==='SERVICE'&&<QuoteServiceConditions snapshot={serviceConditions.data?.conditions?.[line.id]}/>}</div></div></TableCell>
               <TableCell><Input type="text" inputMode={line.product.kind==='SERVICE' ? 'decimal' : 'numeric'} className="w-24" aria-label={`Cantidad de ${line.name}`} aria-invalid={lineTotals[line.id]===null} value={line.qty} onChange={event=>updateQty(line.id,event.target.value)} /></TableCell><TableCell className="text-right">{fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{lineTotals[line.id] ? fmt(Number(lineTotals[line.id])) : '—'}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id,'0')}><Trash2 className="h-4 w-4" /></Button></TableCell>
             </TableRow>)}</TableBody></Table></section>}
         </CardContent></Card>

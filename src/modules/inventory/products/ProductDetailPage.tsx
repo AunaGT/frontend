@@ -3,6 +3,9 @@
  */
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { ServiceQuantityFields } from './ServiceQuantityFields'
+import { ServiceScheduleFields } from '@/modules/appointments/components/ServiceScheduleFields'
+import { useServiceScheduleDraft } from '@/modules/appointments/useServiceScheduleDraft'
+import { useDraftGuard } from '@/modules/appointments/components/DraftGuard'
 import { ProductCommercialHistory } from './ProductCommercialHistory'
 import { useMemo, useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
@@ -131,6 +134,7 @@ export default function ProductDetailPage() {
     [rawProduct]
   )
   const isService = product?.kind === 'SERVICE'
+  const agenda = useServiceScheduleDraft(isService, id)
   const serviceReadOnly = isService && !inventoryServicesEnabled
   const canEdit = hasEditPermission && !serviceReadOnly
 
@@ -165,6 +169,7 @@ export default function ProductDetailPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [editServiceUnit,setEditServiceUnit] = useState('')
   const [editQuantityDecimals,setEditQuantityDecimals] = useState('0')
+  const agendaGuard = useDraftGuard(isEditing && !!agenda.dirty)
 
   useEffect(() => {
     if (!product) return
@@ -242,7 +247,7 @@ export default function ProductDetailPage() {
       await deleteProductAsync(product.id)
       setIsDeleteDialogOpen(false)
       toast({ title: 'Producto eliminado', description: 'El producto fue eliminado correctamente.' })
-      navigate('/inventario')
+      agendaGuard.proceed(() => navigate('/inventario'))
     } catch (err: unknown) {
       const message = (err as { message?: string })?.message || 'No se pudo eliminar el producto'
       toast({ title: 'Error', description: message, variant: 'destructive' })
@@ -255,7 +260,7 @@ export default function ProductDetailPage() {
       await removeFromBranchAsync(product.id)
       setIsBranchDialogOpen(false)
       toast({ title: 'Producto quitado', description: `Ya no se maneja en ${branch?.name || 'esta sucursal'}.` })
-      navigate('/inventario')
+      agendaGuard.proceed(() => navigate('/inventario'))
     } catch (err: unknown) {
       const message = (err as { message?: string })?.message || 'No se pudo quitar el producto de la sucursal'
       toast({ title: 'Error', description: message, variant: 'destructive' })
@@ -337,6 +342,7 @@ export default function ProductDetailPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-4 px-4 py-5 sm:px-8">
+      {agendaGuard.dialog}
       {serviceReadOnly && <p role="status" className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Los servicios están desactivados para esta empresa. Puedes consultar este registro y su historial, pero no modificarlo ni crear nuevas operaciones.</p>}
       <header className="space-y-4">
 
@@ -573,9 +579,10 @@ export default function ProductDetailPage() {
           </div>
         </fieldset>
         </div>
+        {agenda.allowed && <fieldset className="record-edit-panel"><legend className="sr-only">Agenda del servicio</legend>{agenda.error ? <p role="alert" className="text-destructive">No se pudo cargar Agenda; recarga antes de guardar.</p> : <ServiceScheduleFields value={agenda.value} onChange={agenda.change} directory={agenda.directory} disabled={isSaving || !agenda.ready} errors={{}} />}</fieldset>}
         <div className="record-edit-actions">
-          <Button variant="outline" onClick={() => { setIsEditing(false); resetEditState(); }} disabled={isSaving || isUploadingImage}>Cancelar cambios</Button>
-          <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={isSaving || isUploadingImage}
+          <Button variant="outline" onClick={() => agendaGuard.request(() => { setIsEditing(false); resetEditState(); agenda.reset(); })} disabled={isSaving || isUploadingImage}>Cancelar cambios</Button>
+          <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={isSaving || isUploadingImage || !agenda.ready}
                 onClick={async () => {
                   if (!product || !rawProduct) return
                   try {
@@ -608,9 +615,11 @@ export default function ProductDetailPage() {
                         barcode: editBarcode || undefined,
                         description: editDescription || undefined,
                         available_for_sale: editAvailableForSale,
+                        ...agenda.payload,
                       },
                     })
                     setRawProduct(updated)
+                    await agenda.reload()
                     setIsEditing(false)
                     toast({ title: 'Producto actualizado', description: 'Los cambios se guardaron correctamente.' })
                   } catch (error) {

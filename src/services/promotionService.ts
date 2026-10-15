@@ -14,6 +14,7 @@
  */
 
 import { apiFetch } from './api'
+import type {CouponDesign} from '@/modules/promotions/coupons/couponDesign'
 
 export interface PromotionType {
     id: number
@@ -22,6 +23,7 @@ export interface PromotionType {
 }
 
 export interface Promotion {
+    coupon_design?:CouponDesign|null
     id: string
     code: string
     name: string

@@ -16,6 +16,7 @@ import jsPDF from 'jspdf'
 import type { Sale, SaleDte } from '@/services/saleService'
 import { formatMoney, formatDateTime } from '@/utils/formatters'
 import { addJsPdfLogoCentered } from '@/utils/pdfBranding'
+import {internalSaleDocumentTitle} from '../commercialPresentation'
 
 const WIDTH_MM = 80
 const MARGIN_MM = 4
@@ -135,7 +136,8 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   }
   doc.setFontSize(BODY_FONT)
   doc.setFont('helvetica', 'bold')
-  doc.text('COMPROBANTE DE VENTA', WIDTH_MM / 2, y, { align: 'center' })
+  const state=sale.commercial?.state||(sale.status?.name==='Completada'?'CONFIRMED':sale.status?.name==='Borrador'?'DRAFT':sale.status?.name==='Cancelada'?'CANCELLED':'LEGACY')
+  doc.text(internalSaleDocumentTitle(state), WIDTH_MM / 2, y, { align: 'center' })
   y += LINE_HEIGHT + 1
 
   drawDashedLine(doc, y)
@@ -156,7 +158,7 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
     y += LINE_HEIGHT
     doc.setFontSize(BODY_FONT - 1)
     if (dte.authorization) {
-      doc.text(`Autorizacion SAT: ${dte.authorization}`, X_LEFT, y, { maxWidth: WIDTH_MM - 2 * MARGIN_MM })
+      doc.text(`ID fiscal: ${dte.authorization}`, X_LEFT, y, { maxWidth: WIDTH_MM - 2 * MARGIN_MM })
       y += LINE_HEIGHT
     }
     if (dte.series || dte.number) {
@@ -246,7 +248,7 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   y += LINE_HEIGHT
 
   // ----- Pago -----
-  doc.text(`Pago: ${sale.payment_method?.name ?? 'N/A'}`, X_LEFT, y)
+  doc.text(`Pago: ${state==='DRAFT'?'Por definir al confirmar':sale.payment_method?.name ?? 'No registrado'}`, X_LEFT, y)
   y += LINE_HEIGHT
   if (sale.payment_method?.is_credit) {
     const paid = (sale.paymentEntries ?? []).reduce((sum, entry) => sum + Number(entry.amount), 0)
@@ -282,10 +284,10 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   doc.text('--- Gracias por su compra ---', WIDTH_MM / 2, y, { align: 'center' })
   y += LINE_HEIGHT
   doc.setFont('helvetica', 'normal')
-  if (dte) {
-    doc.setFontSize(BODY_FONT - 1)
-    doc.text('Documento tributario electronico autorizado por SAT', WIDTH_MM / 2, y, { align: 'center' })
-  }
+  doc.setFontSize(BODY_FONT - 1)
+  doc.text('No constituye factura fiscal', WIDTH_MM / 2, y, { align: 'center' })
+  y += LINE_HEIGHT
+  if(dte?.provider==='EXTERNAL')doc.text('Documento externo · sin verificacion automatica', WIDTH_MM / 2, y, {align:'center'})
 
   const fileRef = sale.reference ?? sale.id.slice(0, 8)
   const filename = dte?.number ? `Ticket-Venta-${dte.series ?? ''}-${dte.number}.pdf` : `Ticket-Venta-${fileRef}.pdf`

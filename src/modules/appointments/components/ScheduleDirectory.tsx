@@ -1,0 +1,39 @@
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Pagination } from '@/components/shared/Pagination'
+import { Pencil, Plus } from 'lucide-react'
+import { useAgendaMutation } from '../hooks'
+import { AssignmentChoices } from './ServiceScheduleFields'
+import { FormFeedback } from './FormFeedback'
+import { useDraftGuard } from './DraftGuard'
+import type { AgendaScope, Directory, Provider, Resource } from '../types'
+type Draft = { portable?: boolean; id?: string; name: string; active: boolean; employeeId: string | null; userId: string | null; branchIds: string[]; type: 'ROOM' | 'EQUIPMENT'; personCapacity: number | null; expectedVersion?: number }
+export function ScheduleDirectory({ scope, directory, kind, onDirty }: { scope: AgendaScope; directory: Directory; kind: 'providers' | 'resources'; onDirty?: (dirty: boolean) => void }) {
+  const [q, setQ] = useState(''), [page, setPage] = useState(1), [draft, setDraft] = useState<Draft | null>(null)
+  const mutation = useAgendaMutation(scope), providers = kind === 'providers'
+  const guard = useDraftGuard(!!draft)
+  useEffect(() => { onDirty?.(!!draft); return () => onDirty?.(false) }, [draft, onDirty])
+  const items = (providers ? directory.providers : directory.resources).filter(row => row.name.toLocaleLowerCase().includes(q.toLocaleLowerCase()))
+  const rows = items.slice((page - 1) * 10, page * 10)
+  const edit = (row?: Provider | Resource) => setDraft({ portable:row && 'portable' in row ? row.portable : false, name: row?.name || '', active: row?.active ?? true, employeeId: row && 'employeeId' in row ? row.employeeId : null,
+    userId: row && 'userId' in row ? row.userId : null, branchIds: row && 'branchIds' in row ? row.branchIds : [scope.branchId], type: row && 'type' in row ? row.type : 'ROOM', personCapacity: row && 'personCapacity' in row ? row.personCapacity : 1,
+    ...(row ? { id: row.id, expectedVersion: row.version } : {}) })
+  const save = async () => {
+    if (!draft) return
+    const payload = { name: draft.name, active: draft.active, ...(draft.id ? { expectedVersion: draft.expectedVersion } : {}),
+      ...(providers ? { employeeId: draft.employeeId, userId: draft.userId, branchIds: draft.branchIds } : { type: draft.type, personCapacity: draft.personCapacity,portable:draft.type==='EQUIPMENT'&&!!draft.portable }) }
+    if (await mutation.submit(`/${kind}${draft.id ? `/${draft.id}` : ''}`, payload, draft.id ? 'PUT' : 'POST')) setDraft(null)
+  }
+  return <div className="space-y-5"><div className="flex flex-wrap items-end justify-between gap-3"><div className="w-full max-w-md"><Label htmlFor="directory-search">Buscar {providers ? 'profesional' : 'recurso'}</Label><Input id="directory-search" value={q} onChange={e => { setQ(e.target.value); setPage(1) }} /></div><Button onClick={() => edit()} disabled={scope.branchId === 'all'}><Plus aria-hidden="true" />{providers ? 'Nuevo profesional' : 'Nuevo recurso'}</Button></div>
+    <div className="overflow-x-auto rounded-xl border"><table className="auna-data-table"><thead><tr><th>Nombre</th><th>{providers ? 'Vinculación' : 'Tipo / capacidad'}</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td className="font-medium">{row.name}</td><td>{'employeeId' in row ? row.employeeId ? 'Empleado vinculado' : 'Profesional independiente' : `${row.type === 'ROOM' ? 'Sala' : 'Equipo'} · ${row.personCapacity == null ? 'Sin límite de personas' : `${row.personCapacity} personas`}`}</td><td>{row.active ? 'Habilitado' : 'Archivado'}</td><td><Button variant="outline" size="icon" aria-label={`Editar ${row.name}`} disabled={scope.branchId === 'all'} onClick={() => edit(row)}><Pencil aria-hidden="true" /></Button></td></tr>)}{!rows.length && <tr><td colSpan={4}>Sin registros para esta búsqueda.</td></tr>}</tbody></table></div>
+    <Pagination currentPage={page} totalPages={Math.max(1, Math.ceil(items.length / 10))} totalItems={items.length} pageSize={10} count={rows.length} onPageChange={setPage} />
+    {guard.dialog}<Dialog open={!!draft} onOpenChange={open => { if (!open && !mutation.pending) guard.request(() => setDraft(null)) }}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>{draft?.id ? 'Editar' : 'Nuevo'} {providers ? 'profesional' : 'recurso'}</DialogTitle><DialogDescription>Archivar impide nuevas citas. No elimina ni cancela las existentes.</DialogDescription></DialogHeader>{draft && <div className="space-y-4" aria-busy={mutation.pending}><FormFeedback error={mutation.error} fields={mutation.fields} /><div><Label htmlFor="directory-name">Nombre *</Label><Input id="directory-name" value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })} maxLength={150} disabled={mutation.pending} /></div>
+      {providers ? <><div><Label id="provider-employee">Vincular empleado (opcional)</Label><Select value={draft.employeeId || 'none'} onValueChange={v => setDraft({ ...draft, employeeId: v === 'none' ? null : v, userId: null })} disabled={mutation.pending}><SelectTrigger aria-labelledby="provider-employee"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">Sin empleado · independiente</SelectItem>{directory.employeeCandidates.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}</SelectContent></Select><p className="mt-1 text-sm text-muted-foreground">No necesita cuenta para recibir citas. El acceso a agenda propia usa la cuenta vinculada al empleado.</p></div><AssignmentChoices label="Sucursales donde atiende" value={draft.branchIds} onChange={branchIds => setDraft({ ...draft, branchIds })} items={directory.branches} disabled={mutation.pending} /></> : <div className="grid grid-cols-2 gap-3"><div><Label id="resource-type">Tipo</Label><Select value={draft.type} onValueChange={type => setDraft({ ...draft, type: type as Draft['type'], portable:type==='EQUIPMENT'&&draft.portable, personCapacity: type === 'ROOM' ? draft.personCapacity || 1 : null })} disabled={mutation.pending}><SelectTrigger aria-labelledby="resource-type"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ROOM">Sala</SelectItem><SelectItem value="EQUIPMENT">Equipo exclusivo</SelectItem></SelectContent></Select></div><div><Label htmlFor="resource-capacity">Capacidad de personas</Label><Input id="resource-capacity" type="number" min={1} max={10000} value={draft.personCapacity ?? ''} placeholder={draft.type === 'EQUIPMENT' ? 'Sin límite personal' : 'Obligatoria'} onChange={e => setDraft({ ...draft, personCapacity: e.target.value ? Number(e.target.value) : null })} disabled={mutation.pending} /></div></div>}
+      <label className="flex items-center gap-3 text-sm">{!providers&&draft.type==='EQUIPMENT'&&<><Switch checked={!!draft.portable} onCheckedChange={portable=>setDraft({...draft,portable})} disabled={mutation.pending}/>Equipo transportable · puede salir de la sucursal</>}</label><label className="flex items-center gap-3 text-sm"><Switch checked={draft.active} onCheckedChange={active => setDraft({ ...draft, active })} disabled={mutation.pending} />Habilitado para nuevas citas</label><div className="flex justify-end gap-2"><Button variant="outline" disabled={mutation.pending} onClick={() => { guard.request(() => setDraft(null)) }}>Cancelar</Button><Button disabled={mutation.pending || !draft.name.trim()} onClick={() => void save()}>{mutation.pending ? 'Guardando…' : 'Guardar'}</Button></div></div>}</DialogContent></Dialog>
+  </div>
+}

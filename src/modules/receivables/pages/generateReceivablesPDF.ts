@@ -15,15 +15,13 @@
  */
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
-import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
+import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace } from '@/utils/pdfBranding'
 import {
   PAYMENT_KIND_LABELS, SALE_PAYMENT_STATUS_LABELS,
   type CustomerStatement, type PaymentReceipt,
 } from '../api/receivablesService'
 
-const HEADER_COLOR: [number, number, number] = [249, 115, 22]
-
-interface PdfOptions {
+export interface PdfOptions {
   companyName?: string
   logoDataUrl?: string
   currencyCode?: string
@@ -62,8 +60,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
   y += 9
 
   doc.setFontSize(11)
-  doc.text(data.customer.name, margin, y)
-  y += 6
+  y = addDocumentText(doc, data.customer.name, margin, y, pageWidth - 2 * margin) + 2
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 100)
@@ -73,8 +70,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
     data.customer.address,
   ].filter(Boolean)
   if (datos.length) {
-    doc.text(datos.join('  ·  '), margin, y)
-    y += 5
+    y = addDocumentText(doc, datos.join('  ·  '), margin, y, pageWidth - 2 * margin) + 1
   }
   doc.text(`Emitido el ${fecha(new Date().toISOString())}`, margin, y)
   doc.setTextColor(0, 0, 0)
@@ -93,18 +89,20 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
     resumen.push(['Disponible', money(data.resumen.disponible ?? 0)])
   }
   autoTable(doc, {
+    ...documentTableStyles,
     startY: y,
     body: resumen,
     theme: 'plain',
     tableWidth: 80,
-    styles: { fontSize: 9, cellPadding: 1.5 },
+    styles: { ...documentTableStyles.styles, fontSize: 9, cellPadding: 1.5 },
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 45 }, 1: { halign: 'right', cellWidth: 35 } },
-    margin: { left: margin },
+    margin: { left: margin, right: margin, top: 20, bottom: 20 },
   })
   y = (doc.lastAutoTable?.finalY ?? y) + 8
 
   const abiertas = data.ventas.filter((v) => v.saldo > 0.005)
   autoTable(doc, {
+    ...documentTableStyles,
     startY: y,
     head: [['Factura', 'Fecha', 'Vence', 'Total', 'Abonado', 'Saldo', 'Estado']],
     body: abiertas.length
@@ -119,17 +117,16 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
         ])
       : [['Sin facturas pendientes', '', '', '', '', '', '']],
     theme: 'striped',
-    headStyles: { fillColor: HEADER_COLOR, fontSize: 8 },
-    styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: {
       3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' },
     },
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, top: 20, bottom: 20 },
   })
   y = (doc.lastAutoTable?.finalY ?? y) + 8
 
   if (data.cobros.length) {
     autoTable(doc, {
+      ...documentTableStyles,
       startY: y,
       head: [['Fecha', 'Tipo', 'Monto', 'Forma', 'Referencia', 'Aplicado a']],
       body: data.cobros.map((c) => [
@@ -141,13 +138,12 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
         c.aplicaciones.map((a) => a.reference || a.sale_id?.slice(0, 8)).join(', ') || 'Sin aplicar',
       ]),
       theme: 'striped',
-      headStyles: { fillColor: HEADER_COLOR, fontSize: 8 },
-      styles: { fontSize: 8, cellPadding: 2 },
       columnStyles: { 2: { halign: 'right' } },
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, top: 20, bottom: 20 },
     })
   }
 
+  addDocumentFooter(doc, 'Estado de cuenta')
   doc.save(`estado-cuenta-${data.customer.name.replace(/\s+/g, '-').toLowerCase()}.pdf`)
 }
 
@@ -182,6 +178,7 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
   y += 10
 
   autoTable(doc, {
+    ...documentTableStyles,
     startY: y,
     body: [
       ['Cliente', r.customer.name],
@@ -193,9 +190,9 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
       ...(r.registered_by ? [['Recibido por', r.registered_by.name]] : []),
     ],
     theme: 'plain',
-    styles: { fontSize: 9, cellPadding: 1.5 },
+    styles: { ...documentTableStyles.styles, fontSize: 9, cellPadding: 1.5 },
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 35 } },
-    margin: { left: margin },
+    margin: { left: margin, right: margin, top: 20, bottom: 20 },
   })
   y = (doc.lastAutoTable?.finalY ?? y) + 6
 
@@ -205,6 +202,7 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
   y += 8
 
   autoTable(doc, {
+    ...documentTableStyles,
     startY: y,
     head: [['Factura', 'Fecha', 'Vence', 'Total', 'Aplicado']],
     body: r.aplicaciones.length
@@ -215,14 +213,18 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
           money(a.total),
           money(a.amount),
         ])
-      : [['Sin aplicar (queda como saldo a favor)', '', '', '', money(r.amount)]],
+      : [['Sin aplicación vigente a facturas', '', '', '', money(0)]],
     theme: 'striped',
-    headStyles: { fillColor: HEADER_COLOR, fontSize: 8 },
-    styles: { fontSize: 8, cellPadding: 2 },
     columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
-    margin: { left: margin, right: margin },
+    margin: { left: margin, right: margin, top: 20, bottom: 20 },
   })
-  y = (doc.lastAutoTable?.finalY ?? y) + 6
+  y = ensureDocumentSpace(doc, (doc.lastAutoTable?.finalY ?? y) + 6, 22)
+
+  for(const [label,value] of [['Comprometido con contrataciones',r.comprometido||0],['Devuelto',r.devuelto||0]] as const){
+    if(value<=0)continue
+    y=ensureDocumentSpace(doc,y,12)
+    doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(`${label}: ${money(value)}`,margin,y);y+=6
+  }
 
   if (r.no_aplicado > 0.005) {
     doc.setFontSize(9)
@@ -238,9 +240,10 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
     y += 8
     doc.setFont('helvetica', 'normal')
     doc.setTextColor(100, 100, 100)
-    doc.text(doc.splitTextToSize(`Nota: ${r.notes}`, pageWidth - margin * 2), margin, y)
+    addDocumentText(doc, `Nota: ${r.notes}`, margin, y, pageWidth - margin * 2)
     doc.setTextColor(0, 0, 0)
   }
 
+  addDocumentFooter(doc, 'Recibo de cobro')
   doc.save(`recibo-${r.id.slice(0, 8)}.pdf`)
 }

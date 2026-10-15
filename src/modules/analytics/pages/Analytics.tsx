@@ -4,68 +4,30 @@ import {
   Area,
   AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
   ComposedChart,
   Line,
-  Pie,
-  PieChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
-import {
-  ArrowRight,
-  Boxes,
-  CalendarDays,
-  ChartNoAxesCombined,
-  CircleDollarSign,
-  Package,
-  Percent,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react'
+import { ArrowRight, CalendarDays, ChartNoAxesCombined, TrendingDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Skeleton } from '@/components/ui/skeleton'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
+import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useModules } from '@/context/useModules'
 import { useAnalytics, useAnalyticsFirstSaleYear } from '@/modules/analytics/hooks/useAnalytics'
 import { AnalyticsDetailTabs } from '../components/AnalyticsDetailTabs'
-import { buildInventorySegments, calculateMargin } from '../analyticsViewModel'
-
-const MONTHS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-const CATEGORY_COLORS = ['#f97316', '#2563eb', '#60a5fa', '#22c55e', '#8b5cf6', '#94a3b8']
-const INVENTORY_COLORS = ['#22c55e', '#f97316', '#ef4444']
-
-function DashboardCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <Card className={`auna-surface rounded-2xl border-border/70 bg-card ${className}`}>{children}</Card>
-}
-
-function DashboardTooltip({ active, payload, label, currency }: {
-  active?: boolean
-  payload?: Array<{ name: string; value: number; color: string }>
-  label?: string
-  currency: (value: number) => string
-}) {
-  if (!active || !payload?.length) return null
-  return (
-    <div className="rounded-xl border border-border/70 bg-popover px-3 py-2 text-xs shadow-xl">
-      <p className="mb-1 font-semibold">{label}</p>
-      {payload.map((item) => (
-        <div key={item.name} className="flex items-center justify-between gap-6 py-0.5">
-          <span style={{ color: item.color }}>{item.name}</span>
-          <span className="font-medium text-foreground">{currency(Number(item.value))}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
+import { ChartCard, ChartLegend, ChartTooltip, RankedBars, StockHealth } from '../components/AnalyticsCharts'
+import { SERIES, chart } from '../components/chartTheme'
+import { buildInventorySegments, buildMonthlySeries, calculateMargin, toRanking } from '../analyticsViewModel'
+import '../analytics.css'
 
 const Analytics = () => {
   const navigate = useNavigate()
@@ -115,20 +77,22 @@ const Analytics = () => {
     maximumFractionDigits: 1,
   }).format(value || 0)
   const formatNumber = (value: number) => new Intl.NumberFormat(locale || 'es-GT').format(value || 0)
+  const formatPercent = (value: number) => `${value.toFixed(1)}%`
 
   const sales = data?.totals.totalSales ?? 0
   const cost = data?.totals.totalCost ?? 0
   const margin = calculateMargin(sales, cost)
-  const monthly = useMemo(() => (data?.monthly ?? []).map((item) => {
-    const netSales = item.ventasNetas ?? item.ventas - (item.devoluciones ?? 0)
-    return {
-      month: MONTHS[item.month - 1],
-      ventas: netSales,
-      utilidad: netSales - item.costo,
-      margen: calculateMargin(netSales, item.costo),
-    }
-  }), [data])
-  const categories = useMemo(() => (data?.categoryPerformance ?? []).slice(0, 6), [data])
+  const monthly = useMemo(() => buildMonthlySeries(data?.monthly ?? []), [data])
+  const categoryRanking = useMemo(() => toRanking(
+    (data?.categoryPerformance ?? []).map((item) => ({ label: item.category, value: item.revenue })),
+    6,
+    (count) => `Otras ${count} categorías`,
+  ), [data])
+  // Las seis categorías con más ventas, ordenadas por su margen real (el backend lo redondea a entero).
+  const marginRanking = useMemo(() => (data?.categoryPerformance ?? [])
+    .slice(0, 6)
+    .map((item) => ({ label: item.category, value: calculateMargin(item.revenue, item.cost) }))
+    .sort((a, b) => b.value - a.value), [data])
   const inventory = useMemo(
     () => buildInventorySegments(data?.inventory ?? { productsCount: 0, lowStockCount: 0, outOfStockCount: 0 }),
     [data],
@@ -138,21 +102,24 @@ const Analytics = () => {
   if (!canViewAnalytics) {
     return (
       <div className="flex min-h-[65vh] items-center justify-center p-6">
-        <DashboardCard className="w-full max-w-md">
+        <Card className="auna-surface w-full max-w-md rounded-2xl">
           <CardContent className="p-8 text-center">
             <ChartNoAxesCombined className="mx-auto h-10 w-10 text-muted-foreground" />
             <h1 className="mt-4 text-xl font-semibold">Sin acceso al tablero</h1>
             <p className="mt-2 text-sm text-muted-foreground">Tu perfil no tiene permiso para consultar indicadores.</p>
           </CardContent>
-        </DashboardCard>
+        </Card>
       </div>
     )
   }
 
   return (
-    <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
+    <div className="analytics-page min-h-full bg-brand-surface/70 dark:bg-brand-navy">
       <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        {isFetching && data && <LoadingIndicator message="Actualizando analítica…" />}<h1 className="sr-only">Dashboard analítico</h1><div className="auna-page-toolbar"><div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {isFetching && data && <LoadingIndicator message="Actualizando analítica…" />}
+        <h1 className="sr-only">Dashboard analítico</h1>
+        <div className="auna-page-toolbar">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Select value={String(selectedYear)} onValueChange={(value) => setSelectedYear(value === 'all' ? 'all' : Number(value))}>
               <SelectTrigger className="min-w-56">
                 <CalendarDays className="mr-2 h-5 w-5 text-brand-orange" />
@@ -167,10 +134,11 @@ const Analytics = () => {
               <Button type="button" size="sm" variant="ghost" className={`rounded-lg ${selectedYear === currentYear ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} onClick={() => setSelectedYear(currentYear)}>Este año</Button>
               <Button type="button" size="sm" variant="ghost" className={`rounded-lg ${selectedYear === 'all' ? 'bg-brand-orange text-white hover:bg-brand-orange-strong hover:text-white' : ''}`} onClick={() => setSelectedYear('all')}>Histórico</Button>
             </div>
-          </div></div>
+          </div>
+        </div>
 
         {isError ? (
-          <DashboardCard>
+          <Card className="auna-surface rounded-2xl">
             <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
               <TrendingDown className="h-9 w-9 text-destructive" />
               <div>
@@ -179,7 +147,7 @@ const Analytics = () => {
               </div>
               <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => refetch()}>Reintentar</Button>
             </CardContent>
-          </DashboardCard>
+          </Card>
         ) : (
           <AnalyticsDetailTabs
             data={data}
@@ -189,155 +157,93 @@ const Analytics = () => {
             formatCompactCurrency={formatCompactCurrency}
             formatNumber={formatNumber}
           >
-            <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores principales">
-                {[
-                { label: 'Ventas totales', value: formatCurrency(sales), hint: selectedYear === 'all' ? 'Histórico acumulado' : `Año ${selectedYear}`, icon: ChartNoAxesCombined },
-                { label: 'Unidades vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos vendidos`, icon: Package },
-                { label: 'Rentabilidad (margen)', value: `${margin.toFixed(1)}%`, hint: `Utilidad ${formatCurrency(data?.totals.totalProfit ?? 0)}`, icon: Percent },
-                  ...(sectionAccess.inventory ? [{ label: 'Valor del inventario', value: formatCurrency(data?.inventory.stockValue ?? 0), hint: `${formatNumber(data?.inventory.productsCount ?? 0)} productos`, icon: Boxes }] : []),
-              ].map(({ label, value, hint, icon: Icon }) => (
-                <DashboardCard key={label}>
-                  <CardContent className="flex items-start gap-4 p-5">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-orange/15 text-brand-orange">
-                      <Icon className="h-6 w-6" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-muted-foreground">{label}</p>
-                      {isLoading ? <Skeleton className="mt-2 h-8 w-32" /> : <p className="mt-1 truncate text-2xl font-bold tabular-nums">{value}</p>}
-                      <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-                    </div>
-                  </CardContent>
-                </DashboardCard>
-              ))}
-            </section>
+            <MetricStrip label="Indicadores principales" loading={isLoading} items={[
+              { label: 'Ventas totales', value: formatCurrency(sales), hint: selectedYear === 'all' ? 'Histórico acumulado' : `Año ${selectedYear}` },
+              { label: 'Unidades vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos vendidos` },
+              { label: 'Rentabilidad (margen)', value: formatPercent(margin), hint: `Utilidad ${formatCurrency(data?.totals.totalProfit ?? 0)}` },
+              ...(sectionAccess.inventory ? [{ label: 'Valor del inventario', value: formatCurrency(data?.inventory.stockValue ?? 0), hint: `${formatNumber(data?.inventory.productsCount ?? 0)} productos` }] : []),
+            ]} />
 
             {!isLoading && !hasSalesData ? (
-              <DashboardCard>
+              <Card className="auna-surface rounded-2xl">
                 <CardContent className="px-6 py-14 text-center">
                   <ChartNoAxesCombined className="mx-auto h-11 w-11 text-muted-foreground/60" />
                   <h2 className="mt-4 text-lg font-semibold">Aún no hay ventas en este período</h2>
                   <p className="mt-2 text-sm text-muted-foreground">Cuando registres ventas aparecerán aquí los gráficos y tendencias.</p>
                 </CardContent>
-              </DashboardCard>
+              </Card>
             ) : (
               <>
-                <section className="grid gap-4 xl:grid-cols-[2fr_1fr]">
-                  {sectionAccess.inventory ? <DashboardCard>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-brand-orange" /> Evolución de ventas</CardTitle>
-                      <span className="text-xs text-muted-foreground">Mensual</span>
-                    </CardHeader>
-                    <CardContent className="h-[330px] pt-3">
+                <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+                  <ChartCard
+                    title="Evolución de ventas"
+                    description="Ventas netas y utilidad por mes"
+                    aside={<ChartLegend items={[{ label: 'Ventas', color: SERIES.sales }, { label: 'Utilidad', color: SERIES.profit, line: true }]} />}
+                  >
+                    <div className="h-[300px]" role="img" aria-label="Ventas netas y utilidad por mes">
                       {isLoading ? <LoadingState variant="chart" message="Cargando gráfico…" /> : (
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={monthly} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
-                            <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                            <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                            <YAxis axisLine={false} tickLine={false} width={58} tickFormatter={(value) => formatCompactCurrency(Number(value))} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                            <Tooltip content={<DashboardTooltip currency={formatCurrency} />} />
-                            <Bar dataKey="ventas" name="Ventas" fill="#f97316" radius={[5, 5, 0, 0]} maxBarSize={30} />
-                            <Line type="monotone" dataKey="utilidad" name="Utilidad" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: '#2563eb' }} />
+                          <ComposedChart data={monthly} margin={{ top: 8, right: 4, left: 0, bottom: 0 }}>
+                            <CartesianGrid {...chart.grid} />
+                            <XAxis dataKey="month" {...chart.axis} />
+                            <YAxis {...chart.axis} width={64} tickFormatter={(value) => formatCompactCurrency(Number(value))} />
+                            <Tooltip
+                              cursor={chart.barCursor}
+                              content={<ChartTooltip format={formatCurrency} footer={(row) => row.margen == null ? null : ['Margen', formatPercent(Number(row.margen))]} />}
+                            />
+                            <Bar dataKey="ventas" name="Ventas" fill={SERIES.sales} radius={[4, 4, 0, 0]} maxBarSize={24} {...chart.motion} />
+                            <Line dataKey="utilidad" name="Utilidad" type="monotone" stroke={SERIES.profit} strokeWidth={2} dot={chart.dot(SERIES.profit)} activeDot={chart.dot(SERIES.profit, 5)} {...chart.motion} />
                           </ComposedChart>
                         </ResponsiveContainer>
                       )}
-                    </CardContent>
-                  </DashboardCard> : null}
+                    </div>
+                  </ChartCard>
 
-                  <DashboardCard>
-                    <CardHeader className="pb-2"><CardTitle className="text-base">Ventas por categoría</CardTitle></CardHeader>
-                    <CardContent className="grid min-h-[330px] gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                      {isLoading ? <LoadingState variant="chart" message="Cargando categorías…" /> : (
-                        <div className="relative h-56">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={categories} dataKey="revenue" nameKey="category" innerRadius={58} outerRadius={88} paddingAngle={1}>
-                                {categories.map((item, index) => <Cell key={item.category} fill={CATEGORY_COLORS[index % CATEGORY_COLORS.length]} />)}
-                              </Pie>
-                              <Tooltip formatter={(value) => formatCurrency(Number(value))} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                            <strong className="text-lg">{formatCompactCurrency(sales)}</strong>
-                            <span className="text-xs text-muted-foreground">Total</span>
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-2 self-center">
-                        {categories.map((item, index) => (
-                          <div key={item.category} className="flex items-center justify-between gap-3 text-xs">
-                            <span className="flex min-w-0 items-center gap-2"><i className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: CATEGORY_COLORS[index % CATEGORY_COLORS.length] }} /><span className="truncate">{item.category}</span></span>
-                            <strong>{item.percentage.toFixed(1)}%</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </DashboardCard>
+                  <ChartCard title="Ventas por categoría" description="Participación en las ventas del período">
+                    {isLoading ? <LoadingState variant="chart" message="Cargando categorías…" /> : (
+                      <RankedBars label="Ventas por categoría" rows={categoryRanking} format={formatCurrency} />
+                    )}
+                  </ChartCard>
                 </section>
 
-                <section className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
-                  <DashboardCard>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base"><Boxes className="h-5 w-5 text-brand-orange" /> Estado del inventario</CardTitle>
-                      <Button variant="outline" size="sm" className="rounded-lg border-brand-orange/50 text-brand-orange hover:text-brand-orange" onClick={() => navigate('/inventario')}>Ver inventario <ArrowRight className="ml-2 h-4 w-4" /></Button>
-                    </CardHeader>
-                    <CardContent className="grid min-h-[270px] grid-cols-1 items-center gap-2 sm:grid-cols-2">
-                      <div className="relative h-52">
+                <section className={`grid gap-4 md:grid-cols-2 ${sectionAccess.inventory ? 'xl:grid-cols-3' : ''}`}>
+                  {sectionAccess.inventory ? (
+                    <ChartCard
+                      title="Salud del inventario"
+                      description="Productos según su nivel de stock"
+                      aside={<Button variant="ghost" size="sm" className="-mr-2 h-8 text-brand-orange hover:text-brand-orange" onClick={() => navigate('/inventario')}>Ver inventario <ArrowRight className="h-4 w-4" /></Button>}
+                    >
+                      <StockHealth segments={inventory} formatNumber={formatNumber} />
+                    </ChartCard>
+                  ) : null}
+
+                  <ChartCard title="Rentabilidad por categoría" description="Margen de las categorías con más ventas">
+                    {isLoading ? <LoadingState variant="chart" message="Cargando categorías…" /> : (
+                      <RankedBars label="Rentabilidad por categoría" rows={marginRanking} format={formatPercent} color={SERIES.profit} />
+                    )}
+                  </ChartCard>
+
+                  <ChartCard
+                    className={sectionAccess.inventory ? 'md:col-span-2 xl:col-span-1' : undefined}
+                    title="Tendencia de rentabilidad"
+                    description="Margen mensual frente al promedio"
+                    aside={<div className="text-right"><p className="text-xs text-muted-foreground">Promedio</p><p className="text-lg font-semibold leading-6">{formatPercent(margin)}</p></div>}
+                  >
+                    <div className="h-[230px]" role="img" aria-label="Margen mensual frente al promedio">
+                      {isLoading ? <LoadingState variant="chart" message="Cargando gráfico…" /> : (
                         <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={inventory} dataKey="value" nameKey="label" innerRadius={55} outerRadius={82}>
-                              {inventory.map((item, index) => <Cell key={item.key} fill={INVENTORY_COLORS[index]} />)}
-                            </Pie>
-                          </PieChart>
+                          <AreaChart data={monthly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                            <CartesianGrid {...chart.grid} />
+                            <XAxis dataKey="month" {...chart.axis} />
+                            <YAxis {...chart.axis} width={48} tickFormatter={(value) => `${value}%`} />
+                            <Tooltip cursor={chart.lineCursor} content={<ChartTooltip format={formatPercent} />} />
+                            <ReferenceLine y={margin} stroke="hsl(var(--auna-surface-muted))" strokeOpacity={0.5} strokeDasharray="4 4" />
+                            <Area dataKey="margen" name="Margen" type="monotone" stroke={SERIES.profit} strokeWidth={2} fill={SERIES.profit} fillOpacity={0.1} dot={chart.dot(SERIES.profit)} activeDot={chart.dot(SERIES.profit, 5)} {...chart.motion} />
+                          </AreaChart>
                         </ResponsiveContainer>
-                        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-                          <strong className="text-xl">{formatNumber(data?.inventory.productsCount ?? 0)}</strong>
-                          <span className="text-xs text-muted-foreground">Productos</span>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        {inventory.map((item, index) => (
-                          <div key={item.key} className="flex items-center justify-between gap-3 text-sm">
-                            <span className="flex items-center gap-2"><i className="h-3 w-3 rounded-full" style={{ backgroundColor: INVENTORY_COLORS[index] }} />{item.label}</span>
-                            <strong>{formatNumber(item.value)}</strong>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </DashboardCard>
-
-                  <DashboardCard>
-                    <CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-base"><Percent className="h-5 w-5 text-brand-orange" /> Rentabilidad por categoría</CardTitle></CardHeader>
-                    <CardContent className="h-[280px] pt-2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={categories} layout="vertical" margin={{ left: 8, right: 22 }}>
-                          <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                          <XAxis type="number" unit="%" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                          <YAxis type="category" dataKey="category" width={90} axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                          <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
-                          <Bar dataKey="margin" name="Margen" fill="#f97316" radius={[0, 5, 5, 0]} maxBarSize={24} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </DashboardCard>
-
-                  <DashboardCard className="lg:col-span-2 2xl:col-span-1">
-                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                      <CardTitle className="flex items-center gap-2 text-base"><CircleDollarSign className="h-5 w-5 text-brand-orange" /> Tendencia de rentabilidad</CardTitle>
-                      <div className="text-right"><p className="text-xs text-muted-foreground">Margen promedio</p><p className="text-xl font-bold">{margin.toFixed(1)}%</p></div>
-                    </CardHeader>
-                    <CardContent className="h-[250px] pt-2">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={monthly}>
-                          <defs><linearGradient id="marginFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f97316" stopOpacity={0.35} /><stop offset="100%" stopColor="#f97316" stopOpacity={0.02} /></linearGradient></defs>
-                          <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
-                          <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                          <YAxis unit="%" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} />
-                          <Tooltip formatter={(value) => `${Number(value).toFixed(1)}%`} />
-                          <Area type="monotone" dataKey="margen" name="Margen" stroke="#f97316" strokeWidth={2.5} fill="url(#marginFill)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </CardContent>
-                  </DashboardCard>
+                      )}
+                    </div>
+                  </ChartCard>
                 </section>
               </>
             )}

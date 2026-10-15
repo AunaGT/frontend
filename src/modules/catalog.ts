@@ -1,4 +1,5 @@
 import { accountingModule } from './accounting/manifest'
+import { appointmentsModule } from './appointments/manifest'
 import { alertsModule } from './alerts/manifest'
 import { analyticsModule } from './analytics/manifest'
 import { branchesModule } from './branches/manifest'
@@ -22,6 +23,7 @@ import { transfersModule } from './transfers/manifest'
 import { usersModule } from './users/manifest'
 
 export const MODULE_MANIFESTS = [
+  appointmentsModule,
   inventoryModule,
   catalogsModule,
   contactsModule,
@@ -84,6 +86,7 @@ export function assertModuleManifestCatalog() {
 assertModuleManifestCatalog()
 
 export {
+  appointmentsModule,
   accountingModule,
   alertsModule,
   analyticsModule,

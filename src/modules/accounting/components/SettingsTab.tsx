@@ -45,6 +45,7 @@ const KEY_LABELS: Record<string, string> = {
   currentEarnings: 'Utilidad del ejercicio',
   retainedEarnings: 'Utilidades acumuladas',
   cashOverShort: 'Sobrantes / faltantes de caja',
+  customerAdvances: 'Anticipos de clientes (opcional)',
 }
 
 export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canManage: boolean }) => {
@@ -256,11 +257,12 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar cuenta" /></SelectTrigger>
                   <SelectContent>
-                    {postables.map((a) => (
+                    {postables.filter((a) => key !== 'customerAdvances' || a.type === 'LIABILITY').map((a) => (
                       <SelectItem key={a.id} value={a.code}>{a.code} — {a.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {key === 'customerAdvances' && <p className="text-xs text-muted-foreground">Cuenta de pasivo para recibir anticipos de contrataciones. Solo es necesaria si usas estos cobros con Contabilidad activa.</p>}
               </div>
             ))}
           </div>

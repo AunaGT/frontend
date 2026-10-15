@@ -27,6 +27,7 @@ test('new service reuses inventory creation and sends only commercial fields',()
   const {EMPTY_PRODUCT_FORM}=loadReportModule('../inventory/products/types.ts')
   const form={...EMPTY_PRODUCT_FORM,productKind:'SERVICE',name:'Asesoría',category:'1',price:'100',serviceUnitLabel:'Hora',quantityDecimals:'2'}
   const Page=loadReportModule('../inventory/products/ProductCreatePage.tsx',{
+    '@/modules/appointments/useServiceScheduleDraft':{useServiceScheduleDraft:()=>({allowed:false,ready:true,payload:{}})},
     '@/services/api':{getApiBaseUrl:()=>'/api',apiFetch(){throw Error('No real requests')}},
     './api':{getApiBaseUrl:()=>'/api',apiFetch(){throw Error('No real requests')}},
     '@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryServicesEnabled:true,locale:'es-GT',currencyCode:'GTQ'})},
@@ -41,7 +42,8 @@ test('new service reuses inventory creation and sends only commercial fields',()
   },nodes).default
   const html=renderToStaticMarkup(React.createElement(MemoryRouter,{initialEntries:['/inventario/nuevo?tipo=services']},React.createElement(Page)))
   assert.match(html,/Unidad de cobro/)
-  assert.match(html,/Decimales/)
+  assert.match(html,/¿Cómo cobras\?/)
+  assert.match(html,/Permitir fracciones/)
   assert.doesNotMatch(html,/Stock Inicial|Stock Mínimo|Proveedor \*/)
   nodes.find(node=>node.type==='button' && node.props.children==='Guardar servicio').props.onClick()
   assert.equal(writes[0].kind,'SERVICE')

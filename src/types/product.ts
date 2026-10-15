@@ -9,6 +9,7 @@
  */
 
 import { BaseEntity, ProductCategory, StockStatus } from "./common";
+import type { ProfileInput } from "@/modules/appointments/types";
 
 export type ProductKind = "STANDARD" | "KIT" | "SERVICE";
 
@@ -158,6 +159,7 @@ export interface ApiProduct {
 }
 
 export interface CreateProductPayload {
+  schedule_profile?: ProfileInput;
   id?: string;
   name: string;
   category_id: number | string;

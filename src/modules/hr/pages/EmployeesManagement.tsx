@@ -19,6 +19,7 @@ import { UserMinus, Search, Eye, Pencil, MoreHorizontal } from 'lucide-react'
 import { Pagination } from '@/components/shared/Pagination'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import { useTenant } from '@/context/useTenant'
+import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -85,7 +86,7 @@ export const EmployeesManagement = ({ actions }: { actions?: import('react').Rea
   useEffect(() => { setSelectedIds([]) }, [query, status, position, branch, page, pageSize])
   const downloadSelected = async () => {
     setExporting(true)
-    try { const { generateEmployeePDF } = await import('./generateEmployeePDF'); generateEmployeePDF(data?.items.filter(item => selectedIds.includes(item.id)) || [], company?.name || 'Auna') } catch (error) { toast({ title: 'No se pudo descargar las fichas', description: error instanceof Error ? error.message : undefined, variant: 'destructive' }) } finally { setExporting(false) }
+    try { const [{ generateEmployeePDF }, logo] = await Promise.all([import('./generateEmployeePDF'), resolvePdfLogoDataUrl(company?.logo_url)]); generateEmployeePDF(data?.items.filter(item => selectedIds.includes(item.id)) || [], company?.name || 'Empresa', logo) } catch (error) { toast({ title: 'No se pudo descargar las fichas', description: error instanceof Error ? error.message : undefined, variant: 'destructive' }) } finally { setExporting(false) }
   }
 
   return (

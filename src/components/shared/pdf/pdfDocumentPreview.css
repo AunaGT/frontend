@@ -1,0 +1,10 @@
+.report-document-viewer{border:1px solid hsl(var(--auna-surface-border));border-radius:12px;overflow:hidden;background:hsl(var(--auna-surface-card));min-width:0}
+.report-viewer-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:.35rem;padding:.7rem;border-bottom:1px solid hsl(var(--auna-surface-border));background:hsl(var(--auna-surface-header))}
+.report-viewer-body{display:flex;min-width:0;height:min(72vh,850px)}
+.report-document-viewer:fullscreen .report-viewer-body{height:calc(100vh - 80px)}
+.report-document-stage{flex:1;min-width:0;padding:20px;overflow:auto;background:hsl(var(--muted))}
+.report-document-stage canvas{display:block;margin:0 auto;background:white;box-shadow:0 2px 12px #0002}
+.report-thumbnails{flex:0 0 130px;overflow:auto;padding:.75rem;border-right:1px solid hsl(var(--border))}
+.report-thumbnails button{display:flex;align-items:center;flex-direction:column;gap:.3rem;margin-bottom:.75rem;border:2px solid transparent;padding:.3rem;border-radius:.3rem}
+.report-thumbnails button.is-active{border-color:hsl(var(--primary))}
+.report-viewer-error{padding:1rem;display:grid;gap:.8rem}

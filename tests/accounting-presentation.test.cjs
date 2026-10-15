@@ -86,7 +86,7 @@ test('journal renders real entries with keyboard expansion and pagination outsid
   assert.doesNotMatch(readonly, /Nuevo asiento|Registrar gasto|Contabilizar pendientes/)
 })
 
-for (const [source, label] of [['PAYROLL', 'Nómina'], ['PAYROLL_PAYMENT', 'Pago de nómina'], ['PAYROLL_ADVANCE', 'Anticipo de nómina']]) {
+for (const [source, label] of [['PAYROLL', 'Nómina'], ['PAYROLL_PAYMENT', 'Pago de nómina'], ['PAYROLL_ADVANCE', 'Anticipo de nómina'], ['CUSTOMER_ADVANCE', 'Anticipo de cliente'], ['CUSTOMER_ADVANCE_APPLIED', 'Aplicación de anticipo'], ['CUSTOMER_PAYMENT_REFUND', 'Devolución de anticipo']]) {
   test(`journal identifies ${source} in the entry and applied origin filter`, () => {
     const html = render('JournalTab', { accounts: [account], canCreate: false }, [[{ ...entry, source_type: source }], false, 1, 1, 1, '', '', source, '', null, false, false, false, false, false])
     assert.ok(html.includes(`>${label}</div>`), 'The entry has a readable origin badge')
@@ -133,6 +133,13 @@ test('settings separate tasks into accessible panels without dropping opening or
   assert.equal(panels.length, 4)
   assert.equal(panels.filter(p => /hidden=""/.test(p)).length, 3, 'Only the selected task should occupy space; hidden drafts stay mounted')
   assert.match(render('SettingsTab', { accounts: [], canManage: false }), /No tienes permiso/)
+})
+
+test('advance account settings explain their optional liability purpose', () => {
+  const html = render('SettingsTab', { accounts: [account], canManage: true }, [{}, ['customerAdvances']])
+  assert.match(html, /Anticipos de clientes/)
+  assert.match(html, /pasivo/)
+  assert.match(html, /contrataciones/)
 })
 
 test('financial statements summarize existing data without nesting another result frame', () => {

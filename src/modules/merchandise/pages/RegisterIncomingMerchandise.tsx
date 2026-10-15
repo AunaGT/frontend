@@ -9,6 +9,7 @@
  */
 
 import { useState, useMemo, useEffect } from 'react'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -44,6 +45,7 @@ interface IncomingItem {
 }
 
 export const RegisterIncomingMerchandise = () => {
+  const { hasPermission } = useAuthPermissions()
   const navigate = useNavigate()
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -307,6 +309,7 @@ export const RegisterIncomingMerchandise = () => {
       // Actualizar listados y selectores después del ingreso.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['incoming-merchandise'] }),
+        queryClient.invalidateQueries({ queryKey: ['payables'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['supplier'] }),
         queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
@@ -338,7 +341,7 @@ export const RegisterIncomingMerchandise = () => {
           <div className="space-y-2"><Label>Proveedor <span className="text-brand-orange">*</span></Label><SupplierPicker label={supplierDetail?.name || supplierLabel} onSelect={supplier => { setSupplierLabel(supplier?.name || 'Seleccionar proveedor…'); selectSupplier(supplier?.id || '') }} />{supplierDetailError && <div role="alert" className="space-y-1"><p className="text-xs text-destructive">No se pudieron cargar las condiciones.</p><Button type="button" variant="outline" size="sm" onClick={() => retrySupplier()}>Reintentar</Button></div>}{supplierDetailLoading && <LoadingIndicator message="Cargando condiciones…" />}</div>
           <div className="space-y-2"><Label htmlFor="receipt-location">Almacén / ubicación</Label><select id="receipt-location" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => setLocationId(e.target.value)}><option value="default">Ubicación de recepción predeterminada</option>{receiveLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.name}</option>)}</select></div>
           <div className="space-y-2"><Label htmlFor="receipt-term">Condición de pago</Label><select id="receipt-term" className="auna-control auna-control-select auna-receipt-select" value={paymentTermId} onChange={e => setPaymentTermId(e.target.value)} disabled={!paymentTermsOptions.length}><option value="">Sin término configurado</option>{paymentTermsOptions.map(term => <option key={term.id} value={term.id}>{term.name}{term.isDefault ? ' (predeterminado)' : ''}</option>)}</select></div>
-          <div className="space-y-2"><Label htmlFor="receipt-status">Estado de pago</Label><select id="receipt-status" className="auna-control auna-control-select auna-receipt-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as 'PENDING' | 'PAID')}><option value="PENDING">Pendiente de pago</option><option value="PAID">Pagado completamente</option></select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-status">Estado de pago</Label><select id="receipt-status" className="auna-control auna-control-select auna-receipt-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as 'PENDING' | 'PAID')}><option value="PENDING">Pendiente de pago</option><option value="PAID" disabled={!hasPermission('merchandise.mark_paid')}>Pagado completamente</option></select></div>
           <div className="space-y-2"><Label htmlFor="receipt-reference">Referencia de pago</Label><Input id="receipt-reference" maxLength={255} value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Opcional" /></div>
           <div className="space-y-2"><Label htmlFor="receipt-due">Fecha de vencimiento</Label><Input id="receipt-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
           <div className="space-y-2"><Label htmlFor="receipt-paid">Fecha del pago</Label><Input id="receipt-paid" type="datetime-local" disabled={paymentStatus !== 'PAID'} value={paidAtLocal} onChange={e => setPaidAtLocal(e.target.value)} /></div>

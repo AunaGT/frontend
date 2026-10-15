@@ -55,6 +55,13 @@ test('sale normalization retains product image/barcode from the detail API witho
   assert.equal(service.products[0].qty,'0.125')
   assert.equal(service.lineCount,1)
 })
+test('persisted draft and unknown legacy status do not become completed sales or cash payments',()=>{
+  const {normalizeRawSale}=loader({'@/hooks/useSales':{}})('src/modules/sales/hooks/useSalesData.ts')
+  const draft=normalizeRawSale({status:{name:'Borrador'},payment_method:null,origin_engagement_id:'e',commercial:{state:'DRAFT',originEngagementId:'e',version:2,confirmedAt:null,fiscalState:'UNRECORDED'},capabilities:{confirm:false,requestInvoice:false,collect:false,reason:''}})
+  assert.equal(draft.status,'draft');assert.equal(draft.payment,null)
+  assert.equal(draft.commercial.state,'DRAFT');assert.equal(draft.capabilities.confirm,false)
+  assert.equal(normalizeRawSale({status:{name:'Pagado'}}).status,'legacy')
+})
 
 test('completed refunds retain original service identity and canonical quantity', () => {
   const { normalizeRawSale } = loader({ '@/hooks/useSales': {} })('src/modules/sales/hooks/useSalesData.ts')

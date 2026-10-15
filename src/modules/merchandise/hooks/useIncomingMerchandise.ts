@@ -9,6 +9,7 @@
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {useTenant} from '@/context/useTenant'
 import {
   fetchIncomingMerchandise,
   getIncomingMerchandiseById,
@@ -21,9 +22,10 @@ import {
 } from '../api/incomingMerchandiseService'
 
 export const useIncomingMerchandise = (params?: IncomingMerchandiseQueryParams) => {
+  const {company,branch,isConsolidated}=useTenant()
   const { enabled = true, ...fetchParams } = params ?? {}
   return useQuery({
-    queryKey: ['incoming-merchandise', fetchParams],
+    queryKey: ['incoming-merchandise', company?.id,isConsolidated?'all':branch?.id,fetchParams],
     queryFn: () => fetchIncomingMerchandise(fetchParams),
     staleTime: 30 * 1000, // 30 seconds
     enabled,
@@ -31,10 +33,11 @@ export const useIncomingMerchandise = (params?: IncomingMerchandiseQueryParams) 
 }
 
 export const useIncomingMerchandiseById = (id?: string) => {
+  const {company,branch,isConsolidated}=useTenant()
   return useQuery({
-    queryKey: ['incoming-merchandise', id],
+    queryKey: ['incoming-merchandise', company?.id,isConsolidated?'all':branch?.id,id],
     queryFn: () => getIncomingMerchandiseById(id!),
-    enabled: !!id,
+    enabled: !!id&&!!company?.id,
     staleTime: 60 * 1000,
   })
 }

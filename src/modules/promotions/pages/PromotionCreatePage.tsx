@@ -3,8 +3,11 @@
  *
  * Vista dedicada para crear una nueva promoción. Mejor UX que el modal.
  */
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import {useTenant} from '@/context/useTenant'
+import {ConfirmDialog} from '@/components/shared/ConfirmDialog'
+import {useCouponDesign} from '../coupons/useCouponDesign'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +35,8 @@ import {
 } from './PromotionApplicableScopeFields'
 import { PromotionBranchesField } from './PromotionBranchesField'
 import { PromotionPreview } from './PromotionPreview'
+import { PromotionCouponDesigner } from './PromotionCouponDesigner'
+import { usePromotionDraft, restorableDraft } from './usePromotionDraft'
 import {
   ArrowLeft,
   Tag,
@@ -81,6 +86,9 @@ export default function PromotionCreatePage() {
   const queryClient = useQueryClient()
   const { currencyCode } = useSystemSettings()
   const currencyLabel = currencyCode || 'Q'
+  const {company}=useTenant()
+  const coupon=useCouponDesign({companyId:company?.id||''})
+  const [cancelOpen,setCancelOpen]=useState(false)
 
   const [formData, setFormData] = useState(defaultFormData)
   const [codeMode, setCodeMode] = useState<'auto' | 'manual'>('auto')
@@ -93,6 +101,26 @@ export default function PromotionCreatePage() {
   const [appliesToAllBranches, setAppliesToAllBranches] = useState(true)
   const [branchIds, setBranchIds] = useState<string[]>([])
   const [active, setActive] = useState(true)
+  useEffect(()=>{setFormData(defaultFormData);setApplicableProducts([]);setApplicableCategories([]);setAppliesToAllBranches(true);setBranchIds([]);setManualCodes([]);setActive(true)},[company?.id])
+  const designing = useLocation().pathname.endsWith('/cupon')
+  // El borrador se compara contra el estado ya asentado (tras el primer render), no contra el inicial.
+  const [settled, setSettled] = useState(false)
+  useEffect(() => { setSettled(true) }, [])
+  const draftSnapshot = { formData, codeMode, codeCount, codePrefix, manualCodes, applicableProducts, applicableCategories, appliesToAllBranches, branchIds, active, coupon: { design: coupon.design, draftId: coupon.draftId } }
+  const draft = usePromotionDraft({
+    key: company?.id ? `promotion-draft:${company.id}:new` : null,
+    ready: settled,
+    snapshot: draftSnapshot,
+    validate: (value) => restorableDraft(value, draftSnapshot),
+    apply: (saved) => {
+      setFormData(saved.formData); setCodeMode(saved.codeMode); setCodeCount(saved.codeCount); setCodePrefix(saved.codePrefix)
+      setManualCodes(saved.manualCodes); setApplicableProducts(saved.applicableProducts); setApplicableCategories(saved.applicableCategories)
+      setAppliesToAllBranches(saved.appliesToAllBranches); setBranchIds(saved.branchIds); setActive(saved.active); coupon.restore(saved.coupon)
+    },
+  })
+  const leave = async () => { await coupon.cancel(); draft.clear(); navigate('/promociones') }
+  const cancelForm = () => { if (coupon.dirty) setCancelOpen(true); else void leave() }
+  const draftNotice = draft.recovered ? <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-orange/40 bg-brand-orange/10 px-4 py-2 text-sm"><span>Se recuperó un borrador sin guardar de esta promoción.</span><Button type="button" variant="ghost" size="sm" onClick={async () => { await coupon.cancel(); draft.clear(); window.location.reload() }}>Descartar borrador</Button></div> : null
 
   const { data: promotionTypes = [] } = useQuery({
     queryKey: ['promotion-types'],
@@ -103,6 +131,8 @@ export default function PromotionCreatePage() {
     mutationFn: (data: Record<string, unknown>) =>
       apiFetch('/promotions', { method: 'POST', body: JSON.stringify(data) }),
     onSuccess: () => {
+      coupon.saved()
+      draft.clear()
       queryClient.invalidateQueries({ queryKey: ['promotions'] })
       toast({ title: 'Promoción creada correctamente' })
       navigate('/promociones')
@@ -146,6 +176,8 @@ export default function PromotionCreatePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    let couponPayload:Record<string,unknown>
+    try{couponPayload=coupon.payload()}catch(error){toast({title:'Revisa el cupón',description:error instanceof Error?error.message:'Diseño no válido',variant:'destructive'});return}
     if (formData.end_date && formData.start_date && formData.end_date < formData.start_date) {
       toast({ title: 'Revisa la vigencia', description: 'La fecha de fin debe ser posterior o igual a la de inicio.', variant: 'destructive' })
       return
@@ -158,6 +190,7 @@ export default function PromotionCreatePage() {
     }
 
     const payload: Record<string, unknown> = {
+      ...couponPayload,
       name: formData.name,
       active,
       description: formData.description || null,
@@ -272,11 +305,13 @@ export default function PromotionCreatePage() {
 
   const selectedType = promotionTypes.find((t) => t.id === formData.type_id)
   const typeConfig = selectedType ? getTypeConfig(selectedType.name) : null
-  const isLoading = createMutation.isPending
+  const isLoading = createMutation.isPending||coupon.pending
+  const previewProps = { coupon, formData, name: formData.name, description: formData.description, typeName: selectedType?.name, percentage: formData.discount_percentage, amount: formData.discount_value, startDate: formData.start_date, endDate: formData.end_date, products: applicableProducts, appliesToAllBranches, branchIds, maxUses: formData.max_uses, active }
+  if (designing) return <PromotionCouponDesigner {...previewProps} formPath="/promociones/nueva" trail={[{ label: 'Nueva promoción', to: '/promociones/nueva' }, { label: 'Diseño del cupón' }]} banner={draftNotice} />
 
   return (
     <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy"><div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-      <h1 className="sr-only">Nueva promoción</h1><div className="auna-page-toolbar"><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => navigate('/promociones')}>Cancelar</Button><Button form="promotion-create-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promoción</Button></div></div>
+      <h1 className="sr-only">Nueva promoción</h1>{draftNotice}<div className="auna-page-toolbar"><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={cancelForm}>Cancelar</Button><Button form="promotion-create-form" type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">{isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar promoción</Button></div></div>
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(340px,0.9fr)]">
       <form id="promotion-create-form" onSubmit={handleSubmit} className="min-w-0 space-y-4 promotions-editor">
         {/* Datos generales */}
@@ -660,7 +695,7 @@ export default function PromotionCreatePage() {
         </CardContent></Card>
 
         <div className="flex flex-wrap items-center justify-end gap-2 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => navigate('/promociones')} disabled={isLoading}>
+          <Button type="button" variant="outline" onClick={cancelForm} disabled={isLoading}>
             Cancelar
           </Button>
           <Button type="submit" disabled={isLoading} className="bg-brand-orange text-white hover:bg-brand-orange-strong">
@@ -669,8 +704,9 @@ export default function PromotionCreatePage() {
           </Button>
         </div>
       </form>
-      <PromotionPreview name={formData.name} description={formData.description} typeName={selectedType?.name} percentage={formData.discount_percentage} amount={formData.discount_value} startDate={formData.start_date} endDate={formData.end_date} products={applicableProducts} appliesToAllBranches={appliesToAllBranches} branchIds={branchIds} maxUses={formData.max_uses} active={active} />
+      <PromotionPreview {...previewProps} designPath="/promociones/nueva/cupon" />
       </div>
+      <ConfirmDialog appearance="auna" open={cancelOpen} onOpenChange={setCancelOpen} title="Descartar diseño sin guardar" description="Los cambios del cupón no se han guardado. ¿Quieres salir de la promoción?" confirmText="Descartar y salir" onConfirm={leave}/>
     </div></div>
   )
 }

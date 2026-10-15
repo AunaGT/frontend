@@ -1,0 +1,19 @@
+import {Link} from 'react-router-dom'
+import {Button} from '@/components/ui/button'
+import {MetricStrip} from '@/components/shared/MetricStrip'
+import {formatMoney} from '@/utils/formatters'
+import {serviceConditionText} from '@/services/serviceConditions'
+import type {EngagementDetail} from '../commercialTypes'
+import {commercialLabel,draftCoverageLabel} from '../../sales/commercialPresentation'
+export const operationLabels={UNSCHEDULED:'Sin programar',PARTIALLY_SCHEDULED:'Programación parcial',SCHEDULED:'Programada',IN_PROGRESS:'En curso',COMPLETED:'Finalizada',REVIEW_REQUIRED:'Revisión pendiente'}
+export const paymentLabels={UNPAID:'Sin pagos',PARTIAL:'Pago parcial',PAID:'Pagado',REFUND_PENDING:'Devolución pendiente',REFUNDED:'Devuelto'}
+export const engagementMoney=(value:string,currency:string)=>formatMoney(Number(value),'es-GT',currency)
+export function EngagementLines({engagement}:{engagement:EngagementDetail}){
+  return <ul className="divide-y">{engagement.lines.map(line=><li key={line.id} className="grid gap-2 py-3 first:pt-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto]"><div className="min-w-0"><p className="font-medium">{line.name}</p><p className="text-sm text-muted-foreground">{Number(line.quantity)} {line.unitLabel} · {line.itemKind==='SERVICE'?`${line.remainingQuantity||'0'} pendientes de programar`:'Bien físico · no va al calendario'}</p>{line.itemKind==='SERVICE'&&<details className="mt-1 text-sm"><summary className="cursor-pointer text-muted-foreground">Condiciones ofrecidas</summary><p className="mt-2 whitespace-pre-line">{serviceConditionText(line.offeredConditions)||'Condiciones de programación no registradas en la cotización.'}</p></details>}</div>{line.lineTotal!==undefined&&engagement.money&&<p className="whitespace-nowrap text-sm font-semibold tabular-nums">{engagementMoney(line.lineTotal,engagement.money.currencyCode)}</p>}</li>)}</ul>
+}
+export function EngagementOverview({engagement,hasPermission}:{engagement:EngagementDetail;hasPermission:(code:string)=>boolean}){
+  const money=engagement.money
+  const state=engagement.commercialDocument?.state
+  const coverage=money&&state?draftCoverageLabel({state,remaining:money.remaining,committed:money.committed}):null
+  return <div className="space-y-5"><MetricStrip label="Estado de la contratación" items={[{label:'Programación',value:operationLabels[engagement.operationalState]},{label:'Documento comercial',value:state?commercialLabel(state):engagement.saleId?'Confirmada':'Venta pendiente'},...(money?[{label:'Total del conjunto',value:engagementMoney(money.total,money.currencyCode)},{label:'Anticipos comprometidos',value:engagementMoney(money.committed,money.currencyCode)},{label:'Saldo pendiente',value:engagementMoney(money.remaining,money.currencyCode)}]:[])]}/><div className="agenda-detail-grid"><section className="agenda-panel"><h2>Partidas contratadas</h2><EngagementLines engagement={engagement}/>{engagement.lines.some(l=>l.itemKind!=='SERVICE')&&<p className="mt-4 border-t pt-3 text-sm text-muted-foreground">Los bienes no van al calendario. Su despacho se confirma al confirmar la venta o desde Pedidos.</p>}</section><aside className="agenda-panel space-y-3"><h2>Cliente y alcance</h2><p className="font-medium">{engagement.customer.name}</p>{money&&<p className="text-sm">{coverage||paymentLabels[engagement.paymentState||'UNPAID']}{engagement.saleId&&<> · {engagementMoney(money.applied,money.currencyCode)} aplicados a la venta</>}</p>}<p className="text-sm text-muted-foreground">Programar prepara un borrador sin cobrar. Pagar no finaliza el servicio. Confirmar la venta y registrar su factura fiscal son acciones separadas.</p>{hasPermission('contacts.clients.view')&&<Button variant="outline" size="sm" asChild><Link to={`/contactos/${engagement.customer.id}`}>Ver contacto</Link></Button>}</aside></div></div>
+}

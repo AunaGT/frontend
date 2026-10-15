@@ -1,0 +1,49 @@
+@font-face{font-family:CouponNoto;src:url('/fonts/reports/NotoSans-Regular.ttf') format('truetype');font-weight:400;font-display:swap}
+@font-face{font-family:CouponNoto;src:url('/fonts/reports/NotoSans-Bold.ttf') format('truetype');font-weight:700;font-display:swap}
+/* Mismos TTF que mide e incrusta el PDF (registro en couponFonts.ts). */
+@font-face{font-family:CouponNoto;src:url('/fonts/coupons/notosans/NotoSans-Italic.ttf') format('truetype');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:CouponNoto;src:url('/fonts/coupons/notosans/NotoSans-BoldItalic.ttf') format('truetype');font-weight:700;font-style:italic;font-display:swap}
+@font-face{font-family:CouponMontserrat;src:url('/fonts/coupons/montserrat/Montserrat-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponMontserrat;src:url('/fonts/coupons/montserrat/Montserrat-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:CouponMontserrat;src:url('/fonts/coupons/montserrat/Montserrat-Italic.ttf') format('truetype');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:CouponMontserrat;src:url('/fonts/coupons/montserrat/Montserrat-BoldItalic.ttf') format('truetype');font-weight:700;font-style:italic;font-display:swap}
+@font-face{font-family:CouponPoppins;src:url('/fonts/coupons/poppins/Poppins-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponPoppins;src:url('/fonts/coupons/poppins/Poppins-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:CouponPoppins;src:url('/fonts/coupons/poppins/Poppins-Italic.ttf') format('truetype');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:CouponPoppins;src:url('/fonts/coupons/poppins/Poppins-BoldItalic.ttf') format('truetype');font-weight:700;font-style:italic;font-display:swap}
+@font-face{font-family:CouponPlayfairDisplay;src:url('/fonts/coupons/playfairdisplay/PlayfairDisplay-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponPlayfairDisplay;src:url('/fonts/coupons/playfairdisplay/PlayfairDisplay-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:CouponPlayfairDisplay;src:url('/fonts/coupons/playfairdisplay/PlayfairDisplay-Italic.ttf') format('truetype');font-weight:400;font-style:italic;font-display:swap}
+@font-face{font-family:CouponPlayfairDisplay;src:url('/fonts/coupons/playfairdisplay/PlayfairDisplay-BoldItalic.ttf') format('truetype');font-weight:700;font-style:italic;font-display:swap}
+@font-face{font-family:CouponOswald;src:url('/fonts/coupons/oswald/Oswald-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponOswald;src:url('/fonts/coupons/oswald/Oswald-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:CouponRobotoSlab;src:url('/fonts/coupons/robotoslab/RobotoSlab-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponRobotoSlab;src:url('/fonts/coupons/robotoslab/RobotoSlab-Bold.ttf') format('truetype');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:CouponBebasNeue;src:url('/fonts/coupons/bebasneue/BebasNeue-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:CouponPacifico;src:url('/fonts/coupons/pacifico/Pacifico-Regular.ttf') format('truetype');font-weight:400;font-style:normal;font-display:swap}
+.coupon-editor-grid{display:grid;grid-template-columns:220px minmax(0,1fr) 240px;gap:16px;min-height:0;flex:1;overflow:hidden}
+.coupon-editor-panel{overflow:auto;min-width:0;padding:12px;border:1px solid hsl(var(--auna-surface-border));border-radius:10px;background:hsl(var(--auna-surface-card))}
+.coupon-editor-workspace{overflow:auto;min-width:0;background:hsl(var(--muted));border-radius:10px;padding:20px}
+.coupon-editor-mobile-tabs{display:none}
+.coupon-editor-panel button:not([role=checkbox]){min-height:36px}
+@media(max-width:1023px){.coupon-editor-grid{grid-template-columns:minmax(0,1fr)}.coupon-editor-mobile-tabs{display:flex}.coupon-editor-grid>[data-mobile-hidden=true]{display:none}.coupon-editor-panel button:not([role=checkbox]){min-height:44px}.coupon-editor-workspace{padding:8px}}
+.coupon-designer{display:flex;flex-direction:column;gap:12px;min-height:0;padding:16px}
+@media(min-width:1024px){.coupon-designer{height:calc(100dvh - 56px);padding:16px 24px 20px}}
+.coupon-designer-toolbar{align-items:center;justify-content:space-between}
+.coupon-code-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;min-height:0;flex:1;overflow:hidden}
+.coupon-code-pane{display:flex;flex-direction:column;padding:0;overflow:hidden}
+.coupon-code-status{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid hsl(var(--auna-surface-border));font-size:12px}
+.coupon-code-editor{flex:1;min-height:0;overflow:hidden}
+.coupon-code-errors{max-height:120px;overflow:auto;padding:8px 12px;border-top:1px solid hsl(var(--auna-surface-border));font-size:12px;color:hsl(var(--destructive))}
+.coupon-code-reference{max-height:40%;overflow:auto;padding:10px 12px;border-top:1px solid hsl(var(--auna-surface-border));font-size:12px}
+.coupon-code-reference code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.coupon-code-editor{--coupon-code-tag:#9a3412;--coupon-code-attr:#1d4ed8;--coupon-code-value:#047857;--coupon-code-comment:#64748b;--coupon-code-entity:#7c3aed}
+.dark .coupon-code-editor{--coupon-code-tag:#fdba74;--coupon-code-attr:#93c5fd;--coupon-code-value:#6ee7b7;--coupon-code-comment:#94a3b8;--coupon-code-entity:#c4b5fd}
+@media(max-width:1023px){.coupon-code-grid{grid-template-columns:minmax(0,1fr);overflow:visible}.coupon-code-editor{flex:none;height:420px}}
+.coupon-props{display:grid;gap:4px}
+.coupon-props-section+.coupon-props-section{border-top:1px solid hsl(var(--auna-surface-border))}
+.coupon-props-section>summary{display:flex;align-items:center;justify-content:space-between;padding:8px 0;cursor:pointer;list-style:none;font-size:12px;font-weight:600}
+.coupon-props-section>summary::-webkit-details-marker{display:none}
+.coupon-props-section>summary::after{content:'';width:6px;height:6px;margin-right:4px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;opacity:.55;transform:rotate(45deg);transition:transform .15s}
+.coupon-props-section[open]>summary::after{transform:rotate(-135deg)}
+.coupon-props-body{display:grid;gap:10px;padding:2px 0 12px}

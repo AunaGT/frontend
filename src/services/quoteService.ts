@@ -5,10 +5,15 @@
  */
 
 import { apiFetch } from "./api";
+import type { PublicServiceConditions } from './serviceConditions';
+export async function previewQuoteServiceConditions(productIds:string[],signal?:AbortSignal):Promise<{conditions:Record<string,PublicServiceConditions|null>}>{
+  return apiFetch('/api/quotes/service-conditions',{method:'POST',body:JSON.stringify({productIds}),signal});
+}
 
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
 
 export type QuoteLine = {
+  service_schedule_snapshot?:PublicServiceConditions|null;
   id: string;
   product_id: string;
   qty: string | number;
@@ -29,6 +34,8 @@ export type QuoteLine = {
 };
 
 export type Quote = {
+  engagementId?:string|null;
+  agenda?:{canOpen:boolean;canCreate:boolean;reason:string};
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   id: string;
@@ -206,6 +213,7 @@ export type PublicQuote = {
   company_name: string;
   company_logo_url?: string;
   lines: Array<{
+    service_schedule_snapshot?:PublicServiceConditions|null;
     product_name?: string | null;
     barcode?: string | null;
     image_url?: string | null;

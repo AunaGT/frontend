@@ -5,10 +5,10 @@ import jsPDF from "jspdf";
 import autoTable, { type jsPDFDocument } from "jspdf-autotable";
 import type { Quote } from "@/services/quoteService";
 import { num } from "@/services/quoteService";
+import { serviceConditionText } from '@/services/serviceConditions';
 import { formatMoney, formatDateTime } from "@/utils/formatters";
-import { addJsPdfCompanyHeader } from "@/utils/pdfBranding";
+import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace, PDF_DOCUMENT_COLORS } from "@/utils/pdfBranding";
 
-const PDF_HEADER_COLOR: [number, number, number] = [217, 119, 6];
 const MARGIN = 18;
 const PAGE_WIDTH = 210;
 const CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
@@ -29,7 +29,7 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
 
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.navy);
   doc.text("COTIZACIÓN", PAGE_WIDTH / 2, y, { align: "center" });
   y += 6;
 
@@ -44,22 +44,22 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   doc.setFont("helvetica", "bold");
   doc.text("Cliente:", MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.text(quote.customer || quote.customerContact?.name || "—", MARGIN + 22, y);
-  y += 6;
+  y = addDocumentText(doc, quote.customer || quote.customerContact?.name || "—", MARGIN + 22, y, CONTENT_WIDTH - 22) + 2;
+  y = ensureDocumentSpace(doc, y, 6);
 
   doc.setFont("helvetica", "bold");
   doc.text("ID fiscal:", MARGIN, y);
   doc.setFont("helvetica", "normal");
-  doc.text(
+  y = addDocumentText(doc,
     quote.is_final_consumer ? "Consumidor Final" : quote.customer_nit || quote.customerContact?.tax_id || "—",
     MARGIN + 22,
-    y
-  );
-  y += 6;
+    y,
+    CONTENT_WIDTH - 22
+  ) + 2;
 
-  doc.text(quote.payment_condition === 'CREDIT' ? `Condición: crédito a ${quote.credit_days} días desde la venta` : 'Condición: al contado', MARGIN, y);
-  y += 6;
+  y = addDocumentText(doc, quote.payment_condition === 'CREDIT' ? `Condición: crédito a ${quote.credit_days} días desde la venta` : 'Condición: al contado', MARGIN, y, CONTENT_WIDTH) + 2;
   if (quote.valid_until) {
+    y = ensureDocumentSpace(doc, y, 6);
     doc.setFont("helvetica", "bold");
     doc.text("Válida hasta:", MARGIN, y);
     doc.setFont("helvetica", "normal");
@@ -68,65 +68,69 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   }
 
   if (quote.createdBy?.name) {
+    y = ensureDocumentSpace(doc, y, 6);
     doc.setFont("helvetica", "bold");
     doc.text("Elaborada por:", MARGIN, y);
     doc.setFont("helvetica", "normal");
-    doc.text(quote.createdBy.name, MARGIN + 32, y);
-    y += 8;
+    y = addDocumentText(doc, quote.createdBy.name, MARGIN + 32, y, CONTENT_WIDTH - 32) + 4;
   } else {
     y += 4;
   }
 
   const tableBody = (quote.lines || []).map((line) => [
-    line.item_name ?? line.product?.name ?? line.product_id,
+    [line.item_name ?? line.product?.name ?? line.product_id,serviceConditionText(line.service_schedule_snapshot)].filter(Boolean).join('\n'),
     `${line.qty} ${line.unit_label || ''}`.trim(),
     fmt(num(line.unit_price)),
     fmt(num(line.line_total)),
   ]);
 
   autoTable(doc, {
-    startY: y,
+    startY: ensureDocumentSpace(doc, y, 18),
     head: [["Producto", "Cantidad", "P. unit.", "Subtotal"]],
     body: tableBody,
     theme: "grid",
-    headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: "bold", fontSize: 9 },
-    bodyStyles: { fontSize: 9 },
+    ...documentTableStyles,
     columnStyles: {
-      0: { cellWidth: 90 },
+      0: { cellWidth: 88 },
       1: { cellWidth: 22, halign: "right" },
       2: { cellWidth: 32, halign: "right" },
       3: { cellWidth: 32, halign: "right" },
     },
-    margin: { left: MARGIN, right: MARGIN },
+    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 20 },
     tableWidth: CONTENT_WIDTH,
   });
 
-  y = doc.lastAutoTable.finalY + 10;
+  y = ensureDocumentSpace(doc, doc.lastAutoTable.finalY + 10, 18);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.navy);
+  doc.setFillColor(...PDF_DOCUMENT_COLORS.total);
+  doc.rect(MARGIN, y - 5, CONTENT_WIDTH, 9, 'F');
   doc.text("Total:", MARGIN, y);
   doc.text(fmt(num(quote.total)), PAGE_WIDTH - MARGIN, y, { align: "right" });
   y += 12;
 
   if (quote.notes?.trim()) {
+    y = ensureDocumentSpace(doc, y, 12);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9);
     doc.text("Notas:", MARGIN, y);
     y += 5;
     doc.setFont("helvetica", "normal");
-    const split = doc.splitTextToSize(quote.notes.trim(), CONTENT_WIDTH);
-    doc.text(split, MARGIN, y);
-    y += split.length * 4 + 4;
+    y = addDocumentText(doc, quote.notes.trim(), MARGIN, y, CONTENT_WIDTH) + 4;
   }
 
   doc.setFontSize(8);
-  doc.setTextColor(120, 120, 120);
-  doc.text(
-    "Documento informativo. Los precios pueden variar según disponibilidad al confirmar el pedido.",
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.muted);
+  addDocumentText(doc,
+    "Documento informativo, no es una factura. La disponibilidad del horario se confirma al agendar; los importes corresponden a esta cotización.",
     MARGIN,
-    285
+    y,
+    CONTENT_WIDTH
   );
 
+  addDocumentFooter(doc, `Ref. ${ref}`);
   doc.save(`cotizacion-${ref}.pdf`);
 }

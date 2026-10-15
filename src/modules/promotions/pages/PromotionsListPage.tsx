@@ -1,6 +1,7 @@
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
-import { useDeferredValue, useState } from 'react'
+import { useDeferredValue, useState, useEffect, useRef } from 'react'
+import {useTenant} from '@/context/useTenant'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Eye, MoreHorizontal, Pencil, Plus, Search, Trash2 } from 'lucide-react'
@@ -35,7 +36,10 @@ export default function PromotionsListPage() {
   const queryClient = useQueryClient()
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
-  const { locale, currencyCode, companyLogoUrl } = useSystemSettings()
+  const { locale, currencyCode, companyLogoUrl,companyName,timezone } = useSystemSettings()
+  const {company,branch}=useTenant()
+  const contextKey=company?.id+':'+branch?.id,contextRef=useRef(contextKey),codesRequest=useRef<AbortController|null>(null)
+  contextRef.current=contextKey
   const canManage = hasPermission('promotions.manage')
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search.trim())
@@ -46,11 +50,12 @@ export default function PromotionsListPage() {
   const [dateTo, setDateTo] = useState('')
   const [page, setPage] = useState(1)
   const [codesDialog, setCodesDialog] = useState<CodesDialogState>({ open: false })
+  useEffect(()=>{setCodesDialog({open:false});return()=>{codesRequest.current?.abort()}},[contextKey])
   const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null)
 
   const typesQuery = useQuery({ queryKey: ['promotion-types'], queryFn: () => apiFetch<PromotionType[]>('/promotions/types') })
   const listQuery = useQuery({
-    queryKey: ['promotions', page, deferredSearch, type, status, scope, dateFrom, dateTo, 'summary'],
+    queryKey: ['promotions', page, deferredSearch, type, status, scope, dateFrom, dateTo, 'summary',contextKey],
     queryFn: () => {
       const params = new URLSearchParams({ page: String(page), pageSize: '10', includeSummary: 'true' })
       if (deferredSearch) params.set('search', deferredSearch)
@@ -69,10 +74,15 @@ export default function PromotionsListPage() {
   const uses = (promo: Promotion) => promo.usage?.used ?? promo.codes?.reduce((sum, code) => sum + code.current_uses, 0) ?? 0
   const capacity = (promo: Promotion) => promo.usage?.capacity ?? null
   const showCodes = async (promo: Promotion) => {
+    const key=contextKey,companyId=company?.id
+    if(!companyId||promo.company_id&&promo.company_id!==companyId)return
+    codesRequest.current?.abort();const abort=new AbortController();codesRequest.current=abort
     try {
-      const detail = await apiFetch<Promotion>(`/promotions/${promo.id}`)
-      setCodesDialog({ open: true, promotion: detail })
+      const detail = await apiFetch<Promotion>(`/promotions/${promo.id}`,{signal:abort.signal,headers:{'X-Company-Id':companyId}})
+      if(abort.signal.aborted||contextRef.current!==key||detail.company_id&&detail.company_id!==companyId)return
+      setCodesDialog({ open: true, promotion: detail,companyId })
     } catch (error) {
+      if(abort.signal.aborted||contextRef.current!==key)return
       toast({ title: 'No se pudieron cargar los códigos', description: error instanceof Error ? error.message : undefined, variant: 'destructive' })
     }
   }
@@ -135,7 +145,7 @@ export default function PromotionsListPage() {
       </section>
 <div className="auna-pagination-outside">{!listQuery.isLoading && !listQuery.isError && <Pagination currentPage={listQuery.data?.page ?? page} totalPages={listQuery.data?.totalPages ?? 1} totalItems={listQuery.data?.totalItems ?? 0} pageSize={listQuery.data?.pageSize ?? 10} count={rows.length} itemLabel="promociones" onPageChange={setPage} loading={listQuery.isFetching} />}</div></>
     </div>
-    <CodesDialog dialog={codesDialog} setDialog={setCodesDialog} onCopyCode={(code) => { navigator.clipboard.writeText(code); toast({ title: 'Código copiado', description: code }) }} locale={locale} currencyCode={currencyCode} companyLogoUrl={companyLogoUrl} />
+    <CodesDialog dialog={codesDialog} setDialog={setCodesDialog} onCopyCode={(code) => { navigator.clipboard.writeText(code); toast({ title: 'Código copiado', description: code }) }} locale={locale} currencyCode={currencyCode} companyLogoUrl={companyLogoUrl} companyName={companyName} timezone={timezone}/>
     <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Eliminar promoción?</AlertDialogTitle><AlertDialogDescription>Se eliminará “{deleteTarget?.name}” y sus códigos dejarán de poder utilizarse.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground" disabled={deleteMutation.isPending} onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }}>Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>
 }

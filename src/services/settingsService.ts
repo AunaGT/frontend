@@ -22,6 +22,7 @@ export interface SystemSettings {
   cash_closure_denominations?: { denomination: number; type: string }[]
   // Datos fiscales (FEL)
   company_nit?: string
+  fel_enabled?: string
   company_address?: string
   company_municipality?: string
   company_department?: string
@@ -65,6 +66,7 @@ export async function getPublicSettings(): Promise<{
   sales_show_fiscal_fields: string
   sales_show_channels: string
   inventory_services_enabled: string
+  fel_enabled: string
 }> {
   return apiFetch('/settings/public')
 }

@@ -56,14 +56,16 @@ export interface SaleFilters {
     minSearchLength?: number
 }
 
-export type SaleStatusKey = 'completed' | 'cancelled'
+export type SaleStatusKey = 'draft' | 'completed' | 'cancelled'
 
 export const STATUS_LABELS: Record<SaleStatusKey, string> = {
-    completed: 'Completadas',
+    draft:'Borradores',
+    completed: 'Confirmadas',
     cancelled: 'Canceladas'
 }
 
 export const STATUS_DB_NAMES: Record<SaleStatusKey, string> = {
+    draft:'Borrador',
     completed: 'Completada',
     cancelled: 'Cancelada'
 }

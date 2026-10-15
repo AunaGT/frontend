@@ -39,7 +39,6 @@ import {
     SalesFilters,
     NegativeStockDialog,
     SalesStatusTable,
-    SaleDetailDialog,
 } from './components'
 import { STATUS_DB_NAMES, NegativeStockDialogState, SaleStatusKey } from './types'
 import { useNavigate, useLocation } from 'react-router-dom'
@@ -75,8 +74,6 @@ const SalesManagement = (_props: SalesManagementProps) => {
     const paymentMethods = usePaymentMethods()
 
     // UI state
-    const [isViewSaleOpen, setIsViewSaleOpen] = useState(false)
-    const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
     const [updatingSaleIds, setUpdatingSaleIds] = useState<Set<string>>(new Set())
     const [isValidatingClosure, setIsValidatingClosure] = useState(false)
     const [negativeStockDialog, setNegativeStockDialog] = useState<NegativeStockDialogState>({ open: false, products: [] })
@@ -118,8 +115,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
     }
 
     const handleViewSale = (sale: Sale) => {
-        setSelectedSale(sale)
-        setIsViewSaleOpen(true)
+        navigate(`/ventas/${sale.id}/factura`)
     }
 
     // Cash closure validation
@@ -176,7 +172,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
             )}
 
             {/* Resumen compacto del período completo */}
-            <p className="text-xs text-muted-foreground">Ventas completadas · {({ today: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Todo el historial' } as Record<string, string>)[salesData.filters.period]}</p>
+            <p className="text-xs text-muted-foreground">Ventas confirmadas · {({ today: 'Hoy', week: 'Esta semana', month: 'Este mes', year: 'Este año', all: 'Todo el historial' } as Record<string, string>)[salesData.filters.period]}</p>
             <SalesKPICards
                 totalSalesToday={salesData.totalSalesToday}
                 transactionCountToday={salesData.transactionCountToday}
@@ -186,6 +182,8 @@ const SalesManagement = (_props: SalesManagementProps) => {
                 currencyCode={currencyCode}
                 loading={salesData.summaryLoading}
                 error={salesData.summaryError}
+                draftCount={salesData.draftCount}
+                draftTotal={salesData.draftTotal}
             />
             {salesData.summaryError && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-destructive">No se pudo cargar el resumen del período.<Button variant="outline" size="sm" onClick={salesData.refreshSales}>Reintentar</Button></div>}
 
@@ -232,7 +230,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
 
             <Tabs value={salesData.filters.statusFilter} onValueChange={(value) => salesData.setStatusFilter(value as SaleStatusKey | 'all')}>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="max-w-full overflow-x-auto"><TabsList variant="detail" aria-label="Estado de las ventas"><TabsTrigger value="all">Todas</TabsTrigger><TabsTrigger value="completed">Completadas</TabsTrigger><TabsTrigger value="cancelled">Canceladas</TabsTrigger></TabsList></div>
+                    <div className="max-w-full overflow-x-auto"><TabsList variant="detail" aria-label="Estado de las ventas"><TabsTrigger value="all">Todas</TabsTrigger><TabsTrigger value="draft">Borradores</TabsTrigger><TabsTrigger value="completed">Confirmadas</TabsTrigger><TabsTrigger value="cancelled">Canceladas</TabsTrigger></TabsList></div>
                     <div className="flex flex-wrap items-center gap-3">
                         <div className="flex items-center gap-2"><Label className="text-xs text-muted-foreground">Filas por página</Label><Select value={String(salesData.pageSize)} onValueChange={(value) => salesData.setPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Filas por página"><SelectValue /></SelectTrigger><SelectContent>{salesData.pageSizeOptions.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></div>
                         <div className="hidden md:block"><ModuleTabBar<'table' | 'cards'> value={salesData.viewMode ?? 'table'} onValueChange={salesData.setViewMode!} ariaLabel="Vista de ventas" items={[{value: 'table', label: '', ariaLabel: 'Tabla', icon: Table2}, {value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid}]} /></div>
@@ -263,14 +261,6 @@ const SalesManagement = (_props: SalesManagementProps) => {
                     />
                 </TabsContent>
             </Tabs>
-
-            <SaleDetailDialog
-                open={isViewSaleOpen}
-                onOpenChange={setIsViewSaleOpen}
-                sale={selectedSale}
-                locale={locale}
-                currencyCode={currencyCode}
-            />
 
             <NegativeStockDialog
                 state={negativeStockDialog}

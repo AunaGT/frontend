@@ -1,0 +1,9 @@
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{execFileSync}=require('node:child_process'),{withLabelPdf,preparedLabelFixture}=require('./helpers/barcodePdfHarness.cjs'),{loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('real shelf PDF prints selected prices, packs products and preserves thermal dimensions',()=>withLabelPdf(async({generateBarcodeLabelPdf})=>{
+  const {createShelfLabelTemplate}=loadReportModule('../inventory/barcodeLabels/labelDesign.ts'),product={id:'a',name:'Café de altura',barcode:'',price:'25.00',brand:null,size:null,copies:2,shelfPrices:[{tier:'PROMOTION',label:'Promoción',amount:'20.00'},{tier:'LIST',label:'Normal',amount:'25.00'},{tier:'WHOLESALE',label:'Mayoreo',amount:'22.00'}]}
+  const data=preparedLabelFixture({products:[product,{...product,id:'b',name:'Agua mineral',copies:1,shelfPrices:[{tier:'LIST',label:'Normal',amount:'7.00'}]}]});data.design=createShelfLabelTemplate('price')
+  const result=await generateBarcodeLabelPdf(data),dir=fs.mkdtempSync(path.join(os.tmpdir(),'auna-shelf-pdf-')),file=path.join(dir,'shelf.pdf');fs.writeFileSync(file,Buffer.from(await result.labels.arrayBuffer()))
+  const info=execFileSync('pdfinfo',[file],{encoding:'utf8'}),text=execFileSync('pdftotext',['-layout',file,'-'],{encoding:'utf8',stdio:['ignore','pipe','ignore']})
+  assert.match(info,/Pages:\s+2/);assert.match(text,/Mayoreo/);assert.match(text,/20\.00/);assert.match(text,/22\.00/);assert.equal(result.plan.labelPages.length,1);assert.deepEqual(result.plan.labelPages[0].products,['a','a','b'])
+  const thermal=await generateBarcodeLabelPdf({...data,paper:{...data.paper,format:'thermal'}});assert.ok(thermal.guide);assert.equal(thermal.plan.grid.widthMm,80);assert.equal(thermal.plan.grid.heightMm,data.design.heightMm);assert.equal(thermal.plan.labelPages.length,3)
+}))

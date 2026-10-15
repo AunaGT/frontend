@@ -29,17 +29,20 @@ import { getTaxesReport, type TaxesReportResponse } from '@/services/accountingS
 import { fmtQ, MONTH_LABELS } from './format'
 import { exportTaxes } from './exportExcel'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { useTenant } from '@/context/useTenant'
 
 const cell = (v: number) => (v !== 0 ? fmtQ(v) : '')
 
 export const TaxesTab = () => {
   const { toast } = useToast()
+  const { company } = useTenant()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
   const [data, setData] = useState<TaxesReportResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [exportOpen, setExportOpen] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [exporting, setExporting] = useState(false)
 
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i)
 
@@ -85,7 +88,7 @@ export const TaxesTab = () => {
             </Select>
           </div>
           {data && !loading && <Badge variant="outline">{pequeno ? `Pequeño contribuyente · ${Math.round(data.pequenoRate * 100)}%` : `Régimen general · IVA ${Math.round(data.ivaRate * 100)}%`}</Badge>}
-          <Button className="sm:ml-auto" variant="outline" disabled={!data || !hasMovements || loading} onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar</Button>
+          <Button className="sm:ml-auto" variant="outline" disabled={!data || !hasMovements || loading || exporting} onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar</Button>
         </div>
         <p className="text-xs text-muted-foreground">Calculado sobre los asientos automáticos de ventas, devoluciones y compras. El régimen y las tasas se cambian en Configuración.</p>
 
@@ -157,9 +160,16 @@ export const TaxesTab = () => {
         fileName={`impuestos-${year}`}
         summary={`Año ${year}, mes por mes.`}
         formats={['xlsx']}
-        onExport={({ fileName }) => {
-          if (data) exportTaxes(data, fileName)
-          setExportOpen(false)
+        pending={exporting}
+        onExport={async ({ fileName }) => {
+          if (!data || loading || exporting) return
+          setExporting(true)
+          try {
+            await exportTaxes(data, fileName, { companyName: company?.name || 'Empresa' })
+            setExportOpen(false)
+          } catch (error) {
+            toast({ title: 'Error', description: error instanceof Error ? error.message : 'No se pudo exportar', variant: 'destructive' })
+          } finally { setExporting(false) }
         }}
       />
     </section>

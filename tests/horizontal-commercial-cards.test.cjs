@@ -66,7 +66,7 @@ test('sales cards place complete identification left and net zero, status and ex
   const content = region(result.nodes, 'auna-record-content')
   for (const text of ['V-001', sale.customer, '123456-7', 'Vendedor visible', 'A crédito', '2 partidas', 'Con devolución']) assert.ok(content.includes(text), text)
   const side = region(result.nodes, 'auna-record-side')
-  assert.match(side, /Completado/)
+  assert.match(side, /Confirmada/)
   assert.match(side, /Total neto/)
   assert.match(side, /\$0\.00/)
   assert.match(side, /line-through[^>]*>\$25\.00/)
@@ -76,7 +76,7 @@ test('sales cards place complete identification left and net zero, status and ex
   card.props.onClick({})
   assert.deepEqual(seen, [sale])
   assert.doesNotMatch(renderSales({ canViewDetail: false, canViewInvoice: false, canChangeStatus: false }).html, /Ver detalle|Ver factura|Más acciones/)
-  assert.match(renderSales({ updatingSaleIds: new Set(['V-001']) }).html, /<button[^>]*disabled=""[^>]*aria-label="Más acciones de V-001"/)
+  assert.doesNotMatch(renderSales({ updatingSaleIds: new Set(['V-001']) }).html.match(/<article[\s\S]*?<\/article>/)[0], /<button/,'clickable cards never reintroduce action buttons; pagination stays outside')
 })
 
 test('merchandise cards keep supplier and terms left, payment and total right, and detail permission and route', () => {

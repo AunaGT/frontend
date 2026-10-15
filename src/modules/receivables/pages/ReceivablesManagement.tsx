@@ -1,3 +1,4 @@
+import {useCarteraField} from '../carteraViewState'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -37,15 +38,15 @@ export default function ReceivablesManagement() {
   const branchId = isConsolidated ? 'all' : branch?.id
   const { currencyCode, locale, timezone } = useSystemSettings()
   const { toast } = useToast()
-  const [tab, setTab] = useState('ALL')
-  const [search, setSearch] = useState('')
-  const [customerId, setCustomerId] = useState('__none__')
-  const [customerName, setCustomerName] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [filter, setFilter] = useState({ search: '', customer_id: '', date_from: '', date_to: '' })
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const [tab, setTab] = useCarteraField('cobrar','tab','ALL')
+  const [search, setSearch] = useCarteraField('cobrar','search','')
+  const [customerId, setCustomerId] = useCarteraField('cobrar','customerId','__none__')
+  const [customerName, setCustomerName] = useCarteraField('cobrar','customerName','')
+  const [from, setFrom] = useCarteraField('cobrar','from','')
+  const [to, setTo] = useCarteraField('cobrar','to','')
+  const [filter, setFilter] = useCarteraField('cobrar','filter',{ search: '', customer_id: '', date_from: '', date_to: '' })
+  const [page, setPage] = useCarteraField('cobrar','page',1)
+  const [pageSize, setPageSize] = useCarteraField('cobrar','pageSize',10)
   const [exportOpen, setExportOpen] = useState(false)
   const [exportPending, setExportPending] = useState(false)
   const [chooseCustomer, setChooseCustomer] = useState(false)

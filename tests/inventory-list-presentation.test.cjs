@@ -160,6 +160,7 @@ function renderDetail(editable, query = 'editar=1', states = {}, item=product, s
   let index = 0
   const nodes = [], params = [], effects = []
   const Page = loadReportModule('../inventory/products/ProductDetailPage.tsx', {
+    '@/modules/appointments/useServiceScheduleDraft': { useServiceScheduleDraft: () => ({ allowed: false, ready: true, payload: {}, reset() {}, async reload() {} }) },
     react: { ...React, useState: initial => { const key = index++; return React.useState(Object.hasOwn(states, key) ? states[key] : key === 0 ? item : initial) }, useEffect: (run, deps) => effects.push({ run, deps }) },
     'react-router-dom': { ...require('react-router-dom'), useNavigate: () => () => {}, useParams: () => ({ id: product.id }), useSearchParams: () => [new URLSearchParams(query), (next, options) => params.push({ query: next.toString(), options })] },
     '@/components/layout/PageNavigation': { usePageTrail() {} },

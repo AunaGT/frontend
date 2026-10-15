@@ -10,6 +10,11 @@ const { renderToStaticMarkup } = require('react-dom/server')
 const { MemoryRouter } = require('react-router-dom')
 const root = path.resolve(__dirname, '../src')
 const sale = { id: 'sale-1', reference: 'V-001', date: '2026-10-08T12:00:00Z', customer: 'Cliente QA', customerNit: '123456-7', isFinalConsumer: false, createdByName: 'Ana QA', status: 'completed', payment: 'Efectivo', total: 20, subtotal: 25, discountTotal: 5, amountReceived: 30, change: 10, items: 2, products: [{ id: 'p-1', name: 'Producto QA', qty: 2, price: 10, imageUrl: '/qa-product.png', barcode: '740001' }] }
+test('draft detail never claims applied payment even when a stale raw payment flag says paid',()=>{
+  const view=render('SaleInvoicePage',{record:{...sale,status:'draft',payment:null,paymentStatus:'PAID',amountReceived:0,change:0,commercial:{state:'DRAFT',originEngagementId:'e',version:1,confirmedAt:null,fiscalState:'UNRECORDED'}}})
+  assert.match(view.html,/Borrador/);assert.match(view.html,/Por definir al confirmar/)
+  assert.ok(!view.html.includes('Monto pagado'));assert.ok(!view.html.includes('>Pagado<'))
+})
 test('service sale detail displays original billing unit and fractional quantity despite zero physical items',()=>{
   const view=render('SaleInvoicePage',{record:{...sale,items:0,lineCount:1,products:[{id:'s',name:'Asesoría original',qty:'0.125',unitLabel:'Hora',itemKind:'SERVICE',quantityDecimals:3,price:100,lineTotal:12.5}]}})
   assert.match(view.html,/Hora/);assert.match(view.html,/0.125/);assert.match(view.html,/Asesoría original/)
@@ -29,6 +34,8 @@ function render(name, { record = sale, permissions = true, states = [record, fal
     const native = mod.require.bind(mod)
     mod.require = dependency => {
       if (dependency.endsWith('.css')) return {}
+      if (dependency === '@/context/useTenant') return {useTenant:()=>({company:{id:'qa-company'},branch:{id:'qa-branch'},isConsolidated:false})}
+      if (dependency === '@/components/layout/PageNavigation') return {usePageTrail(){}}
       if (dependency === '@/hooks/useAuthPermissions') return { useAuthPermissions: () => ({ hasPermission: () => permissions }) }
       if (dependency === '@/context/useModules') return { useModules: () => ({ isEnabled: () => true }) }
       if (dependency === '@/hooks/useSystemSettings') return { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ', companyName: 'Local QA', companyLogoUrl: '/logo.png' }) }

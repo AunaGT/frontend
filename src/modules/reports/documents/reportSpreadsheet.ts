@@ -1,12 +1,12 @@
-import { formatReportCell, type CellValue, type PreparedReport, type ReportColumn } from '../reportModel'
+import { formatReportCell, type CellValue, type SpreadsheetDocument, type PreparedReport, type ReportColumn } from '../reportModel'
 import type { Worksheet } from 'exceljs'
 
-function localDate(value: string, report: PreparedReport) {
+function localDate(value: string, report: SpreadsheetDocument | PreparedReport) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return new Date(`${value}T00:00:00Z`)
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: report.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(value)).map(p => [p.type, p.value]))
   return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)))
 }
-function typedCell(value: CellValue, column: Pick<ReportColumn, 'type' | 'quantityDecimals'>, report: PreparedReport) {
+function typedCell(value: CellValue, column: Pick<ReportColumn, 'type' | 'quantityDecimals'>, report: SpreadsheetDocument | PreparedReport) {
   if (value == null) return null
   if (column.type === 'percent') return Number(value) / 100
   if (column.type==='decimal' && column.quantityDecimals!=null) {const number=Number(value);return Number.isFinite(number) && Math.abs(number)*10**column.quantityDecimals<=Number.MAX_SAFE_INTEGER ? number : String(value)}
@@ -22,7 +22,7 @@ function numberFormat(type: ReportColumn['type'], currency: string,quantityDecim
   if (type === 'decimal') return quantityDecimals==null ? '#,##0.00' : `#,##0${quantityDecimals ? '.'+'#'.repeat(quantityDecimals) : ''}`
   return '@'
 }
-export async function generateReportWorkbook(report: PreparedReport): Promise<ArrayBuffer> {
+export async function generateReportWorkbook(report: SpreadsheetDocument | PreparedReport): Promise<ArrayBuffer> {
   const { default: ExcelJS } = await import('exceljs')
   const workbook = new ExcelJS.Workbook()
   workbook.creator = report.generatedBy || report.branding.companyName; workbook.created = new Date(report.generatedAt)
@@ -73,7 +73,7 @@ export async function generateReportWorkbook(report: PreparedReport): Promise<Ar
   const bytes = await workbook.xlsx.writeBuffer()
   return new Uint8Array(bytes).buffer
 }
-export function generateReportCsv(report: PreparedReport, sectionId: string): string {
+export function generateReportCsv(report: SpreadsheetDocument | PreparedReport, sectionId: string): string {
   const section = report.sections.find(s => s.id === sectionId)
   if (!section) throw new Error('Selecciona una sección válida para CSV.')
   const escape = (value: string) => `"${value.replace(/"/g, '""')}"`

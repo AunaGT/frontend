@@ -9,6 +9,7 @@
  */
 
 import { Toaster } from "@/components/ui/toaster";
+import { lazy } from 'react';
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ import MyProfilePage from "@/modules/users/MyProfilePage";
 import MandatoryPasswordPage from "@/modules/users/MandatoryPasswordPage";
 import {
   accountingModule,
+  appointmentsModule,
   alertsModule,
   analyticsModule,
   branchesModule,
@@ -57,6 +59,19 @@ import {
 // Cada pantalla de negocio vive en su propio chunk. El shell, login, inicio y
 // perfil sí permanecen en el bundle inicial.
 const OrdersManagement = ordersModule.pages.Management;
+const AgendaPage = appointmentsModule.pages.Management;
+const AgendaEditPage=appointmentsModule.Edit;
+const EngagementDetailPage=appointmentsModule.CommercialDetail;
+const ServiceBillingPreparationPage=appointmentsModule.BillingPreparation;
+const EngagementSchedulePage=appointmentsModule.CommercialSchedule;
+const AgendaSettingsPage = appointmentsModule.pages.Settings;
+const AppointmentCreatePage = appointmentsModule.pages.Create;
+const AppointmentDetailPage = appointmentsModule.pages.Booking;
+const SessionCreatePage = appointmentsModule.pages.CreateSession;
+const SessionDetailPage = appointmentsModule.pages.Session;
+const ActivityCreatePage = appointmentsModule.pages.ActivityCreate;
+const AgendaCreatePage = lazy(() => import('./modules/appointments/pages/AgendaCreatePage'));
+const ActivityDetailPage = appointmentsModule.pages.Activity;
 const NewOrderPage = ordersModule.pages.Create;
 const OrderDetailPage = ordersModule.pages.Detail;
 const PublicOrderPage = ordersModule.pages.Public;
@@ -72,6 +87,8 @@ const ClosureDetailPage = cashClosureModule.pages.Detail;
 const RegisterIncomingMerchandise = merchandiseModule.pages.Create;
 const IncomingMerchandiseManagement = merchandiseModule.pages.Management;
 const IncomingMerchandiseDetailPage = merchandiseModule.pages.Detail;
+const MerchandiseSupplierPaymentPage = merchandiseModule.pages.Payment;
+const MerchandiseSupplierPaymentReceiptPage = merchandiseModule.pages.Receipt;
 const Analytics = analyticsModule.pages.Management;
 const AccountingManagement = accountingModule.pages.Management;
 const AccountingImportPage = accountingModule.pages.Import;
@@ -86,6 +103,10 @@ const EmployeeCreatePage = hrModule.pages.Create;
 const EmployeeDetailPage = hrModule.pages.Detail;
 const ReceivablesManagement = receivablesModule.pages.Management;
 const CustomerStatementPage = receivablesModule.pages.Statement;
+const CarteraSectionGuard = receivablesModule.pages.SectionGuard;
+const SupplierStatementPage = receivablesModule.pages.SupplierStatement;
+const SupplierPaymentPage = receivablesModule.pages.SupplierPayment;
+const SupplierPaymentReceiptPage = receivablesModule.pages.SupplierReceipt;
 const PayrollRunsManagement = payrollModule.pages.Management;
 const PayrollRunDetail = payrollModule.pages.Detail;
 const UserManagement = usersModule.pages.Management;
@@ -102,11 +123,15 @@ const PromotionEditPage = promotionsModule.pages.Edit;
 const SalesManagement = salesModule.pages.Management;
 const NewSalePage = salesModule.pages.Create;
 const SaleInvoicePage = salesModule.pages.Invoice;
+const SaleConfirmationPage = salesModule.pages.Confirm;
+const ExternalInvoicePage = salesModule.pages.ExternalInvoice;
 const SuppliersManagement = contactsModule.pages.Management;
 const SupplierCreatePage = contactsModule.pages.Create;
 const SupplierImportPage = contactsModule.pages.Import;
 const SupplierDetailPage = contactsModule.pages.Detail;
 const ProductManagement = inventoryModule.pages.Management;
+const BarcodePrintPage = inventoryModule.pages.BarcodePrint;
+const ShelfPricePrintPage = inventoryModule.pages.ShelfPricePrint;
 const ProductCreatePage = inventoryModule.pages.Create;
 const ProductDetailPage = inventoryModule.pages.Detail;
 const ImportPage = inventoryModule.pages.Import;
@@ -150,6 +175,23 @@ const App = () => (
             <Route element={<PrivateRoute />}>
               <Route path="/cambiar-contrasena" element={<MandatoryPasswordPage />} />
               <Route element={<MainLayout />}>
+                <Route path={appointmentsModule.paths.list} element={<PermissionRoute any={["appointments.view"]}><AgendaPage /></PermissionRoute>} />
+                <Route path={appointmentsModule.commercialPaths.create} element={<PermissionRoute any={["appointments.create"]}><EngagementSchedulePage create/></PermissionRoute>}/>
+                <Route path={appointmentsModule.commercialPaths.detail} element={<PermissionRoute any={["appointments.view"]}><EngagementDetailPage/></PermissionRoute>}/>
+                <Route path={appointmentsModule.commercialPaths.program} element={<PermissionRoute any={["appointments.edit"]}><EngagementSchedulePage/></PermissionRoute>}/>
+                <Route path={appointmentsModule.billingPaths.booking} element={<PermissionRoute any={["appointments.create"]}><PermissionRoute any={["receivables.view"]}><ServiceBillingPreparationPage kind="BOOKING"/></PermissionRoute></PermissionRoute>}/>
+                <Route path={appointmentsModule.billingPaths.activity} element={<PermissionRoute any={["appointments.create"]}><PermissionRoute any={["receivables.view"]}><ServiceBillingPreparationPage kind="ACTIVITY"/></PermissionRoute></PermissionRoute>}/>
+                <Route path={appointmentsModule.editPaths.booking} element={<PermissionRoute any={["appointments.edit"]}><AgendaEditPage kind="BOOKING"/></PermissionRoute>}/>
+                <Route path={appointmentsModule.editPaths.session} element={<PermissionRoute any={["appointments.edit"]}><AgendaEditPage kind="SESSION"/></PermissionRoute>}/>
+                <Route path={appointmentsModule.editPaths.activity} element={<PermissionRoute any={["appointments.edit"]}><AgendaEditPage kind="ACTIVITY"/></PermissionRoute>}/>
+                <Route path={appointmentsModule.paths.settings} element={<PermissionRoute any={["appointments.configure"]}><AgendaSettingsPage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.create} element={<PermissionRoute any={["appointments.create"]}><AppointmentCreatePage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.unifiedCreate} element={<PermissionRoute any={["appointments.create"]}><AgendaCreatePage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.booking} element={<PermissionRoute any={["appointments.view"]}><AppointmentDetailPage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.createSession} element={<PermissionRoute any={["appointments.create"]}><SessionCreatePage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.session} element={<PermissionRoute any={["appointments.view"]}><SessionDetailPage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.activityCreate} element={<PermissionRoute any={["appointments.create"]}><ActivityCreatePage /></PermissionRoute>} />
+                <Route path={appointmentsModule.paths.activity} element={<PermissionRoute any={["appointments.view"]}><ActivityDetailPage /></PermissionRoute>} />
                 {/* Home - App Grid (siempre accesible tras login) */}
                 <Route path="/" element={<HomePage />} />
 
@@ -186,6 +228,9 @@ const App = () => (
                 />
 
                 {/* Cotizaciones */}
+                <Route path={salesModule.paths.confirm} element={<PermissionRoute any={["appointments.issue_sale"]}><SaleConfirmationPage /></PermissionRoute>} />
+                <Route path={salesModule.paths.externalInvoice} element={<PermissionRoute any={["sales.view_detail","sales.view_invoice"]}><ExternalInvoicePage /></PermissionRoute>} />
+                <Route path={salesModule.paths.externalInvoiceEdit} element={<PermissionRoute any={["sales.view_detail","sales.view_invoice"]}><ExternalInvoicePage /></PermissionRoute>} />
                 <Route
                   path={quotesModule.paths.list}
                   element={
@@ -251,6 +296,22 @@ const App = () => (
                   element={
                     <PermissionRoute any={["products.view"]}>
                       <ProductManagement />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path={inventoryModule.paths.shelfPricePrint}
+                  element={
+                    <PermissionRoute any={["products.view"]}>
+                      <ShelfPricePrintPage />
+                    </PermissionRoute>
+                  }
+                />
+                <Route
+                  path={inventoryModule.paths.barcodePrint}
+                  element={
+                    <PermissionRoute any={["products.view"]}>
+                      <BarcodePrintPage />
                     </PermissionRoute>
                   }
                 />
@@ -435,6 +496,8 @@ const App = () => (
                 />
 
                 {/* Incoming Merchandise */}
+                <Route path={merchandiseModule.paths.payment} element={<PermissionRoute any={["merchandise.mark_paid"]}><MerchandiseSupplierPaymentPage /></PermissionRoute>} />
+                <Route path={merchandiseModule.paths.receipt} element={<PermissionRoute any={["merchandise.details"]}><MerchandiseSupplierPaymentReceiptPage /></PermissionRoute>} />
                 <Route
                   path={merchandiseModule.paths.detail}
                   element={
@@ -538,7 +601,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path={promotionsModule.paths.create}
+                  path={`${promotionsModule.paths.create}/*`}
                   element={
                     <PermissionRoute any={["promotions.manage"]}>
                       <PromotionCreatePage />
@@ -546,7 +609,7 @@ const App = () => (
                   }
                 />
                 <Route
-                  path={promotionsModule.paths.edit}
+                  path={`${promotionsModule.paths.edit}/*`}
                   element={
                     <PermissionRoute any={["promotions.manage"]}>
                       <PromotionEditPage />
@@ -604,16 +667,19 @@ const App = () => (
                 <Route
                   path={receivablesModule.paths.list}
                   element={
-                    <PermissionRoute any={["receivables.view"]}>
+                    <PermissionRoute any={["receivables.view", "merchandise.details"]}>
                       <ReceivablesManagement />
                     </PermissionRoute>
                   }
                 />
+                <Route path="/cartera/proveedores/:id" element={<PermissionRoute any={["merchandise.details"]}><CarteraSectionGuard section="pagar"><SupplierStatementPage /></CarteraSectionGuard></PermissionRoute>} />
+                <Route path="/cartera/pagos/nuevo" element={<PermissionRoute any={["merchandise.mark_paid"]}><CarteraSectionGuard section="pagar"><SupplierPaymentPage /></CarteraSectionGuard></PermissionRoute>} />
+                <Route path="/cartera/pagos/:id" element={<PermissionRoute any={["merchandise.details"]}><CarteraSectionGuard section="pagar"><SupplierPaymentReceiptPage /></CarteraSectionGuard></PermissionRoute>} />
                 <Route
                   path={receivablesModule.paths.statement}
                   element={
                     <PermissionRoute any={["receivables.view"]}>
-                      <CustomerStatementPage />
+                      <CarteraSectionGuard section="cobrar"><CustomerStatementPage /></CarteraSectionGuard>
                     </PermissionRoute>
                   }
                 />

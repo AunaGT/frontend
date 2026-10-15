@@ -26,7 +26,7 @@ import {
     Plus, Search, ScanLine, Download,
     QrCode, Upload, LayoutGrid, Package, Eye, Pencil,
     ClipboardList, ChevronDown, RotateCcw, CalendarClock, MoveRight, Store,
-    Table2,
+    Table2, Printer,
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -116,7 +116,7 @@ const ProductManagement = () => {
     const navigate = useNavigate()
     const { toast } = useToast()
     const queryClient = useQueryClient()
-    const { branches } = useTenant()
+    const { company, branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
     const { locale, currencyCode, inventoryServicesEnabled } = useSystemSettings()
     const [searchParams, setSearchParams] = useSearchParams()
@@ -446,6 +446,18 @@ const ProductManagement = () => {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
+                            {!serviceCatalog && canExport && (
+                                <DropdownMenuItem onClick={() => navigate('/inventario/codigos-de-barras', { state: { selectedIds, companyId:company?.id, filters:{branchId:scopeBranch!=='all'?scopeBranch:scopeWarehouses.find(w=>w.id===scopeWarehouse)?.branch_id,inBranch:scopeBranch!=='all'&&inBranchOnly,warehouseId:scopeWarehouse!=='all'?scopeWarehouse:undefined,locationId:scopeLocation!=='all'?scopeLocation:undefined} } })}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Imprimir códigos de barras
+                                </DropdownMenuItem>
+                            )}
+                            {!serviceCatalog && canExport && (
+                                <DropdownMenuItem onClick={() => navigate('/inventario/etiquetas-de-precio', { state: { selectedIds, companyId:company?.id, filters:{branchId:scopeBranch!=='all'?scopeBranch:scopeWarehouses.find(w=>w.id===scopeWarehouse)?.branch_id,inBranch:scopeBranch!=='all'&&inBranchOnly,warehouseId:scopeWarehouse!=='all'?scopeWarehouse:undefined,locationId:scopeLocation!=='all'?scopeLocation:undefined} } })}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Imprimir etiquetas de precio
+                                </DropdownMenuItem>
+                            )}
                             {hasFileActions && (
                                 <>
                                     <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">

@@ -5,6 +5,8 @@ export const inventoryModule = {
   dependencies: [] as const,
   paths: {
     list: '/inventario',
+    barcodePrint: '/inventario/codigos-de-barras',
+    shelfPricePrint: '/inventario/etiquetas-de-precio',
     legacyList: '/productos',
     create: '/inventario/nuevo',
     lots: '/inventario/lotes',
@@ -17,6 +19,8 @@ export const inventoryModule = {
   routePrefixes: ['/productos', '/scanner'] as const,
   pages: {
     Management: lazy(() => import('./products/ProductManagement')),
+    BarcodePrint: lazy(() => import('./barcodeLabels/BarcodePrintPage')),
+    ShelfPricePrint: lazy(() => import('./barcodeLabels/ShelfPricePrintPage')),
     Create: lazy(() => import('./products/ProductCreatePage')),
     Detail: lazy(() => import('./products/ProductDetailPage')),
     Import: lazy(() => import('./pages/ImportPage')),

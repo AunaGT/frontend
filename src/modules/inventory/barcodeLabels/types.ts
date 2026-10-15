@@ -1,0 +1,18 @@
+import type {TextStyle} from '@/modules/promotions/coupons/couponDesign'
+export type {TextStyle}
+export type BarcodeType='code128'|'ean13'|'ean8'|'upca'
+export type PriceTier='LIST'|'WHOLESALE'|'PROMOTION'
+export type ShelfPrice={tier:PriceTier;label:string;amount:string}
+export type LabelPurpose='barcode'|'shelf'
+export type LabelField='name'|'barcode'|'price'|'brand'|'size'|'company'|'price_label'|'price_secondary'|'price_secondary_label'|'price_tertiary'|'price_tertiary_label'|'promotion_until'
+export type LabelBox={id:string;x:number;y:number;width:number;height:number;visible:boolean;locked:boolean}
+export type LabelElement=LabelBox&({kind:'barcode'}|{kind:'field';field:LabelField;style:TextStyle}|{kind:'text';text:string;style:TextStyle}|{kind:'shape';shape:'rect'|'line'|'ellipse';color:string;borderColor:string;borderWidth:number})
+export type LabelDesign={schemaVersion:1;widthMm:number;heightMm:number;barcodeType:BarcodeType;elements:LabelElement[];purpose?:'shelf';primaryTier?:PriceTier;priceTiers?:PriceTier[]}
+export type PaperSettings={format:'letter'|'a4'|'oficio'|'legal'|'custom'|'thermal';orientation:'portrait'|'landscape';widthMm:number;heightMm:number;margins:{top:number;right:number;bottom:number;left:number};gapX:number;gapY:number;includeGuide:boolean}
+export type BarcodeLabelLayout={revision:number;design:LabelDesign;defaultPaper:PaperSettings;capabilities?:{canAssign:boolean;canSaveLayout:boolean}}
+export type PrintScope={branchId:string;warehouseId?:string;locationId?:string;inBranch:boolean}
+export type PrintSelection={productId:string;copies:number;expectedBarcode:string|null;assignment:{mode:'keep'|'auto'|'manual';value?:string};priceTiers?:PriceTier[]}
+export type PrepareLabelsInput={requestKey:string;scope:PrintScope;items:PrintSelection[];design:LabelDesign;paper:PaperSettings;confirmAssignments:boolean}
+export type LabelProduct={id:string;name:string;barcode:string;price:string;brand:string|null;size:string|null;copies:number;shelfPrices?:ShelfPrice[];warnings?:string[];promotionValidUntil?:string|null;priceWholesale?:string|null;pricePromotion?:string|null}
+export type LabelCandidate=Omit<LabelProduct,'copies'|'barcode'>&{barcode:string|null}
+export type PreparedLabels={id:string;companyId:string;actorId:string;companyName:string;currencyCode:string;locale:string;timezone:string;createdAt:string;scope:PrintScope;products:LabelProduct[];design:LabelDesign;paper:PaperSettings;assignedProductIds:string[]}

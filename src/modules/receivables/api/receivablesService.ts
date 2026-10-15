@@ -93,6 +93,9 @@ export const fetchReceivableInvoices = (params: Record<string, string | number>)
 }
 
 export interface StatementPayment {
+  engagementId?:string|null;
+  comprometido?:number;
+  devuelto?:number;
   id: string;
   amount: number;
   paid_at: string;
@@ -195,6 +198,8 @@ export interface CreatedPayment {
 }
 
 export interface PaymentReceipt {
+  comprometido?:number;
+  devuelto?:number;
   id: string;
   amount: number;
   paid_at: string;
@@ -285,5 +290,5 @@ export const updateSaleDueDate = (saleId: string, dueDate: string) =>
     { method: "PATCH", body: JSON.stringify({ due_date: dueDate }) }
   );
 
-export const fetchPaymentReceipt = (id: string) =>
-  apiFetch<PaymentReceipt>(`/api/receivables/payments/${id}`);
+export const fetchPaymentReceipt = (id: string,options?:RequestInit) =>
+  apiFetch<PaymentReceipt>(`/api/receivables/payments/${id}`,options);

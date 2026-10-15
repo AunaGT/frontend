@@ -95,6 +95,7 @@ export default function ConfigManagement() {
     inventory_services_enabled: 'false',
   })
   const [fiscalForm, setFiscalForm] = useState({
+    fel_enabled: 'false',
     company_nit: '',
     company_address: '',
     company_municipality: '',
@@ -155,6 +156,7 @@ export default function ConfigManagement() {
           )
         }
         setFiscalForm({
+          fel_enabled: String(data.fel_enabled||'false').toLowerCase()==='true'?'true':'false',
           company_nit: data.company_nit ?? '',
           company_address: data.company_address ?? '',
           company_municipality: data.company_municipality ?? '',
@@ -236,6 +238,7 @@ export default function ConfigManagement() {
     try {
       await updateSettings({
         company_nit: fiscalForm.company_nit,
+        fel_enabled: fiscalForm.fel_enabled,
         company_address: fiscalForm.company_address,
         company_municipality: fiscalForm.company_municipality,
         company_department: fiscalForm.company_department,
@@ -244,6 +247,7 @@ export default function ConfigManagement() {
         vat_affiliation: fiscalForm.vat_affiliation,
       })
       setSettings((s) => ({ ...s, ...fiscalForm }))
+      refetchSystemSettings()
       toast({ title: 'Datos fiscales guardados' })
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Error al guardar datos fiscales'
@@ -731,6 +735,10 @@ export default function ConfigManagement() {
               </CardDescription>
             </CardHeader>
             <CardContent className="config-fiscal-grid">
+              <div className="sm:col-span-2 flex items-start justify-between gap-4 border-b pb-4">
+                <div className="space-y-1"><Label htmlFor="fel_enabled">Este negocio emitirá facturas electrónicas</Label><p className="text-sm text-muted-foreground">Las nuevas ventas del POS solicitarán su factura automáticamente. Las demás se solicitarán desde el detalle de la venta.</p><p className="text-xs text-muted-foreground">El certificador aún no está conectado: las solicitudes quedarán pendientes, sin autorización fiscal. Activar esta opción no envía ventas históricas.</p></div>
+                <Switch id="fel_enabled" disabled={!canManage||saving} checked={fiscalForm.fel_enabled==='true'} onCheckedChange={checked=>setFiscalForm(f=>({...f,fel_enabled:checked?'true':'false'}))}/>
+              </div>
               <div className="grid gap-2">
                 <Label htmlFor="company_nit">NIT del emisor</Label>
                 <Input

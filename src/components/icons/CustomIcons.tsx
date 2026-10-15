@@ -50,6 +50,7 @@ function createModuleIcon(
 }
 
 const base = '/icons/modules/auna'
+export const AgendaIcon = createModuleIcon(`${base}/agenda.svg`, 'AgendaIcon')
 
 // Ícono propio estilo Papirus: carrito lateral (ventas)
 export const VentasIcon = createModuleIcon(`${base}/ventas.svg`, 'VentasIcon')

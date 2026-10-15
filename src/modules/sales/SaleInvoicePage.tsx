@@ -21,10 +21,15 @@ import { getCompanyNamePublic } from '@/services/settingsService'
 import { generateSaleInvoicePDF } from './documents/generateSaleInvoicePDF'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { SaleDetailContent, SaleStatusBadge } from './components/SaleDetailContent'
+import {usePageTrail} from '@/components/layout/PageNavigation'
+import {useTenant} from '@/context/useTenant'
+import {SaleFiscalAction} from './components/SaleFiscalAction'
 
 export const SaleInvoicePage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const tenant=useTenant()
+  usePageTrail([{label:'Ventas',to:'/ventas'},{label:'Detalle'}])
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
   const [sale, setSale] = useState<Sale | null>(null)
   const [loading, setLoading] = useState(true)
@@ -52,7 +57,7 @@ export const SaleInvoicePage = () => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [id])
+  }, [id,tenant.company?.id,tenant.branch?.id,tenant.isConsolidated])
 
   if (loading) {
     return (
@@ -98,10 +103,14 @@ export const SaleInvoicePage = () => {
           <h1 className="text-xl font-semibold break-words">Venta {sale.reference ?? sale.id}</h1>
           <SaleStatusBadge status={sale.status} />
         </div>
-        <Button className="print:hidden" onClick={handlePrint}>
+        <div className="flex flex-wrap gap-2 print:hidden">
+        {sale.capabilities?.confirm&&<Button onClick={()=>navigate(`/ventas/${sale.id}/confirmar`)}>Confirmar venta</Button>}
+        <SaleFiscalAction sale={sale} onRequested={commercial=>setSale(current=>current?.id===sale.id?{...current,commercial,capabilities:current.capabilities?{...current.capabilities,requestInvoice:false}:undefined}:current)}/>
+        <Button variant="outline" onClick={handlePrint}>
           <Printer aria-hidden /> Descargar PDF / Imprimir
-        </Button>
+        </Button></div>
       </header>
+      <p className="text-xs text-muted-foreground">El comprobante interno no constituye factura fiscal. Confirmación, pagos y emisión fiscal son procesos separados.</p>
       <SaleDetailContent sale={sale} locale={locale} currencyCode={currencyCode} />
     </div>
   )

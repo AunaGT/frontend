@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),React=require('react'),{renderToStaticMarkup}=require('react-dom/server')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('pending commercial preparation is visible without amounts; meetings have no warning',()=>{
+  const {CommercialPreparationNotice}=loadReportModule('../appointments/components/CommercialPreparationNotice.tsx')
+  const render=props=>renderToStaticMarkup(React.createElement(CommercialPreparationNotice,props))
+  assert.match(render({state:'PENDING',reason:'INTEGRATION_DISABLED'}),/integración comercial/)
+  assert.match(render({state:'PENDING',reason:'COMMERCIAL_DATA_REQUIRED'}),/cliente.*cantidad/i)
+  assert.match(render({state:'READY'}),/Documento comercial preparado/)
+  assert.equal(render({state:'NOT_APPLICABLE'}),'')
+  assert.doesNotMatch(render({state:'PENDING',reason:'INTEGRATION_DISABLED'}),/GTQ|\$|150|precio|saldo/i)
+})

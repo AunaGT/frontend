@@ -11,6 +11,8 @@ import { MetricStrip } from '@/components/shared/MetricStrip'
 import { formatMoney } from '@/utils'
 
 interface SalesKPICardsProps {
+    draftCount?:number
+    draftTotal?:number
     totalSalesToday: number
     transactionCountToday: number
     averageTicketToday: number
@@ -23,10 +25,11 @@ interface SalesKPICardsProps {
 
 export const SalesKPICards = ({
     totalSalesToday, transactionCountToday, averageTicketToday, preferredPaymentMethod,
-    loading = false, error = false, locale, currencyCode
+    loading = false, error = false, locale, currencyCode,draftCount=0,draftTotal=0
 }: SalesKPICardsProps) => <MetricStrip label="Resumen de ventas del período" loading={loading} items={[
     { label: 'Total neto', value: error ? '—' : formatMoney(totalSalesToday, locale, currencyCode) },
     { label: 'Transacciones', value: error ? '—' : transactionCountToday },
     { label: 'Ticket promedio', value: error ? '—' : formatMoney(averageTicketToday, locale, currencyCode) },
-    { label: 'Pago más frecuente', value: error ? '—' : preferredPaymentMethod }
+    { label: 'Pago más frecuente', value: error ? '—' : preferredPaymentMethod },
+    {label:'Borradores · valor informativo',value:error?'—':`${draftCount} · ${formatMoney(draftTotal,locale,currencyCode)}`},
 ]} />

@@ -13,6 +13,7 @@
  * Defines all available modules with their routes, icons, and colors
  */
 import {
+    AgendaIcon,
     VentasIcon,
     CotizacionesIcon,
     PedidosIcon,
@@ -40,6 +41,7 @@ import {
 import { ForwardRefExoticComponent, RefAttributes } from 'react'
 import {
     MODULE_MANIFESTS,
+    appointmentsModule,
     alertsModule,
     analyticsModule,
     accountingModule,
@@ -67,11 +69,12 @@ import {
 type IconComponent = ForwardRefExoticComponent<ModuleIconProps & RefAttributes<HTMLSpanElement>>
 
 export const MODULE_DESCRIPTIONS: Record<string, string> = {
+    appointments: 'Reuniones, citas, servicios y eventos',
     sales: 'Ventas, cobros y facturación', quotes: 'Propuestas y seguimiento',
     orders: 'Pedidos y entregas', inventory: 'Productos, stock y almacenes',
     'inventory-count': 'Conteos y diferencias', returns: 'Devoluciones y ajustes',
     'cash-closure': 'Sesiones y cierres de caja', contacts: 'Clientes y proveedores',
-    receivables: 'Saldos y cuentas por cobrar', merchandise: 'Ingresos de mercadería',
+    receivables: 'Cuentas por cobrar y por pagar', merchandise: 'Ingresos de mercadería',
     analytics: 'Análisis e indicadores', accounting: 'Cuentas y movimientos',
     reports: 'Reportes y exportaciones', alerts: 'Pendientes que requieren atención',
     promotions: 'Ofertas y descuentos', catalogs: 'Catálogos del sistema',
@@ -104,6 +107,7 @@ export interface AppModule {
 }
 
 export const appModules: AppModule[] = [
+    { id: appointmentsModule.code, label: 'Agenda', path: appointmentsModule.paths.list, icon: AgendaIcon, color: 'bg-orange-100/90', iconColor: 'text-orange-800', permissions: ['appointments.view'] },
     {
         id: salesModule.code,
         label: 'Ventas',
@@ -195,7 +199,7 @@ export const appModules: AppModule[] = [
         icon: CarteraIcon,
         color: 'bg-teal-100/90',
         iconColor: 'text-teal-900',
-        permissions: ['receivables.view']
+        permissions: ['receivables.view', 'merchandise.details']
     },
     {
         id: merchandiseModule.code,
@@ -417,7 +421,7 @@ export const getVisibleModules = (enabledModuleCodes?: ReadonlySet<string> | nul
 }
 
 const MODULE_CATALOG_ORDER = new Map([
-    'sales', 'quotes', 'orders', 'returns', 'promotions',
+    'sales', 'quotes', 'orders', 'returns', 'promotions', 'appointments',
     'inventory', 'inventory-count', 'merchandise', 'transfers', 'receivables',
     'accounting', 'cash-closure', 'contacts', 'hr', 'payroll',
     'branches', 'users', 'catalogs', 'config', 'analytics', 'reports', 'alerts',

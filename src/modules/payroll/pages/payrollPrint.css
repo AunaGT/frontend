@@ -1,4 +1,7 @@
+.payroll-print-brand { display: none; }
 @media print {
+  .payroll-print-brand { display: flex; flex-direction: column; align-items: center; gap: 4mm; margin: 0 0 6mm; padding: 0 0 4mm; border-bottom: 2px solid #ff6f00 !important; font-size: 18pt; }
+  .payroll-print-brand .payroll-print-logo { width: auto; height: auto; max-width: 40mm; max-height: 18mm; object-fit: contain; }
   .payroll-payslip,
   body.payroll-printing .payroll-receipt,
   body.payroll-printing .payroll-receipt [data-slot="dialog-header"] { background:#fff !important; color:#111 !important; box-shadow:none !important; }

@@ -12,7 +12,10 @@ import { BaseEntity, PaymentMethod, Status } from "./common";
 import { CartProduct } from "./product";
 
 // Tipo de estado específico para ventas
-export type SaleStatus = "pending" | "paid" | "completed" | "cancelled";
+export type SaleStatus = "pending" | "paid" | "completed" | "cancelled" | "draft" | "legacy";
+export type CommercialState='DRAFT'|'CONFIRMED'|'CANCELLED'|'LEGACY';
+export type FiscalState='DISABLED'|'UNRECORDED'|'PENDING_CONNECTOR'|'RECORDED_EXTERNAL'|'AUTHORIZED'|'REVIEW_REQUIRED';
+export type SaleCommercialView={state:CommercialState;originEngagementId:string|null;version:number;confirmedAt:string|null;fiscalState:FiscalState};
 
 // Interfaz de detalle de devolución
 export interface ReturnDetail {
@@ -31,6 +34,7 @@ export interface ReturnDetail {
 /** Documento tributario electrónico (InFile/SAT) vinculado a la venta */
 export interface SaleDte {
   id?: string;
+  document_type?: string;
   authorization?: string;
   series?: string;
   number?: string;
@@ -58,6 +62,8 @@ export interface SalePromotion {
 
 // Interfaz principal de venta
 export interface Sale extends BaseEntity {
+  commercial?:SaleCommercialView;
+  capabilities?:{confirm:boolean;requestInvoice:boolean;collect:boolean;reason:string};
   isCredit?: boolean;
   dueDate?: string;
   creditPaid?: number;
@@ -81,7 +87,7 @@ export interface Sale extends BaseEntity {
   promotions?: SalePromotion[]; // Promociones aplicadas
   items: number;
   lineCount?: number;
-  payment: PaymentMethod;
+  payment: PaymentMethod | null;
   status: SaleStatus;
   amountReceived: number;
   change: number;

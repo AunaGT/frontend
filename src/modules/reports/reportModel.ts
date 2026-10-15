@@ -20,6 +20,7 @@ export const preparedReportSchema = z.object({
   if (report.sections.reduce((n, s) => n + s.rows.length, 0) > 10_000) ctx.addIssue({ code: 'custom', message: 'Reporte demasiado grande' })
 })
 export type PreparedReport = z.infer<typeof preparedReportSchema>
+export type SpreadsheetDocument = Omit<PreparedReport,'id'> & {id:string}
 export type ReportMeta = Pick<PreparedReport, 'generatedAt' | 'timezone' | 'currency' | 'generatedBy' | 'scope' | 'period' | 'branding'>
 export type ReportColumn = z.infer<typeof columnSchema>
 export type ReportSection = z.infer<typeof sectionSchema>

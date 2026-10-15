@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useTenant } from '@/context/useTenant'
+import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { fetchEmployeeById, fetchLinkableUsers, updateEmployee, terminateEmployee, uploadEmployeePhoto, EMPLOYEE_STATUS_LABELS, type EmployeePayload } from '@/services/hrService'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { EmployeeForm } from './EmployeeForm'
@@ -38,7 +39,7 @@ export default function EmployeeDetailPage() {
   const download = async () => {
     if (!employee) return
     setExporting(true)
-    try { const { generateEmployeePDF } = await import('./generateEmployeePDF'); generateEmployeePDF([employee], company?.name || 'Auna') } catch (error) { toast({ title: 'No se pudo descargar la ficha', description: error instanceof Error ? error.message : undefined, variant: 'destructive' }) } finally { setExporting(false) }
+    try { const [{ generateEmployeePDF }, logo] = await Promise.all([import('./generateEmployeePDF'), resolvePdfLogoDataUrl(company?.logo_url)]); generateEmployeePDF([employee], company?.name || 'Empresa', logo) } catch (error) { toast({ title: 'No se pudo descargar la ficha', description: error instanceof Error ? error.message : undefined, variant: 'destructive' }) } finally { setExporting(false) }
   }
   const links = useQuery({ queryKey: ['hr-linkable-users', id], queryFn: () => fetchLinkableUsers(id), enabled: editing && canEdit && !!id })
   useEffect(() => {

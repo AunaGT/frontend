@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select'
 import { ChevronDown, ChevronRight, Download, MoreHorizontal, Plus, Receipt, RefreshCcw, Undo2, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
 import {
   getJournal, postPending, reverseJournalEntry,
   type Account, type JournalEntry,
@@ -41,7 +42,8 @@ const entryTotal = (entry: JournalEntry) =>
 export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCreate: boolean }) => {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { branches } = useTenant()
+  const { branches, company } = useTenant()
+  const { timezone } = useSystemSettings()
   const [items, setItems] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -99,6 +101,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   }
 
   const handleExport = async (fileName?: string) => {
+    if (exporting) return
     setExporting(true)
     try {
       // Descarga todas las páginas con los filtros activos (el backend pagina a 100 máx.)
@@ -118,7 +121,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
       }
       // El diario se exporta en orden cronológico
       all.reverse()
-      exportJournal(all, filters, fileName)
+      await exportJournal(all, filters, fileName, { companyName: company?.name || 'Empresa', timezone, scopeLabel: branchFilter === 'company' ? 'Solo empresa' : branches.find(branch => branch.id === branchFilter)?.name || 'Todas las sucursales' })
       setExportOpen(false)
       toast({ title: 'Excel generado', description: `Libro Diario con ${all.length} asientos` })
     } catch (e) {
@@ -215,7 +218,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
       </>}
       <NewEntryDialog open={isNewOpen} onOpenChange={setIsNewOpen} accounts={accounts} onSaved={() => void load(1)} />
       <ExpenseDialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen} accounts={accounts} onSaved={() => void load(1)} />
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar libro diario" fileName="libro-diario" summary={`${rangoTexto(from, to)} (${totalItems} asientos). Se exportan todas las páginas filtradas.`} formats={['xlsx']} pending={exporting} onExport={({ fileName }) => void handleExport(fileName)} />
+      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} title="Exportar libro diario" fileName="libro-diario" summary={`${rangoTexto(from, to)} (${totalItems} asientos). Se exportan todas las páginas filtradas.`} formats={['xlsx']} pending={exporting} onExport={({ fileName }) => handleExport(fileName)} />
     </section>
   )
 }

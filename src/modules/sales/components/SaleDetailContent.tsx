@@ -11,9 +11,10 @@ import type { Sale, SaleStatus } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils'
 import { formatQuantity, previewLineTotal } from '@/lib/commercialQuantity'
 import './saleDetail.css'
+import {saleCommercialState,salePaymentLabel,fiscalLabel} from '../commercialPresentation'
 
 export function SaleStatusBadge({ status }: { status: SaleStatus }) {
-  const labels = { pending: 'Pendiente', paid: 'Pagado', completed: 'Completada', cancelled: 'Cancelada' }
+  const labels = { draft:'Borrador',pending: 'Revisar estado', paid: 'Revisar estado', completed: 'Confirmada', cancelled: 'Cancelada',legacy:'Revisar estado' }
   return <StatusBadge status={labels[status] ?? 'Desconocido'} variant={status === 'cancelled' ? 'destructive' : undefined} />
 }
 
@@ -25,14 +26,16 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
   const { isEnabled } = useModules()
   const canOpenContact = Boolean(contact && isEnabled('contacts') && hasPermission('contacts.clients.view'))
   const dte = sale.sale_dtes?.[0]
+  const commercialState=saleCommercialState(sale)
+  const isDraft=commercialState==='DRAFT'
   const returns = sale.hasReturns ? sale.returnDetails ?? [] : []
   const total = sale.hasReturns ? sale.adjustedTotal ?? sale.total : sale.total
   const hasDiscount = Number(sale.discountTotal) > 0
   const customerName = sale.customer || (sale.isFinalConsumer ? 'Consumidor final' : 'Cliente sin nombre')
-  const paidAmount = sale.status === 'cancelled' ? null : sale.isCredit ? sale.creditPaid ?? 0 : sale.paymentStatus === 'PAID' || sale.status === 'completed' || sale.status === 'paid' ? total : null
-  const balance = sale.status === 'cancelled' ? null : sale.isCredit ? sale.creditBalance ?? 0 : paidAmount == null ? null : 0
+  const paidAmount = commercialState!=='CONFIRMED' ? null : sale.isCredit ? sale.creditPaid ?? 0 : sale.paymentStatus === 'PAID' || sale.status === 'completed' ? total : null
+  const balance = commercialState!=='CONFIRMED' ? null : sale.isCredit ? sale.creditBalance ?? 0 : paidAmount == null ? null : 0
   const activities = [
-    { key: 'sale', date: sale.date, label: 'Venta registrada', detail: sale.createdByName ? `Por ${sale.createdByName}` : undefined },
+    { key: 'sale', date: sale.date, label: isDraft?'Borrador preparado':'Venta registrada', detail: sale.createdByName ? `Por ${sale.createdByName}` : undefined },
     ...returns.map((ret, index) => ({ key: `return-${index}`, date: ret.date, label: `Devolución ${ret.status.toLowerCase()}`, detail: ret.reason })),
     ...(dte?.emission_date ? [{ key: 'dte', date: dte.emission_date, label: 'Documento tributario registrado', detail: dte.status }] : []),
   ].sort((a, b) => Date.parse(b.date) - Date.parse(a.date))
@@ -48,7 +51,8 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
             <div><dt>Folio</dt><dd>{sale.reference ?? '—'}</dd></div>
             <div><dt>Estado</dt><dd><SaleStatusBadge status={sale.status} /></dd></div>
             <div><dt>Moneda</dt><dd>{currencyCode || 'GTQ'}</dd></div>
-            <div><dt>Condición de pago</dt><dd>{sale.isCredit ? 'Crédito' : 'Contado'}</dd></div>
+            <div><dt>Condición de pago</dt><dd>{isDraft?'Por definir al confirmar':sale.isCredit ? 'Crédito' : 'Contado'}</dd></div>
+            <div><dt>Facturación</dt><dd>{fiscalLabel(sale.commercial?.fiscalState||(dte?'REVIEW_REQUIRED':'UNRECORDED'))}</dd></div>
             <div><dt>Sucursal</dt><dd>{sale.branchName || '—'}</dd></div>
             <div><dt>Registrada por</dt><dd>{sale.createdByName || '—'}</dd></div>
           </dl>
@@ -113,13 +117,14 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
               </ul>
             </div>)}
           </div> : null}
-          {dte ? <div className="sale-detail-rows">
-            <h3 className="sale-detail-subheading"><ShieldCheck aria-hidden />Documento tributario electrónico</h3>
+          {dte&&dte.status!=='PENDING_CONNECTOR' ? <div className="sale-detail-rows">
+            <h3 className="sale-detail-subheading"><ShieldCheck aria-hidden />{dte.provider==='EXTERNAL'?'Factura externa registrada':'Documento tributario registrado'}</h3>
+            {dte.provider==='EXTERNAL'&&<p className="pb-3 text-xs text-muted-foreground">Sin verificación automática. Este registro no certifica ni anula el documento.</p>}
             <dl className="sale-detail-facts sale-detail-facts-compact">
-              {dte.authorization && <div><dt>Autorización SAT</dt><dd className="font-mono break-all">{dte.authorization}</dd></div>}
+              {dte.authorization && <div><dt>Identificador fiscal</dt><dd className="font-mono break-all">{dte.authorization}</dd></div>}
               {(dte.series || dte.number) && <div><dt>Serie / número</dt><dd>{[dte.series, dte.number].filter(Boolean).join(' — ')}</dd></div>}
               {dte.status && <div><dt>Estado</dt><dd><Badge variant="secondary">{dte.status}</Badge></dd></div>}
-              {dte.provider && <div><dt>Certificador</dt><dd>{dte.provider}</dd></div>}
+              {dte.provider && <div><dt>Origen del documento</dt><dd>{dte.provider==='EXTERNAL'?'Registro externo':dte.provider}</dd></div>}
               {dte.emission_date && <div><dt>Fecha de emisión</dt><dd>{date(dte.emission_date)}</dd></div>}
             </dl>
             {(dte.xml_url || dte.pdf_url) && <div className="flex flex-wrap gap-2 pb-4">
@@ -154,11 +159,12 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
             <div><dt>Total de la venta</dt><dd>{fmt(total)}</dd></div>
             {paidAmount != null && <div><dt>{sale.isCredit ? 'Abonos registrados' : 'Monto pagado'}</dt><dd>{fmt(paidAmount)}</dd></div>}
             {balance != null && <div className="sale-detail-balance"><dt>Saldo pendiente</dt><dd>{fmt(balance)}</dd></div>}
-            <div className="sale-detail-method"><dt>Método de pago</dt><dd>{sale.payment}</dd></div>
+            <div className="sale-detail-method"><dt>Método de pago</dt><dd>{salePaymentLabel(sale)}</dd></div>
             {Number(sale.amountReceived) > 0 && <div><dt>Recibido</dt><dd>{fmt(sale.amountReceived)}</dd></div>}
             {Number(sale.change) > 0 && <div><dt>Vuelto</dt><dd>{fmt(sale.change)}</dd></div>}
             {sale.isCredit && <div><dt>Condición</dt><dd>Venta a crédito</dd></div>}
           </dl>
+          {isDraft&&<p className="px-4 pb-4 text-sm text-muted-foreground">Los anticipos se registran en la contratación. No se aplican a esta venta hasta confirmarla.</p>}
         </section>
 
         <section className="auna-surface rounded-xl border" aria-label="Actividad registrada">

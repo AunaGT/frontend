@@ -12,7 +12,13 @@
  * PromotionsManagement - Admin UI for managing discount codes and promotions
  * Supports multiple codes per promotion, auto-generation, PDF export, and product selection
  */
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import {CouponPreview} from '../coupons/CouponPreview'
+import {CouponSheetPreview} from '../coupons/CouponSheetPreview'
+import {couponData,getCouponPrintLayout,sharedCouponCode,withoutCouponCode} from '../coupons/couponPresentation'
+import {createDefaultCouponDesign,parseCouponDesign,couponAssetIds,type CouponDesign} from '../coupons/couponDesign'
+import {resolveCouponAssets} from '../coupons/couponAssetsApi'
+import type {CouponAssets} from '../coupons/CouponCanvas'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -103,6 +109,9 @@ export interface PromotionCode {
 }
 
 export interface Promotion {
+    company_id?:string
+    coupon_design?:CouponDesign|null
+    max_uses_per_customer?:number
     id: string
     name: string
     description?: string
@@ -130,6 +139,7 @@ export interface Promotion {
 export interface CodesDialogState {
     open: boolean
     promotion?: Promotion
+    companyId?:string
 }
 
 // Hooks
@@ -148,9 +158,9 @@ const PromotionsManagement = () => {
     const navigate = useNavigate()
     const { toast } = useToast()
     const queryClient = useQueryClient()
-    const { locale, currencyCode, companyLogoUrl } = useSystemSettings()
+    const { locale, currencyCode, companyLogoUrl, companyName,timezone } = useSystemSettings()
     const { hasPermission } = useAuthPermissions()
-    const { branch } = useTenant()
+    const { branch,company } = useTenant()
     // Con solo promotions.view se consulta; crear/editar/eliminar/activar requiere promotions.manage
     const canManagePromos = hasPermission('promotions.manage')
     const [searchTerm, setSearchTerm] = useState('')
@@ -311,7 +321,7 @@ const PromotionsManagement = () => {
                                                             variant='ghost'
                                                             size='sm'
                                                             className='h-6 px-2 text-xs'
-                                                            onClick={() => setCodesDialog({ open: true, promotion: promo })}
+                                                            onClick={() => setCodesDialog({ open: true, promotion: promo,companyId:promo.company_id||company?.id })}
                                                         >
                                                             <Eye className='w-3 h-3 mr-1' />
                                                             Ver {promo.codes.length > 2 ? `+${promo.codes.length - 2}` : 'todos'}
@@ -416,6 +426,8 @@ const PromotionsManagement = () => {
                 locale={locale}
                 currencyCode={currencyCode}
                 companyLogoUrl={companyLogoUrl}
+                companyName={companyName}
+                timezone={timezone}
             />
         </div>
     )
@@ -431,13 +443,43 @@ interface CodesDialogProps {
     locale?: string
     currencyCode?: string
     companyLogoUrl?: string
+    companyName?: string
+    timezone?:string
 }
 
-export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, companyLogoUrl }: CodesDialogProps) => {
+export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCode, companyLogoUrl, companyName,timezone }: CodesDialogProps) => {
     const [selectedCodes, setSelectedCodes] = useState<string[]>([])
-    const [termsText, setTermsText] = useState('Válido solo en tiendas participantes. No acumulable con otras promociones.')
+    const [design,setDesign]=useState(createDefaultCouponDesign)
+    const [assets,setAssets]=useState<CouponAssets>(new Map())
+    const [pending,setPending]=useState(false),[error,setError]=useState('')
+    // Un código compartido (único y sin límite de usos) se imprime en las copias que se pidan, con o sin el código.
+    const [copies,setCopies]=useState(4),[printCode,setPrintCode]=useState(true)
+    const {company}=useTenant(),{hasPermission}=useAuthPermissions(),navigate=useNavigate()
+    const isScoped=!!company?.id&&dialog.companyId===company.id&&(!dialog.promotion?.company_id||dialog.promotion.company_id===company.id)
+    const scopeKey=company?.id+':'+dialog.promotion?.id+':'+dialog.open,scopeRef=useRef(scopeKey),running=useRef(false),controller=useRef<AbortController|null>(null)
+    scopeRef.current=scopeKey
+    const dialogRef=useRef(dialog);dialogRef.current=dialog
+    useEffect(()=>{if(dialog.open&&!isScoped){controller.current?.abort();setDialog({open:false})}},[dialog.open,isScoped,setDialog])
+    useEffect(()=>{
+        controller.current?.abort();running.current=false;setPending(false);setError('');setAssets(new Map())
+        const current=dialogRef.current
+        setSelectedCodes(current.open?(current.promotion?.codes||[]).filter(c=>c.active).map(c=>c.code):[])
+        setPrintCode(true)
+        try{const parsed=parseCouponDesign(current.promotion?.coupon_design??null)||createDefaultCouponDesign(),layout=getCouponPrintLayout(parsed.printPreset,parsed.aspect);setDesign(parsed);setCopies(layout.columns*layout.rows)}catch(e){setError(e instanceof Error?e.message:'Diseño no válido')}
+        return()=>{controller.current?.abort()}
+    },[scopeKey,dialog.promotion?.coupon_design])
+    const promotionId=dialog.promotion?.id
+    useEffect(()=>{
+        if(!dialog.open||!isScoped||!company?.id||!promotionId)return
+        const ids=couponAssetIds(design);if(!ids.length)return
+        const abort=new AbortController(),key=scopeKey;setPending(true)
+        resolveCouponAssets(ids,{companyId:company.id,promotionId},abort.signal).then(rows=>{if(scopeRef.current===key&&!abort.signal.aborted)setAssets(new Map(rows.map(r=>[r.id,r])))}).catch(e=>{if(!abort.signal.aborted&&scopeRef.current===key)setError(e.message)}).finally(()=>{if(!abort.signal.aborted&&scopeRef.current===key)setPending(false)})
+        return()=>abort.abort()
+    },[design,scopeKey,company?.id,dialog.open,promotionId,isScoped])
 
     const promotion = dialog.promotion
+    const shared=!!promotion&&sharedCouponCode(promotion),validCopies=Number.isInteger(copies)&&copies>=1&&copies<=200
+    const shown=shared&&!printCode?withoutCouponCode(design):design
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
@@ -456,26 +498,30 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
     }
 
     const handleGeneratePDF = async () => {
-        if (!promotion) return
-
-        const codesToExport = selectedCodes.length > 0
-            ? promotion.codes?.filter(c => selectedCodes.includes(c.code)) || []
-            : promotion.codes || []
-
+        if (!promotion||!isScoped||scopeRef.current!==scopeKey||!company?.id||!selectedCodes.length||pending||running.current||shared&&!validCopies) return
+        const selected=promotion.codes?.filter(c=>selectedCodes.includes(c.code))||[]
+        const codesToExport=shared?Array.from({length:copies},()=>selected[0]):selected
+        const key=scopeKey,abort=new AbortController();controller.current=abort;running.current=true;setPending(true);setError('')
+        try{
+        const ids=couponAssetIds(design)
+        const fresh=ids.length?new Map((await resolveCouponAssets(ids,{companyId:company.id,promotionId:promotion.id},abort.signal)).map(a=>[a.id,a])):assets
         const logoBase64 = await resolvePdfLogoDataUrl(companyLogoUrl)
-
-        generatePromotionTicketsPDF({
+        if(scopeRef.current!==key||abort.signal.aborted)return
+        await generatePromotionTicketsPDF({
             codes: codesToExport,
             promotion: promotion,
-            terms: termsText,
+            design,assets:fresh,signal:abort.signal,printCode:shared?printCode:true,
             logoBase64,
             locale,
-            currencyCode
+            currencyCode,
+            companyName,timezone
         })
+        }catch(e){if(!abort.signal.aborted&&scopeRef.current===key)setError(e instanceof Error?e.message:'No se pudo generar el PDF')}
+        finally{if(scopeRef.current===key){running.current=false;setPending(false)}}
     }
 
     return (
-        <Dialog open={dialog.open} onOpenChange={(open) => setDialog({ ...dialog, open })}>
+        <Dialog open={dialog.open&&isScoped} onOpenChange={(open) => {if(!pending)setDialog({ ...dialog, open })}}>
             <DialogContent variant="auna" className='max-w-3xl max-h-[90vh] overflow-y-auto'>
                 <DialogHeader>
                     <DialogTitle className='flex items-center gap-2'>
@@ -489,21 +535,22 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
 
                 {promotion && (
                     <div className='space-y-4'>
-                        <div>
-                            <Label htmlFor='terms'>Términos y Condiciones (para el PDF)</Label>
-                            <Textarea
-                                id='terms'
-                                value={termsText}
-                                onChange={e => setTermsText(e.target.value)}
-                                rows={2}
-                            />
-                        </div>
+                        <div className="flex items-center justify-between gap-3"><span className="text-sm text-muted-foreground">Diseño guardado · {design.printPreset==='large'?'2':'4'} por hoja</span>{hasPermission('promotions.manage')&&<Button variant="outline" disabled={pending} onClick={()=>navigate(`/promociones/${promotion.id}/editar`)}>Editar diseño</Button>}</div>
+                        <div className="mx-auto max-w-md"><CouponPreview design={shown} promotion={promotion} code={promotion.codes?.find(c=>selectedCodes.includes(c.code))||promotion.codes?.[0]||{code:'SIN-CÓDIGO'}} branding={{companyName:companyName||'',logoDataUrl:companyLogoUrl,locale:locale||'es-GT',currencyCode:currencyCode||'GTQ',timezone:timezone||'America/Guatemala'}} assets={assets}/></div>
+                        {!!selectedCodes.length&&<details><summary className="cursor-pointer text-sm font-medium text-brand-orange">Ver hojas de impresión y cortes</summary><div className="mt-3"><CouponSheetPreview design={shown} data={(shared?Array.from({length:validCopies?copies:1},()=>promotion.codes[0]).filter(c=>selectedCodes.includes(c.code)):(promotion.codes||[]).filter(c=>selectedCodes.includes(c.code))).map(code=>couponData({...promotion,coupon_design:design},code,{companyName:companyName||'',logoDataUrl:companyLogoUrl,locale:locale||'es-GT',currencyCode:currencyCode||'GTQ',timezone:timezone||'America/Guatemala'}))} assets={assets} logoUrl={companyLogoUrl}/></div></details>}
+                        {shared&&<div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[auto_1fr] sm:items-end">
+                            <Label className="grid gap-1 text-sm">Copias en el PDF<Input type="number" aria-label="Copias en el PDF" min={1} max={200} className="w-28" value={copies||''} disabled={pending} onChange={event=>setCopies(Number(event.target.value))}/></Label>
+                            <Label className="flex min-h-10 items-center gap-2 text-sm"><Checkbox aria-label="Imprimir el código en el cupón" checked={printCode} disabled={pending} onCheckedChange={value=>setPrintCode(value===true)}/>Imprimir el código en el cupón</Label>
+                            <p className={`text-xs sm:col-span-2 ${validCopies?'text-muted-foreground':'text-red-600 dark:text-red-400'}`}>{!validCopies?'Elige entre 1 y 200 copias.':printCode?'Este código no tiene límite de usos: todas las copias llevan el mismo código.':'Sin el código impreso, el cliente presenta el cupón y en caja se aplica la promoción.'}</p>
+                        </div>}
+                        {error&&<p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
 
                         <div className='border rounded-lg'>
                             <div className='p-3 bg-muted/50 border-b flex items-center justify-between'>
                                 <div className='flex items-center gap-2'>
                                     <Checkbox
                                         checked={selectedCodes.length === promotion.codes?.length}
+                                        disabled={pending}
                                         onCheckedChange={handleSelectAll}
                                     />
                                     <span className='text-sm font-medium'>Seleccionar todos</span>
@@ -520,6 +567,7 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
                                                 <TableCell className='w-10'>
                                                     <Checkbox
                                                         checked={selectedCodes.includes(c.code)}
+                                                        disabled={pending}
                                                         onCheckedChange={(checked) => handleSelectCode(c.code, !!checked)}
                                                     />
                                                 </TableCell>
@@ -555,12 +603,12 @@ export const CodesDialog = ({ dialog, setDialog, onCopyCode, locale, currencyCod
                 )}
 
                 <DialogFooter>
-                    <Button variant='outline' onClick={() => setDialog({ ...dialog, open: false })}>
+                    <Button variant='outline' disabled={pending} onClick={() => setDialog({ ...dialog, open: false })}>
                         Cerrar
                     </Button>
-                    <Button onClick={handleGeneratePDF} disabled={selectedCodes.length === 0}>
+                    <Button onClick={handleGeneratePDF} disabled={selectedCodes.length === 0||pending||!isScoped||shared&&!validCopies}>
                         <FileDown className='w-4 h-4 mr-2' />
-                        Descargar PDF ({selectedCodes.length})
+                        {pending?'Preparando…':shared?`Descargar PDF (${copies||0} ${copies===1?'copia':'copias'})`:`Descargar PDF (${selectedCodes.length})`}
                     </Button>
                 </DialogFooter>
             </DialogContent>

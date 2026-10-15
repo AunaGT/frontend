@@ -32,6 +32,9 @@ export type MerchandisePaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID'
 
 export interface IncomingMerchandisePaymentEntry {
   id: string
+  supplier_payment_id?: string | null
+  cancelled_at?: string | null
+  cancel_reason?: string | null
   amount: number
   paid_at: string
   reference?: string | null
@@ -40,6 +43,10 @@ export interface IncomingMerchandisePaymentEntry {
 
 export interface IncomingMerchandise {
   id: string
+  source?: 'PURCHASE'|'INITIAL'
+  legacy_settled_amount?: number
+  payment_revision?: number
+  payment_balance_review_required?: boolean
   supplier: {
     id: string
     name: string
@@ -55,6 +62,7 @@ export interface IncomingMerchandise {
   date: string
   notes?: string | null
   payment_term?: { id: number; name: string; net_days?: number | null } | null
+  payment_terms?: { id:number; name:string; net_days?:number|null }[]
   payment_status?: MerchandisePaymentStatus
   paid_at?: string | null
   payment_reference?: string | null
@@ -67,7 +75,7 @@ export interface IncomingMerchandise {
   /** Solo en detalle GET /:id */
   payment_entries?: IncomingMerchandisePaymentEntry[]
   amount_paid_total?: number
-  amount_pending?: number
+  amount_pending?: number | null
 }
 
 export interface IncomingMerchandiseQueryParams {

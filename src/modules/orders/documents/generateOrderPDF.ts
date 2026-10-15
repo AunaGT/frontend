@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Order } from '@/services/orderService'
-import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
+import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace, PDF_DOCUMENT_COLORS } from '@/utils/pdfBranding'
 
 export function generateOrderPDF(order: Order, options: {
   companyName?: string
@@ -26,15 +26,16 @@ export function generateOrderPDF(order: Order, options: {
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
-  doc.text(`Cliente: ${order.customer || order.customerContact?.name || '—'}`, 15, y)
-  doc.text(`Fecha: ${new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(order.created_at))}`, 120, y)
-  y += 7
-  doc.text(`Sucursal: ${order.branch?.name ?? '—'}`, 15, y)
-  doc.text(`NIT: ${order.customer_nit || order.customerContact?.tax_id || '—'}`, 120, y)
-  y += 10
+  for (const text of [
+    `Cliente: ${order.customer || order.customerContact?.name || '—'}`,
+    `Fecha: ${new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(order.created_at))}`,
+    `Sucursal: ${order.branch?.name ?? '—'}`,
+    `NIT: ${order.customer_nit || order.customerContact?.tax_id || '—'}`,
+  ]) y = addDocumentText(doc, text, 18, y, pageWidth - 36) + 2
+  y += 4
 
   autoTable(doc, {
-    startY: y,
+    startY: ensureDocumentSpace(doc, y, 18),
     head: [['Código', 'Producto', 'Cantidad', 'Entregado', 'Precio', 'Importe']],
     body: order.lines.map((line) => [
       line.product?.barcode ?? '—',
@@ -45,32 +46,39 @@ export function generateOrderPDF(order: Order, options: {
       money(line.line_total),
     ]),
     theme: 'grid',
-    headStyles: { fillColor: [255, 107, 0], textColor: 255 },
+    ...documentTableStyles,
+    margin: { left: 18, right: 18, top: 20, bottom: 20 },
     columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right' } },
   })
 
-  let totalsY = doc.lastAutoTable.finalY + 9
+  let totalsY = ensureDocumentSpace(doc, doc.lastAutoTable.finalY + 9, Number(order.discount_total ?? 0) > 0 ? 30 : 23)
   doc.setFont('helvetica', 'normal')
-  doc.text('Subtotal', 145, totalsY)
-  doc.text(money(order.subtotal), 195, totalsY, { align: 'right' })
+  doc.setFontSize(10)
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.navy)
+  doc.text('Subtotal', 18, totalsY)
+  doc.text(money(order.subtotal), pageWidth - 18, totalsY, { align: 'right' })
   if (Number(order.discount_total ?? 0) > 0) {
     totalsY += 7
-    doc.text('Descuento', 145, totalsY)
-    doc.text(`-${money(order.discount_total)}`, 195, totalsY, { align: 'right' })
+    doc.text('Descuento', 18, totalsY)
+    doc.text(`-${money(order.discount_total)}`, pageWidth - 18, totalsY, { align: 'right' })
   }
   totalsY += 8
+  doc.setFillColor(...PDF_DOCUMENT_COLORS.total)
+  doc.rect(18, totalsY - 5, pageWidth - 36, 9, 'F')
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(12)
-  doc.text('Total', 145, totalsY)
-  doc.text(money(order.total), 195, totalsY, { align: 'right' })
+  doc.text('Total', 18, totalsY)
+  doc.text(money(order.total), pageWidth - 18, totalsY, { align: 'right' })
 
   if (order.notes) {
     totalsY += 14
+    totalsY = ensureDocumentSpace(doc, totalsY, 12)
     doc.setFontSize(10)
-    doc.text('Notas', 15, totalsY)
+    doc.text('Notas', 18, totalsY)
     doc.setFont('helvetica', 'normal')
-    doc.text(doc.splitTextToSize(order.notes, 180), 15, totalsY + 6)
+    addDocumentText(doc, order.notes, 18, totalsY + 6, pageWidth - 36)
   }
 
+  addDocumentFooter(doc, order.reference ?? order.id)
   doc.save(`pedido-${order.reference ?? order.id}.pdf`)
 }

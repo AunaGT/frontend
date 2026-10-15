@@ -14,6 +14,10 @@ test('real commercial PDFs and ticket keep the original service name, unit and q
     const result=spawnSync('pdftotext',['-','-'],{input:outputs.pop()})
     assert.equal(result.status,0,fn)
     const text=result.stdout.toString()
+    if(fn.startsWith('generateSale')){
+      assert.match(text,/No constituye factura fiscal/)
+      assert.doesNotMatch(text,/FACTURA|autorizado por SAT/)
+    }
     for(const value of ['Asesoria original','Hora','0.125','12.50']) assert.ok(text.includes(value),`${fn}: ${value}`)
     assert.ok(!text.includes('Nombre editado'),fn)
   }

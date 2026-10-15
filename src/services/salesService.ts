@@ -21,6 +21,8 @@ export interface SalesQueryParams {
 }
 
 export interface SalesSummary {
+  draftCount?:number;
+  draftTotal?:number;
   totalSales: number;
   transactionCount: number;
   averageTicket: number;

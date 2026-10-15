@@ -16,6 +16,9 @@ import { useState, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { ServiceQuantityFields } from './ServiceQuantityFields'
+import { ServiceScheduleFields } from '@/modules/appointments/components/ServiceScheduleFields'
+import { useServiceScheduleDraft } from '@/modules/appointments/useServiceScheduleDraft'
+import { useDraftGuard } from '@/modules/appointments/components/DraftGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -57,6 +60,8 @@ export default function ProductCreatePage() {
   const { toast } = useToast()
   const { locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
   const isService = serviceRequested && inventoryServicesEnabled
+  const agenda = useServiceScheduleDraft(isService)
+  const agendaGuard = useDraftGuard(!!agenda.dirty)
   usePageTrail([...(isService ? [{label:'Servicios',to:'/inventario?tipo=services'}] : []),{label:isService?'Nuevo servicio':'Nuevo producto'}])
   const currencySymbol = useMemo(() => {
     try {
@@ -78,7 +83,7 @@ export default function ProductCreatePage() {
   const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
 
   const createdIdRef = useRef('')
-  const goToCreatedProduct = () => navigate(createdIdRef.current ? `/inventario/${createdIdRef.current}` : '/inventario')
+  const goToCreatedProduct = () => agendaGuard.proceed(() => navigate(createdIdRef.current ? `/inventario/${createdIdRef.current}` : '/inventario'))
   const { promptDialog, offerAssemble } = useKitAssemblePrompt(goToCreatedProduct)
 
   const formData = productForm.formData
@@ -144,6 +149,7 @@ export default function ProductCreatePage() {
   }
 
   const handleSubmit = () => {
+    if (!agenda.ready) return
     if (!productForm.validateForm()) return
     const isKit = formData.productKind === 'KIT'
     const payload = {
@@ -174,6 +180,7 @@ export default function ProductCreatePage() {
       status_id: 1,
       available_for_sale: formData.availableForSale,
       kind: formData.productKind,
+      ...agenda.payload,
       ...(isKit
         ? {
             bom_components: formData.kitComponents
@@ -212,6 +219,7 @@ export default function ProductCreatePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] p-4 sm:p-8 space-y-5 animate-fade-in">
+      {agendaGuard.dialog}
       <h1 className="sr-only">Nuevo Producto</h1>
 
       <Card className="auna-surface">
@@ -223,8 +231,8 @@ export default function ProductCreatePage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" onClick={()=>navigate(isService ? '/inventario?tipo=services' : '/inventario')} disabled={isLoading}>Cancelar</Button>
-          <Button type="button" onClick={handleSubmit} disabled={isLoading}>{isLoading ? 'Guardando…' : isService ? 'Guardar servicio' : 'Guardar Producto'}</Button>
+          <Button type="button" variant="outline" onClick={()=>agendaGuard.request(()=>navigate(isService ? '/inventario?tipo=services' : '/inventario'))} disabled={isLoading}>Cancelar</Button>
+          <Button type="button" onClick={handleSubmit} disabled={isLoading || !agenda.ready}>{isLoading ? 'Guardando…' : isService ? 'Guardar servicio' : 'Guardar Producto'}</Button>
           <Button
             type="button"
             variant="outline"
@@ -321,6 +329,7 @@ export default function ProductCreatePage() {
                     </Popover>
                   </div>
                   {isService && <ServiceQuantityFields unit={formData.serviceUnitLabel} decimals={formData.quantityDecimals} onUnitChange={value=>onFormChange('serviceUnitLabel',value)} onDecimalsChange={value=>onFormChange('quantityDecimals',value)} />}
+                  {agenda.allowed && <div className="space-y-3 border-t pt-4 md:col-span-2">{agenda.error ? <p role="alert" className="text-destructive">No se pudo cargar la configuración de Agenda. Recarga antes de guardar.</p> : <ServiceScheduleFields value={agenda.value} onChange={agenda.change} directory={agenda.directory} disabled={!agenda.ready || createProductMutation.isPending} errors={{}} />}</div>}
                   {advancedOpen && !isService && (
                     <>
                       <div>

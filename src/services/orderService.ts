@@ -17,6 +17,7 @@ export type OrderStatus =
   | "EXPIRED";
 
 export type Order = {
+  engagementId?:string|null;
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   fulfillment_mode?: 'LEGACY' | 'SEPARATE';

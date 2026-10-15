@@ -34,6 +34,16 @@ test('configuration shares the bounded page width and module tab components', ()
   assert.match(html, /role="tablist"/)
   assert.doesNotMatch(html, /class="config-tabs"/)
 })
+test('fiscal activation is separate from showing client fiscal fields and starts inactive',async()=>{
+  const view=renderConfig({tab:'fiscal'}),toggle=view.nodes.find(n=>n.props.id==='fel_enabled')
+  assert.ok(toggle);assert.equal(toggle.props.checked,false)
+  assert.match(view.html,/Este negocio emitirá facturas electrónicas/)
+  toggle.props.onCheckedChange(true)
+  assert.equal(view.changes.at(-1).value.fel_enabled,'true')
+  await view.nodes.find(n=>React.Children.toArray(n.props.children).some(c=>typeof c==='string'&&c.includes('Guardar datos fiscales'))).props.onClick()
+  assert.equal(view.requests[0].fel_enabled,'false','initial save uses the state rendered, not an unrelated customer-field toggle')
+  assert.equal(renderConfig({tab:'fiscal',canManage:false}).nodes.find(n=>n.props.id==='fel_enabled').props.disabled,true)
+})
 
 test('denominations are rows of one embedded table, not individually framed cards', () => {
   const { html } = renderConfig()

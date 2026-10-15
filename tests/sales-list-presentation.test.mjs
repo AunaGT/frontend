@@ -69,14 +69,14 @@ test('all sales render a single real table with seller and preserve fully return
   assert.doesNotMatch(html, /role="combobox"|Fiado/)
 })
 
-test('card view has no table cells and applies the same action permissions and updating guard', () => {
+test('card view uses whole-card navigation and no inline action buttons', () => {
   const html = render({ viewMode: 'cards', canViewDetail: false, canViewInvoice: true, canChangeStatus: false })
   assert.doesNotMatch(html, /<table\b|<td\b|Ver detalle|Más acciones/)
-  assert.match(html, /Ver factura/)
+  assert.match(html, /role="button"/)
   assert.match(html, /\$0\.00/)
   assert.match(html, /2 partidas/)
   const updating = render({ viewMode: 'cards', updatingSaleIds: new Set(['V-001']) })
-  assert.match(updating, /<button[^>]*disabled=""[^>]*aria-label="Más acciones de V-001"/)
+  assert.doesNotMatch(updating,/aria-label="Más acciones de V-001"/)
 })
 
 test('failed responses show a retry and never claim an empty list', () => {
@@ -102,7 +102,7 @@ test('unknown totals retain next and previous controls without inventing a total
   assert.match(sized, /Mostrando 21 a 21 de 43 ventas/)
 })
 
-test('status choices keep both transitions and route through the existing sale reference', () => {
+test('POS status correction uses existing reference but Agenda cards never expose generic confirmation', () => {
   const nodes = []
   const walk = node => React.Children.forEach(node, child => {
     if (!React.isValidElement(child)) return
@@ -110,14 +110,14 @@ test('status choices keep both transitions and route through the existing sale r
     walk(child.props.children)
   })
   const changes = []
-  walk(SalesStatusTable({ ...base, viewMode: 'cards', onStatusChange: (...args) => changes.push(args) }))
+  walk(SalesStatusTable({ ...base, viewMode: 'table', onStatusChange: (...args) => changes.push(args) }))
   const choices = nodes.filter(node => typeof node.props.onSelect === 'function')
-  assert.equal(choices.length, 2)
+  assert.equal(choices.length, 1)
   for (const choice of choices) {
     assert.equal(choice.props.disabled, false)
     choice.props.onSelect()
   }
-  assert.deepEqual(changes, [['V-001', 'completed'], ['V-001', 'cancelled']])
+  assert.deepEqual(changes, [['V-001', 'cancelled']])
 })
 
 test('initial loading retains eight headings and skeleton rows, refetch retains sales', () => {
@@ -176,7 +176,8 @@ test('management uses the shared module heading, visible search and compact filt
   assert.match(html, /compact-filter-toolbar/)
   assert.match(html, /aria-label="Filtros de ventas"/)
   assert.match(html, /role="tab"[^>]*>Todas/)
-  assert.match(html, /role="tab"[^>]*>Completadas/)
+  assert.match(html, /role="tab"[^>]*>Borradores/)
+  assert.match(html, /role="tab"[^>]*>Confirmadas/)
   assert.match(html, /role="tab"[^>]*>Canceladas/)
   assert.equal((html.match(/<table\b/g) ?? []).length, 1)
   assert.equal((html.match(/role="combobox"/g) ?? []).length, 1) // Only page size is visible.

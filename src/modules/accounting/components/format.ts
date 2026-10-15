@@ -27,6 +27,9 @@ export const SOURCE_LABELS: Record<JournalSourceType, string> = {
   PAYROLL: 'Nómina',
   PAYROLL_PAYMENT: 'Pago de nómina',
   PAYROLL_ADVANCE: 'Anticipo de nómina',
+  CUSTOMER_ADVANCE: 'Anticipo de cliente',
+  CUSTOMER_ADVANCE_APPLIED: 'Aplicación de anticipo',
+  CUSTOMER_PAYMENT_REFUND: 'Devolución de anticipo',
 }
 
 export const TYPE_LABELS: Record<AccountType, string> = {

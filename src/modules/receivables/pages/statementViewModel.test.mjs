@@ -13,3 +13,12 @@ assert.equal(matchesStatementRow({ ...rows[0], date: '2026-09-02T01:00:00Z' }, {
 assert.equal(statementMovements({ ...statement, ventas: [] }).at(-1).balance, 50)
 assert.equal(receivablesCsvText([[' =SUM(A1)', 'Cliente; "uno"', -20]]), '\uFEFF\' =SUM(A1);"Cliente; ""uno""";-20')
 console.log('Cartera: saldo acumulado, anticipos, fechas locales y CSV seguro verificados')
+import test from 'node:test'
+test('reserved and refunded receipts never appear as fully applied to invoices',async()=>{
+  const {paymentAllocationLabel}=await import('./statementViewModel.mjs')
+  assert.equal(typeof paymentAllocationLabel,'function')
+  assert.equal(paymentAllocationLabel({comprometido:40,devuelto:0,no_aplicado:0}),'Comprometido')
+  assert.equal(paymentAllocationLabel({comprometido:0,devuelto:10,no_aplicado:0}),'Con devolución')
+  assert.equal(paymentAllocationLabel({comprometido:0,devuelto:0,no_aplicado:5}),'Saldo a favor')
+  assert.equal(paymentAllocationLabel({comprometido:0,devuelto:0,no_aplicado:0}),'Aplicado')
+})

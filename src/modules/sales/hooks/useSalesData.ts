@@ -20,12 +20,12 @@ import { Sale, PaymentMethod, SaleStatus } from '@/types'
 import { STATUS_DB_NAMES, type SaleStatusKey } from '../types'
 import { isSalesSearchReady, salesSearchHint, SALES_MIN_TEXT_SEARCH_LEN } from '../salesSearchUtils'
 
-const mapStatusNameToKey = (name?: string): SaleStatusKey => {
-    if (!name) return 'completed'
-    const n = name.toLowerCase()
-    if (n.includes('complet')) return 'completed'
-    if (n.includes('cancel')) return 'cancelled'
-    return 'completed'
+const mapStatusNameToKey = (name?: string): SaleStatus => {
+    const n = name?.trim().toLowerCase()
+    if (n==='completada'||n==='completed') return 'completed'
+    if (n==='cancelada'||n==='cancelled') return 'cancelled'
+    if (n==='borrador'||n==='draft')return 'draft'
+    return 'legacy'
 }
 
 const SALES_LIST_KEY = 'ventas/list'
@@ -70,9 +70,9 @@ export const normalizeRawSale = (raw: unknown): Sale => {
                 ? (r as Record<string, unknown>).isFinalConsumer : false
     )
 
-    const payment = ((): PaymentMethod => {
+    const payment = ((): PaymentMethod|null => {
         const val = paymentObj?.name ?? r.payment_method ?? (r as Record<string, unknown>).payment
-        return String(val || '') as PaymentMethod
+        return val?String(val) as PaymentMethod:null
     })()
 
     const status = ((): SaleStatus => {
@@ -155,6 +155,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         const dte = d as Record<string, unknown>
         return {
             id: dte.id != null ? String(dte.id) : undefined,
+            document_type:dte.document_type!=null?String(dte.document_type):undefined,
             authorization: dte.authorization != null ? String(dte.authorization) : undefined,
             series: dte.series != null ? String(dte.series) : undefined,
             number: dte.number != null ? String(dte.number) : undefined,
@@ -170,6 +171,8 @@ export const normalizeRawSale = (raw: unknown): Sale => {
 
     return {
         id: String(r.id ?? ''),
+        commercial:r.commercial as Sale['commercial']??{state:({draft:'DRAFT',completed:'CONFIRMED',cancelled:'CANCELLED'} as const)[status as 'draft'|'completed'|'cancelled']||'LEGACY',originEngagementId:typeof r.origin_engagement_id==='string'?r.origin_engagement_id:null,version:Number(r.version)||1,confirmedAt:r.confirmed_at?String(r.confirmed_at):null,fiscalState:sale_dtes.length?'REVIEW_REQUIRED':'UNRECORDED'},
+        capabilities:r.capabilities as Sale['capabilities'],
         isCredit: paymentObj?.is_credit === true,
         paymentStatus: ['PENDING', 'PARTIAL', 'PAID'].includes(String(r.payment_status)) ? r.payment_status : undefined,
         dueDate: r.due_date ? String(r.due_date) : undefined,
@@ -271,6 +274,8 @@ export const useSalesData = () => {
         transactionCountToday: summary?.transactionCount ?? 0,
         averageTicketToday: summary?.averageTicket ?? 0,
         preferredPaymentMethod: summary?.preferredPaymentMethod ?? '—',
+        draftCount:summary?.draftCount??0,
+        draftTotal:summary?.draftTotal??0,
         setPage,
         pageSize,
         setPageSize: (value: number) => { if (cardsVisible) cardPagination.setCardPageSize(value); else updatePageSize(value); setPage(1) },

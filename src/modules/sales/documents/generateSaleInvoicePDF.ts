@@ -8,10 +8,9 @@ import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Sale } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils/formatters'
 import { previewLineTotal } from '@/lib/commercialQuantity'
-import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
+import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace, PDF_DOCUMENT_COLORS } from '@/utils/pdfBranding'
+import {internalSaleDocumentTitle,saleCommercialState,salePaymentLabel} from '../commercialPresentation'
 
-/** Color naranja/ámbar de la plataforma para encabezados en PDF (RGB) */
-const PDF_HEADER_COLOR: [number, number, number] = [217, 119, 6] // amber / liquor-amber
 const MARGIN = 18
 const PAGE_WIDTH = 210 // A4
 const CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN
@@ -34,8 +33,8 @@ export function generateSaleInvoicePDF(
 
   doc.setFontSize(18)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(0, 0, 0)
-  doc.text('FACTURA', PAGE_WIDTH / 2, y, { align: 'center' })
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.navy)
+  doc.text(internalSaleDocumentTitle(saleCommercialState(sale)), PAGE_WIDTH / 2, y, { align: 'center' })
   y += 6
 
   doc.setFontSize(10)
@@ -50,24 +49,23 @@ export function generateSaleInvoicePDF(
   doc.setFontSize(10)
   doc.text('Cliente:', MARGIN, y)
   doc.setFont('helvetica', 'normal')
-  doc.text(sale.customer || '—', MARGIN + 22, y)
-  y += 6
+  y = addDocumentText(doc, sale.customer || '—', MARGIN + 22, y, CONTENT_WIDTH - 22) + 2
+  y = ensureDocumentSpace(doc, y, 6)
   doc.setFont('helvetica', 'bold')
   doc.text('ID fiscal:', MARGIN, y)
   doc.setFont('helvetica', 'normal')
-  doc.text(sale.isFinalConsumer ? 'Consumidor Final' : (sale.customerNit || '—'), MARGIN + 22, y)
-  y += 6
+  y = addDocumentText(doc, sale.isFinalConsumer ? 'Consumidor Final' : (sale.customerNit || '—'), MARGIN + 22, y, CONTENT_WIDTH - 22) + 2
+  y = ensureDocumentSpace(doc, y, 6)
   doc.setFont('helvetica', 'bold')
   doc.text('Método de pago:', MARGIN, y)
   doc.setFont('helvetica', 'normal')
-  doc.text(String(sale.payment || '—'), MARGIN + 35, y)
-  y += 6
+  y = addDocumentText(doc, salePaymentLabel(sale), MARGIN + 35, y, CONTENT_WIDTH - 35) + 2
   if (sale.createdByName) {
+    y = ensureDocumentSpace(doc, y, 6)
     doc.setFont('helvetica', 'bold')
     doc.text('Registrada por:', MARGIN, y)
     doc.setFont('helvetica', 'normal')
-    doc.text(sale.createdByName, MARGIN + 32, y)
-    y += 8
+    y = addDocumentText(doc, sale.createdByName, MARGIN + 32, y, CONTENT_WIDTH - 32) + 4
   } else {
     y += 4
   }
@@ -76,27 +74,29 @@ export function generateSaleInvoicePDF(
     p.name,
     `${p.qty} ${p.unitLabel || ''}`.trim(),
     fmt(p.price),
-    fmt(Number(previewLineTotal(String(p.qty), String(p.price)))),
+    fmt(p.lineTotal ?? Number(previewLineTotal(String(p.qty), String(p.price)))),
   ])
 
   autoTable(doc, {
-    startY: y,
+    startY: ensureDocumentSpace(doc, y, 18),
     head: [['Producto', 'Cantidad', 'P. unit.', 'Subtotal']],
     body: tableBody,
     theme: 'grid',
-    headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold', fontSize: 9 },
-    bodyStyles: { fontSize: 9 },
+    ...documentTableStyles,
     columnStyles: {
-      0: { cellWidth: 90 },
+      0: { cellWidth: 88 },
       1: { cellWidth: 22, halign: 'right' },
       2: { cellWidth: 32, halign: 'right' },
       3: { cellWidth: 32, halign: 'right' },
     },
-    margin: { left: MARGIN, right: MARGIN },
+    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 20 },
     tableWidth: CONTENT_WIDTH,
   })
 
-  y = doc.lastAutoTable.finalY + 10
+  y = ensureDocumentSpace(doc, doc.lastAutoTable.finalY + 10, 26 + (Number(sale.discountTotal) > 0 ? 14 : 0) + (sale.hasReturns ? 6 : 0))
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(10)
+  doc.setTextColor(...PDF_DOCUMENT_COLORS.navy)
 
   if (Number(sale.discountTotal) > 0) {
     doc.setFont('helvetica', 'normal')
@@ -107,7 +107,7 @@ export function generateSaleInvoicePDF(
     doc.setTextColor(0, 128, 0)
     doc.text('(-) Descuentos:', MARGIN, y)
     doc.text(`-${fmt(sale.discountTotal!)}`, PAGE_WIDTH - MARGIN, y, { align: 'right' })
-    doc.setTextColor(0, 0, 0)
+    doc.setTextColor(...PDF_DOCUMENT_COLORS.navy)
     y += 8
   }
 
@@ -115,12 +115,16 @@ export function generateSaleInvoicePDF(
     doc.text('(-) Devoluciones:', MARGIN, y)
     doc.text(`-${fmt(sale.totalReturned ?? 0)}`, PAGE_WIDTH - MARGIN, y, { align: 'right' })
     y += 6
+    doc.setFillColor(...PDF_DOCUMENT_COLORS.total)
+    doc.rect(MARGIN, y - 5, CONTENT_WIDTH, 9, 'F')
     doc.setFont('helvetica', 'bold')
     doc.text('Total neto:', MARGIN, y)
     doc.text(fmt(sale.adjustedTotal ?? sale.total), PAGE_WIDTH - MARGIN, y, { align: 'right' })
     doc.setFont('helvetica', 'normal')
     y += 10
   } else {
+    doc.setFillColor(...PDF_DOCUMENT_COLORS.total)
+    doc.rect(MARGIN, y - 5, CONTENT_WIDTH, 9, 'F')
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(11)
     doc.text('Total:', MARGIN, y)
@@ -131,6 +135,7 @@ export function generateSaleInvoicePDF(
   }
 
   if (sale.payment === 'Efectivo' && (Number(sale.amountReceived) > 0 || Number(sale.change) > 0)) {
+    y = ensureDocumentSpace(doc, y, 18)
     doc.text('Monto recibido:', MARGIN, y)
     doc.text(fmt(sale.amountReceived), PAGE_WIDTH - MARGIN, y, { align: 'right' })
     y += 6
@@ -141,19 +146,22 @@ export function generateSaleInvoicePDF(
 
   const dte = sale.sale_dtes?.[0]
   if (sale.isCredit) {
-    if (y > 250) { doc.addPage(); y = 24 }
+    y = ensureDocumentSpace(doc, y, 24)
     doc.text('Venta a crédito', MARGIN, y); y += 6
-    doc.text(`Abonos: ${fmt(sale.creditPaid ?? 0)} · Saldo pendiente: ${fmt(sale.creditBalance ?? 0)}`, MARGIN, y); y += 6
-    if (sale.dueDate) { doc.text(`Vencimiento: ${formatDateTime(sale.dueDate, { hour: undefined, minute: undefined }, locale)}`, MARGIN, y); y += 8 }
+    y = addDocumentText(doc, `Abonos: ${fmt(sale.creditPaid ?? 0)} · Saldo pendiente: ${fmt(sale.creditBalance ?? 0)}`, MARGIN, y, CONTENT_WIDTH) + 2
+    if (sale.dueDate) y = addDocumentText(doc, `Vencimiento: ${formatDateTime(sale.dueDate, { hour: undefined, minute: undefined }, locale)}`, MARGIN, y, CONTENT_WIDTH) + 4
   }
   if (dte?.authorization) {
     doc.setFontSize(8)
-    doc.setTextColor(80, 80, 80)
-    doc.text(`Autorización SAT: ${dte.authorization}`, PAGE_WIDTH / 2, y, { align: 'center' })
-    y += 5
-    doc.setTextColor(0, 0, 0)
+    doc.setTextColor(...PDF_DOCUMENT_COLORS.muted)
+      for (const line of doc.splitTextToSize(`${dte.provider==='EXTERNAL'?'Documento externo · sin verificación automática':'Documento fiscal vinculado'} · ID: ${dte.authorization}`, CONTENT_WIDTH)) {
+      y = ensureDocumentSpace(doc, y, 5)
+      doc.text(line, PAGE_WIDTH / 2, y, { align: 'center' })
+      y += 5
+    }
   }
 
-  const filename = `Factura-${ref}.pdf`
+  const filename = `Comprobante-interno-${ref}.pdf`
+  addDocumentFooter(doc, `Venta #${ref} · No constituye factura fiscal`)
   doc.save(filename)
 }

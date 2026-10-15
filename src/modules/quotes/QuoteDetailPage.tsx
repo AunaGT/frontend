@@ -33,12 +33,16 @@ import {
   type QuoteStatus,
 } from "@/services/quoteService";
 import { generateQuotePDF } from "./documents/generateQuotePDF";
+import {quoteAgendaDestination} from './quoteViewModel.mjs';
+import {useTenant} from '@/context/useTenant';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const {company,branch,isConsolidated}=useTenant();
+  const quoteQueryKey=['quote',company?.id,isConsolidated?'all':branch?.id,id];
   const { hasPermission } = useAuthPermissions();
   const { isEnabled } = useModules();
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings();
@@ -53,15 +57,15 @@ export default function QuoteDetailPage() {
   const ordersEnabled = isEnabled("orders");
 
   const { data: quote, isLoading, isFetching, isError } = useQuery({
-    queryKey: ["quote", id],
+    queryKey: quoteQueryKey,
     queryFn: () => fetchQuoteById(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(id&&company?.id),
   });
 
   const statusMutation = useMutation({
     mutationFn: (status: QuoteStatus) => updateQuoteStatus(id!, status),
     onSuccess: (updated) => {
-      queryClient.setQueryData(["quote", id], updated);
+      queryClient.setQueryData(quoteQueryKey, updated);
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       toast({ title: "Estado actualizado", description: quoteStatusLabel(updated.status) });
     },
@@ -73,7 +77,7 @@ export default function QuoteDetailPage() {
   const convertMutation = useMutation({
     mutationFn: () => convertQuoteToOrder(id!),
     onSuccess: (order) => {
-      queryClient.invalidateQueries({ queryKey: ["quote", id] });
+      queryClient.invalidateQueries({ queryKey: quoteQueryKey });
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       toast({
         title: "Pedido creado",
@@ -158,14 +162,16 @@ export default function QuoteDetailPage() {
     ordersEnabled &&
     canManage &&
     !linkedOrder &&
+    !quote.engagementId &&
     quote.status === "ACCEPTED";
+  const canSchedule=isEnabled('appointments')&&hasPermission('appointments.view')&&(quote.agenda?.canOpen||quote.agenda?.canCreate);
 
   const publicUrl = quote.public_token ? `${window.location.origin}/q/${quote.public_token}` : "";
   const shareable = ["SENT", "ACCEPTED"].includes(quote.status);
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     {isFetching && <LoadingIndicator message="Actualizando cotización…" />}
     <header className="auna-page-toolbar"><div><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{quote.reference || quote.id.slice(0, 8)}</h1><QuoteStatusBadge status={quote.status} /></div><p className="auna-module-description">Creada el {formatDateTime(quote.created_at, undefined, locale)} por {quote.createdBy?.name || "usuario del sistema"}</p></div>
-      <div className="compact-filter-actions">{shareable && <Button variant="outline" onClick={() => void handleEmailLink()}><Mail className="mr-2 h-4 w-4" />Enviar por correo</Button>}{canConvert && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={convertMutation.isPending} onClick={() => convertMutation.mutate()}>{convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}Convertir a pedido</Button>}</div>
+      <div className="compact-filter-actions">{canSchedule&&<Button variant="outline" aria-label={quote.engagementId?'Ver contratación':'Agendar servicios'} onClick={()=>navigate(quoteAgendaDestination(quote))}><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true"/>{quote.engagementId?'Ver contratación':'Agendar servicios'}</Button>}{shareable && <Button variant="outline" onClick={() => void handleEmailLink()}><Mail className="mr-2 h-4 w-4" />Enviar por correo</Button>}{canConvert && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={convertMutation.isPending} onClick={() => convertMutation.mutate()}>{convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}Convertir a pedido</Button>}</div>
     </header>
     <section className="auna-surface grid gap-4 rounded-2xl border p-5 text-sm sm:grid-cols-3">
       <div><p className="text-muted-foreground">Cotización creada</p><p className="mt-1 font-semibold">{formatDateTime(quote.created_at, undefined, locale)}</p></div><div><p className="text-muted-foreground">Estado actual</p><div className="mt-1"><QuoteStatusBadge status={quote.status} /></div></div><div><p className="text-muted-foreground">Pedido vinculado</p>{linkedOrder ? <Button variant="link" className="h-auto p-0" disabled={!ordersEnabled} onClick={() => navigate(`/pedidos/${linkedOrder.id}`)}>{linkedOrder.reference || linkedOrder.id.slice(0, 8)}</Button> : <p className="mt-1">Todavía no convertida</p>}</div>

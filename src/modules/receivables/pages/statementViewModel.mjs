@@ -1,4 +1,10 @@
 /** Cargos netos de devoluciones y todos los abonos, incluidos anticipos. */
+export function paymentAllocationLabel(payment){
+  if(Number(payment.comprometido)>0)return 'Comprometido'
+  if(Number(payment.no_aplicado)>0)return 'Saldo a favor'
+  if(Number(payment.devuelto)>0)return 'Con devolución'
+  return 'Aplicado'
+}
 export function statementMovements(statement) {
   const movements = [
     ...statement.ventas.map(sale => ({ id: sale.id, date: sale.date, reference: sale.reference || sale.id.slice(0, 8), kind: 'SALE', charge: sale.total, credit: 0, sale })),

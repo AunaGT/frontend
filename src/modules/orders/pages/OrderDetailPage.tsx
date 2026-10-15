@@ -103,7 +103,7 @@ export default function OrderDetailPage() {
   const canManage = hasPermission("orders.manage");
   const canSell = hasPermission("sales.create");
   const isAdmin = String(user?.role?.name ?? "").toLowerCase() === "admin";
-  const { branches, company } = useTenant();
+  const { branches, company, branch, isConsolidated } = useTenant();
   const { isEnabled } = useModules();
 
   const [saleDialogOpen, setSaleDialogOpen] = useState(false);
@@ -128,9 +128,9 @@ export default function OrderDetailPage() {
   });
 
   const { data: order, isLoading, isFetching, isError } = useQuery({
-    queryKey: ["order", id],
+    queryKey: ["order", id, company?.id, isConsolidated?'all':branch?.id],
     queryFn: () => fetchOrderById(id!),
-    enabled: Boolean(id),
+    enabled: Boolean(id&&company?.id),
   });
 
   const contactId = order?.customerContact?.id;
@@ -143,7 +143,7 @@ export default function OrderDetailPage() {
 
   const hasSales = (order?.documentSales?.length ?? 0) > 0;
   const canRegisterSale =
-    order && order.fulfillment_mode !== 'SEPARATE' && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
+    order && !order.engagementId && order.fulfillment_mode !== 'SEPARATE' && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
 
   // Este botón vende directo desde el pedido, sin pasar por el selector de
   // caja de "Abrir en POS" — necesita saber solas cuáles cajas puede usar
@@ -390,7 +390,7 @@ export default function OrderDetailPage() {
 
   return (
     <div className="order-detail-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
-        {isFetching && <LoadingIndicator message="Actualizando pedido…" />}
+        {isFetching && <LoadingIndicator message="Actualizando pedido…" />}{order.engagementId&&<div className="flex flex-wrap items-center justify-between gap-3 border-y py-3"><p className="text-sm text-muted-foreground">Este pedido pertenece a una contratación de Agenda. Genera su venta desde el conjunto para aplicar los anticipos sin duplicarlos.</p><Button variant="outline" onClick={()=>navigate(`/agenda/contrataciones/${order.engagementId}`)}>Ver contratación</Button></div>}
         <header className="space-y-4">
           <Button type="button" variant="ghost" size="sm" className="pl-0" onClick={() => navigate("/pedidos")}>
             <ArrowLeft className="h-4 w-4" /> Pedidos

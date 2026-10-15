@@ -15,7 +15,7 @@ const base = {
   './api': api,
   '../services/api': api,
   '@/hooks/useRealtimeSales': { useRealtimeSales() {} },
-  'react-router-dom': { useNavigate: () => () => {}, useParams: () => ({ id: 'qa' }), useSearchParams: () => [new URLSearchParams()], useLocation: () => ({ state: null }) },
+  'react-router-dom': { useNavigate: () => () => {}, useParams: () => ({ id: 'qa' }), useSearchParams: () => [new URLSearchParams()], useLocation: () => ({ pathname: '/promociones/qa/editar', state: null }) },
   '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
   '@/hooks/useSystemSettings': { useSystemSettings: () => settings },
   '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => true }) },

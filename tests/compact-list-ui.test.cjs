@@ -782,6 +782,7 @@ test('the product identity presents its name and image without becoming another 
 })
 
 test('product details separate tasks into tabs and keep the initial view free of unrelated tables', () => {
+  overrides.set('@/modules/appointments/useServiceScheduleDraft', { useServiceScheduleDraft: () => ({ allowed: false, ready: true, payload: {}, reset() {}, async reload() {} }) })
   const apiProduct = { id: 'product', name: 'Producto UX', brand: 'Marca UX', size: '500 ml', category: 'Bebidas', supplier: 'Proveedor UX', stock: 10, min_stock: 2, price: 25, cost: 12, price_wholesale: 20, price_promotion: 18, promotion_valid_until: null, barcode: 'UX-123', description: 'Descripción UX', image_url: '/ux.png', available_for_sale: true, tracks_expiry: true, kind: 'STANDARD' }
   let stateIndex = 0
   let editing = false

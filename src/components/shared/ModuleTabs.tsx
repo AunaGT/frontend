@@ -4,7 +4,7 @@ import { TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
 const listClasses = 'inline-flex h-12 min-w-max items-center rounded-xl border border-border/70 bg-card p-1 shadow-sm dark:bg-[#101f34]'
-const triggerClasses = 'h-10 shrink-0 gap-2 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 data-[state=active]:bg-brand-orange data-[state=active]:text-white data-[state=active]:shadow-sm sm:px-4 sm:text-sm'
+const triggerClasses = 'inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg px-3 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 data-[state=active]:bg-brand-orange data-[state=active]:text-white data-[state=active]:shadow-sm sm:px-4 sm:text-sm'
 
 export const ModuleTabsList = React.forwardRef<
   React.ElementRef<typeof TabsList>,

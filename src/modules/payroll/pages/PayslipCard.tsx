@@ -10,6 +10,7 @@
 
 /** Recibo individual: devengos, deducciones y neto. Imprimible tal cual. */
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import type { Payslip } from '../api/payrollService'
 import './payrollPrint.css'
 
@@ -20,7 +21,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   EFECTIVO: 'Efectivo', TRANSFERENCIA: 'Transferencia', CHEQUE: 'Cheque',
 }
 
-export const PayslipCard = ({ payslip }: { payslip: Payslip }) => {
+export const PayslipCard = ({ payslip, companyName, companyLogoUrl }: { payslip: Payslip; companyName?: string; companyLogoUrl?: string }) => {
   const devengos = payslip.lines.filter((l) => l.type === 'DEVENGO')
   const deducciones = payslip.lines.filter((l) => l.type === 'DEDUCCION')
   const patronal = payslip.lines.filter((l) => l.type === 'COSTO_PATRONAL')
@@ -33,6 +34,10 @@ export const PayslipCard = ({ payslip }: { payslip: Payslip }) => {
 
   return (
     <Card className="auna-surface payroll-payslip print:break-inside-avoid">
+      {companyName && <div className="payroll-print-brand">
+        {companyLogoUrl && <CompanyLogo src={companyLogoUrl} alt={`Logo de ${companyName}`} imgClassName="payroll-print-logo" />}
+        <strong>{companyName}</strong>
+      </div>}
       <CardHeader className="pb-2">
         <CardTitle className="text-base">
           {payslip.employee?.first_name} {payslip.employee?.last_name}

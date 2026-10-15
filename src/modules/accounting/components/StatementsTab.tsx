@@ -55,7 +55,7 @@ const SubtotalRow = ({ label, value, accent }: { label: string; value: number; a
 
 export const StatementsTab = () => {
   const { toast } = useToast()
-  const { branches } = useTenant()
+  const { branches, company } = useTenant()
   // '' = toda la empresa · 'company' = solo asientos sin sucursal
   const [branchFilter, setBranchFilter] = useState('')
   const [byBranch, setByBranch] = useState<BranchResultsResponse | null>(null)
@@ -68,6 +68,7 @@ export const StatementsTab = () => {
   const [loadingPnl, setLoadingPnl] = useState(true)
   const [loadingBs, setLoadingBs] = useState(true)
   const [retry, setRetry] = useState(0)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -112,7 +113,7 @@ export const StatementsTab = () => {
         { label: 'Capital', value: bs ? fmtQ(bs.totalEquity) : '—', hint: `Al ${asOf || 'hoy'} · Toda la empresa` },
         { label: 'Resultado del período', value: pnl ? fmtQ(pnl.netIncome) : '—', hint: rangoTexto(from, to), alert: Boolean(pnl && pnl.netIncome < 0) },
       ]} />
-          <CompactFilterPanel title="Filtros de resultados" search={<p className="py-2 text-sm text-muted-foreground">{rangoTexto(from, to)}</p>} actions={<Button variant="outline" disabled={!pnl || !bs || loadingPnl || loadingBs} onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar</Button>} activeCount={Number(from !== firstOfYearISO())+Number(to !== todayISO())+Number(Boolean(branchFilter))} onClear={() => {setFrom(firstOfYearISO());setTo(todayISO());setBranchFilter('');}} appliedFilters={[...(from !== firstOfYearISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfYearISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : []),...(branchFilter ? [{label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`,onRemove: () => setBranchFilter('')}] : [])]}>
+          <CompactFilterPanel title="Filtros de resultados" search={<p className="py-2 text-sm text-muted-foreground">{rangoTexto(from, to)}</p>} actions={<Button variant="outline" disabled={!pnl || !bs || loadingPnl || loadingBs || exporting} onClick={() => setExportOpen(true)}><Download className="h-4 w-4 mr-2" />Exportar</Button>} activeCount={Number(from !== firstOfYearISO())+Number(to !== todayISO())+Number(Boolean(branchFilter))} onClear={() => {setFrom(firstOfYearISO());setTo(todayISO());setBranchFilter('');}} appliedFilters={[...(from !== firstOfYearISO() ? [{label: `Desde: ${from || 'Sin límite'}`,onRemove: () => setFrom(firstOfYearISO())}] : []),...(to !== todayISO() ? [{label: `Hasta: ${to || 'Sin límite'}`,onRemove: () => setTo(todayISO())}] : []),...(branchFilter ? [{label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`,onRemove: () => setBranchFilter('')}] : [])]}>
           <div className="space-y-1">
               <Label className="text-xs">Desde</Label>
               <Input type="date" className="w-[150px]" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -290,11 +291,16 @@ export const StatementsTab = () => {
         fileName="estados-financieros"
         summary={`Estado de resultados ${rangoTexto(from, to).toLowerCase()} y balance general al ${asOf || 'día de hoy'}. Salen los dos en el mismo archivo.`}
         formats={['xlsx']}
-        onExport={({ fileName }) => {
-          if (pnl && bs) {
-            exportStatements(pnl, bs, { from: from || undefined, to: to || undefined, asOf: asOf || undefined }, fileName)
-          }
-          setExportOpen(false)
+        pending={exporting}
+        onExport={async ({ fileName }) => {
+          if (!pnl || !bs || loadingPnl || loadingBs || exporting) return
+          setExporting(true)
+          try {
+            await exportStatements(pnl, bs, { from: from || undefined, to: to || undefined, asOf: asOf || undefined }, fileName, { companyName: company?.name || 'Empresa', scopeLabel: branchFilter === 'company' ? 'Solo empresa' : branches.find(branch => branch.id === branchFilter)?.name || 'Toda la empresa' })
+            setExportOpen(false)
+          } catch (error) {
+            toast({ title: 'Error', description: error instanceof Error ? error.message : 'No se pudo exportar', variant: 'destructive' })
+          } finally { setExporting(false) }
         }}
       />
     </div>

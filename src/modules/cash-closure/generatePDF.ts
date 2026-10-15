@@ -15,10 +15,7 @@ import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { CashClosure } from './types'
 import { formatCurrency, formatDateTime, toNumber, closureOpeningFloat } from './types'
-import { addJsPdfCompanyHeader } from '@/utils/pdfBranding'
-
-/** Color naranja/ámbar de la plataforma para encabezados en PDF (RGB) */
-const PDF_HEADER_COLOR: [number, number, number] = [217, 119, 6] // amber / liquor-amber
+import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace } from '@/utils/pdfBranding'
 
 export const generateClosurePDF = (
   closure: CashClosure,
@@ -93,11 +90,12 @@ export const generateClosurePDF = (
     ]
 
     autoTable(doc, {
+        ...documentTableStyles,
         startY: yPos,
         head: [['Concepto', 'Valor']],
         body: summaryData,
         theme: 'grid',
-        headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin, top: 20, bottom: 20 },
         columnStyles: {
             0: { cellWidth: 80, fontStyle: 'bold' },
             1: { cellWidth: 'auto', halign: 'right' }
@@ -107,6 +105,7 @@ export const generateClosurePDF = (
     yPos = doc.lastAutoTable.finalY + 15
 
     // Payment Methods Breakdown
+    yPos = ensureDocumentSpace(doc, yPos, 35)
     doc.setFontSize(12)
     doc.setFont('helvetica', 'bold')
     doc.text('DESGLOSE POR MÉTODO DE PAGO', margin, yPos)
@@ -121,11 +120,12 @@ export const generateClosurePDF = (
     ])
 
     autoTable(doc, {
+        ...documentTableStyles,
         startY: yPos,
         head: [['Método', 'Teórico', 'Contado', 'Diferencia', 'Notas']],
         body: paymentData,
         theme: 'grid',
-        headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin, top: 20, bottom: 20 },
         columnStyles: {
             1: { halign: 'right' },
             2: { halign: 'right' },
@@ -155,11 +155,12 @@ export const generateClosurePDF = (
         ])
 
         autoTable(doc, {
+            ...documentTableStyles,
             startY: yPos,
             head: [['Denominación', 'Tipo', 'Cantidad', 'Subtotal']],
             body: denominationData,
             theme: 'grid',
-            headStyles: { fillColor: PDF_HEADER_COLOR, textColor: 255, fontStyle: 'bold' },
+            margin: { left: margin, right: margin, top: 20, bottom: 20 },
             columnStyles: {
                 2: { halign: 'center' },
                 3: { halign: 'right' }
@@ -182,9 +183,7 @@ export const generateClosurePDF = (
         doc.text('NOTAS:', margin, yPos)
         yPos += 7
         doc.setFont('helvetica', 'normal')
-        const splitNotes = doc.splitTextToSize(closure.notes, pageWidth - 2 * margin)
-        doc.text(splitNotes, margin, yPos)
-        yPos += splitNotes.length * 5 + 10
+        yPos = addDocumentText(doc, closure.notes, margin, yPos, pageWidth - 2 * margin, 5) + 10
     }
 
     // Signatures
@@ -237,5 +236,6 @@ export const generateClosurePDF = (
     }
 
     // Save PDF
+    addDocumentFooter(doc, 'Cierre de caja')
     doc.save(`Cierre-Caja-${closure.closure_number}-${new Date().toISOString().split('T')[0]}.pdf`)
 }

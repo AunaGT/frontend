@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('prepaid draft labels never claim applied payment or fiscal authorization',()=>{
+  const {commercialLabel,draftCoverageLabel,fiscalLabel}=loadReportModule('../sales/commercialPresentation.ts')
+  assert.equal(commercialLabel('CONFIRMED'),'Confirmada')
+  assert.equal(commercialLabel('DRAFT'),'Borrador')
+  assert.equal(draftCoverageLabel({state:'DRAFT',remaining:'0.00',committed:'150.00'}),'Cubierto con anticipos')
+  assert.equal(draftCoverageLabel({state:'DRAFT',remaining:'0.00',committed:'0.00'}),null)
+  assert.equal(draftCoverageLabel({state:'CONFIRMED',remaining:'0.00',committed:'150.00'}),null)
+  assert.match(fiscalLabel('RECORDED_EXTERNAL'),/sin verificación automática/)
+})

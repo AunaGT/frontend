@@ -9,6 +9,7 @@
  */
 
 import { apiFetch } from "./api";
+import type {SaleCommercialView} from '@/types/sale';
 
 export interface SaleItemPayload {
   product_id: string;
@@ -88,6 +89,7 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
+  commercial?:SaleCommercialView;
   payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';
   due_date?: string | null;
   paymentEntries?: Array<{ amount: number | string }>;
@@ -122,7 +124,7 @@ export interface Sale {
     id: number;
     name: string;
     is_credit?: boolean;
-  };
+  } | null;
   sale_items: SaleItem[];
   sale_dtes?: SaleDte[];
   returns?: ReturnDetail[];
@@ -172,3 +174,5 @@ export const fetchSaleById = async (saleId: string): Promise<Sale> => {
     method: "GET",
   });
 };
+
+export const requestSaleInvoice=(saleId:string,input:{expectedVersion:number;idempotencyKey:string})=>apiFetch<SaleCommercialView>(`/sales/${encodeURIComponent(saleId)}/invoice-request`,{method:'POST',body:JSON.stringify(input)});

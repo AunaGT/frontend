@@ -20,13 +20,17 @@ import {
 import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
+import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { getLedger, type Account, type LedgerResponse } from '@/services/accountingService'
 import { fmtQ, fmtDate, rangoTexto } from './format'
 import { exportLedger } from './exportExcel'
 import { ExportDialog } from '@/components/shared/ExportDialog'
+import { useTenant } from '@/context/useTenant'
 
 export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
   const { toast } = useToast()
+  const { company } = useTenant()
+  const { timezone } = useSystemSettings()
   const [accountId, setAccountId] = useState('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
@@ -35,6 +39,7 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
   const [exportOpen, setExportOpen] = useState(false)
   const [loadError, setLoadError] = useState(false)
   const [retry, setRetry] = useState(0)
+  const [exporting, setExporting] = useState(false)
 
   const postables = accounts.filter((a) => !a.is_group)
 
@@ -63,7 +68,7 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
       ]} />
         <CompactFilterPanel title="Filtros de mayor" actions={<Button
             variant="outline" size="sm"
-            disabled={!data || loading}
+            disabled={!data || loading || exporting}
             onClick={() => setExportOpen(true)}
           >
             <Download className="h-4 w-4 mr-2" />Exportar
@@ -147,9 +152,16 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
         fileName={`libro-mayor-${data?.account?.code || 'cuenta'}`}
         summary={`${data?.account ? `${data.account.code} — ${data.account.name}` : 'Cuenta sin elegir'}. ${rangoTexto(from, to)} (${data?.movements.length ?? 0} movimiento(s)).`}
         formats={['xlsx']}
-        onExport={({ fileName }) => {
-          if (data) exportLedger(data, { from: from || undefined, to: to || undefined }, fileName)
-          setExportOpen(false)
+        pending={exporting}
+        onExport={async ({ fileName }) => {
+          if (!data || loading || exporting) return
+          setExporting(true)
+          try {
+            await exportLedger(data, { from: from || undefined, to: to || undefined }, fileName, { companyName: company?.name || 'Empresa', timezone })
+            setExportOpen(false)
+          } catch (error) {
+            toast({ title: 'Error', description: error instanceof Error ? error.message : 'No se pudo exportar', variant: 'destructive' })
+          } finally { setExporting(false) }
         }}
       />
     </section>

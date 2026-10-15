@@ -189,6 +189,15 @@ test('employee detail uses shared section tabs while preserving permission visib
 })
 
 const payslip = { id: 'slip-1', employee, days_worked: '30', total_earnings: '3250.00', total_deductions: '145.00', net_pay: '3105.00', employer_cost: '380.00', lines: [{ id: 'earning', type: 'DEVENGO', description: 'Salario', amount: '3250.00', quantity: '30' }, { id: 'deduction', type: 'DEDUCCION', description: 'IGSS', amount: '145.00' }, { id: 'cost', type: 'COSTO_PATRONAL', description: 'Costo patronal', amount: '380.00' }] }
+test('printed payslip includes the issuing company and optional proportional logo without changing amounts', () => {
+  const Card = loadReportModule('../payroll/pages/PayslipCard.tsx').default
+  const html = renderToStaticMarkup(React.createElement(Card, { payslip, companyName: 'Empresa recibo QA', companyLogoUrl: '/qa-company-logo.png' }))
+  assert.match(html, /Empresa recibo QA/)
+  assert.match(html, /src="\/qa-company-logo.png"/)
+  assert.match(html, /3,105\.00/)
+  const withoutLogo = renderToStaticMarkup(React.createElement(Card, { payslip, companyName: 'Empresa recibo QA' }))
+  assert.doesNotMatch(withoutLogo, /<img/)
+})
 test('payslip screen surface preserves employee, earnings, deductions and net receipt values', () => {
   const Card = loadReportModule('../payroll/pages/PayslipCard.tsx').default
   const html = renderToStaticMarkup(React.createElement(Card, { payslip }))
@@ -202,6 +211,7 @@ test('payroll pages share the same responsive page measure and keep pagination o
   const run = { id: 'run-1', code: 'NOM-1', name: 'Octubre', type: 'ORDINARIA', status: 'BORRADOR', period_start: '2026-10-01', period_end: '2026-10-31', pay_date: '2026-10-31', total_earnings: '3250', total_deductions: '145', total_net: '3105', total_employer_cost: '380', payslips: [payslip] }
   for (const page of ['PayrollRunsManagement', 'PayrollRunDetail']) {
     const Page = loadReportModule(`../payroll/pages/${page}.tsx`, {
+      '@/hooks/useSystemSettings': { useSystemSettings: () => ({ companyName: 'Empresa QA', companyLogoUrl: '' }) },
       '@/services/api': { apiFetch() { throw new Error('No real requests in SSR') } },
       '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
       '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => false }) },
