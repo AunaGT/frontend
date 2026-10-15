@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-15, Guatemala.
 
-Estado: enfoque conversacional aprobado por el usuario con «sí lo veo bien». Este documento formaliza ese enfoque para revisión; todavía no autoriza su aplicación a los datos ni afirma que los cambios estén implementados. Después de aprobar este documento se preparará el plan de implementación.
+Estado: diseño escrito aprobado por el usuario con «sí veo bien aprobado» el 2026-10-15. Plan preparado en `docs/superpowers/plans/2026-10-15-company-roles-management.md`, pendiente de revisión y elección de ejecución. Todavía no se han aplicado cambios a los roles ni se afirma que la función esté implementada.
 
 ## Resultado esperado
 
@@ -132,4 +132,4 @@ Fuera del cambio: creación de empresas, contratación de módulos, concesión m
 
 ## Siguiente paso
 
-Revisión y aprobación de este documento escrito. Después: plan de implementación con migración recuperable, política de roles, compatibilidad, interfaz y pruebas; revisión del plan y elección de ejecución. No se ha modificado código de producto, aplicado migraciones, concedido permisos ni eliminado roles durante esta fase de diseño.
+El diseño escrito está aprobado. Revisar el plan de implementación y elegir el método de ejecución antes de modificar producto o datos. No se ha modificado código de producto, aplicado migraciones, concedido permisos ni eliminado roles durante esta fase de diseño y planificación.
