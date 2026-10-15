@@ -21,4 +21,16 @@ test('double click sends once and late response after context change is ignored'
 test('an old callback cannot edit the draft of a different company',()=>{
  const m=mount();m.render();const old=m.render();m.setContext({companyId:'b',userId:'u'});m.setRole(undefined);m.render();old.setName('Company A draft');assert.equal(m.render().name,'')
 })
+test('delayed reset cannot discard newer keystrokes or a draft after context round trip',()=>{
+ const m=mount();m.render();m.render().setName('A pending');const resetA=m.render().reset
+ m.render().setName('Newer A draft');m.render();resetA();assert.equal(m.render().name,'Newer A draft');assert.equal(m.render().dirty,true)
+ const oldReset=m.render().reset;m.setContext({companyId:'b',userId:'u'});m.setRole({...m.props().role,id:202,name:'B'});m.render()
+ m.setContext({companyId:'a',userId:'u'});m.setRole({...m.props().role,id:101,name:'A'});m.render();m.render().setName('Newest A');m.render();oldReset();assert.equal(m.render().name,'Newest A');assert.equal(m.render().dirty,true)
+})
+test('restoring a conflict blocks keystrokes while loading and hydrates the fetched revision',async()=>{
+ const m=mount();m.render();m.render().setName('Pending');let finish
+ assert.equal(typeof m.render().restore,'function')
+ const pending=m.render().restore(()=>new Promise(r=>finish=r));m.render().setName('Late typing');assert.equal(m.render().name,'Pending');assert.equal(m.render().busy,true)
+ finish({...m.props().role,name:'Saved by other user',revision:5});await pending;assert.equal(m.render().name,'Saved by other user');assert.equal(m.render().busy,false);assert.equal(m.render().dirty,false)
+})
 module.exports={mount}

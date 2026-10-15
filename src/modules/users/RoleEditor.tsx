@@ -59,7 +59,7 @@ export default function RoleEditor({ id }: { id?: number }) {
         {(draft.error || draft.conflict) && <p role="alert" className="text-sm text-destructive">{draft.error || 'El rol cambió en otra sesión.'}{draft.conflict && ' Recarga los datos y presiona Restablecer para revisar la versión actual.'}</p>}
         <section className="users-panel"><header className="users-panel-heading flex-wrap gap-3"><h2>Matriz de permisos por módulo</h2>{!readOnly && <div className="flex flex-wrap gap-2">
           {id && <Button variant="outline" aria-label="Eliminar rol" disabled={draft.busy} onClick={() => setDeleting(true)}><Trash2 size={16} aria-hidden="true" /></Button>}
-          <Button variant="outline" disabled={draft.busy || (!draft.dirty && !draft.conflict)} onClick={() => { if (draft.conflict) void role.refetch().then(() => draft.reset()); else draft.reset() }}>Restablecer</Button>
+          <Button variant="outline" disabled={draft.busy || (!draft.dirty && !draft.conflict)} onClick={() => { if (draft.conflict) void draft.restore(async () => { const result = await role.refetch(); if (result.error) throw result.error; return result.data }); else draft.reset() }}>Restablecer</Button>
           <Button disabled={!draft.name.trim() || draft.busy || draft.conflict || (!!id && !draft.dirty)} onClick={save}>{draft.busy ? 'Guardando…' : id ? 'Guardar cambios' : 'Crear rol'}</Button>
         </div>}</header><PermissionMatrix catalog={catalog.data || []} selected={protectedRole ? (catalog.data || []).map(p => p.code) : draft.selected} onChange={draft.setSelected} disabled={readOnly || draft.busy} /></section>
         <p className="users-muted text-sm">Los permisos incluyen sus dependencias. La contratación de módulos se administra por separado.</p>

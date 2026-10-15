@@ -34,8 +34,9 @@ El historial remoto contiene migraciones antiguas que ya no existen en esta copi
 - Pruebas focalizadas observadas fallar y pasar: política, planificación/aplicación, validación, revisión, límites de concesión, fallback, editor, borrado, contexto y matriz.
 - HTTP real sobre handlers y router montado: 401 sin sesión, lector sin escritura, módulo deshabilitado, crear/actualizar, revisión requerida y conflicto.
 - Supabase real: mismo nombre en dos empresas; duplicado normalizado rechazado; nombre generado actualizado tras rename; revisión obsoleta; admin protegido; roles ajenos no disponibles; semilla de roles repetida; carrera asignar/borrar sin referencias colgantes y sesión con permisos retirados.
+- Dos comprobaciones reales de Supabase pasaron, sin skips. La segunda ejecuta el controlador de Usuarios simultáneamente en dos empresas: reprodujo `40P01` antes del arreglo y confirmó ambas reasignaciones después de bloquear primero al usuario compartido. La primera también verifica normalización repetida con rollback y alias borrado que no reaparece.
 - Prueba DB reutilizó empresas QA existentes `00fcf315-a7dc-4807-a3c7-4c6d4eeeeaac` y `2a119b1d-c681-4126-a5f8-e0f5a0b6648a`. Solo creó roles/cuentas QA propios, identificados en un ledger privado y retirados después; nunca modificó membresías originales ni activó módulos.
-- Suites al corte: backend 577 y módulos 96; frontend 689 y fronteras 23. Compilación de frontend correcta. Verificación final y revisión independiente registradas al cierre.
+- Suites al corte: backend 578 y módulos 96; frontend 691 y fronteras 23. Compilación de frontend correcta. La revisión independiente encontró dos casos Important, corregidos con regresiones observadas fallar y pasar: restablecimiento tardío y bloqueo entre reasignaciones de empresas distintas. Sin menores diferidos.
 - TypeScript conserva los once diagnósticos previos de caja, escáner, ajuste de existencias, venta nueva y proveedor: no se declara una comprobación de tipos limpia.
 - Revisión visual interactiva en claro, oscuro y móvil pendiente por la restricción guardada de localhost. SSR y pruebas de eventos no la sustituyen ni se eludió esa restricción.
 
@@ -53,3 +54,7 @@ Scripts de prueba manual antiguos con `role.upsert({where:{name:'Admin'}})` debe
 2. Se generó el cliente solo después de la pausa autorizada. Coste: breve indisponibilidad de la API durante el corte compatible.
 3. Se conservaron sin staging integraciones mixtas previas de schema/seed/empresas, fixture antiguo y etiquetas compartidas. Coste: los commits propios requieren también esas integraciones preservadas en el checkout.
 4. La divergencia histórica de migraciones no se reparó: no era parte de este cambio. Coste: permanece la advertencia de status y requiere su propia revisión antes de reconstruir una instancia desde historial antiguo.
+5. El revisor no realizó QA visual porque sigue restringido el navegador. Coste: queda pendiente validar temas, móvil y teclado con acceso autorizado.
+6. No se ejecutó recuperación ni reconstrucción desde cero: se verificaron la migración real, la equivalencia y semilla idempotente. Coste: esos procedimientos operativos todavía requieren un ensayo dedicado.
+7. El historial antiguo y cambios mixtos ajenos no se ampliaron como parte de la revisión de roles. Coste: posibles problemas ajenos conservan su revisión separada.
+8. No se añadió otra máquina de estado para un supuesto retorno A→B→A durante la duplicación: el cambio de empresa actual recarga el documento. Coste: revisar generaciones si ese comportamiento cambia; el editor y restablecimiento sí quedan protegidos por generación.

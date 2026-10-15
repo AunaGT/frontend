@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-15, Guatemala.
 
-Estado: diseño escrito aprobado por el usuario con «sí veo bien aprobado» el 2026-10-15. Plan preparado en `docs/superpowers/plans/2026-10-15-company-roles-management.md`, pendiente de revisión y elección de ejecución. Todavía no se han aplicado cambios a los roles ni se afirma que la función esté implementada.
+Estado: diseño y ejecución nativa aprobados por el usuario el 2026-10-15. Implementación y migración de roles aplicadas; revisión independiente final en curso. Ver evidencia y limitaciones en `docs/USERS_ROLES_VERIFICATION.md`.
 
 ## Resultado esperado
 
@@ -132,4 +132,4 @@ Fuera del cambio: creación de empresas, contratación de módulos, concesión m
 
 ## Siguiente paso
 
-El diseño escrito está aprobado. Revisar el plan de implementación y elegir el método de ejecución antes de modificar producto o datos. No se ha modificado código de producto, aplicado migraciones, concedido permisos ni eliminado roles durante esta fase de diseño y planificación.
+Cerrar la revisión independiente y registrar sus correcciones verificadas. La revisión visual interactiva permanece pendiente mientras siga la restricción guardada de localhost. No se concedieron permisos nuevos ni activaron módulos durante la normalización.
