@@ -38,11 +38,12 @@ import { useToast } from '@/hooks/use-toast'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useAuth } from '@/context/useAuth'
 import {
-  getUserById, getRoles, getRoleWithPermissions, updateUser,
+  getUserById, getRoleWithPermissions, updateUser,
   getUserActivity, updateUserAccess,
   type User, type Role, type UpdateUserPayload, type ActivityEvent, type Permission,
 } from '@/services/userService'
 import { UserTenantAccessCard } from './UserTenantAccessCard'
+import { useRoles } from '@/hooks/useRoles'
 import { listCashRegisters, type CashRegisterDto } from '@/services/cashSessionsService'
 import {
   AunaPanel, UserAvatar, StatusPill, AccessLevelPill, PageFooter,
@@ -85,7 +86,7 @@ export default function UserDetailPage() {
 
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [roles, setRoles] = useState<Role[]>([])
+  const rolesQuery = useRoles(), roles = rolesQuery.data || []
   const [roleDetail, setRoleDetail] = useState<Role | null>(null)
   useEffect(() => { setPermissionPage(1) }, [id, roleDetail?.id])
   const [cashRegisters, setCashRegisters] = useState<CashRegisterDto[]>([])
@@ -122,26 +123,31 @@ export default function UserDetailPage() {
   // Carga de datos
   useEffect(() => {
     if (!id) return
+    let cancelled = false
+    setUser(null); setRoleDetail(null); setIsEditing(searchParams.get('edit') === '1'); setConfirmAction(null)
     setIsLoading(true)
     getUserById(id)
       .then((u) => {
+        if (cancelled) return
         setUser(u)
         setEditName(u.name)
         setEditEmail(u.email)
         setEditRoleId(String(u.role_id ?? ''))
         setEditCashRegisterId(u.cash_register_id ?? '')
         if (u.role_id) {
-          getRoleWithPermissions(u.role_id).then(setRoleDetail).catch(() => {})
+          getRoleWithPermissions(u.role_id).then(value => { if (!cancelled) setRoleDetail(value) }).catch(() => {})
         }
       })
-      .catch((e) => toast({ title: 'Error', description: (e as Error).message, variant: 'destructive' }))
-      .finally(() => setIsLoading(false))
-  }, [id, accessVersion, toast])
+      .catch((e) => { if (!cancelled) toast({ title: 'Error', description: (e as Error).message, variant: 'destructive' }) })
+      .finally(() => { if (!cancelled) setIsLoading(false) })
+    return () => { cancelled = true }
+  }, [id, company?.id, currentUser?.id, accessVersion, toast])
 
   useEffect(() => {
-    getRoles().then(setRoles).catch(() => {})
-    listCashRegisters().then(setCashRegisters).catch(() => {})
-  }, [])
+    let cancelled = false; setCashRegisters([])
+    listCashRegisters().then(value => { if (!cancelled) setCashRegisters(value) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [company?.id, currentUser?.id])
 
   const resetEdit = () => {
     if (!user) return

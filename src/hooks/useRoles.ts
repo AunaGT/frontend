@@ -10,11 +10,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { getRoles } from "@/services/userService";
+import { useTenant } from '@/context/useTenant';
+import { useAuthPermissions } from '@/hooks/useAuthPermissions';
 
 export const useRoles = () => {
+  const { company } = useTenant(), { user, permissionsReady, hasPermission } = useAuthPermissions();
   return useQuery({
-    queryKey: ["roles"],
+    queryKey: ["roles", company?.id, user?.id],
     queryFn: getRoles,
     staleTime: 300000, // 5 minutos (los roles no cambian frecuentemente)
+    enabled: !!company && !!user && permissionsReady && hasPermission('roles.view', 'roles.manage', 'users.view', 'users.create', 'users.edit'),
   });
 };

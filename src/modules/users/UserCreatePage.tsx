@@ -19,7 +19,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { useCreateUser } from '@/hooks/useCreateUser'
-import { getRoles, getRoleWithPermissions, type Role } from '@/services/userService'
+import { getRoleWithPermissions } from '@/services/userService'
+import { useRoles } from '@/hooks/useRoles'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useTenant } from '@/context/useTenant'
 import { AunaPanel, CountryBadge } from './UsersUI'
 
@@ -49,21 +51,16 @@ export default function UserCreatePage() {
 
   // ─── 4. Roles ───
   const [roleSearch, setRoleSearch] = useState('')
-  const [roles, setRoles] = useState<Role[]>([])
+  const rolesQuery = useRoles(), roles = rolesQuery.data || []
+  const { user: actor } = useAuthPermissions()
   const [selectedRoles, setSelectedRoles] = useState<number[]>([])
 
   const isLoading = createUserMutation.isPending
 
   const effectiveCompanies = companies.filter(c => c.id === company?.id)
-  const selectedRole = useQuery({ queryKey: ['user-create-role', company?.id, selectedRoles[0]], queryFn: () => getRoleWithPermissions(selectedRoles[0]), enabled: !!selectedRoles[0] })
-  useEffect(() => { setSelectedCompanies(company ? [company.id] : []) }, [company?.id])
-  useEffect(() => {
-    let cancelled = false
-    getRoles().then(data => { if (!cancelled) setRoles(data) }).catch(e => {
-      if (!cancelled) toast({ title: 'No se pudieron cargar los roles', description: e.message, variant: 'destructive' })
-    })
-    return () => { cancelled = true }
-  }, [company?.id, toast])
+  const selectedRole = useQuery({ queryKey: ['user-create-role', company?.id, actor?.id, selectedRoles[0]], queryFn: () => getRoleWithPermissions(selectedRoles[0]), enabled: !!selectedRoles[0] && roles.some(r => r.id === selectedRoles[0]) })
+  useEffect(() => { setSelectedCompanies(company ? [company.id] : []); setSelectedRoles([]) }, [company?.id, actor?.id])
+  useEffect(() => { if (rolesQuery.error) toast({ title: 'No se pudieron cargar los roles', description: rolesQuery.error.message, variant: 'destructive' }) }, [rolesQuery.error, toast])
 
   const generateRandomPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%'

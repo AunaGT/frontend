@@ -54,6 +54,7 @@ const row = { Nombre: 'Usuario QA', Correo: 'qa@example.test', Rol: 'vendedor', 
 test('user creation uses shared submit and password controls without changing submission guards', () => {
   const nodes = [], writes = [], feedback = []
   const Page = loadReportModule('../users/UserCreatePage.tsx', {
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user: { id: 'qa-user' }, permissionsReady: true, hasPermission: () => true }) },
     '@/context/useTenant': { useTenant: () => ({ company: { id: 'qa', code: 'GT', name: 'Empresa QA', country: 'GT', currency: 'GTQ' }, companies: [{ id: 'qa', code: 'GT', name: 'Empresa QA', country: 'GT', currency: 'GTQ' }] }) },
     '@/hooks/use-toast': { useToast: () => ({ toast: message => feedback.push(message) }) },
     '@/hooks/useCreateUser': { useCreateUser: () => ({ isPending: false, mutateAsync: payload => writes.push(payload) }) },

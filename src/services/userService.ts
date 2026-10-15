@@ -60,6 +60,10 @@ export interface Permission {
 }
 
 export interface Role {
+  revision: number;
+  legacyReferenceCount?: number;
+  canDelete?: boolean;
+  deleteBlockedReason?: string | null;
   description?: string | null;
   company_id?: string | null;
   protected?: boolean;
@@ -199,7 +203,7 @@ export const getPermissions = async (): Promise<Permission[]> => {
 
 export const updateRole = async (
   id: number,
-  payload: { name?: string; description?: string; permissions?: string[] }
+  payload: { name: string; description?: string | null; permissions: string[]; expectedRevision: number }
 ): Promise<Role> => {
   return apiFetch<Role>(`/api/auth/roles/${id}`, {
     method: "PUT",
@@ -224,9 +228,10 @@ export type DeleteRoleResponse = {
   fallbackRoleName?: string;
 };
 
-export const deleteRole = async (id: number): Promise<DeleteRoleResponse> => {
+export const deleteRole = async (id: number, expectedRevision: number): Promise<DeleteRoleResponse> => {
   return apiFetch<DeleteRoleResponse>(`/api/auth/roles/${id}`, {
     method: "DELETE",
+    body: JSON.stringify({ expectedRevision }),
   });
 };
 
