@@ -7,6 +7,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
+import { isCashMethod } from '@/services/paymentMethodsService'
 import {normalizeQuantityInput,previewPartialLineTotal} from '@/lib/commercialQuantity';
 import { format } from "date-fns";
 import {
@@ -303,8 +304,7 @@ export default function OrderDetailPage() {
   if (isLoading) return <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8"><Button variant="link" onClick={() => navigate("/pedidos")}><ArrowLeft className="mr-2 h-4 w-4" />Pedidos</Button><LoadingState variant="detail" message="Cargando pedido…" /></div>;
   if (isError || !order) return <p className="p-6 text-destructive">Pedido no encontrado.</p>;
 
-  const isCash =
-    paymentMethods.find((p) => String(p.id) === paymentMethodId)?.name?.toLowerCase() === "efectivo";
+  const isCash = isCashMethod(paymentMethods.find((p) => String(p.id) === paymentMethodId),name=>name.toLowerCase()==='efectivo');
   const total = num(order.total);
   const hasServices = order.lines.some(line => line.item_kind === 'SERVICE');
   const totalOrdered = hasServices ? order.lines.length : order.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0);

@@ -17,6 +17,7 @@ export interface SalesQueryParams {
   pageSize?: number;
   search?: string;
   payment?: string;
+  payment_method_id?: number;
   includeSummary?: boolean;
 }
 
@@ -50,6 +51,7 @@ export const fetchSales = async (params: SalesQueryParams = {}): Promise<SalesLi
   if (params.pageSize) search.set("pageSize", String(params.pageSize));
   if (params.search?.trim()) search.set("search", params.search.trim());
   if (params.payment?.trim()) search.set("payment", params.payment.trim());
+  if (params.payment_method_id != null) search.set('payment_method_id',String(params.payment_method_id));
   if (params.includeSummary) search.set("includeSummary", "true");
 
   const url = `/api/sales${search.toString() ? `?${search.toString()}` : ""}`;

@@ -50,10 +50,12 @@ export const SalesFilters = ({
     period = 'today', onPeriodChange, paymentMethods, paymentMethodsLoading = false, showStatusFilter = true, actions,
 }: SalesFiltersProps) => {
     const methods = paymentMethods ?? ['Efectivo', 'Tarjeta', 'Transferencia'].map(name => ({ id: name, name, is_credit: false }))
+    const methodLabel = (method: typeof methods[number]) => `${method.is_credit ? 'A crédito · ' : ''}${method.name}${methods.filter(m=>m.name===method.name).length>1 ? ` · #${method.id}` : ''}`
+    const selectedMethod = methods.find(m=>String(m.id)===paymentFilter)
     const appliedFilters = [
         ...(isGlobalSearch && !searchHint && searchTerm.trim() ? [{label: `Búsqueda: ${searchTerm}`,onRemove: () => onSearchChange('')}] : []),
         ...(statusFilter !== 'all' ? [{label: `Estado: ${({draft:'Borrador',completed:'Confirmada',cancelled:'Cancelada'} as Record<string,string>)[statusFilter] || statusFilter}`,onRemove: () => onStatusChange('all')}] : []),
-        ...(paymentFilter !== 'all' ? [{label: `Pago: ${paymentFilter}`,onRemove: () => onPaymentChange('all')}] : []),
+        ...(paymentFilter !== 'all' ? [{label: `Pago: ${selectedMethod ? methodLabel(selectedMethod) : paymentFilter}`,onRemove: () => onPaymentChange('all')}] : []),
         ...(onPeriodChange && period !== 'today' ? [{label: `Período: ${PERIOD_LABELS[period] || period}`,onRemove: () => onPeriodChange('today')}] : []),
     ]
     return <div className="space-y-2"><CompactFilterPanel actions={actions} title="Filtros de ventas" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={() => {onSearchChange('');onStatusChange('all');onPaymentChange('all');onPeriodChange?.('today')}} search={
@@ -61,6 +63,6 @@ export const SalesFilters = ({
     }>
         {showStatusFilter && <div className="space-y-2"><Label>Estado</Label><Select value={statusFilter} onValueChange={(v: SaleStatusKey | 'all') => onStatusChange(v)}><SelectTrigger aria-label="Estado de venta"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="completed">Confirmada</SelectItem><SelectItem value="cancelled">Cancelada</SelectItem></SelectContent></Select></div>}
         {onPeriodChange && <div className="space-y-2"><Label>Período</Label><Select value={period} onValueChange={onPeriodChange}><SelectTrigger aria-label="Período de ventas"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(PERIOD_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>}
-        <div className="space-y-2"><Label>Método de pago</Label><Select value={paymentFilter} onValueChange={onPaymentChange} disabled={paymentMethodsLoading}><SelectTrigger aria-label="Método de pago"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los métodos</SelectItem>{methods.map(method => <SelectItem key={method.id} value={method.name}>{method.is_credit ? `A crédito · ${method.name}` : method.name}</SelectItem>)}</SelectContent></Select></div>
+        <div className="space-y-2"><Label>Método de pago</Label><Select value={paymentFilter} onValueChange={onPaymentChange} disabled={paymentMethodsLoading}><SelectTrigger aria-label="Método de pago"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los métodos</SelectItem>{methods.map(method => <SelectItem key={method.id} value={String(method.id)}>{methodLabel(method)}</SelectItem>)}</SelectContent></Select></div>
     </CompactFilterPanel>{searchHint ? <p className="text-xs text-amber-700 dark:text-amber-400">{searchHint}</p> : isGlobalSearch ? <p className="text-xs text-muted-foreground">La búsqueda consulta todo el historial; el resumen mantiene el período seleccionado.</p> : null}</div>
 }

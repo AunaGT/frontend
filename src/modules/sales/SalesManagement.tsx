@@ -71,7 +71,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
     const { locale, currencyCode } = useSystemSettings()
 
     const salesData = useSalesData()
-    const paymentMethods = usePaymentMethods()
+    const paymentMethods = usePaymentMethods({ includeInactive:true })
 
     // UI state
     const [updatingSaleIds, setUpdatingSaleIds] = useState<Set<string>>(new Set())

@@ -33,7 +33,7 @@ import {
   DenominationsCounter,
   ClosureSummaryCard,
 } from './components'
-import { isCashPaymentMethodName } from './types'
+import { isCashPaymentMethod } from './types'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 import './cash-closure-workflow.css'
@@ -243,7 +243,7 @@ export function CashClosureCreatePage() {
   const cashSession = api.theoreticalData?.cash_session
   const openingFloat = cashSession?.opening_float ?? 0
   const hasCashPayment =
-    openingFloat > 0 || form.paymentBreakdown.some((p) => isCashPaymentMethodName(p.payment_method_name))
+    openingFloat > 0 || form.paymentBreakdown.some((p) => isCashPaymentMethod(p))
   const closureDifference = api.theoreticalData
     ? form.getTotalDifference(api.theoreticalData.theoretical.net_total)
     : 0
@@ -259,7 +259,7 @@ export function CashClosureCreatePage() {
       return sum + Number(denomination.denomination) * nextQuantity
     }, 0)
     const cashIndex = form.paymentBreakdown.findIndex((item) =>
-      isCashPaymentMethodName(item.payment_method_name)
+      isCashPaymentMethod(item)
     )
     if (cashIndex >= 0) {
       form.updateActualAmount(cashIndex, 'actual_amount', countedCash)

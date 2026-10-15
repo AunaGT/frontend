@@ -171,6 +171,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
 
     return {
         id: String(r.id ?? ''),
+        settlementSource: r.settlement_source === 'ENGAGEMENT_RECEIPTS' ? 'ENGAGEMENT_RECEIPTS' : 'LEGACY',
         commercial:r.commercial as Sale['commercial']??{state:({draft:'DRAFT',completed:'CONFIRMED',cancelled:'CANCELLED'} as const)[status as 'draft'|'completed'|'cancelled']||'LEGACY',originEngagementId:typeof r.origin_engagement_id==='string'?r.origin_engagement_id:null,version:Number(r.version)||1,confirmedAt:r.confirmed_at?String(r.confirmed_at):null,fiscalState:sale_dtes.length?'REVIEW_REQUIRED':'UNRECORDED'},
         capabilities:r.capabilities as Sale['capabilities'],
         isCredit: paymentObj?.is_credit === true,
@@ -239,7 +240,8 @@ export const useSalesData = () => {
 
     const listQuery = useSales({
         status: statusFilter === 'all' ? undefined : STATUS_DB_NAMES[statusFilter],
-        payment: paymentFilter === 'all' ? undefined : paymentFilter,
+        payment_method_id: /^[1-9]\d*$/.test(paymentFilter) ? Number(paymentFilter) : undefined,
+        payment: paymentFilter === 'all' || /^[1-9]\d*$/.test(paymentFilter) ? undefined : paymentFilter,
         period: isGlobalSearch ? undefined : period,
         search: isGlobalSearch ? debouncedSearch : undefined,
         pageSize,

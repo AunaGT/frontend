@@ -5,6 +5,7 @@ import {Input} from '@/components/ui/input'
 import {Label} from '@/components/ui/label'
 import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select'
 import {usePaymentMethods} from '@/hooks/usePaymentMethods'
+import {isCashMethod} from '@/services/paymentMethodsService'
 import {fetchCashSessionCurrent} from '@/services/cashSessionsService'
 import {useAgendaContext} from '../useAgendaContext'
 import {appointmentQueryKey,assertCurrentScope} from '../api'
@@ -17,7 +18,7 @@ import type {EngagementDetail,EngagementPaymentResult} from '../commercialTypes'
 export function useEngagementPaymentChannel(enabled:boolean){
   const ctx=useAgendaContext(),methods=usePaymentMethods(),[methodId,setMethodId]=useState('')
   const choices=(methods.data||[]).filter(m=>!m.is_credit),method=choices.find(m=>String(m.id)===methodId)
-  const cash=!!method&&['cash','efectivo'].includes(method.name.trim().toLowerCase())
+  const cash=isCashMethod(method,name=>['cash','efectivo'].includes(name.trim().toLowerCase()))
   const session=useQuery({queryKey:appointmentQueryKey(ctx.scope,'cash-session-current'),enabled:enabled&&ctx.writable&&cash,queryFn:async({signal})=>{
     assertCurrentScope(ctx.scope,signal)
     const value=await fetchCashSessionCurrent()

@@ -60,6 +60,7 @@ import { fetchStockByLocation } from '@/services/stockMoveService'
 import { useAllProducts, PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
+import { isCashMethod } from '@/services/paymentMethodsService'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useExperienceProfile } from '@/hooks/useExperienceProfile'
@@ -587,7 +588,7 @@ export default function NewSalePage() {
     ? cart.cartTotal
     : (promotions.finalTotal ?? cart.cartTotal)
   const changeAmount =
-    paymentMethod?.name?.toLowerCase() === 'efectivo' && amountReceived
+    isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') && amountReceived
       ? Math.max(0, parseFloat(amountReceived) - displayTotal)
       : 0
 
@@ -597,7 +598,7 @@ export default function NewSalePage() {
   // un método de crédito nunca se autoselecciona.
   useEffect(() => {
     if (paymentMethod && visiblePaymentMethods.some((method) => method.id === paymentMethod.id)) return
-    const cash = visiblePaymentMethods.find((method) => method.name.toLowerCase() === 'efectivo')
+    const cash = visiblePaymentMethods.find((method) => isCashMethod(method,name=>name.toLowerCase()==='efectivo'))
     setPaymentMethod(cash ?? visiblePaymentMethods.find((method) => !method.is_credit) ?? null)
   }, [paymentMethod, salesAllowCredit, visiblePaymentMethods])
 
@@ -1186,7 +1187,7 @@ export default function NewSalePage() {
         return
       }
     }
-    const isCash = paymentMethod.name?.toLowerCase() === 'efectivo'
+    const isCash = isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo')
     if (isCash) {
       const received = parseFloat(amountReceived || '0')
       if (Number.isNaN(received) || received < displayTotal) {
@@ -1728,7 +1729,7 @@ export default function NewSalePage() {
                   </AlertDescription>
                 </Alert>
               )}
-              {paymentMethod?.name?.toLowerCase() === 'efectivo' && (
+              {isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="amount">Monto recibido</Label>
@@ -1924,7 +1925,7 @@ export default function NewSalePage() {
                 cart.hasInvalidQuantities || promotions.isValidating || (pricingReadyRef.current!==pricingContext && !loadedOrder) ||
                 !paymentMethod ||
                 isProcessing ||
-                (paymentMethod?.name?.toLowerCase() === 'efectivo' &&
+                (isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') &&
                   (!amountReceived ||
                     Number.isNaN(parseFloat(amountReceived)) ||
                     parseFloat(amountReceived) < displayTotal)) ||

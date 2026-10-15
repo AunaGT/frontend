@@ -17,7 +17,7 @@ import { Label } from '@/components/ui/label'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { CreditCard } from 'lucide-react'
 import type { PaymentMethodBreakdown, TheoreticalData } from '../types'
-import { formatCurrency, isCashPaymentMethodName, toNumber } from '../types'
+import { formatCurrency, isCashPaymentMethod, toNumber } from '../types'
 
 interface PaymentMethodsFormProps {
     paymentBreakdown: PaymentMethodBreakdown[]
@@ -41,7 +41,7 @@ export const PaymentMethodsForm = ({
             <p className="text-xs text-muted-foreground">Verifica cada monto. Escribe 0 cuando corresponda.</p>
             {paymentBreakdown.map((item, index) => {
                 const isCash =
-                    isCashPaymentMethodName(item.payment_method_name) &&
+                    isCashPaymentMethod(item) &&
                     cashSession &&
                     cashSession.opening_float > 0
 

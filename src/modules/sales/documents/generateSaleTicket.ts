@@ -248,7 +248,7 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   y += LINE_HEIGHT
 
   // ----- Pago -----
-  doc.text(`Pago: ${state==='DRAFT'?'Por definir al confirmar':sale.payment_method?.name ?? 'No registrado'}`, X_LEFT, y)
+  doc.text(`Pago: ${state==='DRAFT'?'Por definir al confirmar':sale.payment_method?.name ?? (sale.settlement_source==='ENGAGEMENT_RECEIPTS'?'Recibos vinculados / varios medios':'No registrado')}`, X_LEFT, y)
   y += LINE_HEIGHT
   if (sale.payment_method?.is_credit) {
     const paid = (sale.paymentEntries ?? []).reduce((sum, entry) => sum + Number(entry.amount), 0)

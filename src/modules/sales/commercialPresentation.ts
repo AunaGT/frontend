@@ -8,4 +8,4 @@ export const internalSaleDocumentTitle=(state:CommercialState):string=>({DRAFT:'
 export function saleCommercialState(sale:Pick<Sale,'status'|'commercial'>):CommercialState{
   return sale.commercial?.state??({draft:'DRAFT',completed:'CONFIRMED',cancelled:'CANCELLED'} as Partial<Record<Sale['status'],CommercialState>>)[sale.status]??'LEGACY'
 }
-export const salePaymentLabel=(sale:Sale):string=>saleCommercialState(sale)==='DRAFT'?'Por definir al confirmar':sale.isCredit?'A crédito':sale.payment||'Medio no registrado'
+export const salePaymentLabel=(sale:Sale):string=>saleCommercialState(sale)==='DRAFT'?'Por definir al confirmar':sale.isCredit?'A crédito':sale.payment||(sale.settlementSource==='ENGAGEMENT_RECEIPTS'?'Recibos vinculados / varios medios':'Medio no registrado')

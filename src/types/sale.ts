@@ -62,6 +62,7 @@ export interface SalePromotion {
 
 // Interfaz principal de venta
 export interface Sale extends BaseEntity {
+  settlementSource?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS';
   commercial?:SaleCommercialView;
   capabilities?:{confirm:boolean;requestInvoice:boolean;collect:boolean;reason:string};
   isCredit?: boolean;

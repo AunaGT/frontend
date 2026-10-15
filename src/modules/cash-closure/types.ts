@@ -12,13 +12,16 @@
  * Types specific to the Cash Closure feature
  */
 
+import { isCashMethod, type SettlementKind } from '@/services/paymentMethodsService'
 export interface PaymentMethodBreakdown {
+    settlement_kind?: SettlementKind | null
     id?: number
     cash_closure_id?: string
     payment_method_id: number
     payment_method?: {
         id: number
         name: string
+        settlement_kind?: SettlementKind | null
     }
     payment_method_name?: string
     theoretical_amount: number | string
@@ -120,6 +123,9 @@ export const GUATEMALAN_DENOMINATIONS: Denomination[] = [
 export function isCashPaymentMethodName(name?: string | null): boolean {
     const n = String(name || '').toLowerCase()
     return n.includes('efectivo') || n.includes('cash')
+}
+export function isCashPaymentMethod(item: Pick<PaymentMethodBreakdown,'payment_method_name'|'payment_method'|'settlement_kind'>): boolean {
+    return isCashMethod({name:item.payment_method_name??item.payment_method?.name,settlement_kind:item.settlement_kind??item.payment_method?.settlement_kind},isCashPaymentMethodName)
 }
 
 /** Nombre de la caja donde se hizo el turno, o '—' si no está ligado a una sesión */

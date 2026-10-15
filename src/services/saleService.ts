@@ -89,6 +89,7 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
+  settlement_source?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS';
   commercial?:SaleCommercialView;
   payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';
   due_date?: string | null;
