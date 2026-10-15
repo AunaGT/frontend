@@ -2,7 +2,7 @@
 
 Fecha: 2026-10-14, Guatemala.
 
-Estado: alcance conversacional aprobado; este diseño escrito queda pendiente de revisión del usuario. No autoriza todavía la implementación ni una migración.
+Estado: diseño y ejecución nativa aprobados por el usuario. La migración aditiva ya está aplicada a Supabase de desarrollo. Implementación y correcciones de revisión verificadas al 2026-10-15; revisión visual interactiva pendiente. Resultados y limitaciones en `docs/CARTERA_PAYABLES_VERIFICATION.md`.
 
 ## Objetivo y alcance aprobado
 
@@ -136,4 +136,4 @@ Verificar antes de considerar la entrega terminada:
 
 ## Próximo paso
 
-Revisión del usuario de este diseño escrito. Una vez aprobado, redactar el plan de implementación por cambios de persistencia, servicio compartido, consultas, vistas, exportaciones y verificación, y presentar su ejecución. No se ha modificado código de producto, datos ni permisos durante esta fase de diseño.
+El diseño y el plan están aprobados. Completar revisión independiente y registrar la verificación real sin confundir los criterios de aceptación con comprobaciones ya realizadas.

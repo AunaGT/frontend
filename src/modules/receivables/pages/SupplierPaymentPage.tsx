@@ -25,22 +25,35 @@ import {
 } from "../hooks/useSupplierPaymentDraft";
 import { fetchPayableSelection } from "../api/payablesService";
 import { usePayableFormat } from "../components/PayableEntries";
-export function SupplierPaymentForm({ context }: { context: DraftContext }) {
+export function SupplierPaymentForm({
+  context,
+  source = "cartera",
+}: {
+  context: DraftContext;
+  source?: "cartera" | "merchandise";
+}) {
   const draft = useSupplierPaymentDraft(context),
     navigate = useNavigate(),
     methods = usePaymentMethods(),
     invalidate = useInvalidatePayables(),
     { money, date } = usePayableFormat();
   usePageTrail([
-    { label: "Cartera", to: "/cartera?seccion=pagar" },
+    {
+      label: source === "merchandise" ? "Mercancía" : "Cartera",
+      to: source === "merchandise" ? "/mercancia" : "/cartera?seccion=pagar",
+    },
     { label: "Registrar pago a proveedor" },
   ]);
   useEffect(() => {
     if (draft.receipt) {
       void invalidate();
-      navigate("/cartera/pagos/" + draft.receipt.id, { replace: true });
+      navigate(
+        (source === "merchandise" ? "/mercancia/pagos/" : "/cartera/pagos/") +
+          draft.receipt.id,
+        { replace: true },
+      );
     }
-  }, [draft.receipt, invalidate, navigate]);
+  }, [draft.receipt, invalidate, navigate, source]);
   useEffect(() => {
     if (!draft.amount && !draft.busy && !draft.ambiguous) return;
     const warn = (e: BeforeUnloadEvent) => {
@@ -74,7 +87,11 @@ export function SupplierPaymentForm({ context }: { context: DraftContext }) {
               !draft.amount ||
               window.confirm("¿Descartar este borrador de pago?")
             )
-              navigate("/cartera?seccion=pagar");
+              navigate(
+                source === "merchandise"
+                  ? "/mercancia/" + (draft.selected[0]?.id || "")
+                  : "/cartera?seccion=pagar",
+              );
           }}
         >
           <ArrowLeft size={16} className="mr-2" />
@@ -336,18 +353,22 @@ export function SupplierPaymentForm({ context }: { context: DraftContext }) {
     </form>
   );
 }
-export default function SupplierPaymentPage() {
+export default function SupplierPaymentPage({
+  source = "cartera",
+}: { source?: "cartera" | "merchandise" } = {}) {
   const context = useCarteraAccess(),
     [params] = useSearchParams(),
     { user } = useAuth(),
     settings = useSystemSettings(),
-    ids = (params.get("entradas") || "").split(",").filter(Boolean);
+    ids = (params.get("entradas") || "").split(",").filter(Boolean),
+    available =
+      source === "merchandise" ? context.merchandisePayable : context.payable;
   const query = useQuery({
     queryKey: ["payables", ...context.key, "selection", ids],
     queryFn: () => fetchPayableSelection(ids),
     enabled:
       context.ready &&
-      context.payable &&
+      available &&
       ids.length > 0 &&
       !context.tenant.isConsolidated,
   });
@@ -358,7 +379,7 @@ export default function SupplierPaymentPage() {
       </p>
     );
   if (
-    !context.payable ||
+    !available ||
     !context.hasPermission("merchandise.mark_paid") ||
     context.tenant.isConsolidated ||
     !context.tenant.branch
@@ -373,7 +394,13 @@ export default function SupplierPaymentPage() {
       <div className="p-6">
         <p>Selecciona las entradas del proveedor en Cuentas por pagar.</p>
         <Button asChild>
-          <a href="/cartera?seccion=pagar">Seleccionar entradas</a>
+          <a
+            href={
+              source === "merchandise" ? "/mercancia" : "/cartera?seccion=pagar"
+            }
+          >
+            Seleccionar entradas
+          </a>
         </Button>
       </div>
     );
@@ -393,6 +420,7 @@ export default function SupplierPaymentPage() {
   return (
     <main className="mx-auto max-w-[1560px] px-4 py-6 sm:px-6">
       <SupplierPaymentForm
+        source={source}
         key={context.key.join(":")}
         context={{
           companyId: context.tenant.company!.id,

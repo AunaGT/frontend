@@ -123,6 +123,26 @@ test("409 preserves user amounts and removes confirmation until balances are rev
   assert.equal(m.state.canConfirm, false);
   assert.match(m.state.error, /saldo cambió/i);
 });
+test("a malformed 201 success response preserves the original request for recovery", async () => {
+  let fail = true;
+  const m = mount(async () => {
+    if (fail)
+      throw Object.assign(Error("Respuesta JSON incompleta"), { status: 201 });
+    return { id: "committed-receipt" };
+  });
+  ready(m);
+  await m.state.confirm();
+  m.render();
+  assert.equal(m.state.ambiguous, true);
+  m.state.setAmount("1.00");
+  m.render();
+  assert.equal(m.state.amount, "100.00");
+  fail = false;
+  await m.state.confirm();
+  m.render();
+  assert.deepEqual(m.posts[1], m.posts[0]);
+  assert.equal(m.state.receipt.id, "committed-receipt");
+});
 test("late response is discarded after changing branch", async () => {
   let release;
   const m = mount(() => new Promise((r) => (release = r)));
@@ -134,6 +154,14 @@ test("late response is discarded after changing branch", async () => {
   m.render();
   assert.equal(m.state.receipt, null);
   assert.equal(m.state.amount, "");
+});
+test("a success object without a receipt id stays ambiguous instead of allowing a new payment", async () => {
+  const m = mount(async () => ({}));
+  ready(m);
+  await m.state.confirm();
+  m.render();
+  assert.equal(m.state.ambiguous, true);
+  assert.equal(m.state.receipt, null);
 });
 test("insufficient selection or mixed suppliers cannot be reviewed", () => {
   const m = mount(async () => ({}));

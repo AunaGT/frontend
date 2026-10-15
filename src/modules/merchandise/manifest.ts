@@ -7,6 +7,8 @@ export const merchandiseModule = {
     list: '/mercancia',
     create: '/inventario/registrar-ingreso',
     detail: '/mercancia/:id',
+    payment: '/mercancia/pagos/nuevo',
+    receipt: '/mercancia/pagos/:id',
   },
   routePrefixes: ['/inventario/registrar-ingreso'] as const,
   pages: {
@@ -14,5 +16,7 @@ export const merchandiseModule = {
     Create: lazy(() => import('./pages/RegisterIncomingMerchandise')
       .then((module) => ({ default: module.RegisterIncomingMerchandise }))),
     Detail: lazy(() => import('./pages/IncomingMerchandiseDetailPage')),
+    Payment: lazy(() => import('./pages/SupplierPaymentPage')),
+    Receipt: lazy(() => import('./pages/SupplierPaymentReceiptPage')),
   },
 } as const

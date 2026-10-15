@@ -71,6 +71,9 @@ test("real receipt PDF is multipage and its cancelled status and last applicatio
   assert.match(text, /Corrección por distribución equivocada/);
   assert.match(text, /ENT-59/);
   assert.match(text, /Empresa de prueba/);
+  const pages = text.split("\f").filter((page) => page.trim());
+  assert.ok(pages.length >= 3);
+  for (const page of pages) assert.match(page, /ANULADO - SIN EFECTO/);
   assert.ok(!text.includes("FEL emitida"));
   assert.match(execFileSync("pdffonts", [file]).toString(), /CouponNoto.*yes/);
 });

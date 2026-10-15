@@ -195,7 +195,10 @@ export default function SupplierStatementPage() {
                 ? data.payments.items.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell>{date(r.paidAt)}</TableCell>
-                      <TableCell>{r.id.slice(0, 8).toUpperCase()}</TableCell>
+                      <TableCell>
+                        {r.kind === "LEGACY" ? "Abono anterior · " : ""}
+                        {r.id.slice(0, 8).toUpperCase()}
+                      </TableCell>
                       <TableCell className="font-semibold">
                         {money(r.amount)}
                       </TableCell>
@@ -207,14 +210,29 @@ export default function SupplierStatementPage() {
                       </TableCell>
                       <TableCell>
                         {r.status === "CANCELLED" ? "Anulado" : "Registrado"}
+                        {r.cancelReason && (
+                          <small className="block text-muted-foreground">
+                            {r.cancelReason}
+                          </small>
+                        )}
                       </TableCell>
                       <TableCell>{r.registeredBy.name}</TableCell>
                       <TableCell>
                         <Button
                           variant="outline"
                           size="icon"
-                          aria-label="Ver comprobante de proveedor"
-                          onClick={() => navigate("/cartera/pagos/" + r.id)}
+                          aria-label={
+                            r.kind === "LEGACY"
+                              ? "Ver entrada del abono anterior"
+                              : "Ver comprobante de proveedor"
+                          }
+                          onClick={() =>
+                            navigate(
+                              r.kind === "LEGACY"
+                                ? "/mercancia/" + r.incomingId
+                                : "/cartera/pagos/" + r.id,
+                            )
+                          }
                         >
                           <Eye size={16} />
                         </Button>
@@ -248,6 +266,32 @@ export default function SupplierStatementPage() {
                           (r.after as { balance?: string | null }).balance ??
                             "Por revisar",
                         )}
+                        {r.action === "CONDITIONS_UPDATED" &&
+                          ["before", "after"].map((side) => {
+                            const conditions = (
+                              r[side as "before" | "after"] as {
+                                conditions?: {
+                                  due_date: string | null;
+                                  payment_term_id: number | null;
+                                  payment_reference: string | null;
+                                };
+                              }
+                            ).conditions;
+                            return conditions ? (
+                              <small
+                                key={side}
+                                className="block text-muted-foreground"
+                              >
+                                {side === "before" ? "Antes" : "Después"}: vence{" "}
+                                {conditions.due_date?.slice(0, 10) ||
+                                  "Sin fecha"}{" "}
+                                · término{" "}
+                                {conditions.payment_term_id ?? "Sin término"} ·{" "}
+                                {conditions.payment_reference ||
+                                  "Sin referencia"}
+                              </small>
+                            ) : null;
+                          })}
                       </TableCell>
                     </TableRow>
                   ))}

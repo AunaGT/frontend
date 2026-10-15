@@ -26,7 +26,9 @@ import {
   generateSupplierPaymentPdf,
   downloadReportBlob,
 } from "../documents/payablesDocuments";
-export default function SupplierPaymentReceiptPage() {
+export default function SupplierPaymentReceiptPage({
+  source = "cartera",
+}: { source?: "cartera" | "merchandise" } = {}) {
   const { id = "" } = useParams(),
     access = useCarteraAccess(),
     navigate = useNavigate(),
@@ -38,21 +40,31 @@ export default function SupplierPaymentReceiptPage() {
     [pendingPdf, setPendingPdf] = useState(false),
     [error, setError] = useState(""),
     [pdf, setPdf] = useState<{ key: string; blob: Blob } | null>(null);
+  const available =
+    source === "merchandise" ? access.merchandisePayable : access.payable;
   const query = useQuery({
       queryKey: ["payables", ...access.key, "receipt", id],
       queryFn: () => fetchSupplierReceipt(id),
-      enabled: access.ready && access.payable && !!id,
+      enabled: access.ready && available && !!id,
     }),
     r = query.data,
-    key = JSON.stringify([access.key, id, r?.status]),
+    canExport =
+      access.ready && available && access.hasPermission("merchandise.reports"),
+    key = JSON.stringify([access.key, id, r?.status, canExport]),
     current = useRef(key),
     generation = useRef(0);
   current.current = key;
   usePageTrail([
-    { label: "Cartera", to: "/cartera?seccion=pagar" },
+    {
+      label: source === "merchandise" ? "Mercancía" : "Cartera",
+      to: source === "merchandise" ? "/mercancia" : "/cartera?seccion=pagar",
+    },
     {
       label: r?.supplierName || "Proveedor",
-      to: r ? "/cartera/proveedores/" + r.supplierId : undefined,
+      to:
+        source === "cartera" && r
+          ? "/cartera/proveedores/" + r.supplierId
+          : undefined,
     },
     { label: "Comprobante " + id.slice(0, 8).toUpperCase() },
   ]);
@@ -72,6 +84,12 @@ export default function SupplierPaymentReceiptPage() {
     },
     [],
   );
+  if (!access.ready || !available)
+    return (
+      <p role="alert" className="p-6">
+        Este comprobante no está disponible en el contexto actual.
+      </p>
+    );
   if (query.isLoading)
     return (
       <p role="status" className="p-6">
@@ -99,6 +117,7 @@ export default function SupplierPaymentReceiptPage() {
       !access.tenant.isConsolidated &&
       r.status === "POSTED";
   const prepare = async () => {
+    if (!canExport) return;
     const scope = key,
       n = ++generation.current;
     setPendingPdf(true);
@@ -151,12 +170,20 @@ export default function SupplierPaymentReceiptPage() {
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
-            onClick={() => navigate("/cartera/proveedores/" + r.supplierId)}
+            onClick={() =>
+              navigate(
+                source === "merchandise"
+                  ? "/mercancia/" + (r.applications[0]?.incomingId || "")
+                  : "/cartera/proveedores/" + r.supplierId,
+              )
+            }
           >
             <ArrowLeft size={16} className="mr-2" />
-            Estado de cuenta
+            {source === "merchandise"
+              ? "Volver a mercancía"
+              : "Estado de cuenta"}
           </Button>
-          {access.hasPermission("merchandise.reports") && (
+          {canExport && (
             <Button
               variant="outline"
               disabled={pendingPdf || cancelling}
@@ -289,15 +316,16 @@ export default function SupplierPaymentReceiptPage() {
           </Table>
         </div>
       </section>
-      {pdf?.key === key && (
+      {canExport && pdf?.key === key && (
         <PdfDocumentPreview
           pdf={pdf.blob}
-          onDownload={() =>
+          onDownload={() => {
+            if (current.current !== key || !canExport) return;
             downloadReportBlob(
               pdf.blob,
               "pago-proveedor-" + r.id.slice(0, 8) + ".pdf",
-            )
-          }
+            );
+          }}
         />
       )}
     </main>

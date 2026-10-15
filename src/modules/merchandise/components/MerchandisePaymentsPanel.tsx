@@ -19,7 +19,10 @@ import { useTenant } from "@/context/useTenant";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
 import { apiFetch } from "@/services/api";
 import { correctHistoricalSettlement } from "@/modules/receivables/api/payablesService";
-import { useInvalidatePayables } from "@/modules/receivables/hooks/usePayables";
+import {
+  useCarteraAccess,
+  useInvalidatePayables,
+} from "@/modules/receivables/hooks/usePayables";
 import { usePatchIncomingMerchandisePayment } from "../hooks/useIncomingMerchandise";
 import type { IncomingMerchandise } from "../api/incomingMerchandiseService";
 export function MerchandisePaymentsPanel({
@@ -32,10 +35,13 @@ export function MerchandisePaymentsPanel({
     { isConsolidated } = useTenant(),
     settings = useSystemSettings(),
     invalidate = useInvalidatePayables(),
+    access = useCarteraAccess(),
     patch = usePatchIncomingMerchandisePayment(),
     [page, setPage] = useState(1),
     [due, setDue] = useState(record.due_date?.slice(0, 10) || ""),
-    [term,setTerm]=useState(record.payment_term?String(record.payment_term.id):''),
+    [term, setTerm] = useState(
+      record.payment_term ? String(record.payment_term.id) : "",
+    ),
     [reference, setReference] = useState(record.payment_reference || ""),
     [historical, setHistorical] = useState(
       String(record.legacy_settled_amount || 0),
@@ -121,7 +127,7 @@ export function MerchandisePaymentsPanel({
           Number(record.amount_pending) > 0 && (
             <Button
               onClick={() =>
-                navigate("/cartera/pagos/nuevo?entradas=" + record.id)
+                navigate("/mercancia/pagos/nuevo?entradas=" + record.id)
               }
             >
               Registrar pago / abono
@@ -141,12 +147,16 @@ export function MerchandisePaymentsPanel({
               Corregir liquidación histórica
             </Button>
           )}
-        <Button
-          variant="outline"
-          onClick={() => navigate("/cartera/proveedores/" + record.supplier.id)}
-        >
-          Estado de cuenta del proveedor
-        </Button>
+        {access.payable && (
+          <Button
+            variant="outline"
+            onClick={() =>
+              navigate("/cartera/proveedores/" + record.supplier.id)
+            }
+          >
+            Estado de cuenta del proveedor
+          </Button>
+        )}
       </div>
       <Card className="auna-surface">
         <CardHeader>
@@ -163,7 +173,10 @@ export function MerchandisePaymentsPanel({
                   payload: {
                     due_date: due ? due + "T12:00:00Z" : null,
                     payment_reference: reference.trim() || null,
-                    ...(term!==(record.payment_term?String(record.payment_term.id):'')?{payment_term_id:term?Number(term):null}:{}),
+                    ...(term !==
+                    (record.payment_term ? String(record.payment_term.id) : "")
+                      ? { payment_term_id: term ? Number(term) : null }
+                      : {}),
                   },
                 }),
               );
@@ -171,10 +184,27 @@ export function MerchandisePaymentsPanel({
           >
             <div>
               <Label htmlFor="merch-term">Término de pago</Label>
-              <select id="merch-term" className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={term} onChange={e=>setTerm(e.target.value)} disabled={!writable||pending}>
+              <select
+                id="merch-term"
+                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                disabled={!writable || pending}
+              >
                 <option value="">Sin término de pago</option>
-                {record.payment_term&&!record.payment_terms?.some(t=>t.id===record.payment_term!.id)&&<option value={record.payment_term.id}>{record.payment_term.name} (actual)</option>}
-                {record.payment_terms?.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}
+                {record.payment_term &&
+                  !record.payment_terms?.some(
+                    (t) => t.id === record.payment_term!.id,
+                  ) && (
+                    <option value={record.payment_term.id}>
+                      {record.payment_term.name} (actual)
+                    </option>
+                  )}
+                {record.payment_terms?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="space-y-2">
@@ -319,7 +349,7 @@ export function MerchandisePaymentsPanel({
                         variant="outline"
                         size="sm"
                         onClick={() =>
-                          navigate("/cartera/pagos/" + r.supplier_payment_id)
+                          navigate("/mercancia/pagos/" + r.supplier_payment_id)
                         }
                       >
                         Ver comprobante

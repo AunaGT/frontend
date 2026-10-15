@@ -32,6 +32,10 @@ export function useCarteraAccess() {
   );
   return {
     ...access,
+    merchandisePayable:
+      ready &&
+      modules.enabledModuleCodes.has("merchandise") &&
+      auth.hasPermission("merchandise.details"),
     ready,
     tenant,
     hasPermission: auth.hasPermission,

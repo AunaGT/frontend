@@ -21,6 +21,7 @@ test("merchandise separates historical settlement from payments and preserves ca
           }),
         },
         "@/modules/receivables/hooks/usePayables": {
+          useCarteraAccess: () => ({payable:true}),
           useInvalidatePayables: () => async () => {},
         },
         "../hooks/useIncomingMerchandise": {

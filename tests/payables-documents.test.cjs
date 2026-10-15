@@ -54,11 +54,98 @@ test("export keeps the entire authorized dataset, real metadata, numeric money a
   assert.equal(api.payablesCsvCell("@proveedor"), "'@proveedor");
   assert.equal(api.payablesCsvCell("Proveedor normal"), "Proveedor normal");
 });
-test('real Excel keeps supplier formula-like names as text and all rows as typed financial data',async()=>{
- const api=loadReportModule('../receivables/documents/payablesDocuments.ts',{'@/services/api':{}})
- const dataset={items,asOf:'2026-10-14T18:00:00Z',filters:{state:'ALL'},summary:{pending:'2400.00',reviewCount:1,complete:false},branding}
- const blob=await api.exportPayableStatement(dataset,{format:'xlsx'},branding)
- const ExcelJS=require('exceljs'),workbook=new ExcelJS.Workbook();await workbook.xlsx.load(await blob.arrayBuffer());const sheet=workbook.getWorksheet('Entradas de mercancía')
- assert.equal(sheet.getCell('B6').value,'=SUM(A1:A2)');assert.equal(sheet.getCell('I6').value,80);assert.equal(sheet.getCell('A36').value,'ENT-30');assert.equal(sheet.getCell('I36').value,null);assert.equal(workbook.getWorksheet('Resumen').getCell('A2').value,'Empresa del cliente')
-})
+test("real Excel keeps supplier formula-like names as text and all rows as typed financial data", async () => {
+  const api = loadReportModule(
+    "../receivables/documents/payablesDocuments.ts",
+    { "@/services/api": {} },
+  );
+  const dataset = {
+    items,
+    asOf: "2026-10-14T18:00:00Z",
+    filters: { state: "ALL" },
+    summary: { pending: "2400.00", reviewCount: 1, complete: false },
+    branding,
+  };
+  const blob = await api.exportPayableStatement(
+    dataset,
+    { format: "xlsx" },
+    branding,
+  );
+  const ExcelJS = require("exceljs"),
+    workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await blob.arrayBuffer());
+  const sheet = workbook.getWorksheet("Entradas de mercancía");
+  assert.equal(sheet.getCell("B6").value, "=SUM(A1:A2)");
+  assert.equal(sheet.getCell("I6").value, 80);
+  assert.equal(sheet.getCell("A36").value, "ENT-30");
+  assert.equal(sheet.getCell("I36").value, null);
+  assert.equal(
+    workbook.getWorksheet("Resumen").getCell("A2").value,
+    "Empresa del cliente",
+  );
+});
 module.exports = { branding, items };
+test("CSV retains review warnings when the selected columns omit status", async () => {
+  const api = loadReportModule(
+    "../receivables/documents/payablesDocuments.ts",
+    { "@/services/api": {} },
+  );
+  const data = {
+    items,
+    asOf: "2026-10-14T18:00:00Z",
+    filters: { state: "ALL" },
+    summary: { pending: "2400.00", reviewCount: 1, complete: false },
+    branding,
+  };
+  const csv = await (
+    await api.exportPayableStatement(
+      data,
+      { format: "csv", columns: ["reference", "balance"] },
+      branding,
+    )
+  ).text();
+  assert.match(csv, /Totales incompletos/);
+  assert.match(csv, /requiere revisión/);
+  assert.match(csv, /ENT-30/);
+});
+test("PDF shows purchase instants in the company timezone and missing due dates as undated", async () => {
+  const api = loadReportModule(
+      "../receivables/documents/payablesDocuments.ts",
+      { "@/services/api": {} },
+    ),
+    fs = require("node:fs"),
+    path = require("node:path"),
+    previous = global.fetch;
+  global.fetch = async (url) => ({
+    ok: true,
+    arrayBuffer: async () => {
+      const b = fs.readFileSync(path.join(__dirname, "../public", url));
+      return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+    },
+  });
+  try {
+    const data = {
+      items: [{ ...items[0], date: "2026-10-15T03:00:00Z", dueDate: null }],
+      asOf: "2026-10-15T03:00:00Z",
+      filters: {},
+      summary: { pending: "80.00", reviewCount: 0, complete: true },
+      branding,
+    };
+    const pdf = await api.exportPayableStatement(
+      data,
+      { format: "pdf", columns: ["reference", "date", "dueDate"] },
+      branding,
+    );
+    const file = "/tmp/auna-payables-calendar.pdf";
+    fs.writeFileSync(file, Buffer.from(await pdf.arrayBuffer()));
+    const text = require("node:child_process")
+      .execFileSync("pdftotext", [file, "-"])
+      .toString();
+    assert.match(text, /Sin fecha/);
+    assert.doesNotMatch(text, /Por revisar/);
+    assert.doesNotMatch(text, /15\/10\/2026/);
+    assert.match(text, /14\/10\/2026/);
+  } finally {
+    global.fetch = previous;
+  }
+});

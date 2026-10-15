@@ -297,10 +297,19 @@ export async function exportPayableStatement(
 ): Promise<Blob> {
   const prepared = preparePayableDocument(dataset, branding, options),
     spreadsheet = toSpreadsheetDocument(prepared, branding);
-  if (options.format === "csv")
-    return new Blob([generateReportCsv(spreadsheet, "entries")], {
+  if (options.format === "csv") {
+    const csv = generateReportCsv(spreadsheet, "entries");
+    const warnings = prepared.warnings.map(
+      (text) =>
+        '"' +
+        payablesCsvCell(text).replace(/"/g, '""') +
+        '"' +
+        ',""'.repeat(prepared.columns.length - 1),
+    );
+    return new Blob([csv + warnings.join("\r\n") + "\r\n"], {
       type: "text/csv;charset=utf-8",
     });
+  }
   if (options.format === "xlsx")
     return new Blob([await generateReportWorkbook(spreadsheet)], {
       type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -323,7 +332,11 @@ export async function exportPayableStatement(
     rows: prepared.rows.map((r) =>
       prepared.columns.map((c) =>
         r[c.id] === null
-          ? "Por revisar"
+          ? c.id === "balance"
+            ? "Por revisar"
+            : c.type === "date"
+              ? "Sin fecha"
+              : "—"
           : c.type === "money"
             ? Number(r[c.id]).toLocaleString(branding.locale, {
                 minimumFractionDigits: 2,
@@ -331,8 +344,12 @@ export async function exportPayableStatement(
               })
             : c.type === "date"
               ? new Date(
-                  String(r[c.id]).slice(0, 10) + "T12:00:00Z",
-                ).toLocaleDateString(branding.locale, { timeZone: "UTC" })
+                  c.id === "dueDate"
+                    ? String(r[c.id]) + "T12:00:00Z"
+                    : String(r[c.id]),
+                ).toLocaleDateString(branding.locale, {
+                  timeZone: c.id === "dueDate" ? "UTC" : branding.timezone,
+                })
               : String(r[c.id]),
       ),
     ),

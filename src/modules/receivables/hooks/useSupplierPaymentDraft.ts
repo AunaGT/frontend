@@ -219,6 +219,8 @@ export function useSupplierPaymentDraft(context: DraftContext) {
           JSON.stringify({ payload, entries: selected }),
         );
       const result = await createSupplierPayment(payload);
+      if (!result || typeof result.id !== "string" || !result.id)
+        throw Error("No se recibió un comprobante válido. Reintenta la misma solicitud para recuperarlo.");
       if (currentKey.current !== scope) return;
       if (typeof sessionStorage !== "undefined")
         sessionStorage.removeItem(storageKey);
@@ -229,7 +231,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
       if (currentKey.current !== scope) return;
       const failure = e as Error & { status?: number };
       setError(failure.message);
-      if (!failure.status || failure.status >= 500) {
+      if (!failure.status || failure.status < 400 || failure.status >= 500) {
         uncertain.current = true;
         setAmbiguous(true);
       } else {

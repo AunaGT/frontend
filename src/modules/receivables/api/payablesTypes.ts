@@ -130,7 +130,19 @@ export type SupplierStatement = {
   };
   summary: PayableSummary;
   entries: Page<PayableEntry>;
-  payments: Page<SupplierReceipt>;
+  payments: Page<
+    Pick<
+      SupplierReceipt,
+      | "id"
+      | "status"
+      | "amount"
+      | "paidAt"
+      | "reference"
+      | "registeredBy"
+      | "paymentMethod"
+      | "cancelReason"
+    > & { kind: "RECEIPT" | "LEGACY"; incomingId: string | null }
+  >;
   audit: Page<PayableAudit>;
 };
 export type PayablesExport = {
