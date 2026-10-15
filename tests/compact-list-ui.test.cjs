@@ -310,6 +310,7 @@ test('catalog hooks request full summaries only on opt-in and preserve paging an
   const saved = new Map(overrides)
   cache.clear()
   const requests = [], configs = []
+  overrides.set('@/context/useTenant', { useTenant: () => ({ company:{id:'A'},branch:{id:'B'} }) })
   overrides.set('@tanstack/react-query', { useQuery: config => { configs.push(config); return {} } })
   const api = { apiFetch: async url => { requests.push(url); return { items: [] } } }
   overrides.set('@/services/api', api)
@@ -319,7 +320,7 @@ test('catalog hooks request full summaries only on opt-in and preserve paging an
       const hook = load(path.join(__dirname, '../src/hooks', file))[hookName]
       hook({ page: 2, pageSize: 1, search: ' Bebidas ', includeSummary: true })
       const summaryConfig = configs.at(-1)
-      await summaryConfig.queryFn()
+      await summaryConfig.queryFn({})
       const params = new URL(requests.at(-1), 'https://test.invalid').searchParams
       assert.equal(params.get('includeSummary'), 'true')
       assert.equal(params.get('page'), '2')
@@ -327,7 +328,7 @@ test('catalog hooks request full summaries only on opt-in and preserve paging an
       assert.equal(params.get('search'), 'Bebidas')
       hook({ page: 2, pageSize: 1, search: ' Bebidas ' })
       assert.notDeepEqual(configs.at(-1).queryKey, summaryConfig.queryKey)
-      await configs.at(-1).queryFn()
+      await configs.at(-1).queryFn({})
       assert.equal(new URL(requests.at(-1), 'https://test.invalid').searchParams.has('includeSummary'), false)
     }
   } finally { overrides.clear(); saved.forEach((value, key) => overrides.set(key, value)); cache.clear() }

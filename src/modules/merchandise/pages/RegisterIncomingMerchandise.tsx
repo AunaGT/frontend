@@ -24,6 +24,7 @@ import { fetchWarehouses } from '@/services/warehouseService'
 import { adaptApiSupplier } from '@/services/supplierService'
 import { useSupplier } from '@/hooks/useSupplier'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { usePaymentMethods } from '@/hooks/usePaymentMethods'
 import { ProductPicker } from '@/components/shared/ProductPicker'
 import { SupplierPicker } from '@/components/shared/SupplierPicker'
 import '../merchandise.css'
@@ -59,6 +60,8 @@ export const RegisterIncomingMerchandise = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [paymentTermId, setPaymentTermId] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'PAID'>('PENDING')
+  const [paymentMethodId, setPaymentMethodId] = useState('')
+  const methods = usePaymentMethods()
   const [paidAtLocal, setPaidAtLocal] = useState('')
   const [paymentReference, setPaymentReference] = useState('')
   const [dueDate, setDueDate] = useState('')
@@ -218,6 +221,10 @@ export const RegisterIncomingMerchandise = () => {
       return
     }
 
+    if (paymentStatus === 'PAID' && !methods.data?.some(m=>m.id===Number(paymentMethodId)&&!m.is_credit)) {
+      toast({ title:'Medio de pago requerido',description:'Selecciona un medio disponible para registrar el pago al proveedor',variant:'destructive' })
+      return
+    }
     // Validate all items
     for (const item of items) {
       if (!item.product_id) {
@@ -283,6 +290,7 @@ export const RegisterIncomingMerchandise = () => {
       }
       if (paymentStatus === 'PAID' && paidAtIso) {
         payload.paid_at = paidAtIso
+        payload.payment_method_id = Number(paymentMethodId)
       }
 
       await apiFetch('/api/products/register-incoming', {
@@ -342,6 +350,7 @@ export const RegisterIncomingMerchandise = () => {
           <div className="space-y-2"><Label htmlFor="receipt-location">Almacén / ubicación</Label><select id="receipt-location" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => setLocationId(e.target.value)}><option value="default">Ubicación de recepción predeterminada</option>{receiveLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.name}</option>)}</select></div>
           <div className="space-y-2"><Label htmlFor="receipt-term">Condición de pago</Label><select id="receipt-term" className="auna-control auna-control-select auna-receipt-select" value={paymentTermId} onChange={e => setPaymentTermId(e.target.value)} disabled={!paymentTermsOptions.length}><option value="">Sin término configurado</option>{paymentTermsOptions.map(term => <option key={term.id} value={term.id}>{term.name}{term.isDefault ? ' (predeterminado)' : ''}</option>)}</select></div>
           <div className="space-y-2"><Label htmlFor="receipt-status">Estado de pago</Label><select id="receipt-status" className="auna-control auna-control-select auna-receipt-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as 'PENDING' | 'PAID')}><option value="PENDING">Pendiente de pago</option><option value="PAID" disabled={!hasPermission('merchandise.mark_paid')}>Pagado completamente</option></select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-method">Medio de pago</Label><select id="receipt-method" className="auna-control auna-control-select auna-receipt-select" value={paymentMethodId} onChange={e=>setPaymentMethodId(e.target.value)} disabled={paymentStatus!=='PAID'} required={paymentStatus==='PAID'}><option value="">Selecciona un medio</option>{methods.data?.filter(m=>!m.is_credit).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select>{methods.isError&&<p role="alert" className="text-sm text-destructive">No se pudieron cargar los medios de pago.</p>}</div>
           <div className="space-y-2"><Label htmlFor="receipt-reference">Referencia de pago</Label><Input id="receipt-reference" maxLength={255} value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Opcional" /></div>
           <div className="space-y-2"><Label htmlFor="receipt-due">Fecha de vencimiento</Label><Input id="receipt-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
           <div className="space-y-2"><Label htmlFor="receipt-paid">Fecha del pago</Label><Input id="receipt-paid" type="datetime-local" disabled={paymentStatus !== 'PAID'} value={paidAtLocal} onChange={e => setPaidAtLocal(e.target.value)} /></div>
