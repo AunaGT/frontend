@@ -53,6 +53,7 @@ import {
   paymentMethodUsageCounts,
   catalogApiErrorMessage,
   paymentMethodScopeChanged,
+  isPaymentMethodScopeCurrent,
   type PaymentMethodCatalog,
 } from '@/hooks/usePaymentMethodsCatalog'
 import { Plus, Loader2 } from 'lucide-react'
@@ -101,13 +102,14 @@ export function PaymentMethodsTab() {
     if (!deleteTarget) return
     try {
       await deleteMutation.mutateAsync({ ...scope, id: deleteTarget.id, data: undefined })
+      if (!isPaymentMethodScopeCurrent(scope)) return
       setDeleteTarget(null)
       toast({
         title: 'Método eliminado',
         description: 'El método de pago ha sido eliminado correctamente',
       })
     } catch (error) {
-      if (paymentMethodScopeChanged(error)) return
+      if (paymentMethodScopeChanged(error) || !isPaymentMethodScopeCurrent(scope)) return
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -314,12 +316,14 @@ function PaymentMethodDialog({
       const scope = dialog.scope!
       if (dialog.mode === 'create') {
         await createMutation.mutateAsync({ ...scope, data: { name: trimmed, settlement_kind: kind } })
+        if (!isPaymentMethodScopeCurrent(scope)) return
         toast({
           title: 'Método creado',
           description: 'El método de pago ha sido creado correctamente',
         })
       } else if (dialog.item) {
         await updateMutation.mutateAsync({ ...scope, id: dialog.item.id, data: { ...(canRename && trimmed !== dialog.item.name ? { name: trimmed } : {}), enabled, position } })
+        if (!isPaymentMethodScopeCurrent(scope)) return
         toast({
           title: 'Método actualizado',
           description: 'El método de pago ha sido actualizado correctamente',
@@ -327,7 +331,7 @@ function PaymentMethodDialog({
       }
       handleOpenChange(false)
     } catch (error) {
-      if (paymentMethodScopeChanged(error)) return
+      if (paymentMethodScopeChanged(error) || !isPaymentMethodScopeCurrent(dialog.scope)) return
       setFormError(catalogApiErrorMessage(error, 'Ocurrió un error'))
       toast({
         variant: 'destructive',

@@ -42,6 +42,7 @@ export interface Denomination {
 }
 
 export interface TheoreticalData {
+    unidentified_collections_amount?: number
     period: {
         start: string
         end: string

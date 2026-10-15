@@ -248,6 +248,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
                 totalCustomers: payload.theoreticalData.metrics.total_customers,
                 averageTicket: payload.theoreticalData.metrics.average_ticket,
                 notes: payload.notes.trim() || null,
+                unidentifiedCollectionsAmount: payload.theoreticalData.unidentified_collections_amount || 0,
                 paymentBreakdowns: payload.paymentBreakdown,
                 denominations: payload.denominations.filter(d => d.quantity > 0)
             }

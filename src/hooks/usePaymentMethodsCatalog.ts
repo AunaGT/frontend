@@ -32,8 +32,11 @@ export function usePaymentMethodsCatalog(params: PaymentMethodsCatalogParams = {
   })
 }
 export function paymentMethodScopeChanged(error: unknown) { return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'PM_CONTEXT_CHANGED') }
+export function isPaymentMethodScopeCurrent(scope: PaymentMethodScope | undefined) {
+  return Boolean(scope?.companyId && scope.branchId && scope.branchId !== 'all' && scope.companyId === getActiveCompanyId() && scope.branchId === getActiveBranchId())
+}
 function checkScope(scope: PaymentMethodScope) {
-  if (!scope.companyId || !scope.branchId || scope.branchId === 'all' || scope.companyId !== getActiveCompanyId() || scope.branchId !== getActiveBranchId())
+  if (!isPaymentMethodScopeCurrent(scope))
     throw Object.assign(new Error('La empresa o sucursal cambió. Abre el formulario nuevamente'), { code: 'PM_CONTEXT_CHANGED' })
 }
 type MutationInput<T> = PaymentMethodScope & { id?: number; data: T }
@@ -42,12 +45,17 @@ function useMethodMutation<T>(method: 'POST' | 'PUT' | 'DELETE') {
   return useMutation({
     mutationFn: async (variables: MutationInput<T>) => {
       checkScope(variables)
-      const result = await apiFetch<PaymentMethodCatalog>(`/catalogs/payment-methods${method === 'POST' ? '' : '/' + variables.id}`, {
-        method, headers: { 'X-Company-Id': variables.companyId, 'X-Branch-Id': variables.branchId },
-        ...(method === 'DELETE' ? {} : { body: JSON.stringify(variables.data) }),
-      })
-      checkScope(variables)
-      return result
+      try {
+        const result = await apiFetch<PaymentMethodCatalog>(`/catalogs/payment-methods${method === 'POST' ? '' : '/' + variables.id}`, {
+          method, headers: { 'X-Company-Id': variables.companyId, 'X-Branch-Id': variables.branchId },
+          ...(method === 'DELETE' ? {} : { body: JSON.stringify(variables.data) }),
+        })
+        checkScope(variables)
+        return result
+      } catch (error) {
+        checkScope(variables)
+        throw error
+      }
     },
     onSettled: (_data, _error, variables) => client.invalidateQueries({ queryKey: [...PAYMENT_METHODS_QUERY_KEY, variables.companyId] }),
   })

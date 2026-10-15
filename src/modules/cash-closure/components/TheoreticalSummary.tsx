@@ -33,6 +33,7 @@ export const TheoreticalSummary = ({ data, showAdvancedDetails = false }: Theore
                 <div><dt>Devoluciones</dt><dd>-{formatCurrency(data.theoretical.total_returns, currencyCode, locale)}</dd></div>
                 <div className="cash-closure-amount-total"><dt>Total esperado</dt><dd>{formatCurrency(data.theoretical.net_total, currencyCode, locale)}</dd></div>
             </dl>
+            {Number(data.unidentified_collections_amount)>0 && <p role="status" className="rounded-md border p-3 text-sm text-muted-foreground"><strong>Medio no registrado: {formatCurrency(data.unidentified_collections_amount!,currencyCode,locale)}.</strong> Este importe está incluido en el total esperado, pero no se atribuye a efectivo ni a otro medio. Comprueba su origen antes de justificar cualquier diferencia; quedará registrado en las notas del cierre.</p>}
             {showAdvancedDetails && <div className="border-t pt-3">
                 {cashSession && <p className="mb-3 text-xs text-muted-foreground">Ventas en efectivo: {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)} · Esperado en caja: {formatCurrency(cashSession.expected_cash_in_drawer, currencyCode, locale)}</p>}
                 <dl className="grid grid-cols-2 gap-3 text-xs">
