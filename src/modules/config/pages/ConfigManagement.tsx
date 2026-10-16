@@ -19,6 +19,7 @@ import { FiscalSettingsSection } from '../components/FiscalSettingsSection'
 import { OperationalSettingsSection } from '../components/OperationalSettingsSection'
 import { ReturnsPolicySettingsSection } from '../components/ReturnsPolicySettingsSection'
 import { SettingsHistorySection } from '../components/SettingsHistorySection'
+import { ExpiryPolicySettingsSection } from '../components/ExpiryPolicySettingsSection'
 import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
@@ -131,6 +132,7 @@ export default function ConfigManagement() {
           <SettingsErrorSummary errors={common.errors} error={draft.error} />
           {draft.error&&context.canManage&&<Button variant="outline" disabled={draft.pending} onClick={()=>setConfirmation({type:'reload',section:editable,owner})}>Revisar valores actuales de esta sección</Button>}
           {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === owner} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : active === 'devoluciones' ? <ReturnsPolicySettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
+          {active==='inventario'&&<ExpiryPolicySettingsSection {...common}/>}
           <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, owner })} />
         </CardContent></Card>}
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}

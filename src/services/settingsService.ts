@@ -9,6 +9,7 @@ import type { ExperienceProfile } from '@/config/experienceProfiles'
 import type { ReturnPolicy } from '@/modules/returns/policy'
 
 export interface SystemSettings {
+  'inventory.expiry_alert_policy'?:ExpiryAlertPolicy
   _revisions?: Record<string, number>
   warning?: string
   'returns.policy'?: ReturnPolicy
@@ -41,6 +42,8 @@ export interface SystemSettings {
   sales_show_channels?: string
   inventory_services_enabled?: string
 }
+
+export type ExpiryAlertPolicy={warningDays:number;highPriorityDays:number}
 
 export interface DenominationItem {
   denomination: number

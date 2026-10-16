@@ -82,10 +82,11 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
       const result = await run()
       if (!current()) return 'ignored'
       confirm(result); paint()
+      if(result.warning){owner.error=result.warning;paint()}
       let refreshed = false
       try { refreshed = await refresh() } catch { /* The write already committed; refresh is a separate result. */ }
       if (!current()) return 'ignored'
-      return refreshed === false ? 'saved-refresh-failed' : 'saved'
+      return refreshed === false || result.warning ? 'saved-refresh-failed' : 'saved'
     } catch (error) {
       if (!current()) return 'ignored'
       owner.error = message(error); paint(); return 'failed'

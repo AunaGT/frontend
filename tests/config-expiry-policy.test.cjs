@@ -1,0 +1,16 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs'),{renderConfig}=require('./helpers/configViewHarness.cjs')
+test('inventory expiry controls respect effective values and send one nested policy with the inventory section',()=>{
+  const key='inventory.expiry_alert_policy',m=loadReportModule('../config/settingsModel.ts')
+  assert.deepEqual(m.sectionValues('inventario',{})[key],{warningDays:30,highPriorityDays:7})
+  const view=renderConfig({section:'inventario',values:{[key]:{warningDays:45,highPriorityDays:10}}})
+  const control=view.nodes.find(n=>n.props.id===`${key}.warningDays`&&n.props.onChange)
+  assert.equal(control.props.value,'45');control.props.onChange({target:{value:'60'}})
+  assert.deepEqual(view.changes.at(-1).value,{warningDays:'60',highPriorityDays:10})
+  assert.match(view.html,/lotes|vencimiento/i)
+  assert.deepEqual(m.sectionPayload('inventario',{[key]:{warningDays:'45',highPriorityDays:'0'},company_nit:'NO'})[key],{warningDays:45,highPriorityDays:0})
+})
+test('invalid expiry window links its nested field error and never permits blank critical days as zero',()=>{
+  const key='inventory.expiry_alert_policy',m=loadReportModule('../config/settingsModel.ts')
+  for(const p of [{warningDays:0,highPriorityDays:0},{warningDays:10,highPriorityDays:11},{warningDays:30,highPriorityDays:''},{warningDays:true,highPriorityDays:0}])assert.ok(Object.keys(m.validateSection('inventario',{inventory_services_enabled:'false',[key]:p})).length)
+})
