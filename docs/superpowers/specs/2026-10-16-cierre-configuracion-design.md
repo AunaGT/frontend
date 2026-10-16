@@ -2,7 +2,7 @@
 
 Fecha: 16 de octubre de 2026. Solicitud: «termina todo los pendientes entonces».
 
-Estado: propuesta concreta para revisión; no significa que estén implementadas estas funciones. Continúa la arquitectura ya aprobada en `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`. La opción visual B ya fue elegida; no se propone otra dirección.
+Estado: aprobado por el usuario («confirmado») para ejecutar el cierre completo, con vigencia por fecha de pago y autorización conjunta `settings.manage`/`payroll.confirm`. Todavía no significa que estén implementadas estas funciones. Continúa la arquitectura ya aprobada en `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`. La opción visual B ya fue elegida; no se propone otra dirección.
 
 ## Objetivo y límites
 
