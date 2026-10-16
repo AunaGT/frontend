@@ -8,6 +8,8 @@ Convertir Configuración en el lugar donde una empresa adapta Auna a su operaci�
 
 En este documento, **global significa para la empresa activa**, no para todas las empresas que utilizan Auna. Los ajustes de la plataforma, conexiones a base de datos, claves, límites de seguridad y tareas técnicas no son preferencias editables por sus clientes.
 
+Aclaración del usuario, 15 de octubre de 2026: el modelo de despliegue previsto es **una instancia de Supabase por cliente contratado**, con varias empresas del mismo cliente dentro de esa instancia. Empresa no equivale a cliente contratado. Mantener preferencias y permisos por empresa no implica crear instalaciones diferentes para cada empresa ni compartir automáticamente sus reglas. No se introduce en esta reorganización una capa de preferencias comunes a toda la instalación; requeriría necesidades y reglas de herencia explícitas.
+
 La revisión se basa en el código local. No se consultaron valores reales de cada empresa ni se validaron estas pantallas en el navegador. Los valores predeterminados mencionados no necesariamente son los valores guardados de una empresa.
 
 ## 2. Alternativas y recomendación
@@ -246,3 +248,5 @@ La primera entrega técnica es una parte de la fase 0: aislamiento de las vigenc
 Esta revisión no modificó el producto, permisos, módulos, procesos ni la base de datos. Solo se añadió esta propuesta documental.
 
 Actualización de ejecución, 15 de octubre de 2026: la primera entrega técnica fue aprobada e implementada. Se corrigieron las vigencias comerciales por empresa y el PATCH de ajustes quedó validado y atómico. No se completó toda la fase 0 ni se reorganizaron pantallas. Resultados y pendientes en `docs/planning/2026-10-15-configuracion-base-segura-verificacion.md`.
+
+Continuación, 15 de octubre de 2026: métodos de pago por empresa desplegados en la Supabase de desarrollo existente; evidencia en `docs/planning/2026-10-15-metodos-pago-por-empresa-verificacion.md`. El siguiente bloque, centro de Configuración y ciclo de borradores, tiene diseño técnico en `docs/superpowers/specs/2026-10-15-centro-configuracion-design.md`, pendiente de revisión del usuario. Este enlace no marca implementada la nueva navegación.
