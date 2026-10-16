@@ -1,10 +1,11 @@
 import { catalogsModule } from './manifest'
+import { matchPath } from 'react-router-dom'
 
 /** Los enlaces guardados seleccionan un destino interno; nunca una URL de retorno. */
 export function legacyCatalogDestination(pathname: string, search: string): string {
   const paths = catalogsModule.paths
   const params = new URLSearchParams(search)
-  const importing = pathname === paths.import || pathname === paths.legacyImport
+  const importing = !!(matchPath(paths.import, pathname) || matchPath(paths.legacyImport, pathname))
   const selector = params.get(importing ? 'type' : 'tab')
   const destination = importing
     ? selector === 'payment-terms' ? paths.paymentTermsImport : paths.categoriesImport

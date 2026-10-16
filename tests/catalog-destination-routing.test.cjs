@@ -7,6 +7,7 @@ test('old catalogs and imports resolve their canonical destination without losin
     for (const [query, target] of [['', '/inventario/categorias'], ['?tab=categories', '/inventario/categorias'], ['?tab=payment-methods&source=qa', '/configuracion/metodos-de-pago?source=qa'], ['?tab=cash-registers', '/configuracion/cajas'], ['?tab=payment-terms', '/configuracion/condiciones-de-pago'], ['?tab=desconocida', '/inventario/categorias'], ['?tab=https://outside.invalid&tab=payment-terms&foo=1&foo=2', '/inventario/categorias?foo=1&foo=2']]) assert.equal(resolve(prefix, query), target)
     assert.equal(resolve(prefix + '/importar', '?type=payment-terms'), '/configuracion/condiciones-de-pago/importar')
     assert.equal(resolve(prefix + '/importar', '?type=categories&tab=payment-methods&source=qa'), '/inventario/categorias/importar?source=qa')
+    for (const variant of [prefix + '/importar/', (prefix + '/importar').toUpperCase(), (prefix + '/importar/').toUpperCase()]) assert.equal(resolve(variant, '?type=payment-terms&source=qa'), '/configuracion/condiciones-de-pago/importar?source=qa')
   }
 })
 test('relocated catalog gate checks original availability, destination permissions and import authority', () => {
