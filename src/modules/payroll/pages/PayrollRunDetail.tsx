@@ -15,7 +15,10 @@ import { MetricStrip } from '@/components/shared/MetricStrip'
  * se muestra solo si el estado lo permite y el usuario tiene el permiso, y se
  * deshabilita mientras la mutación corre — sin recargas manuales.
  */
-import { useState } from 'react'
+import { useState,useRef,useEffect } from 'react'
+import {useTenant} from '@/context/useTenant'
+import {getActiveCompanyId,getActiveBranchId} from '@/services/api'
+import {RunRatesPanel} from './RunRatesPanel'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Search, Eye, ChevronLeft, ChevronRight, Printer } from 'lucide-react'
@@ -44,7 +47,12 @@ export const PayrollRunDetail = () => {
   const { id = '' } = useParams()
   const { toast } = useToast()
   const qc = useQueryClient()
-  const { hasPermission } = useAuthPermissions()
+  const { hasPermission,user } = useAuthPermissions()
+  const {company,branch,isConsolidated}=useTenant(),scope={companyId:company?.id||'',branchId:branch?.id||''}
+  const contextKey=JSON.stringify([id,scope.companyId,scope.branchId,user?.id]),live=useRef({key:contextKey,active:true})
+  if(live.current.key!==contextKey)live.current={key:contextKey,active:true}
+  const owner=live.current,current=()=>live.current===owner&&owner.active&&getActiveCompanyId()===scope.companyId&&getActiveBranchId()===scope.branchId
+  useEffect(()=>{owner.active=true;setSelected(null);return()=>{owner.active=false}},[contextKey])
   const { companyName, companyLogoUrl } = useSystemSettings()
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
@@ -57,9 +65,9 @@ export const PayrollRunDetail = () => {
   }
 
   const { data: run, isLoading, isFetching, isError, error, refetch } = useQuery({
-    queryKey: ['payroll-runs', id],
-    queryFn: () => fetchPayrollRun(id),
-    enabled: Boolean(id),
+    queryKey: ['payroll-runs', id,scope.companyId,scope.branchId,user?.id],
+    queryFn: () => fetchPayrollRun(id,scope),
+    enabled: Boolean(id&&scope.companyId&&scope.branchId&&!isConsolidated),
   })
 
   const invalidate = () => {
@@ -68,10 +76,11 @@ export const PayrollRunDetail = () => {
     qc.invalidateQueries({ queryKey: ['accounting'] })
   }
 
-  const transition = (fn: (runId: string) => Promise<unknown>, title: string) => ({
-    mutationFn: () => fn(id),
-    onSuccess: () => { invalidate(); toast({ title }) },
+  const transition = (fn: (runId: string,targetScope:typeof scope) => Promise<unknown>, title: string) => ({
+    mutationFn: () => {if(!current())throw Error('La empresa o sucursal cambió');return fn(id,scope)},
+    onSuccess: () => { if(!current())return;invalidate(); toast({ title }) },
     onError: (e: Error) => {
+      if(!current())return
       // Un 409 acá es normal: alguien más ya movió la planilla. Hay que refrescar
       // para que los botones reflejen el estado real y no invite a reintentar.
       invalidate()
@@ -79,7 +88,7 @@ export const PayrollRunDetail = () => {
     },
   })
 
-  const recalc = useMutation(transition(() => recalculatePayrollRun(id), 'Planilla recalculada'))
+  const recalc = useMutation(transition(() => recalculatePayrollRun(id,undefined,scope), 'Planilla recalculada'))
   const confirm = useMutation(transition(confirmPayrollRun, 'Planilla confirmada'))
   const pay = useMutation(transition(payPayrollRun, 'Planilla pagada'))
   const cancel = useMutation(transition(cancelPayrollRun, 'Planilla anulada'))
@@ -103,7 +112,7 @@ export const PayrollRunDetail = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {run.status === 'BORRADOR' && hasPermission('payroll.create') && (
-            <Button variant="outline" disabled={busy} onClick={() => recalc.mutate()}>Recalcular</Button>
+            <Button variant="outline" disabled={busy||!run.rates_snapshot} onClick={() => recalc.mutate()}>Recalcular</Button>
           )}
           {run.status === 'BORRADOR' && hasPermission('payroll.confirm') && (
             <Button className="bg-orange-600 text-white hover:bg-orange-700" disabled={busy} onClick={() => confirm.mutate()}>Confirmar nómina</Button>
@@ -119,6 +128,7 @@ export const PayrollRunDetail = () => {
       </CardContent></Card>
 
       <MetricStrip label="Resumen de nómina" items={[{label:'Empleados',value:run.payslips.length},{label:'Total bruto',value:money(run.total_earnings)},{label:'Deducciones',value:money(run.total_deductions)},{label:'Total neto',value:money(run.total_net)},{label:'Costo patronal',value:money(run.total_employer_cost)}]} />
+      <RunRatesPanel key={contextKey} run={run} scope={scope} canAdopt={!busy&&!isConsolidated&&hasPermission('payroll.create')} onUpdated={invalidate}/>
 
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Empleados ({run.payslips.length})</h2><div className="relative w-full sm:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar empleados" placeholder="Buscar empleado, código o puesto..." className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></div></div>
       <><Card className="auna-data-table-shell"><CardContent className="p-0"><div className="overflow-x-auto"><Table className="auna-data-table min-w-[900px]"><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Empleado</TableHead><TableHead>Puesto</TableHead><TableHead className="text-right">Días</TableHead><TableHead className="text-right">Bruto</TableHead><TableHead className="text-right">Deducciones</TableHead><TableHead className="text-right">Neto</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>

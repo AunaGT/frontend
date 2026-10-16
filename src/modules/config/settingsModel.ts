@@ -15,7 +15,7 @@ export const SECTION_KEYS = {
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
-export type SettingsSection = EditableSection | 'rrhh' | 'modulos' | 'accesos' | 'historial'
+export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial'
 export type SectionValues = Partial<SystemSettings>
 export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath | ExpiryPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
@@ -29,6 +29,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; l
   { id: 'devoluciones', group: 'Operación', label: 'Devoluciones', keywords: ['plazo', 'excepciones', 'reembolsos', 'resoluciones', 'cambios'] },
   { id: 'caja', group: 'Operación', label: 'Caja y cierres', keywords: ['billetes', 'monedas', 'denominaciones', 'tolerancia', 'diferencia'] },
   { id: 'rrhh', group: 'Operación', label: 'Recursos humanos', keywords: ['expedientes', 'documentos', 'empleados', 'requisitos'] },
+  { id:'nomina',group:'Operación',label:'Nómina',keywords:['tasas','IGSS','ISR','provisiones','bonificación','vigencias'] },
   { id: 'modulos', group: 'Administración', label: 'Módulos', keywords: ['activación', 'dependencias', 'disponibilidad'] },
   { id: 'accesos', group: 'Administración', label: 'Accesos relacionados', keywords: ['pagos', 'cobros', 'cajas', 'condiciones', 'agenda', 'contabilidad', 'roles', 'permisos', 'catálogos'] },
   { id: 'historial', group: 'Administración', label: 'Historial de ajustes', keywords: ['auditoría', 'cambios', 'quién', 'revisiones'] },

@@ -18,6 +18,7 @@ function renderConfig({ section = 'pedidos', canManage = true, status = 'ready',
     '@/services/settingsService': { getSettings: async () => ({}) },
     '../useSettingsDraft': { useSettingsDraft: () => draft },
     './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null },
+    '../components/PayrollRateSettingsSection':{PayrollRateSettingsSection:()=>null},
   }, nodes).default
   const html = renderToStaticMarkup(React.createElement(MemoryRouter, { initialEntries: [`/configuracion?seccion=${section}`] }, React.createElement(Page)))
   return { html, nodes, writes, changes, resets, toasts, draft }

@@ -12,7 +12,7 @@ import { EmployeeDocumentsPanel } from './EmployeeDocumentsPanel'
 import { EmployeePhotoPicker } from './EmployeePhotoPicker'
 import './hr.css'
 
-const emptyForm: EmployeePayload = { first_name: '', last_name: '', hire_date: '', base_salary: 0, bonificacion_incentivo: 250, pay_frequency: 'MENSUAL', payment_method: 'EFECTIVO' }
+const emptyForm: EmployeePayload = { first_name: '', last_name: '', hire_date: '', base_salary: 0, pay_frequency: 'MENSUAL', payment_method: 'EFECTIVO' }
 export default function EmployeeCreatePage() {
   const navigate = useNavigate(), { toast } = useToast(), { company } = useTenant(), qc = useQueryClient()
   const [form, setForm] = useState<EmployeePayload>(emptyForm), [documents, setDocuments] = useState<DocumentSelection[]>([]), [photo, setPhoto] = useState<File | null>(null), [preview, setPreview] = useState<string>(), [uploadingPhoto, setUploadingPhoto] = useState(false)

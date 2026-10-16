@@ -5,7 +5,8 @@ test('real page and draft persist fiscal activation and existing issuer fields t
   const h = hookHarness(), nodes = [], writes = [], prior = global.window; global.window = new EventTarget()
   try {
     const params = new URLSearchParams('seccion=fiscal')
-    const Page = loadReportModule('../config/pages/ConfigManagement.tsx', {
+  const Page = loadReportModule('../config/pages/ConfigManagement.tsx', {
+    '@/context/useModules':{useModules:()=>({enabledModuleCodes:new Set(['payroll'])})},
       react: h.hooks, 'react-router-dom': { useSearchParams: () => [params, () => {}], useNavigate: () => () => {} },
       '@/components/layout/PageNavigation': { usePageTrail() {} },
       '@/context/useTenant': { useTenant: () => ({ company: { id: 'A', name: 'Empresa A' }, branch: { id: 'BA' }, registerTenantExitGuard: () => () => {} }) },

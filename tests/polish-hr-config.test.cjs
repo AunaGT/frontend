@@ -214,6 +214,7 @@ test('payroll pages share the same responsive page measure and keep pagination o
   const run = { id: 'run-1', code: 'NOM-1', name: 'Octubre', type: 'ORDINARIA', status: 'BORRADOR', period_start: '2026-10-01', period_end: '2026-10-31', pay_date: '2026-10-31', total_earnings: '3250', total_deductions: '145', total_net: '3105', total_employer_cost: '380', payslips: [payslip] }
   for (const page of ['PayrollRunsManagement', 'PayrollRunDetail']) {
     const Page = loadReportModule(`../payroll/pages/${page}.tsx`, {
+      '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'},isConsolidated:false})},
       '@/hooks/useSystemSettings': { useSystemSettings: () => ({ companyName: 'Empresa QA', companyLogoUrl: '' }) },
       '@/services/api': { apiFetch() { throw new Error('No real requests in SSR') } },
       '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },

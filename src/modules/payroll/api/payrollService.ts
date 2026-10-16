@@ -10,6 +10,9 @@
 
 /** Planillas de la empresa y sucursal activas. */
 import { apiFetch } from "@/services/api";
+import type {SettingsScope} from '@/services/settingsService'
+import type {RatesSnapshot} from './rateVersions'
+const scoped=(scope?:SettingsScope):RequestInit=>scope?{headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}}:{}
 
 export type PayrollType = "ORDINARIA" | "AGUINALDO" | "BONO14";
 export type PayrollStatus = "BORRADOR" | "CONFIRMADA" | "PAGADA" | "ANULADA";
@@ -75,6 +78,8 @@ export interface PayrollRunSummary {
 }
 
 export interface PayrollRun extends PayrollRunSummary {
+  rates_snapshot?:RatesSnapshot|null;
+  rate_version_id?:string|null;
   notes: string | null;
   payslips: Payslip[];
 }
@@ -101,25 +106,26 @@ const qs = (params: Record<string, string | undefined>) => {
 export const fetchPayrollRuns = (filters: { year?: string; type?: string; status?: string } = {}) =>
   apiFetch<{ items: PayrollRunSummary[] }>(`/api/payroll/runs${qs(filters)}`);
 
-export const fetchPayrollRun = (id: string) => apiFetch<PayrollRun>(`/api/payroll/runs/${id}`);
+export const fetchPayrollRun = (id: string,scope?:SettingsScope) => apiFetch<PayrollRun>(`/api/payroll/runs/${id}`,scoped(scope));
 
 export const createPayrollRun = (payload: PayrollRunPayload) =>
   apiFetch<PayrollRun>("/api/payroll/runs", { method: "POST", body: JSON.stringify(payload) });
 
-export const recalculatePayrollRun = (id: string, overtime?: Record<string, number>) =>
+export const recalculatePayrollRun = (id: string, overtime?: Record<string, number>,scope?:SettingsScope) =>
   apiFetch<PayrollRun>(`/api/payroll/runs/${id}/recalculate`, {
+    ...scoped(scope),
     method: "POST",
     body: JSON.stringify({ overtime: overtime ?? {} }),
   });
 
-export const confirmPayrollRun = (id: string) =>
-  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/confirm`, { method: "POST" });
+export const confirmPayrollRun = (id: string,scope?:SettingsScope) =>
+  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/confirm`, { ...scoped(scope),method: "POST" });
 
-export const payPayrollRun = (id: string) =>
-  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/pay`, { method: "POST" });
+export const payPayrollRun = (id: string,scope?:SettingsScope) =>
+  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/pay`, { ...scoped(scope),method: "POST" });
 
-export const cancelPayrollRun = (id: string) =>
-  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/cancel`, { method: "POST" });
+export const cancelPayrollRun = (id: string,scope?:SettingsScope) =>
+  apiFetch<PayrollRun>(`/api/payroll/runs/${id}/cancel`, { ...scoped(scope),method: "POST" });
 
 export const deletePayrollRun = (id: string) =>
   apiFetch<{ ok: boolean }>(`/api/payroll/runs/${id}`, { method: "DELETE" });

@@ -20,6 +20,8 @@ import { OperationalSettingsSection } from '../components/OperationalSettingsSec
 import { ReturnsPolicySettingsSection } from '../components/ReturnsPolicySettingsSection'
 import { SettingsHistorySection } from '../components/SettingsHistorySection'
 import { ExpiryPolicySettingsSection } from '../components/ExpiryPolicySettingsSection'
+import {PayrollRateSettingsSection} from '../components/PayrollRateSettingsSection'
+import {useModules} from '@/context/useModules'
 import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
@@ -43,6 +45,7 @@ type Confirmation = { type: 'reset'; section: EditableSection; owner: PageOwner 
 export default function ConfigManagement() {
   const { company, branch, isConsolidated, registerTenantExitGuard } = useTenant()
   const { user, hasPermission, permissionsReady } = useAuthPermissions()
+  const {enabledModuleCodes}=useModules()
   const { refetch } = useSystemSettings(), { toast } = useToast()
   const [params, setParams] = useSearchParams(), navigate = useNavigate()
   const requested = params.get('seccion') || 'empresa'
@@ -67,6 +70,7 @@ export default function ConfigManagement() {
   const canMutate = context.canManage && !context.consolidated && draft.status === 'ready'
   const hrActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('rrhh', activity), [draft.reportActivity])
   const modulesActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('modulos', activity), [draft.reportActivity])
+  const payrollActivity=useCallback((activity:Parameters<typeof draft.reportActivity>[1])=>draft.reportActivity('nomina',activity),[draft.reportActivity])
   const editable = Object.prototype.hasOwnProperty.call(SECTION_KEYS, active) ? active as EditableSection : null
 
   useEffect(() => {
@@ -139,6 +143,7 @@ export default function ConfigManagement() {
         {active === 'historial' && <SettingsHistorySection />}
         {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
         {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings active={active === 'rrhh'} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={hrActivity} /></div>}
+        {visited.has('nomina')&&<div hidden={active!=='nomina'} key={`payroll-${contextKey}`}><PayrollRateSettingsSection context={{...context,canRead:context.canRead&&hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll'),canPublish:canMutate&&hasPermission('payroll.confirm')&&!!enabledModuleCodes?.has('payroll')}} disabled={draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={payrollActivity} currency={draft.confirmed.currency_code||'GTQ'}/></div>}
         {visited.has('modulos') && <div hidden={active !== 'modulos'} key={`modules-${contextKey}`}><ModulesSettings active={active === 'modulos'} canManage={canMutate} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={modulesActivity} /></div>}
       </>}
     </div></div>
