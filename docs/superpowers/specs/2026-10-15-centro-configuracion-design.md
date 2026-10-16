@@ -1,7 +1,7 @@
 # Centro de Configuración — navegación y guardado por sección
 
 Fecha: 15 de octubre de 2026.
-Estado: diseño técnico para revisión del usuario; producto aún no implementado.
+Estado: diseño técnico aprobado por el usuario el 15 de octubre de 2026; producto aún no implementado. Plan en `docs/superpowers/plans/2026-10-15-centro-configuracion.md`, pendiente de revisión y confirmación de ejecución.
 
 ## 1. Intención y alcance
 
@@ -158,4 +158,4 @@ No se harán escrituras en Supabase durante diseño. La implementación usará l
 
 Comprobación interna: propósito ligado a la operación multiempresa de un mismo cliente; claves y destinos contrastados con código; no se confunde recarga completa con ausencia de recarga; no se confunden atomicidad PostgreSQL y Storage; límites de navegación/concurrencia explícitos; catálogos y nuevas políticas no se marcan implementados.
 
-La continuación requiere revisión de este diseño por el usuario. Tras aprobarlo se redactará el plan de implementación y se elegirá su ejecución; esta especificación no sustituye ese plan.
+El usuario aprobó este diseño. La continuación requiere revisar el plan de implementación y confirmar su ejecución; esta especificación no sustituye ese plan.
