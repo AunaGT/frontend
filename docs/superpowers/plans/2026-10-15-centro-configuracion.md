@@ -10,7 +10,7 @@
 
 **Spec:** `/home/DiegoPatzan/Documents/CODE/Auna/deposito-frontend/docs/superpowers/specs/2026-10-15-centro-configuracion-design.md`, aprobado el 15 de octubre de 2026.
 
-**Execution status:** plan preparado para revisión; ninguna tarea de producto ejecutada. Ejecución directa recomendada, por compartir contexto e interfaces entre las tareas. No crear agentes sin selección explícita del usuario. Conservar las carpetas actuales y los cambios ajenos, según su preferencia previa.
+**Execution status (15 de octubre de 2026):** ejecución directa aprobada y realizada en las carpetas actuales. Tareas 1–6 implementadas; revisión independiente y tres correcciones RED→GREEN verificadas. Tarea 7 parcial: comprobaciones de código y documentación listas; validación visual/autenticada bloqueada por preferencia de seguridad del navegador. Sin migraciones, semilla ni escrituras en Supabase. Véase [evidencia y límites](../../planning/2026-10-15-centro-configuracion-verificacion.md).
 
 ## Global Constraints
 
@@ -86,7 +86,7 @@ export function sameSection(id: EditableSection, left: SectionValues, right: Sec
 export function findSettingsSections(term: string): typeof SETTINGS_SECTIONS
 ```
 
-- [ ] **1. Escribir pruebas rojas del contrato.** Usar el cargador local que transpila TypeScript, sin tocar el cargador compartido:
+- [x] **1. Escribir pruebas rojas del contrato.** Usar el cargador local que transpila TypeScript, sin tocar el cargador compartido:
 
 ```js
 const test = require('node:test'), assert = require('node:assert/strict')
@@ -110,8 +110,8 @@ test('vigencias se validan sin truncar y no se pierden valores legados', () => {
 })
 ```
 
-- [ ] **2. Ejecutar el rojo.** F: `node --test tests/config-model.test.cjs`. Debe fallar por módulo ausente, antes de implementar.
-- [ ] **3. Implementar metadatos y proyección.** Copiar exactamente las ocho filas de claves y once secciones de la especificación. Copiar defaults actuales de ConfigManagement solo para claves ausentes, no para valores vacíos o desconocidos. Tipar la tabla con `satisfies`; incluir metadatos de búsqueda “billetes/monedas”, “servicios”, “vigencia”, “NIT/facturas”, sin valores de la empresa.
+- [x] **2. Ejecutar el rojo.** F: `node --test tests/config-model.test.cjs`. Debe fallar por módulo ausente, antes de implementar.
+- [x] **3. Implementar metadatos y proyección.** Copiar exactamente las ocho filas de claves y once secciones de la especificación. Copiar defaults actuales de ConfigManagement solo para claves ausentes, no para valores vacíos o desconocidos. Tipar la tabla con `satisfies`; incluir metadatos de búsqueda “billetes/monedas”, “servicios”, “vigencia”, “NIT/facturas”, sin valores de la empresa.
 
 ```ts
 export function sectionPayload(id: EditableSection, draft: SectionValues): SectionValues {
@@ -122,8 +122,8 @@ const searchable = (value: string) => value.normalize('NFD').replace(/[\u0300-\u
 ```
 
 Normalizar solo entradas reconocidas: booleanos a `true/false` textual, enteros válidos a representación canónica y denominaciones a campos persistidos, sin quantity/subtotal. Conservar valores no reconocidos para exigir corrección explícita en su propia sección. `sameSection` compara únicamente la proyección normalizada de sus claves; no depende de identidad de objetos. No convertir un código monetario histórico a otro solo por abrir la pantalla.
-- [ ] **4. Añadir matriz de todas las claves.** Verificar que cada clave del spec pertenece exactamente a una sección, que `company_logo_url` no se envía por Guardar nombre, que dos listas de denominaciones equivalentes no generan cambios falsos y que modificar cantidad/valor/tipo realmente cambia la sección Caja. Verificar búsqueda vacía, acentos y sin resultados. Ejecutar verde.
-- [ ] **5. Revisar y hacer checkpoint de estos dos archivos.** Mensaje: `feat(config): define section ownership and draft validation`.
+- [x] **4. Añadir matriz de todas las claves.** Verificar que cada clave del spec pertenece exactamente a una sección, que `company_logo_url` no se envía por Guardar nombre, que dos listas de denominaciones equivalentes no generan cambios falsos y que modificar cantidad/valor/tipo realmente cambia la sección Caja. Verificar búsqueda vacía, acentos y sin resultados. Ejecutar verde.
+- [x] **5. Revisar y hacer checkpoint de estos dos archivos.** Mensaje: `feat(config): define section ownership and draft validation`.
 
 ## Task 2: solicitudes ligadas a contexto y lectura autorizada
 
@@ -144,7 +144,7 @@ removeCompanyLogo(options?: SettingsRequestOptions): Promise<void>
 // SystemSettingsState.refetch pasa a devolver Promise<boolean>, sin rechazar.
 ```
 
-- [ ] **1. Escribir pruebas rojas de headers y permisos.** En F cargar el servicio con `@/services/api` simulado y comprobar todos los endpoints; para logo simular fetch y FormData, restaurando globals al terminar:
+- [x] **1. Escribir pruebas rojas de headers y permisos.** En F cargar el servicio con `@/services/api` simulado y comprobar todos los endpoints; para logo simular fetch y FormData, restaurando globals al terminar:
 
 ```js
 test('guardar conserva la empresa y sucursal capturadas', async () => {
@@ -160,8 +160,8 @@ test('guardar conserva la empresa y sucursal capturadas', async () => {
 ```
 
 En B usar `withMocks` para registrar los handlers del Router real: sustituir `Router` por un registrador de `.get/.patch/.post/.delete` que guarda sus argumentos; simular solo Auth/controladores/Storage. Ejecutar el middleware real `hasPermission` de la ruta GET con `req.user={role:{id:61,name:'Personalizado'},permissions:['settings.manage']}` y respuesta `{ ...jsonResponse(), send(value) { this.body = value; return this } }`: debe llamar a next. Repetir con solo view, ninguno, sin usuario y admin; comprobar que PATCH/logo no permiten solo view. El middleware usa send para sus rechazos, no solamente json. No sustituir `hasPermission` por una función que siempre autoriza.
-- [ ] **2. Ejecutar rojo.** F: `node --test tests/config-service-scope.test.cjs`; B: `node --require ./tests/setup-env.js --test tests/config.permissions.test.js`.
-- [ ] **3. Implementar opciones con headers fijados antes de cualquier espera.** Mantener `apiFetch` global intacto; sus reintentos reciben los mismos options. Para upload pasar headers y signal al fetch actual sin fijar Content-Type multipart; conservar cookies, mensajes y validación de URL.
+- [x] **2. Ejecutar rojo.** F: `node --test tests/config-service-scope.test.cjs`; B: `node --require ./tests/setup-env.js --test tests/config.permissions.test.js`.
+- [x] **3. Implementar opciones con headers fijados antes de cualquier espera.** Mantener `apiFetch` global intacto; sus reintentos reciben los mismos options. Para upload pasar headers y signal al fetch actual sin fijar Content-Type multipart; conservar cookies, mensajes y validación de URL.
 
 ```ts
 const requestOptions = (options: SettingsRequestOptions = {}): RequestInit => ({
@@ -176,9 +176,9 @@ router.get('/', Auth, hasPermission('settings.view', 'settings.manage'), getAll)
 ```
 
 Rechazar scope explícito vacío antes de llamar a red; sin options conservar los llamadores existentes. Actualizar solo estos cinco métodos, no las utilidades públicas de login/denominaciones ajenas al flujo.
-- [ ] **4. Hacer comprobable el refresco público.** `SystemSettingsProvider` usa usuario/empresa/sucursal y permisos listos para capturar identidad de carga; generación incrementada al cambiar contexto o iniciar refresh, headers explícitos y signal en GET. `load(): Promise<boolean>` devuelve true solo si aplicó la respuesta vigente; false si falló, quedó obsoleto o no hay contexto. El catch actual mantiene `error:true` solo en la generación vigente y no rechaza. No provocar rechazos sin manejar en consumidores que hoy ignoran refetch. No mostrar identidad fiscal o moneda anterior mientras carga otra empresa.
-- [ ] **5. Añadir pruebas de refresco tardío.** Con `hookHarness` y promesas controladas: cargar A, pasar a B antes de resolver A, resolver B y después A, comprobar contexto B; probar error A tardío, mismo usuario con permisos revocados, usuario distinto con misma empresa y fallo de refresh devolviendo false. Los reintentos manuales del servicio conservan headers; no usar como prueba de red real un mock de apiFetch.
-- [ ] **6. Ejecutar verde y regresiones.** F: `node --test tests/config-service-scope.test.cjs tests/services-settings-state.test.cjs tests/config-fel-save.test.cjs`; B: `node --require ./tests/setup-env.js --test tests/config.permissions.test.js tests/config.atomic.test.js tests/config.fel.test.js tests/services.settings.test.js`. Registrar checkpoints separados por repositorio, solo archivos propios: `fix(config): pin requests to their original context` y `fix(config): allow managers to read settings`.
+- [x] **4. Hacer comprobable el refresco público.** `SystemSettingsProvider` usa usuario/empresa/sucursal y permisos listos para capturar identidad de carga; generación incrementada al cambiar contexto o iniciar refresh, headers explícitos y signal en GET. `load(): Promise<boolean>` devuelve true solo si aplicó la respuesta vigente; false si falló, quedó obsoleto o no hay contexto. El catch actual mantiene `error:true` solo en la generación vigente y no rechaza. No provocar rechazos sin manejar en consumidores que hoy ignoran refetch. No mostrar identidad fiscal o moneda anterior mientras carga otra empresa.
+- [x] **5. Añadir pruebas de refresco tardío.** Con `hookHarness` y promesas controladas: cargar A, pasar a B antes de resolver A, resolver B y después A, comprobar contexto B; probar error A tardío, mismo usuario con permisos revocados, usuario distinto con misma empresa y fallo de refresh devolviendo false. Los reintentos manuales del servicio conservan headers; no usar como prueba de red real un mock de apiFetch.
+- [x] **6. Ejecutar verde y regresiones.** F: `node --test tests/config-service-scope.test.cjs tests/services-settings-state.test.cjs tests/config-fel-save.test.cjs`; B: `node --require ./tests/setup-env.js --test tests/config.permissions.test.js tests/config.atomic.test.js tests/config.fel.test.js tests/services.settings.test.js`. Registrar checkpoints separados por repositorio, solo archivos propios: `fix(config): pin requests to their original context` y `fix(config): allow managers to read settings`.
 
 ## Task 3: dueño de borradores, carga y confirmación por sección
 
@@ -208,7 +208,7 @@ useSettingsDraft(input: { context: SettingsEditorContext; refresh: () => Promise
 
 Los estados dirty/pending agregados incluyen actividades auxiliares. `reportActivity` debe ser estable, asociado a la generación vigente y actualizar ref síncrona y estado de render. No hacer que un callback guardado de A libere una operación de B.
 
-- [ ] **1. Preparar arnés y primer rojo.** Reutilizar `reportHookHarness.cjs` sin ampliarlo con un runner nuevo. El helper puede exportar promesas controladas y el siguiente cargador:
+- [x] **1. Preparar arnés y primer rojo.** Reutilizar `reportHookHarness.cjs` sin ampliarlo con un runner nuevo. El helper puede exportar promesas controladas y el siguiente cargador:
 
 ```js
 const { hookHarness } = require('./reportHookHarness.cjs')
@@ -246,8 +246,8 @@ test('confirmar pedidos no reemplaza borrador fiscal con la respuesta completa',
 })
 ```
 
-- [ ] **2. Ejecutar rojo.** F: `node --test tests/config-draft.test.cjs`.
-- [ ] **3. Implementar carga y generación.** Mantener ref de contexto/generación/activo, ref de operación y state visible; aumentar generación sin esperar a un efecto al cambiar la clave de contexto. La clave incluye usuario, empresa, sucursal, permisos y ready. Al desmontar invalidar generación, abortar GET y limpiar registro de actividad. No exponer state con clave vieja en el render del contexto nuevo. Antes de red comprobar permisos/contexto y coincidencia de `getActiveCompanyId/getActiveBranchId`; durante consolidado permitir consulta pero nunca mutación. En error de GET status=error, sin base editable.
+- [x] **2. Ejecutar rojo.** F: `node --test tests/config-draft.test.cjs`.
+- [x] **3. Implementar carga y generación.** Mantener ref de contexto/generación/activo, ref de operación y state visible; aumentar generación sin esperar a un efecto al cambiar la clave de contexto. La clave incluye usuario, empresa, sucursal, permisos y ready. Al desmontar invalidar generación, abortar GET y limpiar registro de actividad. No exponer state con clave vieja en el render del contexto nuevo. Antes de red comprobar permisos/contexto y coincidencia de `getActiveCompanyId/getActiveBranchId`; durante consolidado permitir consulta pero nunca mutación. En error de GET status=error, sin base editable.
 
 ```ts
 // La clave y epoch deben capturarse también en los handlers devueltos de cada render.
@@ -260,7 +260,7 @@ const current = (ticket: Ticket) => live.current.active && ticket.key === live.c
 Una carga correcta crea bases/borradores de las ocho secciones mediante Task 1; una recarga explícita no descarta borradores sin confirmación del contenedor. No reinicializar todas las secciones tras un PATCH. No usar solo `companyId === inicial` como comprobación de vigencia.
 
 Escuchar localmente `tenant:changed`, `auth:unauthorized` y `storage` para `tenant:companyId`, `tenant:branchId`, `auth:user`, `auth:isAuthenticated` (también storage con key=null por limpieza completa). Comparar contexto vigente antes de reaccionar a tenant:changed; los cambios forzados invalidan generación, operaciones y datos visibles sin pedir confirmación. Si Auth/TenantProvider aún no reflejan el nuevo contexto, mostrar estado unavailable y solicitar recargar, no reutilizar la sesión caché ni iniciar GET/PATCH con el contexto anterior. El desmontaje retira los listeners. No convertir esto en sincronización universal de sesiones de todos los módulos.
-- [ ] **4. Implementar escritura con ticket y bloqueo síncrono.** Validar sección, dirty, ready y permisos antes de adquirir operación; activar pending en ref antes del primer await. Capturar payload inmutable y SettingsRequestOptions. Confirmar base/borrador solo para la sección enviada; después refrescar contexto público. Si refresh devuelve false, retornar `saved-refresh-failed`, conservar confirmación y no volver a llamar al PATCH. Tras cada espera/catch/finally comprobar ticket antes de efectos. El cierre de una generación no libera el pending de otra.
+- [x] **4. Implementar escritura con ticket y bloqueo síncrono.** Validar sección, dirty, ready y permisos antes de adquirir operación; activar pending en ref antes del primer await. Capturar payload inmutable y SettingsRequestOptions. Confirmar base/borrador solo para la sección enviada; después refrescar contexto público. Si refresh devuelve false, retornar `saved-refresh-failed`, conservar confirmación y no volver a llamar al PATCH. Tras cada espera/catch/finally comprobar ticket antes de efectos. El cierre de una generación no libera el pending de otra.
 
 ```ts
 const result = await updateSettings(payload, { scope: { companyId: context.companyId, branchId: context.branchId } })
@@ -272,8 +272,8 @@ return refreshed === false ? 'saved-refresh-failed' : 'saved'
 ```
 
 Logo usa el mismo bloqueo, endpoint inmediato y ticket, pero solo modifica confirmed.company_logo_url/logoUrl. Una subida exitosa no cambia el borrador de nombre. Los métodos no muestran toasts por sí mismos; el contenedor debe comprobar resultado y generación antes de avisar.
-- [ ] **5. Añadir pruebas rojas/verde de límites.** Casos concretos: GET rechazado→save ignored y cero PATCH; ready false; company/user vacío; canRead false; view sin manage; consolidado; doble save en el mismo turno; valor inválido; error PATCH conserva borrador; reset solo una sección; refresh false da resultado parcial sin segundo PATCH; logo ok/fallo con nombre pendiente; callbacks viejos de setField/reset/save tras A→B→A; resolver/rechazar GET/PATCH/logo después de desmontar; mutación de A que resuelve durante refresh cuando ya cambió usuario. Despachar storage de auth/tenant y unauthorized sin rerender previo: las respuestas ya pendientes se descartan y una nueva escritura se rechaza; al desmontar desaparecen los listeners. Usar deferred, no temporizadores arbitrarios ni sólo snapshots.
-- [ ] **6. Ejecutar `node --test tests/config-model.test.cjs tests/config-service-scope.test.cjs tests/config-draft.test.cjs`; revisar y checkpoint:** `feat(config): manage scoped section drafts without cross-section resets`.
+- [x] **5. Añadir pruebas rojas/verde de límites.** Casos concretos: GET rechazado→save ignored y cero PATCH; ready false; company/user vacío; canRead false; view sin manage; consolidado; doble save en el mismo turno; valor inválido; error PATCH conserva borrador; reset solo una sección; refresh false da resultado parcial sin segundo PATCH; logo ok/fallo con nombre pendiente; callbacks viejos de setField/reset/save tras A→B→A; resolver/rechazar GET/PATCH/logo después de desmontar; mutación de A que resuelve durante refresh cuando ya cambió usuario. Despachar storage de auth/tenant y unauthorized sin rerender previo: las respuestas ya pendientes se descartan y una nueva escritura se rechaza; al desmontar desaparecen los listeners. Usar deferred, no temporizadores arbitrarios ni sólo snapshots.
+- [x] **6. Ejecutar `node --test tests/config-model.test.cjs tests/config-service-scope.test.cjs tests/config-draft.test.cjs`; revisar y checkpoint:** `feat(config): manage scoped section drafts without cross-section resets`.
 
 ## Task 4: guardia antes de cambiar empresa o sucursal
 
@@ -281,7 +281,7 @@ Logo usa el mismo bloqueo, endpoint inmediato y ticket, pero solo modifica confi
 
 **Interfaces:** ampliar TenantContextType con `registerTenantExitGuard: (guard: () => boolean) => () => void`. Mantener firmas setCompany/setBranch; ningún consumidor existente necesita registrarse.
 
-- [ ] **1. Escribir prueba roja contra TenantProvider real con hooks simulados.** Mockear useAuth con un usuario U de empresas A/B y sucursales BA/BB, useQueryClient con contador clear, api.setActiveTenant con registro de escrituras y window.location.reload con contador. Renderizar `TenantProvider({children:null})` con hookHarness y leer `element.props.value`, no duplicar la lógica del proveedor en el test.
+- [x] **1. Escribir prueba roja contra TenantProvider real con hooks simulados.** Mockear useAuth con un usuario U de empresas A/B y sucursales BA/BB, useQueryClient con contador clear, api.setActiveTenant con registro de escrituras y window.location.reload con contador. Renderizar `TenantProvider({children:null})` con hookHarness y leer `element.props.value`, no duplicar la lógica del proveedor en el test.
 
 ```js
 const value = h.render(() => TenantProvider({ children: null })).props.value
@@ -295,8 +295,8 @@ assert.equal(h.render(() => TenantProvider({ children: null })).props.value.comp
 ```
 
 Aquí h es el hookHarness, writes/clears/reloads provienen de los tres mocks descritos; usar los tipos reales company/branch del proveedor y restaurar global.window con try/finally.
-- [ ] **2. Ejecutar rojo:** F `node --test tests/config-tenant-exit.test.cjs`.
-- [ ] **3. Implementar registro de dueño único con limpieza por identidad.** Guardia en ref, registro con useCallback estable:
+- [x] **2. Ejecutar rojo:** F `node --test tests/config-tenant-exit.test.cjs`.
+- [x] **3. Implementar registro de dueño único con limpieza por identidad.** Guardia en ref, registro con useCallback estable:
 
 ```ts
 const exitGuard = useRef<(() => boolean) | null>(null)
@@ -310,8 +310,8 @@ if (exitGuard.current && !exitGuard.current()) return
 ```
 
 Incluir registerTenantExitGuard en el value. La limpieza de A no puede borrar un guardia B posterior. No invocar guardia en la resolución forzada de acceso/sesión del efecto existente. Mantener recarga completa, sin cambiar consumidores a navegación suave.
-- [ ] **4. Añadir casos:** rechazo también para sucursal; aceptación conserva orden guardia→estado/almacenamiento→clear→reload; misma selección no pregunta; sin registro comportamiento anterior; limpiar dueño antiguo no borra nuevo; eliminar registro restaura comportamiento original. En Task 5 probar confirmación rechazada/aceptada y antes de unload para impedir doble aviso.
-- [ ] **5. Ejecutar verde y checkpoint:** `fix(config): guard tenant changes before mutating active context`.
+- [x] **4. Añadir casos:** rechazo también para sucursal; aceptación conserva orden guardia→estado/almacenamiento→clear→reload; misma selección no pregunta; sin registro comportamiento anterior; limpiar dueño antiguo no borra nuevo; eliminar registro restaura comportamiento original. En Task 5 probar confirmación rechazada/aceptada y antes de unload para impedir doble aviso.
+- [x] **5. Ejecutar verde y checkpoint:** `fix(config): guard tenant changes before mutating active context`.
 
 ## Task 5: centro visual, extracción de formularios y navegación
 
@@ -330,7 +330,7 @@ type SettingsSectionActionsProps = { dirty: boolean; pending: boolean; canManage
 
 CompanySettingsSection añade logoUrl, logoPending, onUpload(file), onRemove a los props comunes; muestra controles de logo solo en Empresa, regionales solo en Regional. SettingsRelatedLinks recibe confirmLeave(destination):void del contenedor; no navega ocultamente ni guarda borradores.
 
-- [ ] **1. Escribir rojo de composición usando MemoryRouter/StaticRouter y hook real o mock explícito de estado.** Construir contexto completo U/A/BA y permisos listos; el test selecciona por `?seccion=` y callbacks, no por índice de useState.
+- [x] **1. Escribir rojo de composición usando MemoryRouter/StaticRouter y hook real o mock explícito de estado.** Construir contexto completo U/A/BA y permisos listos; el test selecciona por `?seccion=` y callbacks, no por índice de useState.
 
 ```js
 const html = renderToStaticMarkup(React.createElement(MemoryRouter,
@@ -343,8 +343,8 @@ assert.doesNotMatch(html, /role="tablist"/)
 ```
 
 Page es ConfigManagement cargado con loadReportModule y mocks de tenant/auth/settings draft, como en los tests actuales; render de error/loading no debe necesitar datos reales.
-- [ ] **2. Ejecutar rojo:** F `node --test tests/config-navigation.test.cjs`.
-- [ ] **3. Extraer controles actuales a componentes.** Mover JSX de identidad/regional, experiencia, fiscalidad y tabla de denominaciones sin cambiar etiquetas de campo/ayudas útiles ni contratos. Reemplazar form/setForm por values/onField y extraer opciones CURRENCIES/TIMEZONES/LOCALES/VAT al archivo de Empresa/Fiscal correspondiente; exponer su valor histórico desconocido como opción actual señalada. No reescribir editores de HR/módulos aquí: se conectan en Task 6. Quitar handlers viejos al conectar useSettingsDraft, no mantener dos copias activas.
+- [x] **2. Ejecutar rojo:** F `node --test tests/config-navigation.test.cjs`.
+- [x] **3. Extraer controles actuales a componentes.** Mover JSX de identidad/regional, experiencia, fiscalidad y tabla de denominaciones sin cambiar etiquetas de campo/ayudas útiles ni contratos. Reemplazar form/setForm por values/onField y extraer opciones CURRENCIES/TIMEZONES/LOCALES/VAT al archivo de Empresa/Fiscal correspondiente; exponer su valor histórico desconocido como opción actual señalada. No reescribir editores de HR/módulos aquí: se conectan en Task 6. Quitar handlers viejos al conectar useSettingsDraft, no mantener dos copias activas.
 
 ```tsx
 <OperationalSettingsSection section="pedidos" values={draft.drafts.pedidos}
@@ -356,7 +356,7 @@ Page es ConfigManagement cargado con loadReportModule y mocks de tenant/auth/set
 ```
 
 En el contenedor definir `canMutate=context.canManage && !context.consolidated && draft.status==='ready'`; saveSection usa SaveOutcome para no avisar en ignored, enfoca resumen en invalid y distingue saved-refresh-failed. `resetTarget` es EditableSection|null y abre AlertDialog de Auna; confirmar llama reset solo para ese id.
-- [ ] **4. Implementar URL/buscador y layout.** useSearchParams lee seccion y conserva otros parámetros. unknown reemplaza a empresa y muestra aviso inline sin toast repetido; select añade entrada normal de historial. Formulario activo no depende del resultado de búsqueda. Usar los once destinos exactos de Task 1. Sidebar ~240px en escritorio y selector por debajo de 768px; contenido minmax(0,1fr), ancho total máximo1560px y formularios breves máximo980px. Reutilizar tokens actuales:
+- [x] **4. Implementar URL/buscador y layout.** useSearchParams lee seccion y conserva otros parámetros. unknown reemplaza a empresa y muestra aviso inline sin toast repetido; select añade entrada normal de historial. Formulario activo no depende del resultado de búsqueda. Usar los once destinos exactos de Task 1. Sidebar ~240px en escritorio y selector por debajo de 768px; contenido minmax(0,1fr), ancho total máximo1560px y formularios breves máximo980px. Reutilizar tokens actuales:
 
 ```css
 .config-center { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; }
@@ -366,7 +366,7 @@ En el contenedor definir `canMutate=context.canManage && !context.consolidated &
 ```
 
 Conservar clase config-page y medidas existentes, eliminar solo CSS obsoleto ligado a pestañas retiradas. Navegación semántica/aria-current, labels, estado de búsqueda vacía, h1 sr-only, breadcrumb con sección y contexto confirmado. Errores de campo con id/aria-describedby/aria-invalid, resumen enfocable con enlaces.
-- [ ] **5. Conectar guardia de salida y beforeunload.** Registrar función estable que lee refs actuales dirty/pending. Pending rechaza e indica esperar; dirty usa `window.confirm` síncrono para el selector; si acepta, marcar bypass local para que beforeunload no pregunte otra vez en la recarga. Restablecer y enlaces externos usan AlertDialog, no confirmación nativa. No agregar listeners de popstate ni modificar history. Aceptar salida elimina advertencia de unload solo para esa salida; cancelar conserva borradores y guardia. La limpieza por desmontaje invalida el registro.
+- [x] **5. Conectar guardia de salida y beforeunload.** Registrar función estable que lee refs actuales dirty/pending. Pending rechaza e indica esperar; dirty usa `window.confirm` síncrono para el selector; si acepta, marcar bypass local para que beforeunload no pregunte otra vez en la recarga. Restablecer y enlaces externos usan AlertDialog, no confirmación nativa. No agregar listeners de popstate ni modificar history. Aceptar salida elimina advertencia de unload solo para esa salida; cancelar conserva borradores y guardia. La limpieza por desmontaje invalida el registro.
 
 ```ts
 const beforeUnload = (event: BeforeUnloadEvent) => {
@@ -375,8 +375,8 @@ const beforeUnload = (event: BeforeUnloadEvent) => {
 }
 ```
 
-- [ ] **6. Probar navegación y estados concretos.** Las once secciones, query desconocida conservando otros parámetros, Atrás/Adelante dentro del centro, búsqueda billetes/servicios y vacía sin desmontar borradores, read-only sin botones, loading/error sin formulario editable, errores con foco/enlaces, confirmación de restablecer cancelada/aceptada, cambio de tenant cancelado/aceptado y sin doble beforeunload. Probar logo como acción inmediata y FEL desactivado sin habilitarlo incidentalmente. Los tests previos de guardar denominaciones siguen excluyendo filas de valor cero según el contrato actual.
-- [ ] **7. Ejecutar verde focalizado y build antes del checkpoint:** F `node --test tests/config-navigation.test.cjs tests/config-presentation.test.cjs tests/config-fel-save.test.cjs tests/services-settings-state.test.cjs` y `npm run build`. Checkpoint: `feat(config): reorganize existing settings into a compact section center`.
+- [x] **6. Probar navegación y estados concretos.** Las once secciones, query desconocida conservando otros parámetros, Atrás/Adelante dentro del centro, búsqueda billetes/servicios y vacía sin desmontar borradores, read-only sin botones, loading/error sin formulario editable, errores con foco/enlaces, confirmación de restablecer cancelada/aceptada, cambio de tenant cancelado/aceptado y sin doble beforeunload. Probar logo como acción inmediata y FEL desactivado sin habilitarlo incidentalmente. Los tests previos de guardar denominaciones siguen excluyendo filas de valor cero según el contrato actual.
+- [x] **7. Ejecutar verde focalizado y build antes del checkpoint:** F `node --test tests/config-navigation.test.cjs tests/config-presentation.test.cjs tests/config-fel-save.test.cjs tests/services-settings-state.test.cjs` y `npm run build`. Checkpoint: `feat(config): reorganize existing settings into a compact section center`.
 
 ## Task 6: HR, módulos y accesos relacionados sin duplicar editores
 
@@ -395,9 +395,9 @@ createHrDocumentType(value: Omit<DocumentType, 'id'>, request?: { headers?: Reco
 updateHrDocumentType(id: string, value: Omit<DocumentType, 'id'>, request?: { headers?: Record<string, string> }): Promise<DocumentType>
 ```
 
-- [ ] **1. Escribir rojo con promesas diferidas contra componentes reales.** Antes de resolver mutateAsync/refetch/invalidación pasar A→B→A y cambiar usuario. Comprobar cero cierre/toast en la generación nueva. Abrir requisito y modificar nombre reporta dirty; cancelar/confirmar cierre conserva/descarta respectivamente; pendiente impide cerrar, cambiar sección o tenant. Un módulo pendiente reporta pending antes de la petición y no genera un segundo PATCH por doble clic. La notificación de actividad de un dueño anterior no borra la nueva.
-- [ ] **2. Ejecutar rojo:** F `node --test tests/config-related-editors.test.cjs`.
-- [ ] **3. Extender servicios sin romper llamadas antiguas.** Añadir los parámetros opcionales y expandir headers/signal en apiFetch; conservar method/body/endpoints. En módulos/HR capturar headers y datos de formulario por cada mutación. El hook useMutation recibe variables inmutables: id, payload, scope y ticket; mutationFn no lee editing/form/contexto mutable tras esperar.
+- [x] **1. Escribir rojo con promesas diferidas contra componentes reales.** Antes de resolver mutateAsync/refetch/invalidación pasar A→B→A y cambiar usuario. Comprobar cero cierre/toast en la generación nueva. Abrir requisito y modificar nombre reporta dirty; cancelar/confirmar cierre conserva/descarta respectivamente; pendiente impide cerrar, cambiar sección o tenant. Un módulo pendiente reporta pending antes de la petición y no genera un segundo PATCH por doble clic. La notificación de actividad de un dueño anterior no borra la nueva.
+- [x] **2. Ejecutar rojo:** F `node --test tests/config-related-editors.test.cjs`.
+- [x] **3. Extender servicios sin romper llamadas antiguas.** Añadir los parámetros opcionales y expandir headers/signal en apiFetch; conservar method/body/endpoints. En módulos/HR capturar headers y datos de formulario por cada mutación. El hook useMutation recibe variables inmutables: id, payload, scope y ticket; mutationFn no lee editing/form/contexto mutable tras esperar.
 
 ```ts
 const saved = await updateHrDocumentType(variables.id, variables.payload, { headers: variables.headers })
@@ -406,17 +406,19 @@ await qc.invalidateQueries({ queryKey: ['hr-document-types', variables.companyId
 ```
 
 HR query añade userId y scope capturado, enabled condicionado a contexto/permisos; invalidaciones de employee-documents limitadas a claves compatibles con su alcance existente, sin inventar un orden nuevo de claves sin revisar sus consumidores. ModuleProvider añade usuario a la queryKey actual y headers/signal capturados en queryFn; preservar sus dependencias, status y effectiveEnabled. No cambiar catálogo global ni habilitar módulos por cargar Configuración.
-- [ ] **4. Integrar actividad y conservar borrador HR al cambiar sección.** ConfigManagement mantiene montados los editores auxiliares ya visitados dentro de contenedores hidden, con mismo owner por generación; oculto no significa pérdida de borrador. Pasar active a los editores: el portal de Dialog HR se muestra solo con `open && active !== false`, conservando open/form internos mientras su sección está oculta. Un contenedor hidden por sí solo no oculta un portal de Radix. Mientras hay una mutación auxiliar no iniciar otro guardado. El diálogo HR modificado requiere descarte para cerrar por acción del usuario; durante pending deshabilitar cerrar/confirmar repetido. Registrar dirty/pending en efecto y actualizar ref de pending síncronamente en el handler; limpieza y callbacks con ticket. Las acciones de módulos siguen inmediatas con aviso, sin Guardar todo. Probar ocultar y volver a la sección: no hay modal visible en la otra sección y vuelve el mismo borrador al regresar.
-- [ ] **5. Resolver enlaces solo con permisos y módulos comprobados.** Usar imports de manifests, no componentes privados de otro módulo: appointmentsModule.paths.settings, inventoryModule.paths.barcodePrint/shelfPricePrint, usersModule.paths.roles, accountingModule.paths.list y catalogsModule.paths.list. Revisar los PermissionRoute reales de cada destino y usar mismos permisos; `settings.manage` no autoriza por sí solo Agenda/Contabilidad/roles. Si useModules carga/falla, no ofrecer un acceso operativo como habilitado. Inventario incluye accesos de impresión; Accesos relacionados enlaza a los catálogos existentes con descripción de la pestaña que debe abrirse, sin parámetros de pestaña inventados. Contabilidad indica que la configuración se abre dentro del módulo; no ejecutar postPending desde este centro. Una salida en la misma pestaña confirma pérdida de borradores; abrir otro tab mediante modificadores no los descarta.
-- [ ] **6. Verificar módulos/permisos y verde.** Probar catálogo desactivado, dependencias bloqueadas, falta de permisos de destino con settings.manage, usuario con view, cambio a consolidado, dirty HR tras guardar Pedidos y refetch fallido tras módulo persistido con aviso de resultado parcial. Mantener paginación fuera de tabla y métricas antes de filtros en Módulos. F: `node --test tests/config-related-editors.test.cjs tests/polish-hr-config.test.cjs tests/config-draft.test.cjs tests/config-navigation.test.cjs`; `npm run test:modules`; `npm run build`. Checkpoint: `fix(config): preserve related editor drafts and scoped operations`.
+- [x] **4. Integrar actividad y conservar borrador HR al cambiar sección.** ConfigManagement mantiene montados los editores auxiliares ya visitados dentro de contenedores hidden, con mismo owner por generación; oculto no significa pérdida de borrador. Pasar active a los editores: el portal de Dialog HR se muestra solo con `open && active !== false`, conservando open/form internos mientras su sección está oculta. Un contenedor hidden por sí solo no oculta un portal de Radix. Mientras hay una mutación auxiliar no iniciar otro guardado. El diálogo HR modificado requiere descarte para cerrar por acción del usuario; durante pending deshabilitar cerrar/confirmar repetido. Registrar dirty/pending en efecto y actualizar ref de pending síncronamente en el handler; limpieza y callbacks con ticket. Las acciones de módulos siguen inmediatas con aviso, sin Guardar todo. Probar ocultar y volver a la sección: no hay modal visible en la otra sección y vuelve el mismo borrador al regresar.
+- [x] **5. Resolver enlaces solo con permisos y módulos comprobados.** Usar imports de manifests, no componentes privados de otro módulo: appointmentsModule.paths.settings, inventoryModule.paths.barcodePrint/shelfPricePrint, usersModule.paths.roles, accountingModule.paths.list y catalogsModule.paths.list. Revisar los PermissionRoute reales de cada destino y usar mismos permisos; `settings.manage` no autoriza por sí solo Agenda/Contabilidad/roles. Si useModules carga/falla, no ofrecer un acceso operativo como habilitado. Inventario incluye accesos de impresión; Accesos relacionados enlaza a los catálogos existentes con descripción de la pestaña que debe abrirse, sin parámetros de pestaña inventados. Contabilidad indica que la configuración se abre dentro del módulo; no ejecutar postPending desde este centro. Una salida en la misma pestaña confirma pérdida de borradores; abrir otro tab mediante modificadores no los descarta.
+- [x] **6. Verificar módulos/permisos y verde.** Probar catálogo desactivado, dependencias bloqueadas, falta de permisos de destino con settings.manage, usuario con view, cambio a consolidado, dirty HR tras guardar Pedidos y refetch fallido tras módulo persistido con aviso de resultado parcial. Mantener paginación fuera de tabla y métricas antes de filtros en Módulos. F: `node --test tests/config-related-editors.test.cjs tests/polish-hr-config.test.cjs tests/config-draft.test.cjs tests/config-navigation.test.cjs`; `npm run test:modules`; `npm run build`. Checkpoint: `fix(config): preserve related editor drafts and scoped operations`.
 
 ## Task 7: integración, revisión visual y evidencia de cierre
+
+Estado: parcial. Código revisado y verificado; se conservan pendientes las comprobaciones que requieren navegador autorizado. El paso de escritura remota es condicional y no se ejecutó.
 
 **Files:** completar pruebas de tareas anteriores; crear F `docs/planning/2026-10-15-centro-configuracion-verificacion.md`; actualizar estado de este plan/spec y enlace de propuesta funcional únicamente con resultados observados.
 
 **Interfaces:** consume producto completo de tareas1–6; produce evidencia reproducible de qué pasó, qué falló y qué no se pudo validar. Ninguna ampliación funcional implícita.
 
-- [ ] **1. Ejecutar comprobaciones completas.** Desde F:
+- [x] **1. Ejecutar comprobaciones completas.** Desde F:
 
 ```sh
 node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs
@@ -434,11 +436,11 @@ git diff --check
 ```
 
 Registrar comandos, salida y conteos reales; no copiar los719/709 de la entrega anterior. Si falla un test ajeno, registrar y diagnosticar antes de atribuirlo a infraestructura; no borrarlo ni ocultarlo. No afirmar integración remota por pasar un doble unitario.
-- [ ] **2. Revisar acceso real sin levantar otra instancia duplicada.** Comprobar procesos/listeners de Auna antes de iniciar; reutilizar los actuales. Si están cerrados, arrancar su backend/frontend de desarrollo compatibles siguiendo scripts existentes, sin imprimir .env ni credenciales. Leer skill de navegador aplicable antes de operarlo. Usar sesión y Supabase actuales; si el acceso sigue bloqueado, registrar pendiente, no buscar un modo de evadirlo. No aplicar migraciones ni semilla para validar un cambio de interfaz.
+- [x] **2. Revisar acceso real sin levantar otra instancia duplicada.** Procesos comprobados e iniciados al no haber listeners Auna; backend `/health` responde. Navegador rechazado por preferencia guardada, sin evasión; pruebas autenticadas pendientes. No se aplicaron migraciones ni semilla.
 - [ ] **3. Validar escenarios visuales.** En claro y oscuro a360/768/1440px: cada sección, sidebar/selector, buscador contenido, superficies elevadas, errores y teclado. Abrir dos secciones con cambios, guardar una y confirmar la otra; comprobar nombre confirmado en contexto, logo inmediato, Caja compacta. Cambiar empresa con cancelar y aceptar, recargar con cambios y salir a un editor relacionado. No prometer interceptar Atrás fuera del centro. Guardar capturas por escenario en un directorio de QA del proyecto sin datos privados innecesarios.
 - [ ] **4. Si se prueba una escritura remota, usar alcance exacto.** Elegir una empresa de desarrollo ya accesible y guardar valores originales de las claves de la sección; cambiar solo esa sección, leer resultado y restaurar exactamente sus valores originales al terminar. No cambiar moneda/fiscalidad ni subir/quitar logos reales para una captura. Si se requieren requisitos o métodos sintéticos, registrar IDs y borrar solo fixtures propios; no limpiar tablas, históricos ni otras empresas. Verificar otra empresa sin cambios. Las pruebas destructivas de rollback pertenecen a tests locales, no a la configuración real.
-- [ ] **5. Revisar el diff conectado.** Comprobar endpoints, permisos y headers en todos los consumidores tocados; ausencia de secretos, rutas inventadas, JSON editor libre o defaults persistidos al cargar; limpieza de listeners y refs de generaciones. Usar revisión independiente disponible solo según el flujo autorizado, sin iniciar agentes automáticamente. Corregir hallazgos en su tarea con una prueba roja/verde; no ampliar alcance con políticas nuevas.
-- [ ] **6. Documentar y checkpoint.** Evidencia con tabla por prueba, límites de navegación universal/concurrencia/Storage, estado visual real y próximos bloques (reubicación de catálogos y luego nuevas políticas). Actualizar checks del plan solo para tareas realmente terminadas; mantener pendiente visual si faltó acceso. No marcar completada toda la reorganización de Configuración. Checkpoint: `docs(config): record settings center verification and remaining scope`.
+- [x] **5. Revisar el diff conectado.** Comprobar endpoints, permisos y headers en todos los consumidores tocados; ausencia de secretos, rutas inventadas, JSON editor libre o defaults persistidos al cargar; limpieza de listeners y refs de generaciones. Usar revisión independiente disponible solo según el flujo autorizado, sin iniciar agentes automáticamente. Corregir hallazgos en su tarea con una prueba roja/verde; no ampliar alcance con políticas nuevas.
+- [x] **6. Documentar y checkpoint.** Evidencia con tabla por prueba, límites de navegación universal/concurrencia/Storage, estado visual real y próximos bloques (reubicación de catálogos y luego nuevas políticas). Actualizar checks del plan solo para tareas realmente terminadas; mantener pendiente visual si faltó acceso. No marcar completada toda la reorganización de Configuración. Checkpoint: `docs(config): record settings center verification and remaining scope`.
 
 ## Revisión interna del plan
 
@@ -452,4 +454,4 @@ Registrar comandos, salida y conteos reales; no copiar los719/709 de la entrega 
 
 ## Handoff
 
-Plan pendiente de revisión del usuario. Recomendar ejecución directa en esta sesión por la dependencia estrecha entre contexto, borradores y formularios; mantener carpetas actuales y no crear instancias adicionales. Al aprobar plan y método, leer `superpowers:executing-plans`, conservar decisiones del usuario sobre checkout y ejecutar tarea por tarea con pruebas antes de cambios de producto.
+Plan aprobado y ejecutado en esta sesión mediante `superpowers:executing-plans`. Continuar desde la validación visual pendiente de Task 7 cuando se habilite el navegador; no repetir tareas 1–6. Conservar el workspace de evidencia mientras esa comprobación esté incompleta. El traslado de catálogos y nuevas políticas corresponden a otras entregas, no se marcan terminados aquí.

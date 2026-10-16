@@ -158,4 +158,4 @@ No se harán escrituras en Supabase durante diseño. La implementación usará l
 
 Comprobación interna: propósito ligado a la operación multiempresa de un mismo cliente; claves y destinos contrastados con código; no se confunde recarga completa con ausencia de recarga; no se confunden atomicidad PostgreSQL y Storage; límites de navegación/concurrencia explícitos; catálogos y nuevas políticas no se marcan implementados.
 
-El usuario aprobó este diseño. La continuación requiere revisar el plan de implementación y confirmar su ejecución; esta especificación no sustituye ese plan.
+El usuario aprobó este diseño y su plan de implementación. Al 15 de octubre de 2026, tareas 1–6 implementadas y revisión de código corregida; tarea 7 parcial por bloqueo del navegador. La certificación visual y persistencia remota no se dan por realizadas. Véase [verificación, decisiones y pendientes](../../planning/2026-10-15-centro-configuracion-verificacion.md). El traslado de catálogos y las políticas nuevas permanecen fuera de esta entrega.

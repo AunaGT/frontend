@@ -2,6 +2,8 @@
 
 Fecha: 15 de octubre de 2026. Estado: arquitectura funcional aprobada por el usuario. La ejecución requiere revisar el plan técnico de cada entrega; las ampliaciones opcionales no están aprobadas automáticamente.
 
+Avance de la entrega Centro de Configuración: navegación y ajustes existentes reorganizados, guardado por sección y protección de contexto implementados; tareas 1–6 listas y revisión de código corregida. Validación visual pendiente por bloqueo de acceso del navegador. Esto **no** completa el traslado de Datos maestros ni los formularios de políticas nuevas. [Evidencia, decisiones y siguiente bloque](2026-10-15-centro-configuracion-verificacion.md).
+
 ## 1. Objetivo y alcance
 
 Convertir Configuración en el lugar donde una empresa adapta Auna a su operación, sin convertirlo en otro módulo operativo ni duplicar pantallas existentes.
