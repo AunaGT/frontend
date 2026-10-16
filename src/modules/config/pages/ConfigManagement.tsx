@@ -127,8 +127,9 @@ export default function ConfigManagement() {
 
   return <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Configuración</h1>
-    <div className="config-context-line"><p>Se aplica a <strong>{draft.confirmed.company_name || company?.name || 'la empresa activa'}</strong></p>{draft.hasChanges && <span>Hay cambios pendientes</span>}</div>
-    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} /><div className="config-center-content space-y-5">
+    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} companyName={draft.confirmed.company_name||company?.name} sections={SETTINGS_SECTIONS.filter(s=>s.id!=='nomina'||(hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll')))}/><div className="config-center-content space-y-5" role="region" aria-labelledby="config-section-title">
+      <h2 id="config-section-title" className="sr-only">{selected.label}</h2>
+      <div className="config-context-line"><p>Se aplica a <strong>{draft.confirmed.company_name || company?.name || 'la empresa activa'}</strong></p>{draft.hasChanges && <span role="status">Hay cambios pendientes</span>}</div>
       {notice && <p role="status" className="config-note">{notice}</p>}
       {draft.status === 'loading' ? <LoadingState variant="page" message="Cargando configuración…" /> : draft.status === 'error' ? <div role="alert" className="config-panel p-5 space-y-3"><p>No se pudo cargar la configuración. No se guardó ningún cambio.</p><p className="text-sm text-muted-foreground">{draft.loadError}</p><Button variant="outline" onClick={() => void draft.reload()}>Reintentar</Button></div> : draft.status === 'unavailable' ? <div className="config-panel p-5 space-y-3"><p>Verifica tu empresa, sucursal y sesión para abrir la configuración.</p><Button variant="outline" onClick={() => window.location.reload()}>Recargar página</Button></div> : <>
         {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}

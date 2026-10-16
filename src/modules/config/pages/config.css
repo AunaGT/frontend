@@ -21,7 +21,7 @@
 .dark .config-page {
   --background: var(--brand-navy);
   --foreground: 215 65% 96%;
-  --card: 215 46% 12%;
+  --card: var(--auna-surface-card);
   --card-foreground: 215 65% 96%;
   --muted: 215 38% 18%;
   --muted-foreground: 215 30% 70%;
@@ -29,23 +29,30 @@
   --input: 213 34% 30%;
   --accent: 215 38% 19%;
   --accent-foreground: 215 65% 96%;
-  --popover: 215 46% 12%;
+  --popover: var(--auna-surface-card);
   --popover-foreground: 215 65% 96%;
 }
 
 .config-page-heading { margin-bottom: 26px; }
-.config-center { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: start; }
-.config-center-content { min-width: 0; max-width: 980px; }
+.config-center { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 0; align-items: stretch; min-height: calc(100dvh - 128px); border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); }
+.config-center-content { min-width: 0; max-width: 1100px; padding: 24px; }
 .config-context-line { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; font-size: 13px; color: hsl(var(--muted-foreground)); }
 .config-context-line strong { color: hsl(var(--foreground)); font-weight: 600; }
 .config-context-line > span { color: hsl(var(--brand-orange)); }
-.config-navigation { display: grid; gap: 20px; min-width: 0; }
+.config-navigation { display: flex; flex-direction: column; gap: 20px; min-width: 0; padding: 20px 16px; border-inline-end: 1px solid hsl(var(--auna-surface-border)); }
+.config-navigation-heading { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 650; }
+.config-navigation-identity { margin-top: auto; display: grid; gap: 4px; padding: 20px 8px 0; border-top: 1px solid hsl(var(--auna-surface-border)); overflow-wrap: anywhere; }
+.config-navigation-identity :is(span,small) { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.config-navigation-identity strong { font-size: 13px; }
+.config-nav-icon { display: inline-flex; flex-shrink: 0; }
 .config-nav-group + .config-nav-group { margin-top: 18px; }
 .config-nav-group > p { margin-bottom: 6px; padding-inline: 10px; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .06em; color: hsl(var(--muted-foreground)); }
 .config-nav-group ul { display: grid; gap: 3px; }
-.config-nav-group button { display: block; width: 100%; min-height: 40px; padding: 9px 12px; border-radius: 8px; text-align: left; font-size: 13px; color: hsl(var(--foreground)); }
+.config-nav-group button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 9px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; overflow-wrap: anywhere; }
 .config-nav-group button:hover { background: hsl(var(--accent)); }
 .config-nav-group button[aria-current="page"] { background: hsl(var(--brand-orange) / .12); color: hsl(var(--brand-orange)); font-weight: 650; }
+.config-nav-group button[aria-current="page"] { box-shadow: inset 3px 0 hsl(var(--brand-orange)); }
+.dark .config-nav-group button[aria-current="page"] { color: hsl(var(--foreground)); }
 .config-nav-group button:focus-visible { outline: 2px solid hsl(var(--brand-orange)); outline-offset: 2px; }
 .config-mobile-section { display: none; }
 .config-toggle-row { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding-block: 12px; }
@@ -65,10 +72,12 @@
 .config-related-links strong { font-size: 14px; font-weight: 600; }
 .config-related-links span { font-size: 12px; color: hsl(var(--muted-foreground)); }
 @media (max-width: 767px) {
-  .config-center { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .config-center { grid-template-columns: minmax(0, 1fr); gap: 0; min-height: calc(100dvh - 96px); }
+  .config-center-content { padding: 20px 16px; }
   .config-mobile-section { display: block; }
   .config-section-menu:not(.is-searching) { display: none; }
-  .config-navigation { gap: 12px; }
+  .config-navigation { gap: 12px; border-inline-end: 0; border-bottom: 1px solid hsl(var(--auna-surface-border)); }
+  .config-navigation-identity { display: none; }
   .config-logo-editor { flex-direction: column; }
   .config-section-actions button { min-height: 44px; }
   .config-nav-group button { min-height: 44px; }
@@ -114,6 +123,19 @@
 .config-denominations-table thead { position: sticky; top: 0; z-index: 1; }
 .config-denominations-table .auna-data-table :is(th, td) { padding: 8px 12px; }
 .config-denominations-table .auna-data-table th.text-right { text-align: right; }
+/* The integrated workspace owns the frame; its editors and tables do not. */
+.config-center-content .config-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.config-center-content .auna-data-table-shell { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.config-center-content .config-panel > div { padding-inline: 0; }
+.config-center-content .config-panel > div:first-child { padding-top: 0; }
+.config-center-content .config-panel > div:last-child { padding-bottom: 0; }
+.config-center-content .config-panel + .config-panel { border-top: 1px solid hsl(var(--auna-surface-border)); padding-top: 24px; }
+.config-center-content .config-related-links a { border: 0; border-top: 1px solid hsl(var(--auna-surface-border)); border-radius: 0; background: transparent; padding: 14px 0; }
+.config-center-content .config-panel .rounded-lg.border { border: 0; border-top: 1px solid hsl(var(--auna-surface-border)); border-radius: 0; background: transparent; padding-inline: 0; }
+.config-center-content .config-note { border: 0; border-radius: 0; background: transparent; padding-inline: 0; }
+.config-center :is(input,select,button,a,summary) { scroll-margin-block: 96px 32px; }
+.config-center details > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 4px; }
+@media (prefers-reduced-motion: reduce) { .config-center *, .config-center *::before, .config-center *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
 .config-modules { display: flex; flex-direction: column; gap: 18px; }
 .config-section-heading { display: flex; align-items: flex-end; justify-content: flex-end; flex-wrap: wrap; gap: 16px; }

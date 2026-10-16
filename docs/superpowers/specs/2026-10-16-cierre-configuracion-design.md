@@ -58,6 +58,8 @@ Referencia elegida: `/home/DiegoPatzan/Documents/CODE/Auna/.superpowers/brainsto
 
 Navegación lateral y contenido pertenecen a una superficie continua que llega al fondo del área de trabajo; no una barra flotando centrada y corta. Buscador contenido en la navegación, iconos Auna existentes, agrupaciones y estado activo nítidos, sin nuevo encabezado gigante ni duplicar la cabecera general de la aplicación. Identidad empresarial discreta al pie. En móvil, selector/menú accesible sin desplazar horizontalmente la página.
 
+Refinamiento explícito del usuario durante implementación: un solo marco exterior. Dentro, formularios y tablas planos, sin contenedores decorativos anidados; agrupar mediante espacio y separadores, conservando los bordes propios de controles y mensajes de validación.
+
 Reutilizar editores, controles, ayudas, guardado por sección, enlaces canónicos de catálogos y permisos actuales. Añadir Vencimientos, Nómina e Historial sin mostrar secciones vacías. Formularios compactos con ancho legible; no estirarlos a todo el viewport. Claro/oscuro con tokens semánticos y superficies elevadas: oscuro no debe crear «agujeros» más negros que el fondo. Foco visible y nunca oculto tras acciones persistentes. Respetar ampliación y movimiento reducido. La maqueta es referencia, no prueba de la aplicación real.
 
 ## 5. Compatibilidad, despliegue y comprobación
