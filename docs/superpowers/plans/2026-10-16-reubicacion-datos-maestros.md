@@ -1,6 +1,6 @@
 # Reubicación de Datos maestros Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for direct implementation in the existing frontend/backend folders. Steps use checkbox (`- [ ]`) syntax for tracking. Do not implement the visual proposal B in this delivery.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for direct implementation in the existing frontend/backend folders. Steps use checkbox (`- [x]`) syntax for tracking. Do not implement the visual proposal B in this delivery.
 
 **Goal:** Reutilizar los cuatro administradores de Datos maestros en Inventario/Configuración, conservar accesos e importaciones y retirar su entrada independiente sin quitar autoridad a los usuarios actuales.
 
@@ -10,7 +10,7 @@
 
 **Spec:** `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`, secciones 4, 5, 9 y Fase 1, aprobada por el usuario. Se conservan los límites de `docs/superpowers/specs/2026-10-15-centro-configuracion-design.md` salvo la reubicación, ahora solicitada expresamente.
 
-**Execution status:** preparado para revisión. El 16 de octubre el usuario eligió la propuesta visual B y pidió terminar primero los pendientes funcionales. Este documento no afirma que estén implementados.
+**Execution status:** ejecución aprobada e implementada el 16 de octubre de 2026. Tareas 1–3 verificadas; integración y revisión independiente realizadas. Validación autenticada en navegador pendiente por la restricción conocida. Ver `docs/planning/2026-10-16-reubicacion-datos-maestros-verificacion.md` para límites y detalle menor diferido. La propuesta B y los otros bloques funcionales permanecen fuera de esta entrega.
 
 ## Global Constraints
 
@@ -58,12 +58,12 @@ Las rutas son decisiones técnicas de este plan, no rutas existentes todavía:
 - `CatalogImportPage` admite props opcionales `{ catalogType?: 'categories' | 'payment-terms'; backPath?: string }`; sus consumidores anteriores siguen resolviendo `type` de la URL cuando no se pasan props.
 - `PaymentTermsPanel()` y `ProductCategoriesPanel()` administran sus propios diálogos, filtros y borradores. Se trasladan las funciones actuales, no se reescriben.
 
-- [ ] **1. Escribir pruebas de caracterización antes de extraer.** Cargar la página existente con el arnés de `compact-list-ui.test.cjs`; fijar métricas antes de filtros, paginación externa, consulta de eliminados, callbacks de crear/editar/restaurar e importación. Incluir `_count.supplier_payment_terms`, `net_days: null` frente a `0`, imagen y payload de categoría. Añadir carga directa del panel aún ausente para el RED de extracción.
-- [ ] **2. Ejecutar RED:** `node --test tests/catalog-panels-extraction.test.cjs`. Expected: falta el nuevo panel, no un fallo de infraestructura o de mocks.
-- [ ] **3. Extraer cada panel con sus diálogos y estados relacionados.** Conservar nombre de claves de consulta, formatos, validaciones y errores. Cajas y PaymentMethodsTab se reutilizan sin duplicación. CatalogsManagement queda como composición provisional hasta Task 2; no quitar funcionalidad mientras se extrae.
-- [ ] **4. Dar a importación tipo/retorno explícitos opcionales.** Mantener los pasos actuales; usar el destino confirmado del wrapper en las acciones volver, éxito y error. No aceptar URLs de retorno arbitrarias desde parámetros del navegador.
-- [ ] **5. Ejecutar GREEN:** `node --test tests/catalog-panels-extraction.test.cjs tests/compact-list-ui.test.cjs tests/payment-methods-catalog.test.cjs`; `npm run test:modules`; `npm run build`. Expected: todos los casos correctos, sin pérdida de cobertura útil.
-- [ ] **6. Checkpoint:** `refactor(catalogs): extract reusable category and payment term panels`.
+- [x] **1. Escribir pruebas de caracterización antes de extraer.** Cargar la página existente con el arnés de `compact-list-ui.test.cjs`; fijar métricas antes de filtros, paginación externa, consulta de eliminados, callbacks de crear/editar/restaurar e importación. Incluir `_count.supplier_payment_terms`, `net_days: null` frente a `0`, imagen y payload de categoría. Añadir carga directa del panel aún ausente para el RED de extracción.
+- [x] **2. Ejecutar RED:** `node --test tests/catalog-panels-extraction.test.cjs`. Expected: falta el nuevo panel, no un fallo de infraestructura o de mocks.
+- [x] **3. Extraer cada panel con sus diálogos y estados relacionados.** Conservar nombre de claves de consulta, formatos, validaciones y errores. Cajas y PaymentMethodsTab se reutilizan sin duplicación. CatalogsManagement queda como composición provisional hasta Task 2; no quitar funcionalidad mientras se extrae.
+- [x] **4. Dar a importación tipo/retorno explícitos opcionales.** Mantener los pasos actuales; usar el destino confirmado del wrapper en las acciones volver, éxito y error. No aceptar URLs de retorno arbitrarias desde parámetros del navegador.
+- [x] **5. Ejecutar GREEN:** `node --test tests/catalog-panels-extraction.test.cjs tests/compact-list-ui.test.cjs tests/payment-methods-catalog.test.cjs`; `npm run test:modules`; `npm run build`. Expected: todos los casos correctos, sin pérdida de cobertura útil.
+- [x] **6. Checkpoint:** `refactor(catalogs): extract reusable category and payment term panels`.
 
 ## Task 2: destinos canónicos y compatibilidad
 
@@ -78,7 +78,7 @@ Las rutas son decisiones técnicas de este plan, no rutas existentes todavía:
 - `legacyCatalogDestination(pathname: string, search: string): string`, puro, consume únicamente los paths del manifest. Conserva parámetros ajenos a `tab`/`type`; retira esos selectores al codificar la selección en el destino.
 - Wrappers locales de Inventario/Configuración consumen `catalogsModule.pages.Panel`/`.Import`, sin importar componentes privados de otro módulo. Sus páginas lazy siguen dentro de su propio manifest.
 
-- [ ] **1. RED del resolver y rutas.** Usar casos explícitos:
+- [x] **1. RED del resolver y rutas.** Usar casos explícitos:
 
 ```js
 assert.equal(legacyCatalogDestination('/datos-maestros', '?tab=payment-methods&source=qa'), '/configuracion/metodos-de-pago?source=qa')
@@ -87,11 +87,11 @@ assert.equal(legacyCatalogDestination('/datos-maestros', '?tab=desconocida'), '/
 ```
 
 Añadir categorías/importación, cajas, condiciones/listado, URL sin query, parámetros repetidos controlados sin open redirect y ambas variantes antiguas. Probar breadcrumb de destino sin ofrecer link a Inventario si falta `products.view`.
-- [ ] **2. Ejecutar:** `node --test tests/catalog-destination-routing.test.cjs`. Expected: resolver ausente o canónica incorrecta antes de implementar.
-- [ ] **3. Publicar paths/wrappers y registrar rutas antes de las rutas dinámicas de Inventario.** Categorías no debe coincidir con `:id`. Reemplazar CatalogsManagement por un redirect compatible sin montar consultas o formularios anteriores. Los alias `/catalogos` deben pasar por el mismo resolver, no perder query en un Navigate intermedio.
-- [ ] **4. Mantener la autorización y disponibilidad originales.** CatalogPanelPage bloquea mientras carga/falla la disponibilidad o `catalogs` está inactivo. Categorías exige Inventario activo. Permisos se comprueban por destino, no por pertenecer al prefijo Configuración; en Cajas preservar lectura/gestión actuales y no conceder asignación de usuarios por navegación.
-- [ ] **5. GREEN:** `node --test tests/catalog-destination-routing.test.cjs tests/catalog-panels-extraction.test.cjs tests/page-navigation.test.cjs`; `npm run test:modules`. Expected: redirecciones y wrappers válidos, 23 fronteras físicas.
-- [ ] **6. Checkpoint:** `feat(catalogs): expose canonical inventory and configuration destinations`.
+- [x] **2. Ejecutar:** `node --test tests/catalog-destination-routing.test.cjs`. Expected: resolver ausente o canónica incorrecta antes de implementar.
+- [x] **3. Publicar paths/wrappers y registrar rutas antes de las rutas dinámicas de Inventario.** Categorías no debe coincidir con `:id`. Reemplazar CatalogsManagement por un redirect compatible sin montar consultas o formularios anteriores. Los alias `/catalogos` deben pasar por el mismo resolver, no perder query en un Navigate intermedio.
+- [x] **4. Mantener la autorización y disponibilidad originales.** CatalogPanelPage bloquea mientras carga/falla la disponibilidad o `catalogs` está inactivo. Categorías exige Inventario activo. Permisos se comprueban por destino, no por pertenecer al prefijo Configuración; en Cajas preservar lectura/gestión actuales y no conceder asignación de usuarios por navegación.
+- [x] **5. GREEN:** `node --test tests/catalog-destination-routing.test.cjs tests/catalog-panels-extraction.test.cjs tests/page-navigation.test.cjs`; `npm run test:modules`. Expected: redirecciones y wrappers válidos, 23 fronteras físicas.
+- [x] **6. Checkpoint:** `feat(catalogs): expose canonical inventory and configuration destinations`.
 
 ## Task 3: descubrimiento autorizado y retirada del menú independiente
 
@@ -106,12 +106,12 @@ Añadir categorías/importación, cajas, condiciones/listado, URL sin query, par
 - `ConfigEntryPage()` conserva ConfigManagement para quien tiene `settings.view` o `settings.manage`; para un usuario con solo catálogos muestra accesos autorizados a los catálogos, sin montar el hook de ajustes generales. El caso sin permisos no ofrece operaciones.
 - La entrada de Configuración permite descubrir catálogos a quien tiene `catalogs.view`/`catalogs.manage`, sin autorizar preferencias generales. No redirigir automáticamente a Datos fiscales/Empresa para ese usuario.
 
-- [ ] **1. RED de permisos y descubrimiento.** Renderizar con solo `catalogs.manage` y solo `catalogs.view`: Configuración visible, catálogos autorizados accesibles y ningún GET `/settings`, campo fiscal ni logo. Con solo settings.manage conservar ajustes/Cajas sin conceder gestionar categorías, métodos o condiciones. Sin permisos o con módulo inactivo no mostrar enlaces operativos. Probar que Inicio/AppLauncher no muestran Datos maestros, pero el registro sigue validando 23 módulos.
-- [ ] **2. Ejecutar RED:** `node --test tests/config-catalog-access.test.cjs tests/home-catalog-presentation.test.cjs`.
-- [ ] **3. Integrar entradas.** En Inventario añadir acceso a Categorías con permisos de catálogos; en Configuración desglosar accesos a los tres editores canónicos con sus permisos. Mantener confirmLeave para borradores. Actualizar ayudas «crear en Datos maestros» a su destino correcto sin cambiar operaciones de importación inline existentes.
-- [ ] **4. Ocultar solo la entrada visual de Datos maestros después de comprobar los cuatro destinos.** No eliminar el módulo técnico ni su API. Adaptar el test de catálogo completo para que pruebe el nuevo conjunto de navegación, sin rebajar el validador técnico.
-- [ ] **5. GREEN:** `node --test tests/config-catalog-access.test.cjs tests/home-catalog-presentation.test.cjs tests/config-related-editors.test.cjs tests/config-navigation.test.cjs`; `npm run test:modules`; `npm run build`.
-- [ ] **6. Checkpoint:** `feat(config): discover relocated catalogs without widening settings access`.
+- [x] **1. RED de permisos y descubrimiento.** Renderizar con solo `catalogs.manage` y solo `catalogs.view`: Configuración visible, catálogos autorizados accesibles y ningún GET `/settings`, campo fiscal ni logo. Con solo settings.manage conservar ajustes/Cajas sin conceder gestionar categorías, métodos o condiciones. Sin permisos o con módulo inactivo no mostrar enlaces operativos. Probar que Inicio/AppLauncher no muestran Datos maestros, pero el registro sigue validando 23 módulos.
+- [x] **2. Ejecutar RED:** `node --test tests/config-catalog-access.test.cjs tests/home-catalog-presentation.test.cjs`.
+- [x] **3. Integrar entradas.** En Inventario añadir acceso a Categorías con permisos de catálogos; en Configuración desglosar accesos a los tres editores canónicos con sus permisos. Mantener confirmLeave para borradores. Actualizar ayudas «crear en Datos maestros» a su destino correcto sin cambiar operaciones de importación inline existentes.
+- [x] **4. Ocultar solo la entrada visual de Datos maestros después de comprobar los cuatro destinos.** No eliminar el módulo técnico ni su API. Adaptar el test de catálogo completo para que pruebe el nuevo conjunto de navegación, sin rebajar el validador técnico.
+- [x] **5. GREEN:** `node --test tests/config-catalog-access.test.cjs tests/home-catalog-presentation.test.cjs tests/config-related-editors.test.cjs tests/config-navigation.test.cjs`; `npm run test:modules`; `npm run build`.
+- [x] **6. Checkpoint:** `feat(config): discover relocated catalogs without widening settings access`.
 
 ## Task 4: integración, revisión y evidencia
 
@@ -119,10 +119,10 @@ Añadir categorías/importación, cajas, condiciones/listado, URL sin query, par
 
 **Interfaces:** consume destinos, redirects y controles de tareas 1–3; produce evidencia y pendientes reales. Ningún cambio de política de devoluciones, vencimientos, nómina o diseño B entra en esta entrega.
 
-- [ ] **1. Ejecutar suite frontend completa:** `node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs`; `npm run test:modules`; `npm run build`; `git diff --check`. Registrar conteos nuevos, no reutilizar los de la entrega anterior. Si se modifica backend, ejecutar también sus suites unit/modules y registrar el motivo; esta reubicación no lo necesita.
-- [ ] **2. Revisar permisos/destinos con una única revisión independiente del rango según executing-plans.** Suscribir los cinco Review Focus, todos los consumidores y contratos conservados. Corregir hallazgos importantes con RED→GREEN en una pasada; no cambiar permisos de negocio para hacer pasar un test.
-- [ ] **3. Validación autenticada cuando el navegador lo permita:** canónicas y antiguas con cada rol, imports en éxito/error, claro/oscuro/móvil, company switch y consultas tardías. No usar el servidor de maquetas como proxy ni alternativa para evadir el bloqueo de localhost:8080. Si el navegador lo rechaza, dejar esa validación pendiente, sin certificarla con SSR.
-- [ ] **4. Evidencia y cierre parcial/exacto:** registrar rutas, autorizaciones, pruebas y limitaciones. No afirmar terminadas las políticas o el rediseño B. Checkpoint: `docs(catalogs): record relocation verification and compatibility`.
+- [x] **1. Ejecutar suite frontend completa:** `node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs`; `npm run test:modules`; `npm run build`; `git diff --check`. Registrar conteos nuevos, no reutilizar los de la entrega anterior. Si se modifica backend, ejecutar también sus suites unit/modules y registrar el motivo; esta reubicación no lo necesita.
+- [x] **2. Revisar permisos/destinos con una única revisión independiente del rango según executing-plans.** Suscribir los cinco Review Focus, todos los consumidores y contratos conservados. Corregir hallazgos importantes con RED→GREEN en una pasada; no cambiar permisos de negocio para hacer pasar un test.
+- [ ] **3. Pendiente por restricción de navegador — validación autenticada cuando el navegador lo permita:** canónicas y antiguas con cada rol, imports en éxito/error, claro/oscuro/móvil, company switch y consultas tardías. No usar el servidor de maquetas como proxy ni alternativa para evadir el bloqueo de localhost:8080. Si el navegador lo rechaza, dejar esa validación pendiente, sin certificarla con SSR.
+- [x] **4. Evidencia y cierre parcial/exacto:** registrar rutas, autorizaciones, pruebas y limitaciones. No afirmar terminadas las políticas o el rediseño B. Checkpoint: `docs(catalogs): record relocation verification and compatibility`.
 
 ## Autorrevisión y continuidad
 
@@ -131,4 +131,4 @@ Añadir categorías/importación, cajas, condiciones/listado, URL sin query, par
 - Contratos revisados: props de Panel e Import consumidos por wrappers locales; paths definidos una sola vez y reenviados por manifests de destino; alias antiguos resueltos antes de montar consultas; ConfigEntryPage no monta ConfigManagement con permisos solo de catálogos; registro técnico no depende de la visibilidad del lanzador.
 - Calls técnicas explícitas: rutas nuevas de la tabla; wrappers por manifest; ocultar entrada visual pero mantener identidad técnica; entrada de Configuración limitada para gestores de catálogos. Deben revisarse como parte de este plan.
 - Los siguientes proyectos funcionales tendrán planes propios: política de devoluciones existente; alertas de vencimiento por empresa; tasas de nómina con vigencia y snapshot de cálculo. No se acoplan a esta extracción para poder verificarla por separado.
-- Método preservado: ejecución directa, mismas carpetas. Plan pendiente de revisión antes de código de producto.
+- Método preservado: ejecución directa, mismas carpetas. Plan aprobado y ejecutado para la reubicación; revisión visual autenticada pendiente.
