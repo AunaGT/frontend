@@ -17,6 +17,7 @@ import { SettingsErrorSummary, SettingsSectionActions } from '../components/Sett
 import { CompanySettingsSection } from '../components/CompanySettingsSection'
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection'
 import { OperationalSettingsSection } from '../components/OperationalSettingsSection'
+import { ReturnsPolicySettingsSection } from '../components/ReturnsPolicySettingsSection'
 import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
@@ -30,6 +31,7 @@ const descriptions: Record<string, string> = {
   ventas: 'Define cómo inicia la pantalla de venta, sin modificar los permisos de los usuarios.',
   cotizaciones: 'Valores iniciales para nuevas cotizaciones y su reserva temporal.',
   pedidos: 'Vigencia inicial de pedidos y reservas.',
+  devoluciones: 'Plazo de solicitud, excepciones autorizadas y soluciones disponibles para esta empresa.',
   caja: 'Tolerancia y denominaciones disponibles para el conteo de efectivo.',
   accesos: 'Abre los editores existentes de cada módulo, sin duplicar configuraciones.',
 }
@@ -126,7 +128,7 @@ export default function ConfigManagement() {
         {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
         {editable && common && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions[active]}</CardDescription></CardHeader><CardContent className="space-y-5">
           <SettingsErrorSummary errors={common.errors} error={draft.error} />
-          {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === owner} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
+          {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === owner} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : active === 'devoluciones' ? <ReturnsPolicySettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
           <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, owner })} />
         </CardContent></Card>}
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}

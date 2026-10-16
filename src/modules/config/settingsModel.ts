@@ -1,4 +1,6 @@
 import type { SystemSettings } from '@/services/settingsService'
+import { DEFAULT_RETURN_POLICY } from '@/modules/returns/policy'
+import { returnPolicyPayload, validateReturnPolicyDraft, type ReturnPolicyFieldPath } from './returnPolicyModel'
 
 export const SECTION_KEYS = {
   empresa: ['company_name'],
@@ -8,12 +10,13 @@ export const SECTION_KEYS = {
   ventas: ['default_experience_profile', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels'],
   cotizaciones: ['quote_validity_days', 'quote_soft_hold_hours'],
   pedidos: ['order_validity_days'],
+  devoluciones: ['returns.policy'],
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
 export type SettingsSection = EditableSection | 'rrhh' | 'modulos' | 'accesos'
 export type SectionValues = Partial<SystemSettings>
-export type FieldErrors = Partial<Record<keyof SystemSettings, string>>
+export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
   { id: 'empresa', group: 'Empresa', label: 'Identidad', keywords: ['nombre', 'logo', 'empresa'] },
   { id: 'regional', group: 'Empresa', label: 'Región y formatos', keywords: ['moneda', 'zona horaria', 'idioma', 'fecha'] },
@@ -22,6 +25,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; l
   { id: 'ventas', group: 'Operación', label: 'Ventas y POS', keywords: ['experiencia', 'crédito', 'canales', 'caja', 'fiscal'] },
   { id: 'cotizaciones', group: 'Operación', label: 'Cotizaciones', keywords: ['vigencia', 'reserva temporal', 'horas'] },
   { id: 'pedidos', group: 'Operación', label: 'Pedidos', keywords: ['vigencia', 'reserva', 'días'] },
+  { id: 'devoluciones', group: 'Operación', label: 'Devoluciones', keywords: ['plazo', 'excepciones', 'reembolsos', 'resoluciones', 'cambios'] },
   { id: 'caja', group: 'Operación', label: 'Caja y cierres', keywords: ['billetes', 'monedas', 'denominaciones', 'tolerancia', 'diferencia'] },
   { id: 'rrhh', group: 'Operación', label: 'Recursos humanos', keywords: ['expedientes', 'documentos', 'empleados', 'requisitos'] },
   { id: 'modulos', group: 'Administración', label: 'Módulos', keywords: ['activación', 'dependencias', 'disponibilidad'] },
@@ -29,6 +33,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; l
 ]
 
 const defaults: SystemSettings = {
+  'returns.policy': DEFAULT_RETURN_POLICY,
   company_name: '', currency_code: 'GTQ', currency_name: 'Quetzal', timezone: 'America/Guatemala', date_format: 'dd/MM/yyyy', locale: 'es-GT',
   cash_closure_max_diff_pct: '5', cash_closure_denominations: [], quote_validity_days: '30', order_validity_days: '7', quote_soft_hold_hours: '48',
   inventory_services_enabled: 'false', default_experience_profile: 'CASHIER', sales_allow_credit: 'true', sales_show_fiscal_fields: 'true', sales_show_channels: 'true',
@@ -38,6 +43,7 @@ const days = new Set(['quote_validity_days', 'order_validity_days', 'quote_soft_
 const booleans = new Set(['inventory_services_enabled', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels', 'fel_enabled'])
 const positiveInteger = (v: unknown) => ['number', 'string'].includes(typeof v) && Number.isSafeInteger(Number(v)) && Number(v) >= 1
 function normalized(key: string, value: unknown): unknown {
+  if (key === 'returns.policy') return returnPolicyPayload(value)
   if (days.has(key) && positiveInteger(value)) return String(Number(value))
   if (booleans.has(key) && ['true', 'false'].includes(String(value).toLowerCase())) return String(value).toLowerCase()
   if (key === 'cash_closure_denominations' && Array.isArray(value)) return value.filter(d => Number(d?.denomination) !== 0).map(d => ({ denomination: Number(d?.denomination), type: d?.type }))
@@ -53,6 +59,7 @@ export function sameSection(id: EditableSection, a: SectionValues, b: SectionVal
   return JSON.stringify(sectionPayload(id, sectionValues(id, a))) === JSON.stringify(sectionPayload(id, sectionValues(id, b)))
 }
 export function validateSection(id: EditableSection, draft: SectionValues): FieldErrors {
+  if (id === 'devoluciones') return validateReturnPolicyDraft(draft['returns.policy'])
   const errors: FieldErrors = {}
   for (const key of SECTION_KEYS[id]) {
     if (days.has(key) && !positiveInteger(draft[key])) errors[key] = 'Ingresa un número entero de al menos 1.'

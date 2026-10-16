@@ -6,8 +6,10 @@
 
 import { apiFetch, getApiBaseUrl } from './api'
 import type { ExperienceProfile } from '@/config/experienceProfiles'
+import type { ReturnPolicy } from '@/modules/returns/policy'
 
 export interface SystemSettings {
+  'returns.policy'?: ReturnPolicy
   currency_code?: string
   currency_name?: string
   timezone?: string

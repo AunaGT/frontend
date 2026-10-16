@@ -10,6 +10,8 @@
 
 import { apiFetch } from '@/services/api'
 import type { ProductKind } from '@/types/product'
+import type { ReturnPolicy, ReturnResolution } from '../policy'
+export type { ReturnPolicy, ReturnResolution } from '../policy'
 
 interface LineSnapshot { item_kind?: ProductKind;item_name?: string;unit_label?: string;quantity_decimals?: number }
 
@@ -44,14 +46,6 @@ export interface ReturnItem {
 }
 
 export type ReturnType = 'REFUND' | 'EXCHANGE'
-export type ReturnResolution = 'REFUND_ORIGINAL' | 'REFUND_CASH' | 'REFUND_TRANSFER' | 'CUSTOMER_CREDIT' | 'EXCHANGE'
-
-export interface ReturnPolicy {
-  windowDays: number
-  allowAuthorizedExceptions: boolean
-  exchangePricing: 'CURRENT_PRICE' | 'ORIGINAL_SALE_PRICE'
-  enabledResolutions: ReturnResolution[]
-}
 
 export interface ReturnReplacementItem extends LineSnapshot {
   id: number

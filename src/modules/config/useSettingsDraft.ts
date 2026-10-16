@@ -67,7 +67,8 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
   function setField(id: EditableSection, field: keyof SystemSettings, value: unknown) {
     if (!canStartOperation() || !(SECTION_KEYS[id] as readonly string[]).includes(field)) return
     owner.drafts = { ...owner.drafts, [id]: { ...owner.drafts[id], [field]: structuredClone(value) } }
-    owner.errors = { ...owner.errors, [id]: { ...owner.errors[id], [field]: undefined } }; owner.error = null; paint()
+    const errors = Object.fromEntries(Object.entries(owner.errors[id] || {}).filter(([key]) => key !== field && !key.startsWith(`${field}.`)))
+    owner.errors = { ...owner.errors, [id]: errors }; owner.error = null; paint()
   }
   function reset(id: EditableSection) {
     if (!canStartOperation()) return
