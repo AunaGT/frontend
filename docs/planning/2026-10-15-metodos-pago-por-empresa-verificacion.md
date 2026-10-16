@@ -4,19 +4,20 @@ Fecha: 15 de octubre de 2026.
 
 ## Estado
 
-Código preparado en las carpetas existentes. **No desplegado en Supabase.**
-No se ejecutó migración, semilla, generación de Prisma Client ni ninguna escritura de prueba en la base.
-Las tareas 1–8 del plan abarcan modelo, catálogo, consumidores y UI; la tarea 9 conserva pendiente despliegue, integración real y revisión visual.
+**Desplegado y verificado en la Supabase de desarrollo existente.** Se reconcilió el historial mediante una baseline auditada, se aplicó la migración de pagos y se generó Prisma Client. No hubo reset ni semilla general.
+Las tareas 1–8 abarcan modelo, catálogo, consumidores y UI. La tarea9 ya tiene despliegue e integración real7/7; conserva pendiente la revisión visual con Auna abierto.
 
-## Bloqueo comprobado
+## Bloqueo inicial y resolución
 
 `node scripts/check-payment-methods.js` pasó: seis métodos compartidos, IDs 1, 2, 3, 28, 38 y 42; cuatro básicos reconocidos, ninguno faltante ni contradictorio.
 
-`npm run migrate:status` terminó con código 1 por historial divergente. La última migración común es `202610150001_company_roles`; la única migración local pendiente es `202610150002_company_payment_methods`. La base conserva entradas antiguas que no existen en la cadena consolidada del repositorio.
+Inicialmente `npm run migrate:status` terminó con código1 por historial divergente. La última migración común era `202610150001_company_roles`; la única local pendiente era `202610150002_company_payment_methods`.
 
 La consulta de `_prisma_migrations` encontró que todas las entradas sin `finished_at` tienen `rolled_back_at`; no se encontró una migración fallida abierta. Esto no reconcilia la divergencia.
 
-`deposito-backend/docs/DEPLOYMENT_AND_MIGRATIONS.md`, sección «Historia heredada pendiente de reconciliar», exige mantener nuevos despliegues pausados hasta reconciliarla. Se respetó ese límite: no se inventaron archivos vacíos, no se modificó `_prisma_migrations` ni se creó otra base/instancia.
+Se mantuvo la pausa hasta ejecutar el plan de reconciliación aprobado. Las75 migraciones anteriores se archivaron con bytes/checksums intactos; el historial remoto original de100 registros se trasladó a `auna_migration_audit._prisma_migrations_20261015`, sin editar sus filas. Prisma registró la baseline y aplicó pagos mediante los comandos oficiales. El estado nativo quedó actualizado, con dos migraciones activas y ninguna pendiente. No se creó otra instancia ni se ejecutó la baseline sobre las tablas existentes.
+
+La preparación se ensayó en esquemas vacíos de la misma Supabase y tuvo revisión independiente. Sus tres hallazgos de recuperación/concurrencia se corrigieron con regresiones y un nuevo ensayo entre esquemas, ambos eliminados. Ver `deposito-backend/docs/planning/2026-10-15-reconciliacion-migraciones-verificacion.md`.
 
 ## Alcance implementado
 
@@ -35,20 +36,20 @@ La consulta de `_prisma_migrations` encontró que todas las entradas sin `finish
 
 ## Evidencia local
 
-- Backend: 685/685 pruebas unitarias y 97/97 pruebas de módulos después de las correcciones finales.
+- Backend:719/719 pruebas unitarias y97/97 pruebas de módulos después de reconciliación y correcciones verificadas.
 - Frontend: 709/709 pruebas con `node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs`; 23 módulos con fronteras válidas.
 - La corrida sin límite de concurrencia detectó un fallo intermitente de `shape style suggestions respect tipo, including a type after style` (cupones, no modificado). La prueba aislada pasó 4/4; la suite completa con concurrencia limitada pasó 705/705. No se ocultó ni cambió ese comportamiento ajeno.
 - Frontend: compilación Vite exitosa. Advertencias existentes de Browserslist antiguo y tamaño de bundles; no se añadieron dependencias.
-- Backend: validación del esquema Prisma exitosa, sin generar el cliente. Las suites conservan advertencias de dependencias circulares de fixtures; frontend conserva avisos de `useLayoutEffect` al renderizar pruebas en servidor.
+- Backend: esquema Prisma válido y cliente6.14.0 generado después de aplicar pagos. Frontend conserva avisos de `useLayoutEffect` al renderizar pruebas en servidor; Vite conserva sus advertencias de tamaño de bundles.
 - Verificaciones focalizadas nuevas incluyen aislamiento, finalidades de pago, nombres protegidos, uso histórico, disponibilidad, clasificación contable y recibos de Agenda únicos/mixtos.
-- Las pruebas reemplazan I/O de base y ejecutan los servicios/controladores reales. No demuestran todavía los locks/guards en PostgreSQL real.
+- Las pruebas unitarias reemplazan I/O de base; además se ejecutó la integración real opt-in sobre PostgreSQL, que sí comprobó locks y guards.
 - El arnés de integración opt-in de la tarea 9 está preparado, con sintaxis verificada. Sin opt-in omite la prueba y no carga credenciales ni crea datos. Sus cuatro pruebas locales verifican el bloqueo de ejecución, el requisito de migración, el rollback de comprobaciones negativas y la limpieza de períodos contables limitada a las empresas QA conocidas.
-- La ejecución real sigue pendiente: prueba aislamiento, índices/triggers, locks compartidos/exclusivos, desactivación concurrente, semilla idempotente y el guard de venta con recibos mixtos. Incluye emitir la venta mediante el flujo real de Agenda, aplicar dos anticipos y repetir el mismo intento verificando que no aparecen dinero, aplicaciones ni asientos duplicados.
+- La ejecución real pasó7/7: aislamiento, índices/triggers, locks compartidos/exclusivos, desactivación concurrente, inicialización dirigida idempotente y guard de venta con recibos mixtos. Emitió la venta mediante Agenda, aplicó dos anticipos de50 y repitió el intento sin dinero, aplicaciones ni asientos duplicados. Un error inicial en la creación anidada del fixture fue corregido para respetar el cliente generado; el código de negocio ya usaba ese contrato.
 - Las comprobaciones negativas fuerzan rollback incluso si el guard falla y permite la operación; no dejan una venta o método sin registrar para limpieza. Los errores ajenos al guard no cuentan como rechazo válido.
 
 ## Revisión independiente y decisiones
 
-Se recibió una revisión de contexto limpio sobre ambos repositorios. Se aceptaron seis hallazgos: catálogo agregado global, respuestas tardías de contexto, catálogo administrativo sin inicialización, cobros de medio nulo en cierres, seguridad de las comprobaciones negativas y falta de integración del flujo real de Agenda. Los primeros cinco tienen regresiones locales observadas fallar y luego pasar; el sexto tiene el escenario real preparado, pero no se presenta como verificado hasta ejecutarlo después del despliegue.
+Se recibió una revisión de contexto limpio sobre ambos repositorios. Se aceptaron seis hallazgos: catálogo agregado global, respuestas tardías de contexto, catálogo administrativo sin inicialización, cobros de medio nulo en cierres, seguridad de las comprobaciones negativas y falta de integración del flujo real de Agenda. Los primeros cinco tienen regresiones locales observadas fallar y luego pasar; el sexto ya tiene ejecución real verificada después del despliegue.
 
 Decisiones registradas, en orden:
 
@@ -64,13 +65,10 @@ No hubo hallazgos menores diferidos. No se solicitó una segunda revisión para 
 
 ## Procesos y datos
 
-Al comenzar no había procesos Auna activos ni listeners 3000/8080. No se detuvo, reinició ni creó una segunda instancia. No se crearon filas QA en Supabase: no hay limpieza financiera pendiente.
+Al comenzar y al promover no había procesos Auna activos ni listeners3000/8080. No se detuvo, reinició ni creó una segunda instancia. Las empresas y movimientos sintéticos del escenario financiero se limpiaron por IDs conocidos. Las proyecciones de las112 tablas originales coincidieron tras limpiar: siguen las53 empresas originales; no quedaron métodos privados de fixtures ni esquemas QA. Las318 preferencias inicializadas tampoco cambiaron con el segundo deploy.
 
-## Pendiente antes de usar este código
+## Pendiente de validación visual
 
-1. Resolver el bloqueo del historial con una decisión explícita de despliegue; no forzar `migrate resolve`, reset ni semilla completa.
-2. Aplicar la migración coordinada y generar el cliente Prisma solo después de resolver ese bloqueo.
-3. Ejecutar la integración opt-in preparada de la tarea 9 sobre la Supabase autorizada, revisar su limpieza y resultados: concurrencia real, asociación ajena, unicidad, preferencias idempotentes, guard de recibos mixtos/POS y emisión idempotente de Agenda.
-4. Comprobar IDs/conteos anteriores, repetir deploy sin cambios y validar UI/flujo real en claro, oscuro y móvil.
+Abrir Auna con el backend compatible y revisar catálogo, formularios, cambio de empresa y flujo de pago en claro, oscuro y móvil. No se inventó una sesión visual ni una lectura de `/health` con los servidores cerrados; esa parte de la tarea9 permanece abierta.
 
-No arrancar los consumidores nuevos contra el esquema/cliente anterior: la tabla de preferencias aún no existe. Este registro no certifica la entrega como desplegada o funcional en la base actual.
+Esquema y cliente ya son compatibles con los consumidores nuevos. La verificación corresponde exclusivamente a esta Supabase de desarrollo, no certifica otra base histórica, producción, onboarding general, Storage ni FEL.
