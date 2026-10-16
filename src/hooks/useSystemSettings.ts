@@ -54,7 +54,7 @@ export interface UseSystemSettingsReturn {
   inventoryServicesEnabled: boolean
   loading: boolean
   /** Recarga la configuración pública (útil tras guardar en Configuración). */
-  refetch: () => void
+  refetch: () => Promise<boolean>
 }
 
 /** Usa el contexto de SystemSettingsProvider; si no hay provider, devuelve valores por defecto. */
@@ -78,7 +78,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       salesShowChannels: true,
       inventoryServicesEnabled: false,
       loading: false,
-      refetch: () => {}
+      refetch: async () => false
     }
   }
   return {

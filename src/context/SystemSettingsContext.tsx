@@ -8,6 +8,8 @@
 import { createContext, useCallback, useEffect, useRef, useState } from 'react'
 import { getPublicSettings } from '@/services/settingsService'
 import type { ExperienceProfile } from '@/config/experienceProfiles'
+import { useTenant } from './useTenant'
+import { useAuth } from './useAuth'
 
 const DEFAULT_TIMEZONE = 'America/Guatemala'
 const DEFAULT_COMPANY_NAME = 'Auna'
@@ -40,7 +42,7 @@ export interface SystemSettingsState {
   loading: boolean
   error: boolean
   /** Recarga la configuración pública desde el servidor (p. ej. tras guardar en Configuración). */
-  refetch: () => void
+  refetch: () => Promise<boolean>
 }
 
 const defaultState: Omit<SystemSettingsState, 'refetch'> = {
@@ -66,17 +68,26 @@ const defaultState: Omit<SystemSettingsState, 'refetch'> = {
 export const SystemSettingsContext = createContext<SystemSettingsState | undefined>(undefined)
 
 export function SystemSettingsProvider({ children }: { children: React.ReactNode }) {
+  const { company, branch, isConsolidated } = useTenant()
+  const { user, isLoading } = useAuth()
+  const companyId = company?.id || '', branchId = branch?.id || (isConsolidated ? 'all' : '')
+  const contextKey = JSON.stringify([user?.id, user?.permissions, isLoading, companyId, branchId])
   const [state, setState] = useState<Omit<SystemSettingsState, 'refetch'>>(defaultState)
   const generation = useRef(0)
+  const liveKey = useRef(contextKey), stateKey = useRef(contextKey)
+  if (liveKey.current !== contextKey) { liveKey.current = contextKey; generation.current++ }
 
-  const load = useCallback(() => {
+  const load = useCallback(async (): Promise<boolean> => {
+    if (liveKey.current !== contextKey || !user?.id || isLoading || !companyId || !branchId) return false
     const request = ++generation.current
-    setState((s) => ({ ...s, inventoryServicesEnabled: false, loading: true, error: false }))
-    getPublicSettings()
+    stateKey.current = contextKey
+    setState({ ...defaultState })
+    return getPublicSettings({ scope: { companyId, branchId } })
       .then((d) => {
-        if (request !== generation.current) return
+        if (request !== generation.current || liveKey.current !== contextKey) return false
         const pctRaw = d?.cash_closure_max_diff_pct != null ? String(d.cash_closure_max_diff_pct).trim() : ''
-        const pct = pctRaw === '' ? DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT : Math.max(0, parseFloat(pctRaw) || DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT)
+        const pctNumber = Number(pctRaw)
+        const pct = pctRaw === '' || !Number.isFinite(pctNumber) ? DEFAULT_CASH_CLOSURE_MAX_DIFF_PCT : Math.max(0, pctNumber)
         setState({
           timezone: (d?.timezone && String(d.timezone).trim()) || DEFAULT_TIMEZONE,
           currencyCode: (d?.currency_code && String(d.currency_code).trim()) || DEFAULT_CURRENCY_CODE,
@@ -98,9 +109,10 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           loading: false,
           error: false
         })
+        return true
       })
       .catch(() => {
-        if (request !== generation.current) return
+        if (request !== generation.current || liveKey.current !== contextKey) return false
         setState((s) => ({
           ...s,
           timezone: DEFAULT_TIMEZONE,
@@ -121,8 +133,9 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           loading: false,
           error: true
         }))
+        return false
       })
-  }, [])
+  }, [contextKey, companyId, branchId, user?.id, isLoading])
 
   useEffect(() => {
     const requests = generation
@@ -130,7 +143,7 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
     return () => { requests.current++ }
   }, [load])
 
-  const value: SystemSettingsState = { ...state, refetch: load }
+  const value: SystemSettingsState = { ...(stateKey.current === contextKey ? state : defaultState), refetch: load }
 
   return (
     <SystemSettingsContext.Provider value={value}>

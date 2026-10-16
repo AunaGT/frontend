@@ -45,12 +45,18 @@ export interface DenominationItem {
   subtotal?: number
 }
 
-export async function getSettings(): Promise<SystemSettings> {
-  return apiFetch<SystemSettings>('/settings')
+export type SettingsScope = { companyId: string; branchId: string }
+export type SettingsRequestOptions = { scope?: SettingsScope; signal?: AbortSignal }
+function requestOptions(options: SettingsRequestOptions = {}): RequestInit {
+  if (options.scope && (!options.scope.companyId?.trim() || !options.scope.branchId?.trim())) throw new Error('Selecciona una empresa y sucursal válidas.')
+  return { signal: options.signal, ...(options.scope ? { headers: { 'X-Company-Id': options.scope.companyId, 'X-Branch-Id': options.scope.branchId } } : {}) }
+}
+export async function getSettings(options?: SettingsRequestOptions): Promise<SystemSettings> {
+  return apiFetch<SystemSettings>('/settings', requestOptions(options))
 }
 
 /** Timezone, moneda, company_name y opciones de formato/advertencias para cualquier usuario autenticado. */
-export async function getPublicSettings(): Promise<{
+export type PublicSettings = {
   timezone: string
   currency_code: string
   currency_name: string
@@ -67,8 +73,9 @@ export async function getPublicSettings(): Promise<{
   sales_show_channels: string
   inventory_services_enabled: string
   fel_enabled: string
-}> {
-  return apiFetch('/settings/public')
+}
+export async function getPublicSettings(options?: SettingsRequestOptions): Promise<PublicSettings> {
+  return apiFetch('/settings/public', requestOptions(options))
 }
 
 /** Nombre y logo públicos (login / cotización pública). */
@@ -84,12 +91,13 @@ export async function getCompanyNamePublic(): Promise<{ company_name: string; co
   }
 }
 
-export async function uploadCompanyLogo(file: File): Promise<{ imageUrl: string; company_logo_url: string }> {
+export async function uploadCompanyLogo(file: File, options?: SettingsRequestOptions): Promise<{ imageUrl: string; company_logo_url: string }> {
   // La sesión son cookies httpOnly: no hay bearer que mandar. Exigir uno hacía
   // fallar toda subida con "No estás autenticado" sin llegar al servidor.
   const fd = new FormData()
   fd.append('image', file)
   const res = await fetch(`${getApiBaseUrl()}/settings/upload-logo`, {
+    ...requestOptions(options),
     method: 'POST',
     credentials: 'include',
     body: fd,
@@ -101,12 +109,13 @@ export async function uploadCompanyLogo(file: File): Promise<{ imageUrl: string;
   return { imageUrl, company_logo_url: imageUrl }
 }
 
-export async function removeCompanyLogo(): Promise<void> {
-  await apiFetch('/settings/logo', { method: 'DELETE' })
+export async function removeCompanyLogo(options?: SettingsRequestOptions): Promise<void> {
+  await apiFetch('/settings/logo', { ...requestOptions(options), method: 'DELETE' })
 }
 
-export async function updateSettings(settings: Partial<SystemSettings>): Promise<SystemSettings> {
+export async function updateSettings(settings: Partial<SystemSettings>, options?: SettingsRequestOptions): Promise<SystemSettings> {
   return apiFetch<SystemSettings>('/settings', {
+    ...requestOptions(options),
     method: 'PATCH',
     body: JSON.stringify({ settings }),
   })

@@ -1,18 +1,19 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const React = require('react')
+const { hookHarness } = require('./helpers/reportHookHarness.cjs')
 const { loadReportModule } = require('./helpers/loadReportModule.cjs')
 
 test('settings refresh fails closed and discards out-of-order service capability responses', async () => {
-  let state
-  const generation = { current: 0 }
+  const h = hookHarness()
   const requests = []
   const { SystemSettingsProvider } = loadReportModule('../../context/SystemSettingsContext.tsx', {
-    react: { ...React, useState(initial) { state ??= initial; return [state, next => { state = typeof next === 'function' ? next(state) : next }] },
-      useCallback: fn => fn, useEffect() {}, useRef: () => generation },
+    react: { ...h.hooks, useEffect() {} },
+    './useTenant': { useTenant: () => ({ company: { id: 'A' }, branch: { id: 'BA' } }) },
+    './useAuth': { useAuth: () => ({ user: { id: 'U' }, isLoading: false }) },
     '@/services/settingsService': { getPublicSettings: () => new Promise(resolve => requests.push(resolve)) },
   })
-  const render = () => SystemSettingsProvider({ children: null }).props.value
+  const render = () => h.render(() => SystemSettingsProvider({ children: null })).props.value
   assert.equal(render().inventoryServicesEnabled, false)
   render().refetch()
   render().refetch()
