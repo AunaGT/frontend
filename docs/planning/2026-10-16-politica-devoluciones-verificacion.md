@@ -2,6 +2,10 @@
 
 Fecha: 16 de octubre de 2026. Plan aprobado: `docs/superpowers/plans/2026-10-16-politica-devoluciones-configuracion.md`.
 
+Continuación del mismo día tras la solicitud de cerrar todos los pendientes: **corregidos el hallazgo menor de validación y los 11 diagnósticos TypeScript**. La descripción de la entrega original se conserva abajo como registro histórico. Backend `a8d21c3`: el tipo de `windowDays` se comprueba antes de convertir; caso JSON con `toString:null/valueOf:null` RED→GREEN y respuesta 400 sin transacción. Frontend `cff5da4`: discriminantes booleanos explícitos, validación de categoría como entrada desconocida, tipo local faltante del ajuste y contrato numérico/texto de términos de pago, sin desactivar comprobaciones de TypeScript.
+
+Verificación de esta continuación: backend 735/735 unitarias y 97/97 módulos; frontend 768/768, 23 fronteras de módulos, build correcto y `tsc --noEmit -p tsconfig.app.json` **sin diagnósticos**. No se modificó Supabase. Vencimientos, nómina, concurrencia/auditoría y B todavía no se implementan por estas correcciones; se detalla su cierre en `docs/superpowers/specs/2026-10-16-cierre-configuracion-design.md`, pendiente de revisión/confirmación de las decisiones nuevas.
+
 ## Alcance implementado
 
 - Sección **Configuración → Devoluciones**, direccionable con `/configuracion?seccion=devoluciones` y buscable por plazo, excepciones, resoluciones y reembolsos.
