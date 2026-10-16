@@ -2,7 +2,7 @@
 
 Fecha: 16 de octubre de 2026. Solicitud: «termina todo los pendientes entonces».
 
-Estado: aprobado por el usuario («confirmado») para ejecutar el cierre completo, con vigencia por fecha de pago y autorización conjunta `settings.manage`/`payroll.confirm`. Todavía no significa que estén implementadas estas funciones. Continúa la arquitectura ya aprobada en `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`. La opción visual B ya fue elegida; no se propone otra dirección.
+Estado: implementación funcional cerrada y verificada el16-10-2026, con vigencia por fecha de pago y autorización conjunta `settings.manage`/`payroll.confirm`. Dos migraciones aplicadas a la Supabase de desarrollo; revisión independiente y una pasada de correcciones verificadas. B incluye el refinamiento explícito de un único marco exterior. La comprobación visual autenticada sigue pendiente por la preferencia de navegador bloqueada; no se certifica Storage real ni normativa. Evidencia y decisiones: `docs/planning/2026-10-16-cierre-configuracion-verificacion.md`. Continúa la arquitectura aprobada en `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`.
 
 ## Objetivo y límites
 
