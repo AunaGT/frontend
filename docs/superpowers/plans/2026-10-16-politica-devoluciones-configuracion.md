@@ -10,7 +10,7 @@
 
 **Spec:** `docs/planning/2026-10-15-configuracion-por-modulo-propuesta.md`, secciones 7, 9 y fase 2. Fecha de solicitud como referencia del plazo confirmada expresamente por el usuario el 16 de octubre de 2026.
 
-**Estado:** aprobado expresamente por el usuario el 16 de octubre de 2026; ejecución directa en curso. Continuación del centro existente, no del rediseño B. Vencimientos y nómina tendrán planes separados después.
+**Estado:** implementado y revisado el 16 de octubre de 2026; pruebas completas correctas, con validación autenticada bloqueada y límites explícitos en `docs/planning/2026-10-16-politica-devoluciones-verificacion.md`. No incluye B, vencimientos, nómina ni auditoría/versionado general.
 
 ## Global Constraints
 
@@ -42,12 +42,12 @@
 - `assertCurrentReturnPolicy(record, policy)` en `returns/application.js`: comprueba resolución elegida y plazo a `record.return_date` mediante el dominio existente; excepción válida requiere sus campos persistidos `policy_overridden_by`, `policy_overridden_at` y motivo. Error 409 si la política ya no permite procesar. No aceptar un motivo enviado sin autorización como excepción nueva. Si falta fecha necesaria, bloquear con explicación, no usar la hora actual ni inventar una fecha.
 - GET privado `/settings` devuelve `returns.policy` efectiva normalizada igual que los consumidores de Devoluciones, incluso si falta configuración. No cambia el valor almacenado ni añade esta clave a `/settings/public`.
 
-- [ ] **1. RED:** pruebas de PATCH inválido sin transacción ni writes; dos empresas conservadas; JSON válido persiste como `json`; los campos opcionales omitidos mantienen compatibilidad. Casos de 30 períodos completos, justo antes del período 31 y período 31; excepción con/sin permiso y motivo. Casos al aprobar y completar con resolución desactivada, excepción desactivada y solicitud original dentro de plazo aunque se procese después. Caso de política ausente y lectura fallida (no confundir error con defaults).
-- [ ] **2. Ejecutar RED:** `node --require ./tests/setup-env.js --test tests/config.return-policy.test.js tests/returns.create.test.js tests/returns.completion.test.js` desde backend. Expected: fallos de validación/revalidación faltante, no errores de infraestructura.
-- [ ] **3. Implementar validación en PATCH antes de la transacción y normalización de GET privado.** Mantener atomicidad/empresa/caché existentes; no modificar otras claves. Reutilizar el catálogo de resoluciones del dominio.
-- [ ] **4. Revalidar en `approveReturn` y `completeApprovedReturn`.** Aprobar: comprobar después de cargar/bloquear el registro y elegir resolución, antes de guardar aprobación/líneas. Completar: después del chequeo de liquidación idempotente y antes de cualquier efecto, leyendo una sola política que también se reutiliza para precio de cambio. No volver a contar como disponibles las unidades que esta solicitud ya reservó. Conservar guardias de servicios/recibos y campos históricos.
-- [ ] **5. GREEN:** ejecutar los casos nuevos y `npm run test:unit`; `npm run test:modules`. Expected: suites correctas, ninguna escritura remota.
-- [ ] **6. Checkpoint backend:** `feat(returns): validate company policy before return effects`.
+- [x] **1. RED:** pruebas de PATCH inválido sin transacción ni writes; dos empresas conservadas; JSON válido persiste como `json`; los campos opcionales omitidos mantienen compatibilidad. Casos de 30 períodos completos, justo antes del período 31 y período 31; excepción con/sin permiso y motivo. Casos al aprobar y completar con resolución desactivada, excepción desactivada y solicitud original dentro de plazo aunque se procese después. Caso de política ausente y lectura fallida (no confundir error con defaults).
+- [x] **2. Ejecutar RED:** `node --require ./tests/setup-env.js --test tests/config.return-policy.test.js tests/returns.create.test.js tests/returns.completion.test.js` desde backend. Expected: fallos de validación/revalidación faltante, no errores de infraestructura.
+- [x] **3. Implementar validación en PATCH antes de la transacción y normalización de GET privado.** Mantener atomicidad/empresa/caché existentes; no modificar otras claves. Reutilizar el catálogo de resoluciones del dominio.
+- [x] **4. Revalidar en `approveReturn` y `completeApprovedReturn`.** Aprobar: comprobar después de cargar/bloquear el registro y elegir resolución, antes de guardar aprobación/líneas. Completar: después del chequeo de liquidación idempotente y antes de cualquier efecto, leyendo una sola política que también se reutiliza para precio de cambio. No volver a contar como disponibles las unidades que esta solicitud ya reservó. Conservar guardias de servicios/recibos y campos históricos.
+- [x] **5. GREEN:** ejecutar los casos nuevos y `npm run test:unit`; `npm run test:modules`. Expected: suites correctas, ninguna escritura remota.
+- [x] **6. Checkpoint backend:** `feat(returns): validate company policy before return effects`.
 
 ## Task 2: editor accesible en el centro existente
 
@@ -58,21 +58,21 @@
 - `validateReturnPolicyDraft(value)` devuelve errores por `returns.policy.windowDays`, `.allowAuthorizedExceptions`, `.enabledResolutions`, `.exchangePricing`. Ampliar `FieldErrors` para esas rutas, no convertir las subclaves en SystemSettings distintos. El guardado envía un único objeto `{ 'returns.policy': policy }` mediante `useSettingsDraft`.
 - Para cambios del objeto anidado, pasar una copia completa a `setField`; no mutar la respuesta confirmada ni otro borrador. Normalizar semánticamente números/listas solo al validar/producir payload; no marcar cambios por mero orden de resoluciones o por número vs cadena equivalente.
 
-- [ ] **1. RED:** sección direccionable y buscable por devolución/plazo/excepciones; valor guardado distinto de 30 se respeta; guardado excluye fiscalidad/pedidos; errores por campo y resumen enfocable; al desmarcar todas las resoluciones se impide guardar. Consulta/pending/consolidado no escriben. Cambiar de empresa invalida callbacks y respuestas tardías; falla de guardado conserva borrador; falla de refresco no reenvía el write confirmado. Ajustar la prueba de conteo de secciones de 11 a 12 conservando sus aserciones de no duplicación de claves.
-- [ ] **2. Ejecutar RED:** `node --test tests/config-return-policy.test.cjs tests/config-model.test.cjs tests/config-draft.test.cjs tests/config-navigation.test.cjs`. Expected: nueva sección/validación ausente.
-- [ ] **3. Integrar formulario compacto:** plazo numérico; switch de excepciones con explicación del permiso/motivo; grupo de cinco checkboxes de resoluciones; selector de precio de cambio. Controles y superficies actuales, sin encabezado gigante, sin rediseñar la navegación. Resumen enlazado e inline `aria-invalid`/`aria-describedby`; IDs coinciden con rutas de error.
-- [ ] **4. Explicar efectos:** cómputo por períodos de 24 h y límite real; fecha de solicitud confirmada por el usuario; cambios aplican al procesar pendientes y nunca recalculan completadas. Evitar prometer devoluciones legales universales o certificación FEL. Mostrar aviso de revisión antes de guardar sin reemplazar el resultado real del servidor.
-- [ ] **5. GREEN:** suite focal, `npm run test:modules`, `npm run build`. Expected: editor integrado sin perder las secciones existentes ni su ciclo de borradores.
-- [ ] **6. Checkpoint frontend:** `feat(config): edit the existing company return policy`.
+- [x] **1. RED:** sección direccionable y buscable por devolución/plazo/excepciones; valor guardado distinto de 30 se respeta; guardado excluye fiscalidad/pedidos; errores por campo y resumen enfocable; al desmarcar todas las resoluciones se impide guardar. Consulta/pending/consolidado no escriben. Cambiar de empresa invalida callbacks y respuestas tardías; falla de guardado conserva borrador; falla de refresco no reenvía el write confirmado. Ajustar la prueba de conteo de secciones de 11 a 12 conservando sus aserciones de no duplicación de claves.
+- [x] **2. Ejecutar RED:** `node --test tests/config-return-policy.test.cjs tests/config-model.test.cjs tests/config-draft.test.cjs tests/config-navigation.test.cjs`. Expected: nueva sección/validación ausente.
+- [x] **3. Integrar formulario compacto:** plazo numérico; switch de excepciones con explicación del permiso/motivo; grupo de cinco checkboxes de resoluciones; selector de precio de cambio. Controles y superficies actuales, sin encabezado gigante, sin rediseñar la navegación. Resumen enlazado e inline `aria-invalid`/`aria-describedby`; IDs coinciden con rutas de error.
+- [x] **4. Explicar efectos:** cómputo por períodos de 24 h y límite real; fecha de solicitud confirmada por el usuario; cambios aplican al procesar pendientes y nunca recalculan completadas. Evitar prometer devoluciones legales universales o certificación FEL. Mostrar aviso de revisión antes de guardar sin reemplazar el resultado real del servidor.
+- [x] **5. GREEN:** suite focal, `npm run test:modules`, `npm run build`. Expected: editor integrado sin perder las secciones existentes ni su ciclo de borradores.
+- [x] **6. Checkpoint frontend:** `feat(config): edit the existing company return policy`.
 
 ## Task 3: integración, revisión y evidencia
 
 **Files:** pruebas de las tareas anteriores; `docs/planning/2026-10-16-politica-devoluciones-verificacion.md`; estado del plan y propuesta general.
 
-- [ ] **1. Ejecutar frontend completo:** `node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs`; `npm run test:modules`; `npm run build`; `git diff --check`. Backend: `npm run test:unit`, `npm run test:modules`, `git diff --check`. Expected: pruebas/build correctos, reportar fallos previos por nombre si aparecen.
-- [ ] **2. Una revisión independiente final conforme a executing-plans:** revisar los cinco focos, payloads/empresa, autorización persistida, chequeos antes de efectos, idempotencia y no-regresión de servicios/recibos. Corregir importantes en una pasada RED→GREEN; documentar menores y decisiones reales.
-- [ ] **3. Verificación autenticada solo si el navegador permite localhost8080.** Claro/oscuro/móvil, teclado y guardados reales en Supabase de desarrollo; no crear otra staging ni evadir preferencias mediante otros hosts. Si sigue bloqueado, dejar la limitación explícita y no afirmar verificación visual/remota.
-- [ ] **4. Checkpoint documental con conteos y límites.** No declarar terminadas auditoría/versionado general, vencimientos, nómina ni B. Conservar el orden siguiente: vencimientos → nómina → B, y la validación transversal pendiente.
+- [x] **1. Ejecutar frontend completo:** `node --test --test-concurrency=4 tests/*.test.cjs tests/*.test.mjs`; `npm run test:modules`; `npm run build`; `git diff --check`. Backend: `npm run test:unit`, `npm run test:modules`, `git diff --check`. Expected: pruebas/build correctos, reportar fallos previos por nombre si aparecen.
+- [x] **2. Una revisión independiente final conforme a executing-plans:** revisar los cinco focos, payloads/empresa, autorización persistida, chequeos antes de efectos, idempotencia y no-regresión de servicios/recibos. Corregir importantes en una pasada RED→GREEN; documentar menores y decisiones reales.
+- [x] **3. Verificación autenticada solo si el navegador permite localhost8080.** Claro/oscuro/móvil, teclado y guardados reales en Supabase de desarrollo; no crear otra staging ni evadir preferencias mediante otros hosts. Si sigue bloqueado, dejar la limitación explícita y no afirmar verificación visual/remota.
+- [x] **4. Checkpoint documental con conteos y límites.** No declarar terminadas auditoría/versionado general, vencimientos, nómina ni B. Conservar el orden siguiente: vencimientos → nómina → B, y la validación transversal pendiente.
 
 ## Autorrevisión del plan
 
