@@ -96,8 +96,9 @@ test('import summaries use flat metrics and preserve partial errors, zero counts
 test('merchandise and product modes preserve records and keep card grids unframed', () => {
   const { MemoryRouter } = require('react-router-dom')
   let viewMode = 'cards'
-  const names = ['@/hooks/usePersistedListUiState', '../hooks/useIncomingMerchandise', '@/hooks/useProducts', '@/hooks/useCategories', '@/services/productService', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/useSystemSettings', '@/hooks/use-toast', '@tanstack/react-query', '@/services/api', './api']
+  const names = ['@/context/useModules', '@/hooks/usePersistedListUiState', '../hooks/useIncomingMerchandise', '@/hooks/useProducts', '@/hooks/useCategories', '@/services/productService', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/useSystemSettings', '@/hooks/use-toast', '@tanstack/react-query', '@/services/api', './api']
   const previous = names.map(name => overrides.get(name))
+  overrides.set('@/context/useModules', {useModules:()=>({enabledModuleCodes:new Set(['catalogs','inventory']),isEnabled:()=>true,isLoading:false,isError:false})})
   overrides.set('@/hooks/usePersistedListUiState', { usePersistedListUiState: () => ({ page: 1, pageSize: 10, viewMode, setPage() {}, setPageSize() {}, setViewMode() {} }), useResetPageOnFilterChange() {} })
   overrides.set('../hooks/useIncomingMerchandise', { useIncomingMerchandise: () => ({ data: { items: [{ id: 'record-1', date: '2026-10-06', supplier: { name: 'Proveedor visible' }, itemsCount: 2, totalValue: 25, payment_status: 'PAID' }], totalItems: 1, totalPages: 1 }, isLoading: false, isFetching: false, isError: false }) })
   overrides.set('@/hooks/useProducts', { useProducts: () => ({ data: { items: [{ id: 'p1', name: 'Producto visible', stock: 5, price: 25, category: 'Bebidas', availableForSale: true }], totalItems: 11, totalPages: 2, page: 1, nextPage: 2, prevPage: null }, isLoading: false }) })
@@ -278,7 +279,7 @@ test('all four master-data tabs and companies use flat summaries outside result 
   overrides.set('@/context/useTenant', { useTenant: () => ({ branch: { id: 'b1' }, company: companies[0], companies }) })
   overrides.set('@/context/useAuth', { useAuth: () => ({ refreshUser() {} }) })
   overrides.set('@/services/userService', {})
-  overrides.set('@/context/useModules', {useModules:()=>({isEnabled:()=>true,isLoading:false,isError:false})})
+  overrides.set('@/context/useModules', {useModules:()=>({enabledModuleCodes:new Set(['catalogs','inventory']),isEnabled:()=>true,isLoading:false,isError:false})})
   for (const name of ['@/services/api', '../services/api', './api']) overrides.set(name, { ApiError: Error, getApiBaseUrl: () => 'http://test.invalid', apiFetch() { throw Error('No remote calls') } })
   try {
     const CatalogPanelPage = load(path.join(__dirname, '../src/modules/catalogs/pages/CatalogPanelPage.tsx')).default

@@ -20,9 +20,10 @@ test('relocated catalog gate checks original availability, destination permissio
     ['payment-terms', ['catalogs'], ['catalogs.view'], { importing:true }, false],
     ['categories', ['catalogs','inventory'], ['catalogs.manage'], { isLoading:true }, false],
     ['payment-methods', ['catalogs'], ['catalogs.manage'], { isError:true }, false],
+    ['payment-methods', ['catalogs'], ['catalogs.manage'], { unknown:true }, false],
   ]) {
     const Gate = loadReportModule('../catalogs/components/CatalogAccess.tsx', {
-      '@/context/useModules': { useModules: () => ({ isEnabled: code => enabled.includes(code), isLoading: flags.isLoading, isError: flags.isError }) },
+      '@/context/useModules': { useModules: () => ({ enabledModuleCodes: flags.unknown ? null : new Set(enabled), isEnabled: code => flags.unknown || enabled.includes(code), isLoading: flags.isLoading, isError: flags.isError }) },
       '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ permissionsReady:true, hasPermission: (...codes) => codes.some(c=>perms.includes(c)) }) },
     }).CatalogAccess
     const html = renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Gate, {kind, importing:flags.importing}, React.createElement('b', null, 'EDITOR AUTORIZADO'))))

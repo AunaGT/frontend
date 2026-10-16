@@ -11,7 +11,7 @@
 /**
  * SupplierImportPage - Importación de contactos (proveedores y clientes)
  *
- * - Categoría / términos desconocidos: validación falla hasta Crear en Datos maestros u Omitir filas
+ * - Categoría / términos desconocidos: validación falla hasta crearlos en sus catálogos u omitir filas
  * - importOptions: createCategories, createPaymentTerms, skipRowIndexes
  */
 import { useState, useEffect } from 'react'

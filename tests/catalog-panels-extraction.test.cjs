@@ -71,7 +71,7 @@ test('read-only extracted catalogs never offer mutations or import', () => {
 test('catalog import can receive an explicit type and return destination without reading a return URL', () => {
   const nodes = [], navigate = []
   const Page = loadReportModule('../catalogs/pages/CatalogImportPage.tsx', {
-    '@/context/useModules': { useModules: () => ({isEnabled:()=>true,isLoading:false,isError:false}) },
+    '@/context/useModules': { useModules: () => ({enabledModuleCodes:new Set(['catalogs','inventory']),isEnabled:()=>true,isLoading:false,isError:false}) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({permissionsReady:true,hasPermission:()=>true}) },
     'react-router-dom': { ...require('react-router-dom'), useNavigate: () => path => navigate.push(path) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) }, '@/services/api': { getApiBaseUrl: () => 'https://api.invalid' },

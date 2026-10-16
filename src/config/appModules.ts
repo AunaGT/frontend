@@ -98,6 +98,8 @@ export interface AppModule {
     /** Clase Tailwind sobre el wrapper del icono (SVG / PNG) */
     iconColor: string
     adminOnly?: boolean
+    /** Conserva la identidad técnica, sin mostrar una aplicación independiente. */
+    hiddenFromLauncher?: boolean
     sellerAllowed?: boolean
     // Permisos (códigos) necesarios para ver este módulo.
     // Si el usuario tiene AL MENOS UNO de estos permisos, el módulo se muestra.
@@ -260,6 +262,7 @@ export const appModules: AppModule[] = [
     },
     {
         id: catalogsModule.code,
+        hiddenFromLauncher: true,
         label: MASTER_DATA_MODULE_LABEL,
         path: MASTER_DATA_MODULE_PATH,
         icon: CatalogosIcon,
@@ -323,7 +326,7 @@ export const appModules: AppModule[] = [
         color: 'bg-slate-200/80',
         iconColor: 'text-slate-800',
         adminOnly: true,
-        permissions: ['settings.view', 'settings.manage']
+        permissions: ['settings.view', 'settings.manage', 'catalogs.view', 'catalogs.manage']
     }
 ]
 
@@ -374,9 +377,9 @@ export const getUserRole = () => {
  */
 export const getVisibleModules = (enabledModuleCodes?: ReadonlySet<string> | null) => {
     const { isSeller, isAdmin, user } = getUserRole()
-    const availableModules = enabledModuleCodes
+    const availableModules = (enabledModuleCodes
         ? appModules.filter((module) => enabledModuleCodes.has(module.id))
-        : appModules
+        : appModules).filter(module => !module.hiddenFromLauncher)
     const hasPermissionsField = Array.isArray(user?.permissions)
     const permissions: string[] = hasPermissionsField
         ? (user!.permissions as unknown[]).map((p) => String(p))

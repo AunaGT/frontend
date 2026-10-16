@@ -410,7 +410,7 @@ export default function SupplierCreatePage() {
                             })}
                             {categories.length === 0 && (
                               <div className="px-2 py-3 text-xs text-muted-foreground">
-                                Configura categorías en Datos maestros primero.
+                                Configura categorías en Inventario → Categorías primero.
                               </div>
                             )}
                           </ScrollArea>

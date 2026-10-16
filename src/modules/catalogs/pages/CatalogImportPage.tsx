@@ -21,7 +21,7 @@ import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useState, useEffect, useMemo } from 'react'
 import { getApiBaseUrl } from '@/services/api'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { MASTER_DATA_MODULE_PATH } from '@/config/appModules'
+import { catalogsModule } from '../manifest'
 import * as XLSX from 'xlsx'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -100,7 +100,7 @@ function CatalogImportWorkflow({ catalogType: explicitType, backPath: explicitBa
     // El tipo viaja en la URL para que la vista de importación abra directamente.
     const requestedType = searchParams.get('type')
     const catalogType = explicitType ?? (requestedType === 'payment-terms' ? 'payment-terms' : 'categories')
-    const backPath = explicitBackPath ?? `${MASTER_DATA_MODULE_PATH}?tab=${catalogType}`
+    const backPath = explicitBackPath ?? (catalogType === 'categories' ? catalogsModule.paths.categories : catalogsModule.paths.paymentTerms)
 
     // State
     const [step, setStep] = useState<ImportStep>('mapping')
@@ -353,8 +353,8 @@ function CatalogImportWorkflow({ catalogType: explicitType, backPath: explicitBa
 
     // Render success state
     return <ImportWorkbench
-        title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar datos maestros."
-        back={backPath} backLabel="Datos maestros"
+        title={catalogType === 'categories' ? 'Importar categorías' : 'Importar términos de pago'} description="Carga el archivo y revisa cada columna antes de guardar el catálogo."
+        back={backPath} backLabel={catalogType === 'categories' ? 'Categorías' : 'Condiciones de pago'}
         templatePath={catalogType === 'categories' ? '/catalogs/product-categories/template' : '/catalogs/payment-terms/template'}
         templateName={catalogType === 'categories' ? 'plantilla_categorias.xlsx' : 'plantilla_terminos_pago.xlsx'}
         file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}

@@ -10,7 +10,7 @@ export function CatalogAccess({ kind, importing = false, children }: { kind: Cat
   const modules = useModules()
   const auth = useAuthPermissions()
   if (modules.isLoading || auth.isLoading || !auth.permissionsReady) return <BrandLoading message="Preparando catálogo…" />
-  if (modules.isError || !modules.isEnabled('catalogs') || (kind === 'categories' && !modules.isEnabled('inventory'))) {
+  if (modules.isError || !modules.enabledModuleCodes || !modules.isEnabled('catalogs') || (kind === 'categories' && !modules.isEnabled('inventory'))) {
     return <div role="status" className="mx-auto max-w-xl p-8 text-sm text-muted-foreground">Catálogo no disponible para la empresa seleccionada. Revisa los módulos activos.</div>
   }
   const permissions = importing ? ['catalogs.manage'] : kind === 'cash-registers' ? ['catalogs.view', 'catalogs.manage', 'settings.manage'] : ['catalogs.view', 'catalogs.manage']

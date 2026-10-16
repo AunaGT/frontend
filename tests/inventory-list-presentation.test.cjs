@@ -8,7 +8,7 @@ const { assertPaginationOutside } = require('./pagination-assertions.cjs')
 
 const product = { id: 'qa-product', name: 'Bebida QA 330 ml', category: 'Bebidas', brand: 'QA', size: '330 ml', stock: 24, minStock: 5, price: 25.5, cost: 12, supplier: 'Proveedor QA', barcode: '7401001000098', description: '', imageUrl: '/qa-bottle.png', status: 'available', availableForSale: true, inBranch: true, kind: 'STANDARD' }
 
-function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario' } = {}) {
+function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario', catalogsEnabled=true } = {}) {
   let index = 0
   const nodes = [], changes = [], navigations = [], queries = [], mutations = [], reads = []
   const Page = loadReportModule('../inventory/products/ProductManagement.tsx', {
@@ -20,6 +20,7 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
     '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => ({ page: 1, pageSize: 10, viewMode: view, setPage: v => changes.push({ page: v }), setPageSize: v => changes.push({ pageSize: v }), setViewMode: v => changes.push({ view: v }) }), useResetPageOnFilterChange() {} },
     'react-router-dom': { ...require('react-router-dom'), useNavigate: () => (path, options) => navigations.push({ path, options }) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
+    '@/context/useModules': {useModules:()=>({enabledModuleCodes:catalogsEnabled ? new Set(['catalogs','inventory']) : new Set(['inventory']),isLoading:false,isError:false,isEnabled:code=>code==='catalogs' && catalogsEnabled})},
     '@/context/useTenant': { useTenant: () => ({ branches: [{ id: 'qa-branch', name: 'Principal' }] }) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: (...codes) => codes.some(code => permissions.includes(code)) }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ',inventoryServicesEnabled:servicesEnabled }) },
@@ -38,6 +39,14 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
   const html = renderToStaticMarkup(React.createElement(MemoryRouter, {initialEntries:[route]}, React.createElement(Page)))
   return { html, nodes, changes, navigations, queries, mutations, reads }
 }
+test('inventory category action requires catalog authority and availability and uses its canonical destination',()=>{
+  for(const [permissions,catalogsEnabled,expected] of [[['products.view','catalogs.manage'],true,true],[['products.view','catalogs.view'],true,true],[['products.view'],true,false],[['products.view','catalogs.manage'],false,false]]) {
+    const result=renderList({permissions,catalogsEnabled})
+    const action=result.nodes.find(n=>typeof n.props.onClick==='function' && n.props.children==='Categorías')
+    assert.equal(!!action,expected)
+    if(action){action.props.onClick();assert.equal(result.navigations.at(-1).path,'/inventario/categorias')}
+  }
+})
 test('service catalog uses server filtering, sale availability and unit instead of stock, with metrics above search',()=>{
   const service={...product,kind:'SERVICE',stock:0,minStock:0,cost:0,serviceUnitLabel:'Hora',quantityDecimals:2}
   const result=renderList({servicesEnabled:true,route:'/inventario?tipo=services',view:'cards',products:[service]})

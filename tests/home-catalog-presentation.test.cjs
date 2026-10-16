@@ -112,7 +112,18 @@ test('session entry keeps the same compact home structure without mounting priva
 test('the complete catalogue preserves every enabled module and the approved visual order', () => {
   const result = renderHome({ enabled: new Set(['sales', 'quotes', 'orders', 'returns', 'promotions', 'inventory', 'inventory-count', 'merchandise', 'transfers', 'receivables', 'accounting', 'cash-closure', 'contacts', 'hr', 'payroll', 'branches', 'users', 'catalogs', 'config', 'analytics', 'reports', 'alerts']) })
   const labels = [...result.html.matchAll(/<button[^>]*aria-label="Abrir ([^"]+)"/g)].map(match => match[1])
-  assert.deepEqual(labels, ['Ventas', 'Cotizaciones', 'Pedidos', 'Devoluciones', 'Promociones', 'Inventario', 'Inventariado', 'Mercancía', 'Traslados', 'Cartera', 'Contabilidad', 'Cierre de Caja', 'Contactos', 'RRHH', 'Nómina', 'Sucursales', 'Usuarios', 'Datos maestros', 'Configuración', 'Análisis', 'Reportes', 'Alertas'])
-  assert.match(result.html, /22 módulos disponibles/)
+  assert.deepEqual(labels, ['Ventas', 'Cotizaciones', 'Pedidos', 'Devoluciones', 'Promociones', 'Inventario', 'Inventariado', 'Mercancía', 'Traslados', 'Cartera', 'Contabilidad', 'Cierre de Caja', 'Contactos', 'RRHH', 'Nómina', 'Sucursales', 'Usuarios', 'Configuración', 'Análisis', 'Reportes', 'Alertas'])
+  assert.match(result.html, /21 módulos disponibles/)
   assert.doesNotMatch(result.html, /Scanner/)
+})
+
+test('shared launcher filtering hides master data but retains all 23 technical manifests and catalog-only discovery', () => {
+  const previousWindow=global.window,previousStorage=global.localStorage
+  global.window={};global.localStorage={getItem:()=>JSON.stringify({role:{name:'staff'},permissions:['catalogs.manage']})}
+  try {
+    const {appModules,getVisibleModules,assertAppModuleCatalog}=loadReportModule('../../config/appModules.ts')
+    assert.equal(appModules.length,23);assert.equal(assertAppModuleCatalog(),true)
+    assert.ok(appModules.some(m=>m.id==='catalogs'))
+    assert.deepEqual(getVisibleModules(new Set(['config','catalogs'])).map(m=>m.id),['config'])
+  } finally {global.window=previousWindow;global.localStorage=previousStorage}
 })

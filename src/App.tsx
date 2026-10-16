@@ -97,7 +97,6 @@ const AlertsManagement = alertsModule.pages.Management;
 const BranchesManagement = branchesModule.pages.Management;
 const TransfersManagement = transfersModule.pages.Management;
 const CatalogsManagement = catalogsModule.pages.Management;
-const CatalogImportPage = catalogsModule.pages.Import;
 const HrPage = hrModule.pages.Management;
 const EmployeeCreatePage = hrModule.pages.Create;
 const EmployeeDetailPage = hrModule.pages.Detail;
@@ -780,7 +779,7 @@ const App = () => (
                 <Route
                   path={configModule.paths.list}
                   element={
-                    <PermissionRoute any={["settings.view", "settings.manage"]}>
+                    <PermissionRoute any={["settings.view", "settings.manage", "catalogs.view", "catalogs.manage"]}>
                       <ConfigManagement />
                     </PermissionRoute>
                   }

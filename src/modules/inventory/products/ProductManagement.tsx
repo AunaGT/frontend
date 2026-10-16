@@ -15,6 +15,8 @@
  * Logic is extracted into custom hooks, UI into sub-components.
  */
 import { Fragment, useState, useMemo, useEffect } from 'react'
+import { useModules } from '@/context/useModules'
+import { inventoryModule } from '../manifest'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -118,6 +120,7 @@ const ProductManagement = () => {
     const queryClient = useQueryClient()
     const { company, branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
+    const catalogModules = useModules()
     const { locale, currencyCode, inventoryServicesEnabled } = useSystemSettings()
     const [searchParams, setSearchParams] = useSearchParams()
     const serviceCatalog = inventoryServicesEnabled && searchParams.get('tipo') === 'services'
@@ -446,6 +449,7 @@ const ProductManagement = () => {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-56">
+                            {!catalogModules.isLoading && !catalogModules.isError && catalogModules.enabledModuleCodes?.has('catalogs') && hasPermission('catalogs.view', 'catalogs.manage') && <DropdownMenuItem onClick={() => navigate(inventoryModule.paths.categories)}>Categorías</DropdownMenuItem>}
                             {!serviceCatalog && canExport && (
                                 <DropdownMenuItem onClick={() => navigate('/inventario/codigos-de-barras', { state: { selectedIds, companyId:company?.id, filters:{branchId:scopeBranch!=='all'?scopeBranch:scopeWarehouses.find(w=>w.id===scopeWarehouse)?.branch_id,inBranch:scopeBranch!=='all'&&inBranchOnly,warehouseId:scopeWarehouse!=='all'?scopeWarehouse:undefined,locationId:scopeLocation!=='all'?scopeLocation:undefined} } })}>
                                     <Printer className="mr-2 h-4 w-4" />

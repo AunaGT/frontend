@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url)
 const root = path.resolve(import.meta.dirname, '../src')
 let state, calls = [], replenishmentMode = false, replenishmentRows = []
 const overrides = new Map([
+  ['@/context/useModules', {useModules:()=>({isEnabled:()=>true,isLoading:false,isError:false})}],
   ['react', { ...React, useState: initial => React.useState(replenishmentMode && initial === 'history' ? 'replenishment' : initial) }],
   ['@/services/api', { apiFetch: () => { throw new Error('Remote calls disabled') } }],
   ['./api', { apiFetch: () => { throw new Error('Remote calls disabled') } }],
