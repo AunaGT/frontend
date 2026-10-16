@@ -12,6 +12,7 @@ export const catalogsModule = {
   },
   routePrefixes: ['/catalogos'] as const,
   pages: {
+    Panel: lazy(() => import('./pages/CatalogPanelPage')),
     Management: lazy(() => import('./pages/CatalogsManagement')
       .then((module) => ({ default: module.CatalogsManagement }))),
     Import: lazy(() => import('./pages/CatalogImportPage')),

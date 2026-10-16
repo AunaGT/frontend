@@ -84,15 +84,15 @@ interface ValidationError {
 
 const HR = () => <div className="border-t my-4" />
 
-export default function CatalogImportPage() {
+export default function CatalogImportPage({ catalogType: explicitType, backPath: explicitBackPath }: { catalogType?: 'categories' | 'payment-terms'; backPath?: string } = {}) {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const { toast } = useToast()
 
     // El tipo viaja en la URL para que la vista de importación abra directamente.
     const requestedType = searchParams.get('type')
-    const catalogType = requestedType === 'payment-terms' ? 'payment-terms' : 'categories'
-    const backPath = `${MASTER_DATA_MODULE_PATH}?tab=${catalogType}`
+    const catalogType = explicitType ?? (requestedType === 'payment-terms' ? 'payment-terms' : 'categories')
+    const backPath = explicitBackPath ?? `${MASTER_DATA_MODULE_PATH}?tab=${catalogType}`
 
     // State
     const [step, setStep] = useState<ImportStep>('mapping')
