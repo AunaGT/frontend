@@ -4,6 +4,8 @@ Fecha: 15 de octubre de 2026. Estado: arquitectura funcional aprobada por el usu
 
 Avance de la entrega Centro de Configuración: navegación y ajustes existentes reorganizados, guardado por sección y protección de contexto implementados; tareas 1–6 listas y revisión de código corregida. Validación visual pendiente por bloqueo de acceso del navegador. Esto **no** completa el traslado de Datos maestros ni los formularios de políticas nuevas. [Evidencia, decisiones y siguiente bloque](2026-10-15-centro-configuracion-verificacion.md).
 
+Prioridad confirmada el 16 de octubre de 2026: el usuario eligió el rediseño visual **B · Espacio integrado**, pero pidió terminar primero los pendientes funcionales. Orden: reubicar Datos maestros, exponer política de devoluciones, configurar alertas de vencimiento y administrar parámetros de nómina con vigencia/protección del histórico. Después implementar B. [Plan del primer bloque funcional](../superpowers/plans/2026-10-16-reubicacion-datos-maestros.md), preparado para revisión; no se marca como ejecutado por haberlo documentado.
+
 ## 1. Objetivo y alcance
 
 Convertir Configuración en el lugar donde una empresa adapta Auna a su operación, sin convertirlo en otro módulo operativo ni duplicar pantallas existentes.
