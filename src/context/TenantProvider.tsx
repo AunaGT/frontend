@@ -8,7 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { TenantContext } from "./TenantContext";
 import { useAuth } from "./useAuth";
@@ -24,6 +24,11 @@ export const CONSOLIDATED = "all";
 export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const exitGuard = useRef<(() => boolean) | null>(null);
+  const registerTenantExitGuard = useCallback((guard: () => boolean) => {
+    exitGuard.current = guard;
+    return () => { if (exitGuard.current === guard) exitGuard.current = null; };
+  }, []);
   const [companyId, setCompanyIdState] = useState<string | null>(getActiveCompanyId());
   const [branchId, setBranchIdState] = useState<string | null>(getActiveBranchId());
 
@@ -97,6 +102,7 @@ export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
   const setCompany = useCallback(
     (nextCompanyId: string) => {
       if (nextCompanyId === companyId) return;
+      if (exitGuard.current && !exitGuard.current()) return;
       const branchesOfCompany = allBranches.filter((b) => b.company_id === nextCompanyId);
       const nextBranch =
         branchesOfCompany.find((b) => b.is_default) ?? branchesOfCompany[0] ?? null;
@@ -110,6 +116,7 @@ export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
   const setBranch = useCallback(
     (nextBranchId: string) => {
       if (nextBranchId === branchId) return;
+      if (exitGuard.current && !exitGuard.current()) return;
       setBranchIdState(nextBranchId);
       reloadForTenant(companyId, nextBranchId);
     },
@@ -125,8 +132,9 @@ export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
       isConsolidated: branchId === CONSOLIDATED,
       setCompany,
       setBranch,
+      registerTenantExitGuard,
     }),
-    [companies, branches, companyId, branchId, setCompany, setBranch]
+    [companies, branches, companyId, branchId, setCompany, setBranch, registerTenantExitGuard]
   );
 
   // Los efectos de los hijos corren ANTES que los del padre: si se montan con el
