@@ -48,7 +48,8 @@ export const PayrollRunDetail = () => {
   const { toast } = useToast()
   const qc = useQueryClient()
   const { hasPermission,user } = useAuthPermissions()
-  const {company,branch,isConsolidated}=useTenant(),scope={companyId:company?.id||'',branchId:branch?.id||''}
+  const {company,branch,isConsolidated}=useTenant(),scope={companyId:company?.id||'',branchId:branch?.id||(isConsolidated?'all':'')}
+  const canMutate=!isConsolidated&&!!branch?.id
   const contextKey=JSON.stringify([id,scope.companyId,scope.branchId,user?.id]),live=useRef({key:contextKey,active:true})
   if(live.current.key!==contextKey)live.current={key:contextKey,active:true}
   const owner=live.current,current=()=>live.current===owner&&owner.active&&getActiveCompanyId()===scope.companyId&&getActiveBranchId()===scope.branchId
@@ -67,7 +68,7 @@ export const PayrollRunDetail = () => {
   const { data: run, isLoading, isFetching, isError, error, refetch } = useQuery({
     queryKey: ['payroll-runs', id,scope.companyId,scope.branchId,user?.id],
     queryFn: () => fetchPayrollRun(id,scope),
-    enabled: Boolean(id&&scope.companyId&&scope.branchId&&!isConsolidated),
+    enabled: Boolean(id&&scope.companyId&&scope.branchId),
   })
 
   const invalidate = () => {
@@ -77,7 +78,7 @@ export const PayrollRunDetail = () => {
   }
 
   const transition = (fn: (runId: string,targetScope:typeof scope) => Promise<unknown>, title: string) => ({
-    mutationFn: () => {if(!current())throw Error('La empresa o sucursal cambió');return fn(id,scope)},
+    mutationFn: () => {if(!current()||!canMutate)throw Error('Selecciona una sucursal concreta para modificar la nómina');return fn(id,scope)},
     onSuccess: () => { if(!current())return;invalidate(); toast({ title }) },
     onError: (e: Error) => {
       if(!current())return
@@ -111,16 +112,16 @@ export const PayrollRunDetail = () => {
           <p className="mt-1 text-sm text-muted-foreground"><span className="font-mono">{run.code}</span> · {PAYROLL_TYPE_LABELS[run.type]} · {run.period_start.slice(0, 10)} a {run.period_end.slice(0, 10)} · pago {run.pay_date.slice(0, 10)}{run.branch ? ` · ${run.branch.name}` : ''}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {run.status === 'BORRADOR' && hasPermission('payroll.create') && (
+          {canMutate && run.status === 'BORRADOR' && hasPermission('payroll.create') && (
             <Button variant="outline" disabled={busy||!run.rates_snapshot} onClick={() => recalc.mutate()}>Recalcular</Button>
           )}
-          {run.status === 'BORRADOR' && hasPermission('payroll.confirm') && (
+          {canMutate && run.status === 'BORRADOR' && hasPermission('payroll.confirm') && (
             <Button className="bg-orange-600 text-white hover:bg-orange-700" disabled={busy} onClick={() => confirm.mutate()}>Confirmar nómina</Button>
           )}
-          {run.status === 'CONFIRMADA' && hasPermission('payroll.pay') && (
+          {canMutate && run.status === 'CONFIRMADA' && hasPermission('payroll.pay') && (
             <Button disabled={busy} onClick={() => pay.mutate()}>Marcar pagada</Button>
           )}
-          {(run.status === 'BORRADOR' || run.status === 'CONFIRMADA') && hasPermission('payroll.cancel') && (
+          {canMutate && (run.status === 'BORRADOR' || run.status === 'CONFIRMADA') && hasPermission('payroll.cancel') && (
             <Button variant="destructive" disabled={busy} onClick={() => { if (window.confirm('¿Anular esta nómina? Esta acción no se puede deshacer.')) cancel.mutate() }}>Anular</Button>
           )}
           {busy && <Loader2 className="h-4 w-4 animate-spin" />}

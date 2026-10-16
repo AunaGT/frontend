@@ -50,7 +50,7 @@
 .config-nav-group ul { display: grid; gap: 3px; }
 .config-nav-group button { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 9px 10px; border-radius: 8px; text-align: left; font-size: 13px; color: hsl(var(--foreground)); cursor: pointer; overflow-wrap: anywhere; }
 .config-nav-group button:hover { background: hsl(var(--accent)); }
-.config-nav-group button[aria-current="page"] { background: hsl(var(--brand-orange) / .12); color: hsl(var(--brand-orange)); font-weight: 650; }
+.config-nav-group button[aria-current="page"] { background: hsl(var(--brand-orange) / .12); color: hsl(var(--foreground)); font-weight: 650; }
 .config-nav-group button[aria-current="page"] { box-shadow: inset 3px 0 hsl(var(--brand-orange)); }
 .dark .config-nav-group button[aria-current="page"] { color: hsl(var(--foreground)); }
 .config-nav-group button:focus-visible { outline: 2px solid hsl(var(--brand-orange)); outline-offset: 2px; }

@@ -4,6 +4,7 @@ test('history shows actual author and values with shared pagination rather than 
   let queryKey
   const Page=loadReportModule('../config/components/SettingsHistorySection.tsx',{
     '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'BA'}})},
+    '@/context/useModules':{useModules:()=>({enabledModuleCodes:new Set(),isLoading:false,isError:false})},
     '@/hooks/useAuthPermissions':{useAuthPermissions:()=>({user:{id:'U'},hasPermission:()=>false,permissionsReady:true})},
     '@/services/settingsService':{},'@tanstack/react-query':{useQuery:options=>{queryKey=options.queryKey;return{data:{items:[{id:'E',key:'company_name',actor_id:'UUID',actor_name:'Operador QA',source:'configuration',revision:2,created_at:'2026-10-16T12:00:00Z',before_value:'Anterior',after_value:'Nueva empresa'}],totalItems:11,totalPages:2},isLoading:false}}},
   }).SettingsHistorySection
