@@ -3,15 +3,18 @@ import { useQuery } from '@tanstack/react-query'
 import { apiFetch } from '@/services/api'
 import { useTenant } from './useTenant'
 import { ModuleContext, type CompanyModule } from './ModuleContext'
+import { useAuth } from './useAuth'
 
 type ModulesResponse = { modules: CompanyModule[] }
 
 export const ModuleProvider = ({ children }: { children: React.ReactNode }) => {
-  const { company } = useTenant()
+  const { company, branch, isConsolidated } = useTenant()
+  const { user, isLoading: authLoading } = useAuth()
+  const headers = { 'X-Company-Id': company?.id || '', 'X-Branch-Id': branch?.id || (isConsolidated ? 'all' : '') }
   const query = useQuery({
-    queryKey: ['company-modules', company?.id],
-    queryFn: () => apiFetch<ModulesResponse>('/modules'),
-    enabled: Boolean(company?.id),
+    queryKey: ['company-modules', company?.id, user?.id],
+    queryFn: ({ signal }) => apiFetch<ModulesResponse>('/modules', { headers, signal }),
+    enabled: Boolean(company?.id && user?.id && !authLoading && headers['X-Branch-Id']),
     staleTime: 30_000,
     retry: 1,
   })

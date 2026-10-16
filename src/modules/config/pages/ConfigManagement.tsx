@@ -1,5 +1,5 @@
 /** Copyright (c) 2026 Diego Patzán. All Rights Reserved. */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { LoadingState } from '@/components/shared/LoadingState'
@@ -60,6 +60,8 @@ export default function ConfigManagement() {
   usePageTrail([{ label: selected.label }])
   const current = () => owner.active && live.current === owner
   const canMutate = context.canManage && !context.consolidated && draft.status === 'ready'
+  const hrActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('rrhh', activity), [draft.reportActivity])
+  const modulesActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('modulos', activity), [draft.reportActivity])
   const editable = Object.prototype.hasOwnProperty.call(SECTION_KEYS, active) ? active as EditableSection : null
 
   useEffect(() => {
@@ -128,8 +130,8 @@ export default function ConfigManagement() {
         </CardContent></Card>}
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}
         {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
-        {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings /></div>}
-        {visited.has('modulos') && <div hidden={active !== 'modulos'} key={`modules-${contextKey}`}><ModulesSettings canManage={canMutate} /></div>}
+        {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings active={active === 'rrhh'} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={hrActivity} /></div>}
+        {visited.has('modulos') && <div hidden={active !== 'modulos'} key={`modules-${contextKey}`}><ModulesSettings active={active === 'modulos'} canManage={canMutate} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={modulesActivity} /></div>}
       </>}
     </div></div>
     <AlertDialog open={!!scopedConfirmation} onOpenChange={open => { if (!open) setConfirmation(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Descartar cambios sin guardar?</AlertDialogTitle><AlertDialogDescription>{scopedConfirmation?.type === 'reset' ? 'Se restablecerá únicamente esta sección. Los cambios de otras secciones se conservan.' : 'Al salir se perderán los cambios pendientes de Configuración. Los cambios ya guardados se conservan.'}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Seguir editando</AlertDialogCancel><AlertDialogAction onClick={() => {

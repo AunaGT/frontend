@@ -7,8 +7,9 @@ export type UpdateCompanyModuleInput = {
   config?: Record<string, unknown>
 }
 
-export const updateCompanyModule = (code: string, input: UpdateCompanyModuleInput) =>
+export const updateCompanyModule = (code: string, input: UpdateCompanyModuleInput, options?: { headers?: Record<string, string> }) =>
   apiFetch<{ modules: CompanyModule[] }>(`/modules/${encodeURIComponent(code)}`, {
+    ...options,
     method: 'PATCH',
     body: JSON.stringify(input),
   })

@@ -10,6 +10,7 @@ import { appModules, MODULE_DESCRIPTIONS } from '@/config/appModules'
 import { useModules } from '@/context/useModules'
 import { useToast } from '@/hooks/use-toast'
 import { updateCompanyModule } from '@/services/moduleService'
+import { useRelatedSettingsEditor, type RelatedEditorProps } from '../useRelatedSettingsEditor'
 
 type Filter = 'all' | 'active' | 'inactive' | 'trial'
 
@@ -18,7 +19,7 @@ const statusOf = (module: { status: string; effectiveEnabled: boolean }): Filter
   return module.status === 'TRIAL' ? 'trial' : 'active'
 }
 
-export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
+export const ModulesSettings = ({ canManage, ...props }: { canManage: boolean } & RelatedEditorProps) => {
   const { modules, isLoading, isError, refetch } = useModules()
   const { toast } = useToast()
   const [savingCode, setSavingCode] = useState<string | null>(null)
@@ -26,17 +27,27 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
   const [search, setSearch] = useState('')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const scope = useRelatedSettingsEditor({ ...props, disabled: props.disabled || !canManage })
 
   const toggle = async (code: string, enabled: boolean) => {
+    if (modules.find(module => module.code === code)?.protected || isError || isLoading) return
+    const ticket = scope.begin()
+    if (!ticket) return
+    let persisted = false
     setSavingCode(code)
     try {
-      await updateCompanyModule(code, { status: enabled ? 'ACTIVE' : 'DISABLED' })
-      await refetch()
+      await updateCompanyModule(code, { status: enabled ? 'ACTIVE' : 'DISABLED' }, { headers: scope.headers })
+      persisted = true
+      if (!scope.isCurrent(ticket)) return
+      const refreshed = await refetch()
+      if (!scope.isCurrent(ticket)) return
+      if ((refreshed as { isError?: boolean })?.isError) throw new Error('No se pudo actualizar la lista.')
       toast({ title: enabled ? 'Módulo activado' : 'Módulo desactivado' })
     } catch (error) {
-      toast({ title: 'No se pudo cambiar el módulo', description: error instanceof Error ? error.message : 'Intente nuevamente', variant: 'destructive' })
+      if (!scope.isCurrent(ticket)) return
+      toast({ title: persisted ? 'Estado del módulo guardado; no se pudo actualizar la lista.' : 'No se pudo cambiar el módulo', description: error instanceof Error ? error.message : 'Intente nuevamente', variant: persisted ? undefined : 'destructive' })
     } finally {
-      setSavingCode(null)
+      if (scope.isCurrent(ticket)) { setSavingCode(null); scope.end(ticket) }
     }
   }
 
@@ -81,7 +92,7 @@ export const ModulesSettings = ({ canManage }: { canManage: boolean }) => {
               <td className="config-module-description">{MODULE_DESCRIPTIONS[module.code] || 'Gestión del módulo'}{module.blockedBy.length ? <small className="config-module-warning">Requiere activar {module.blockedBy.join(', ')}.</small> : module.trialEndsAt && module.status === 'TRIAL' ? <small className="config-module-warning">Prueba hasta {new Date(module.trialEndsAt).toLocaleDateString('es-GT')}.</small> : null}</td>
               <td><span className={`config-module-status config-module-status--${status}`}><span className={`config-status-dot config-status-dot--${status}`} />{module.blockedBy.length ? 'Bloqueado' : status === 'trial' ? 'En prueba' : module.status === 'SUSPENDED' ? 'Suspendido' : status === 'active' ? 'Activo' : 'Inactivo'}</span></td>
               <td><div className="config-dependencies">{module.dependencies.length ? module.dependencies.map((dependency) => <span key={dependency} className={module.blockedBy.includes(dependency) ? 'is-blocked' : ''}>{modules.find((item) => item.code === dependency)?.name ?? dependency}</span>) : <span>Ninguna</span>}</div></td>
-              <td className={`config-module-toggle config-module-toggle--${status}`}>{savingCode === module.code ? <Loader2 className="h-4 w-4 animate-spin" /> : <Switch checked={ownEnabled} disabled={!canManage || module.protected || savingCode !== null} onCheckedChange={(checked) => toggle(module.code, checked)} aria-label={`${ownEnabled ? 'Desactivar' : 'Activar'} ${module.name}`} />}</td>
+              <td className={`config-module-toggle config-module-toggle--${status}`}>{savingCode === module.code && scope.pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Switch checked={ownEnabled} disabled={!canManage || scope.disabled || module.protected || scope.pending} onCheckedChange={(checked) => toggle(module.code, checked)} aria-label={`${ownEnabled ? 'Desactivar' : 'Activar'} ${module.name}`} />}</td>
             </tr>
           })}
           {!isLoading && !visible.length && <tr><td colSpan={5} className="config-empty">No hay módulos que coincidan con estos filtros.</td></tr>}

@@ -253,9 +253,9 @@ export const cancelAdvance = (id: string) =>
 export type DocumentType = { id: string; name: string; instructions: string; required: boolean; active: boolean; sort_order: number };
 export type DocumentSelection = { typeId: string; file: File };
 export type DocumentVersion = { id: string; type_id: string; original_name: string; mime_type: string; size_bytes: number; created_at: string; archived_at: string | null; uploaded_by: string };
-export const fetchHrDocumentTypes = (options: { includeInactive?: boolean } = {}) => apiFetch<{ items: DocumentType[] }>(`/api/hr/document-types${options.includeInactive ? '?includeInactive=1' : ''}`);
-export const createHrDocumentType = (value: Omit<DocumentType, 'id'>) => apiFetch<DocumentType>('/api/hr/document-types', { method: 'POST', body: JSON.stringify(value) });
-export const updateHrDocumentType = (id: string, value: Omit<DocumentType, 'id'>) => apiFetch<DocumentType>(`/api/hr/document-types/${id}`, { method: 'PUT', body: JSON.stringify(value) });
+export const fetchHrDocumentTypes = (options: { includeInactive?: boolean } = {}, request?: { headers?: Record<string, string>; signal?: AbortSignal }) => apiFetch<{ items: DocumentType[] }>(`/api/hr/document-types${options.includeInactive ? '?includeInactive=1' : ''}`, request);
+export const createHrDocumentType = (value: Omit<DocumentType, 'id'>, request?: { headers?: Record<string, string> }) => apiFetch<DocumentType>('/api/hr/document-types', { ...request, method: 'POST', body: JSON.stringify(value) });
+export const updateHrDocumentType = (id: string, value: Omit<DocumentType, 'id'>, request?: { headers?: Record<string, string> }) => apiFetch<DocumentType>(`/api/hr/document-types/${id}`, { ...request, method: 'PUT', body: JSON.stringify(value) });
 export const fetchEmployeeDocuments = (id: string) => apiFetch<{ items: DocumentVersion[]; requirements: DocumentType[]; complete: boolean }>(`/api/hr/employees/${id}/documents`);
 export const accessEmployeeDocument = (employeeId: string, documentId: string, download = false) => apiFetch<{ url: string; expiresAt: string }>(`/api/hr/employees/${employeeId}/documents/${documentId}/access`, { method: 'POST', body: JSON.stringify({ download }) });
 export const archiveEmployeeDocument = (employeeId: string, documentId: string, restore = false) => apiFetch<DocumentVersion>(`/api/hr/employees/${employeeId}/documents/${documentId}/${restore ? 'restore' : 'archive'}`, { method: 'POST' });

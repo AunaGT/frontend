@@ -96,6 +96,9 @@ function renderModules({ canManage = true, state = {} } = {}) {
       return [current, next => { changes.push({ index: i, value: next }); setCurrent(next) }]
     } },
     '@/context/useModules': { useModules: () => ({ modules, isLoading: false, isError: false, refetch: async () => {} }) },
+    '@/context/useTenant': { useTenant: () => ({ company: { id: 'qa-company' }, branch: { id: 'qa-branch' } }) },
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user: { id: 'qa-user' }, permissionsReady: true, hasPermission: () => canManage }) },
+    '@/services/api': { getActiveCompanyId: () => 'qa-company', getActiveBranchId: () => 'qa-branch' },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
     '@/services/moduleService': { updateCompanyModule: async (...args) => requests.push(args) },
   }, nodes).default
@@ -124,7 +127,7 @@ test('module guards, effective dependency status and toggle payload stay intact'
   assert.equal(blocked.props.checked, true)
   assert.equal(blocked.props.disabled, false)
   await nodes.find(n => n.props?.['aria-label'] === 'Activar Módulo 1').props.onCheckedChange(true)
-  assert.deepEqual(requests, [['module-1', { status: 'ACTIVE' }]])
+  assert.deepEqual(requests, [['module-1', { status: 'ACTIVE' }, { headers: { 'X-Company-Id': 'qa-company', 'X-Branch-Id': 'qa-branch' } }]])
   assert.ok(renderModules({ canManage: false }).nodes.filter(n => n.props?.onCheckedChange).every(n => n.props.disabled))
 })
 
