@@ -107,7 +107,7 @@ export function CashClosureCreatePage() {
         return
       }
       const r = await fetchCashSessionCurrent()
-      if (!r.ok) {
+      if (r.ok === false) {
         toast({ title: 'No se pudo verificar el turno', description: r.message, variant: 'destructive' })
         refreshMineClosureGate()
         return
@@ -156,7 +156,7 @@ export function CashClosureCreatePage() {
     let cashRegisterSessionId: string | undefined
     if (effectiveScope === 'mine') {
       const r = await fetchCashSessionCurrent()
-      if (!r.ok) {
+      if (r.ok === false) {
         toast({ title: 'No se pudo verificar el turno', description: r.message, variant: 'destructive' })
         return false
       }

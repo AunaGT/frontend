@@ -129,7 +129,7 @@ function writeProductBrowseLayout(layout: ProductBrowseLayout) {
 }
 
 function getProductCategoryName(product: Product): string {
-  const c = product.category
+  const c: unknown = product.category
   if (typeof c === 'string' && c.trim()) return c.trim()
   if (c && typeof c === 'object' && 'name' in c && typeof c.name === 'string' && c.name.trim()) {
     return c.name.trim()
@@ -719,7 +719,7 @@ export default function NewSalePage() {
     setCashCheckDone(false)
     const r = await fetchCashSessionCurrent(registerId)
     setCashCheckDone(true)
-    if (!r.ok) {
+    if (r.ok === false) {
       setCashCheckError(r.message)
       setCashSessionOpen(false)
       setCashRegisterMeta(null)
@@ -738,7 +738,7 @@ export default function NewSalePage() {
     const r = await fetchCashSessionCurrent(selectedRegisterId ?? undefined)
     setCashCheckDone(true)
     setCashCheckError(null)
-    if (!r.ok) {
+    if (r.ok === false) {
       setCashCheckError(r.message)
       setCashSessionOpen(false)
       setCashRegisterMeta(null)

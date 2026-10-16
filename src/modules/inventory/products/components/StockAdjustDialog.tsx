@@ -18,7 +18,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { PackagePlus, PackageMinus } from 'lucide-react'
 import type { Product } from '@/types/product'
-import type { StockAdjustment } from '../types'
+
+interface StockAdjustment {
+    type: 'add' | 'remove'
+    amount: string
+    reason: string
+}
 
 interface StockAdjustDialogProps {
     open: boolean

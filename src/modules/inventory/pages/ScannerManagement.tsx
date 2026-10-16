@@ -329,7 +329,7 @@ const ScannerManagement = () => {
           <CardContent>
             {scanResult ? (
               <div className="space-y-4">
-                {scanResult.success ? (
+                {scanResult.success === true ? (
                   <div className="space-y-4">
                     <div className="flex items-center space-x-2">
                       <CheckCircle className="w-5 h-5 text-liquor-gold" />

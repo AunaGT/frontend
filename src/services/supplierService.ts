@@ -39,7 +39,7 @@ export interface ApiSupplier {
     is_default?: boolean;
     sort_order?: number;
     name?: string;
-    net_days?: number | null;
+    net_days?: number | string | null;
   }>;
   productsList?: ApiProduct[] | null;
   party_type?: string | null;
