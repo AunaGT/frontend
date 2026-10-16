@@ -1,6 +1,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), React = require('react')
 const { renderConfig } = require('./helpers/configViewHarness.cjs')
 const { hookHarness } = require('./helpers/reportHookHarness.cjs'), { loadReportModule } = require('./helpers/loadReportModule.cjs')
+const { deferred, flush } = require('./helpers/configHarness.cjs')
 test('deep linked section exposes only its controls in bounded grouped navigation', () => {
   const { html } = renderConfig()
   assert.match(html, /aria-label="Secciones de configuración"/); assert.match(html, /Se aplica a/)
@@ -50,5 +51,35 @@ test('selector guard reads current activity before render and avoids a second un
     prevented = false; listeners.get('beforeunload')({ preventDefault: () => { prevented = true } }); assert.equal(prevented, false)
     nodes.find(n => n.type?.name === 'SettingsNavigation').props.onSelect('fiscal'); assert.equal(params.get('seccion'), 'fiscal'); assert.equal(params.get('keep'), 'yes')
     h.unmount(); assert.equal(guard, null); assert.equal(listeners.size, 0)
+  } finally { global.window = previous }
+})
+test('logo progress and reset confirmation never revive after permission or company round trips', async () => {
+  const previous = global.window
+  global.window = { addEventListener() {}, removeEventListener() {} }
+  try {
+    for (const roundTrip of ['permission', 'company']) {
+      const h = hookHarness(), nodes = [], done = deferred(), model = loadReportModule('../config/settingsModel.ts')
+      let manage = true, companyId = 'A'
+      const tenant = () => ({ company: { id: companyId }, branch: { id: 'B' + companyId }, registerTenantExitGuard: () => () => {} })
+      const draft = { status: 'ready', confirmed: {}, drafts: Object.fromEntries(Object.keys(model.SECTION_KEYS).map(id => [id, model.sectionValues(id, {})])), errors: {}, dirty: () => true, pending: false, hasChanges: true, getActivity: () => ({ dirty: true, pending: false }), canStartOperation: () => true, uploadLogo: () => done.promise }
+      const Page = loadReportModule('../config/pages/ConfigManagement.tsx', { react: h.hooks,
+        '@/context/useTenant': { useTenant: tenant }, 'react-router-dom': { useSearchParams: () => [new URLSearchParams('seccion=empresa'), () => {}], useNavigate: () => () => {} },
+        '@/components/layout/PageNavigation': { usePageTrail() {} }, '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user: { id: 'U' }, permissionsReady: true, hasPermission: (...codes) => codes.includes('settings.view') || manage }) },
+        '@/hooks/useSystemSettings': { useSystemSettings: () => ({ refetch() {} }) }, '@/hooks/use-toast': { useToast: () => ({ toast() {} }) }, '../useSettingsDraft': { useSettingsDraft: () => draft },
+        './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null },
+      }, nodes).default
+      const render = () => { nodes.length = 0; h.render(() => Page()) }
+      const logo = () => nodes.find(n => n.type?.name === 'CompanySettingsSection').props
+      const confirmation = () => nodes.find(n => 'open' in n.props && 'onOpenChange' in n.props).props
+      try {
+        render(); nodes.find(n => n.type?.name === 'SettingsSectionActions').props.onReset(); render(); assert.equal(confirmation().open, true)
+        logo().onUpload(new Blob(['image'])); render(); assert.equal(logo().logoPending, true)
+        if (roundTrip === 'permission') manage = false; else companyId = 'B'
+        render(); done.resolve('ignored'); await flush()
+        if (roundTrip === 'permission') manage = true; else companyId = 'A'
+        render(); assert.equal(logo().logoPending, false, `${roundTrip}: obsolete upload cannot block the new generation`)
+        assert.equal(confirmation().open, false, `${roundTrip}: obsolete confirmation cannot reopen`)
+      } finally { h.unmount() }
+    }
   } finally { global.window = previous }
 })

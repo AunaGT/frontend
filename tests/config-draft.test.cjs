@@ -76,3 +76,11 @@ test('an accidental reload cannot silently discard a dirty section', async () =>
   const { h } = await ready(); change(h); await h.value().reload(); await flush(); h.render()
   assert.equal(h.value().drafts.pedidos.order_validity_days, '12'); assert.equal(h.value().dirty('pedidos'), true); h.unmount()
 })
+test('cash tolerance saves without configured denominations and omits unfinished zero rows', async () => {
+  const { h, writes } = await ready()
+  change(h, 'caja', 'cash_closure_max_diff_pct', '10')
+  change(h, 'caja', 'cash_closure_denominations', [{ denomination: 0, type: 'Billete' }])
+  assert.equal(await h.value().save('caja'), 'saved')
+  assert.deepEqual(writes[0][0], { cash_closure_max_diff_pct: '10', cash_closure_denominations: [] })
+  h.render(); assert.equal(h.value().dirty('caja'), false); h.unmount()
+})

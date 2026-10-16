@@ -55,7 +55,7 @@ export function HrDocumentsSettings(props: RelatedEditorProps = {}) {
       persisted = true
       if (!scope.isCurrent(ticket)) return
       baseline.current = payload; setOpen(false)
-      await Promise.all([qc.invalidateQueries({ queryKey: ['hr-document-types', scope.companyId] }), qc.invalidateQueries({ queryKey: ['hr-employee-documents'], refetchType: 'none' })])
+      await Promise.all([qc.invalidateQueries({ queryKey: ['hr-document-types', scope.companyId] }, { throwOnError: true }), qc.invalidateQueries({ queryKey: ['hr-employee-documents'], refetchType: 'none' })])
       if (!scope.isCurrent(ticket)) return
       toast({ title: 'Requisito documental guardado' })
     } catch (error) {

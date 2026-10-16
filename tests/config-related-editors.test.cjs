@@ -55,6 +55,22 @@ test('HR save uses captured form and context and never closes or toasts after us
   h.context('A', 'V'); h.render(); done.resolve({ id: 'T', name: 'Identificación QA' }); await pending; await flush()
   assert.equal(h.toasts.length, 0); h.unmount()
 })
+test('HR save distinguishes persisted data from failed refetch using real QueryClient semantics', async () => {
+  const { QueryClient, QueryObserver } = require('@tanstack/react-query')
+  const cache = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const queryKey = ['hr-document-types', 'A', 'administrative', 'U']
+  cache.setQueryData(queryKey, { items: [] })
+  const observer = new QueryObserver(cache, { queryKey, staleTime: Infinity, queryFn: async () => { throw new Error('List refresh failed') } })
+  const unsubscribe = observer.subscribe(() => {})
+  const h = relatedHarness('HrDocumentsSettings', { invalidate: (...args) => cache.invalidateQueries(...args) })
+  try {
+    h.render(); h.nodes.find(n => React.Children.toArray(n.props.children).includes('Añadir requisito')).props.onClick(); h.render()
+    h.nodes.find(n => n.props.id === 'hr-type-name').props.onChange({ target: { value: 'Identificación QA' } }); h.render()
+    await h.nodes.find(n => n.type === 'form').props.onSubmit({ preventDefault() {} })
+    assert.equal(h.calls.length, 1); assert.equal(cache.getQueryState(queryKey).status, 'error')
+    assert.match(h.toasts[0].title, /guardado; no se pudo actualizar la lista/i)
+  } finally { h.unmount(); unsubscribe(); cache.clear() }
+})
 test('settings permission cannot grant access to other modules or their disabled routes', () => {
   const nodes = []
   const { SettingsRelatedLinks } = loadReportModule('../config/components/SettingsRelatedLinks.tsx', {

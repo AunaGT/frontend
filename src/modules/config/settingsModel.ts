@@ -70,7 +70,7 @@ export function validateSection(id: EditableSection, draft: SectionValues): Fiel
     const pct = draft.cash_closure_max_diff_pct
     if (typeof pct !== 'string' || !pct.trim() || !Number.isFinite(Number(pct)) || Number(pct) < 0) errors.cash_closure_max_diff_pct = 'Ingresa un porcentaje mayor o igual a 0.'
     const list = sectionPayload(id, draft).cash_closure_denominations
-    if (!Array.isArray(list) || !list.length || list.some(d => !Number.isFinite(d.denomination) || d.denomination <= 0 || !['Billete', 'Moneda'].includes(d.type))) errors.cash_closure_denominations = 'Agrega al menos una denominación válida, mayor a 0, con tipo Billete o Moneda.'
+    if (!Array.isArray(list) || list.some(d => !Number.isFinite(d.denomination) || d.denomination <= 0 || !['Billete', 'Moneda'].includes(d.type))) errors.cash_closure_denominations = 'Cada denominación debe ser mayor a 0 y de tipo Billete o Moneda.'
   }
   return errors
 }

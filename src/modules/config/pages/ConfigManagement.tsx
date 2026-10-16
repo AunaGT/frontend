@@ -33,7 +33,8 @@ const descriptions: Record<string, string> = {
   caja: 'Tolerancia y denominaciones disponibles para el conteo de efectivo.',
   accesos: 'Abre los editores existentes de cada módulo, sin duplicar configuraciones.',
 }
-type Confirmation = { type: 'reset'; section: EditableSection; key: string } | { type: 'leave'; to: string; key: string } | null
+type PageOwner = { key: string; active: boolean }
+type Confirmation = { type: 'reset'; section: EditableSection; owner: PageOwner } | { type: 'leave'; to: string; owner: PageOwner } | null
 
 export default function ConfigManagement() {
   const { company, branch, isConsolidated, registerTenantExitGuard } = useTenant()
@@ -47,7 +48,7 @@ export default function ConfigManagement() {
     canRead: hasPermission('settings.view', 'settings.manage'), canManage: hasPermission('settings.manage'), consolidated: !!isConsolidated }
   const draft = useSettingsDraft({ context, refresh: refetch })
   const contextKey = JSON.stringify(context)
-  const live = useRef({ key: contextKey, active: true })
+  const live = useRef<PageOwner>({ key: contextKey, active: true })
   if (live.current.key !== contextKey) live.current = { key: contextKey, active: true }
   const owner = live.current
   const latest = useRef({ draft, key: contextKey }); latest.current = { draft, key: contextKey }
@@ -55,7 +56,7 @@ export default function ConfigManagement() {
   const [confirmation, setConfirmation] = useState<Confirmation>(null)
   const [notice, setNotice] = useState('')
   const [focusErrors, setFocusErrors] = useState(0)
-  const [logoOperation, setLogoOperation] = useState<string | null>(null)
+  const [logoOperation, setLogoOperation] = useState<PageOwner | null>(null)
   const [visited, setVisited] = useState<Set<string>>(() => new Set([active]))
   usePageTrail([{ label: selected.label }])
   const current = () => owner.active && live.current === owner
@@ -98,7 +99,7 @@ export default function ConfigManagement() {
   function confirmLeave(to: string) {
     const activity = draft.getActivity()
     if (activity.pending) { toast({ title: 'Espera a que termine la operación actual.' }); return }
-    if (activity.dirty) setConfirmation({ type: 'leave', to, key: contextKey })
+    if (activity.dirty) setConfirmation({ type: 'leave', to, owner })
     else navigate(to)
   }
   function feedback(outcome: SaveOutcome) {
@@ -109,12 +110,12 @@ export default function ConfigManagement() {
   }
   async function logoAction(file?: File) {
     if (!draft.canStartOperation()) return
-    setLogoOperation(contextKey)
+    setLogoOperation(owner)
     const outcome = file ? await draft.uploadLogo(file) : await draft.removeLogo()
     if (current()) { setLogoOperation(null); feedback(outcome) }
   }
   const common = editable ? { section: editable, values: draft.drafts[editable], disabled: !canMutate || draft.pending, errors: draft.errors[editable] || {}, onField: (key: Parameters<typeof draft.setField>[1], value: unknown) => draft.setField(editable, key, value) } : null
-  const scopedConfirmation = confirmation?.key === contextKey ? confirmation : null
+  const scopedConfirmation = confirmation?.owner === owner ? confirmation : null
 
   return <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Configuración</h1>
@@ -125,8 +126,8 @@ export default function ConfigManagement() {
         {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
         {editable && common && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions[active]}</CardDescription></CardHeader><CardContent className="space-y-5">
           <SettingsErrorSummary errors={common.errors} error={draft.error} />
-          {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === contextKey} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
-          <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, key: contextKey })} />
+          {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === owner} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
+          <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, owner })} />
         </CardContent></Card>}
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}
         {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
