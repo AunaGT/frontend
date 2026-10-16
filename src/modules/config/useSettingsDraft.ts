@@ -124,6 +124,7 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
   return { status: owner.status, loadError: owner.loadError, confirmed: owner.confirmed, drafts: owner.drafts, errors: owner.errors, error: owner.error,
     pending: pending(), hasChanges: (Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) || Object.values(owner.activities).some(a => a?.dirty),
     logoUrl: owner.confirmed.company_logo_url || '', dirty, setField, reset, save, uploadLogo, removeLogo, reportActivity, canStartOperation,
+    getActivity: (): EditorActivity => ({ pending: pending(), dirty: (Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) || Object.values(owner.activities).some(a => a?.dirty) }),
     reload: async () => {
       if (current() && !pending() && !(Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) && !Object.values(owner.activities).some(a => a?.dirty)) await load()
     } }

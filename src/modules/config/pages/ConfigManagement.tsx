@@ -1,915 +1,142 @@
-/**
- * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
- *
- * This source code is licensed under a Proprietary License.
- */
-
-import { LoadingState } from '@/components/shared/LoadingState'
+/** Copyright (c) 2026 Diego Patzán. All Rights Reserved. */
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
-import { useState, useEffect, useMemo } from 'react'
-import { format as formatDate } from 'date-fns'
+import { LoadingState } from '@/components/shared/LoadingState'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Tabs, TabsContent } from '@/components/ui/tabs'
-import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { useTenant } from '@/context/useTenant'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { useToast } from '@/hooks/use-toast'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
+import { useTenant } from '@/context/useTenant'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
-import { getSettings, updateSettings, uploadCompanyLogo, removeCompanyLogo, type SystemSettings, type DenominationItem } from '@/services/settingsService'
-import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
-import { CompanyLogo } from '@/components/branding/CompanyLogo'
-import { Banknote, Building2, FileText, Loader2, Save, Settings2, Trash2, UsersRound } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
+import { SECTION_KEYS, SETTINGS_SECTIONS, type EditableSection } from '../settingsModel'
+import { useSettingsDraft, type SaveOutcome } from '../useSettingsDraft'
+import { SettingsNavigation } from '../components/SettingsNavigation'
+import { SettingsErrorSummary, SettingsSectionActions } from '../components/SettingsSectionActions'
+import { CompanySettingsSection } from '../components/CompanySettingsSection'
+import { FiscalSettingsSection } from '../components/FiscalSettingsSection'
+import { OperationalSettingsSection } from '../components/OperationalSettingsSection'
+import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
 import './config.css'
-import {
-  EXPERIENCE_PROFILES,
-  EXPERIENCE_PROFILE_DESCRIPTIONS,
-  EXPERIENCE_PROFILE_LABELS,
-  type ExperienceProfile,
-} from '@/config/experienceProfiles'
 
-const CURRENCIES: { code: string; name: string }[] = [
-  { code: 'GTQ', name: 'Quetzal' },
-  { code: 'MXN', name: 'Peso mexicano' },
-  { code: 'USD', name: 'Dolar estadounidense' },
-]
-
-const TIMEZONES: { value: string; label: string }[] = [
-  { value: 'America/Guatemala', label: 'Guatemala (America/Guatemala)' },
-  { value: 'America/El_Salvador', label: 'El Salvador (America/El_Salvador)' },
-  { value: 'UTC', label: 'UTC' },
-]
-
-const LOCALES: { value: string; label: string }[] = [
-  { value: 'es-GT', label: 'Español (Guatemala)' },
-  { value: 'es-MX', label: 'Español (México)' },
-  { value: 'en-US', label: 'English (United States)' },
-]
-
-const VAT_NONE = '__none__' // Radix Select no permite value=""
-const VAT_AFFILIATION_OPTIONS: { value: string; label: string }[] = [
-  { value: VAT_NONE, label: '— Seleccione —' },
-  { value: 'general', label: 'Régimen general' },
-  { value: 'pequeno_contribuyente', label: 'Pequeño contribuyente' },
-  { value: 'no_obligado', label: 'No obligado' },
-  { value: 'exento', label: 'Exento' },
-  { value: 'otro', label: 'Otro' },
-]
+const descriptions: Record<string, string> = {
+  empresa: 'Nombre y logo que identifican a esta empresa en la aplicación y sus documentos.',
+  regional: 'Moneda, zona horaria e idioma que utiliza esta empresa.',
+  fiscal: 'Datos del emisor y habilitación de facturación electrónica.',
+  inventario: 'Bienes, servicios y accesos a los diseños de impresión existentes.',
+  ventas: 'Define cómo inicia la pantalla de venta, sin modificar los permisos de los usuarios.',
+  cotizaciones: 'Valores iniciales para nuevas cotizaciones y su reserva temporal.',
+  pedidos: 'Vigencia inicial de pedidos y reservas.',
+  caja: 'Tolerancia y denominaciones disponibles para el conteo de efectivo.',
+  accesos: 'Abre los editores existentes de cada módulo, sin duplicar configuraciones.',
+}
+type Confirmation = { type: 'reset'; section: EditableSection; key: string } | { type: 'leave'; to: string; key: string } | null
 
 export default function ConfigManagement() {
-  const { toast } = useToast()
-  const { hasPermission } = useAuthPermissions()
-  const { refetch: refetchSystemSettings } = useSystemSettings()
-  const canManage = hasPermission('settings.manage')
-  const { company } = useTenant()
-
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [activeTab, setActiveTab] = useState('general')
-  usePageTrail([{ label: ({general:'Preferencias de empresa',experience:'Experiencia de venta',fiscal:'Datos fiscales',denominations:'Cierre de caja',modules:'Módulos','hr-documents':'Expedientes de empleados'} as Record<string,string>)[activeTab] || 'Configuración' }])
-  const [settings, setSettings] = useState<SystemSettings>({})
-  const [form, setForm] = useState({
-    company_name: '',
-    currency_code: '',
-    currency_name: '',
-    timezone: '',
-    date_format: 'dd/MM/yyyy',
-    locale: 'es-GT',
-    cash_closure_max_diff_pct: '5',
-    quote_validity_days: '30',
-    order_validity_days: '7',
-    quote_soft_hold_hours: '48',
-    inventory_services_enabled: 'false',
-  })
-  const [fiscalForm, setFiscalForm] = useState({
-    fel_enabled: 'false',
-    company_nit: '',
-    company_address: '',
-    company_municipality: '',
-    company_department: '',
-    company_postal_code: '',
-    establishment_code: '',
-    vat_affiliation: '',
-  })
-  const [experienceForm, setExperienceForm] = useState({
-    default_experience_profile: 'CASHIER' as ExperienceProfile,
-    sales_allow_credit: true,
-    sales_show_fiscal_fields: true,
-    sales_show_channels: true,
-  })
-  const [denominations, setDenominations] = useState<DenominationItem[]>([])
-  const [logoUrl, setLogoUrl] = useState('')
-  const [logoUploading, setLogoUploading] = useState(false)
-
-  const localePreview = useMemo(() => {
-    const loc = form.locale || 'es-GT'
-    const currencyCode = form.currency_code === 'US$' ? 'USD' : form.currency_code === 'MX$' ? 'MXN' : form.currency_code === 'Q' ? 'GTQ' : (form.currency_code || 'GTQ')
-    try {
-      const num = new Intl.NumberFormat(loc, { style: 'currency', currency: currencyCode, minimumFractionDigits: 2 }).format(1234.5)
-      const time = new Intl.DateTimeFormat(loc, { timeStyle: 'short' }).format(new Date())
-      const date = `${formatDate(new Date(), form.date_format || 'dd/MM/yyyy')} ${time}`
-      return { num, date }
-    } catch {
-      return { num: '—', date: '—' }
-    }
-  }, [form.locale, form.currency_code, form.date_format])
+  const { company, branch, isConsolidated, registerTenantExitGuard } = useTenant()
+  const { user, hasPermission, permissionsReady } = useAuthPermissions()
+  const { refetch } = useSystemSettings(), { toast } = useToast()
+  const [params, setParams] = useSearchParams(), navigate = useNavigate()
+  const requested = params.get('seccion') || 'empresa'
+  const selected = SETTINGS_SECTIONS.find(s => s.id === requested) || SETTINGS_SECTIONS[0]
+  const active = selected.id
+  const context = { userId: user?.id || '', companyId: company?.id || '', branchId: branch?.id || (isConsolidated ? 'all' : ''), ready: permissionsReady,
+    canRead: hasPermission('settings.view', 'settings.manage'), canManage: hasPermission('settings.manage'), consolidated: !!isConsolidated }
+  const draft = useSettingsDraft({ context, refresh: refetch })
+  const contextKey = JSON.stringify(context)
+  const live = useRef({ key: contextKey, active: true })
+  if (live.current.key !== contextKey) live.current = { key: contextKey, active: true }
+  const owner = live.current
+  const latest = useRef({ draft, key: contextKey }); latest.current = { draft, key: contextKey }
+  const allowUnload = useRef(false)
+  const [confirmation, setConfirmation] = useState<Confirmation>(null)
+  const [notice, setNotice] = useState('')
+  const [focusErrors, setFocusErrors] = useState(0)
+  const [logoOperation, setLogoOperation] = useState<string | null>(null)
+  const [visited, setVisited] = useState<Set<string>>(() => new Set([active]))
+  usePageTrail([{ label: selected.label }])
+  const current = () => owner.active && live.current === owner
+  const canMutate = context.canManage && !context.consolidated && draft.status === 'ready'
+  const editable = Object.prototype.hasOwnProperty.call(SECTION_KEYS, active) ? active as EditableSection : null
 
   useEffect(() => {
-    let cancelled = false
-    getSettings()
-      .then((data) => {
-        if (cancelled) return
-        setSettings(data)
-        setLogoUrl(data.company_logo_url ?? '')
-        setForm({
-          company_name: data.company_name ?? '',
-          currency_code: data.currency_code ?? 'GTQ',
-          currency_name: data.currency_name ?? 'Quetzal',
-          timezone: data.timezone ?? 'America/Guatemala',
-          date_format: data.date_format ?? 'dd/MM/yyyy',
-          locale: data.locale ?? 'es-GT',
-          cash_closure_max_diff_pct: data.cash_closure_max_diff_pct ?? '5',
-          quote_validity_days: data.quote_validity_days ?? '30',
-          order_validity_days: data.order_validity_days ?? '7',
-          quote_soft_hold_hours: data.quote_soft_hold_hours ?? '48',
-          inventory_services_enabled: data.inventory_services_enabled ?? 'false',
-        })
-        if (Array.isArray(data.cash_closure_denominations)) {
-          setDenominations(
-            data.cash_closure_denominations.map((d) => ({
-              denomination: Number(d.denomination) || 0,
-              type: d.type === 'Moneda' ? 'Moneda' : 'Billete',
-            }))
-          )
-        }
-        setFiscalForm({
-          fel_enabled: String(data.fel_enabled||'false').toLowerCase()==='true'?'true':'false',
-          company_nit: data.company_nit ?? '',
-          company_address: data.company_address ?? '',
-          company_municipality: data.company_municipality ?? '',
-          company_department: data.company_department ?? '',
-          company_postal_code: data.company_postal_code ?? '',
-          establishment_code: data.establishment_code ?? '',
-          vat_affiliation: data.vat_affiliation ?? '',
-        })
-        setExperienceForm({
-          default_experience_profile: data.default_experience_profile ?? 'CASHIER',
-          sales_allow_credit: String(data.sales_allow_credit ?? 'true').toLowerCase() === 'true',
-          sales_show_fiscal_fields: String(data.sales_show_fiscal_fields ?? 'true').toLowerCase() === 'true',
-          sales_show_channels: String(data.sales_show_channels ?? 'true').toLowerCase() === 'true',
-        })
-      })
-      .catch(() => {
-        if (!cancelled) toast({ title: 'Error al cargar configuración', variant: 'destructive' })
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [toast])
-
-  const handleSaveGeneral = async () => {
-    if (!canManage) return
-    if (!form.currency_code?.trim()) {
-      toast({ title: 'Seleccione una moneda', variant: 'destructive' })
-      return
+    if (requested !== active) {
+      setNotice('La sección solicitada no existe. Mostramos Identidad de empresa.')
+      const next = new URLSearchParams(params); next.set('seccion', active); setParams(next, { replace: true })
     }
-    if (!form.timezone?.trim()) {
-      toast({ title: 'Seleccione una zona horaria', variant: 'destructive' })
-      return
-    }
-    const quoteDays = parseInt(form.quote_validity_days, 10)
-    const orderDays = parseInt(form.order_validity_days, 10)
-    const softHoldHours = parseInt(form.quote_soft_hold_hours, 10)
-    if (!Number.isFinite(quoteDays) || quoteDays < 1) {
-      toast({ title: 'Vigencia de cotización debe ser al menos 1 día', variant: 'destructive' })
-      return
-    }
-    if (!Number.isFinite(orderDays) || orderDays < 1) {
-      toast({ title: 'Vigencia de pedido debe ser al menos 1 día', variant: 'destructive' })
-      return
-    }
-    if (!Number.isFinite(softHoldHours) || softHoldHours < 1) {
-      toast({ title: 'Apartado blando debe ser al menos 1 hora', variant: 'destructive' })
-      return
-    }
-    setSaving(true)
-    try {
-      const updated = await updateSettings({
-        company_name: form.company_name,
-        currency_code: form.currency_code,
-        currency_name: form.currency_name,
-        timezone: form.timezone,
-        date_format: form.date_format,
-        locale: form.locale,
-        cash_closure_max_diff_pct: form.cash_closure_max_diff_pct,
-        quote_validity_days: String(quoteDays),
-        order_validity_days: String(orderDays),
-        quote_soft_hold_hours: String(softHoldHours),
-        inventory_services_enabled: form.inventory_services_enabled,
-      })
-      setSettings(updated)
-      toast({ title: 'Configuración guardada' })
-      refetchSystemSettings()
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar'
-      toast({ title: msg, variant: 'destructive' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSaveFiscal = async () => {
-    if (!canManage) return
-    setSaving(true)
-    try {
-      await updateSettings({
-        company_nit: fiscalForm.company_nit,
-        fel_enabled: fiscalForm.fel_enabled,
-        company_address: fiscalForm.company_address,
-        company_municipality: fiscalForm.company_municipality,
-        company_department: fiscalForm.company_department,
-        company_postal_code: fiscalForm.company_postal_code,
-        establishment_code: fiscalForm.establishment_code,
-        vat_affiliation: fiscalForm.vat_affiliation,
-      })
-      setSettings((s) => ({ ...s, ...fiscalForm }))
-      refetchSystemSettings()
-      toast({ title: 'Datos fiscales guardados' })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar datos fiscales'
-      toast({ title: msg, variant: 'destructive' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSaveExperience = async () => {
-    if (!canManage) return
-    setSaving(true)
-    try {
-      const payload = {
-        default_experience_profile: experienceForm.default_experience_profile,
-        sales_allow_credit: String(experienceForm.sales_allow_credit),
-        sales_show_fiscal_fields: String(experienceForm.sales_show_fiscal_fields),
-        sales_show_channels: String(experienceForm.sales_show_channels),
-      }
-      await updateSettings(payload)
-      setSettings((current) => ({ ...current, ...payload }))
-      refetchSystemSettings()
-      toast({
-        title: 'Experiencia de venta actualizada',
-        description: 'Los permisos de los usuarios no fueron modificados.',
-      })
-    } catch (err) {
-      toast({
-        title: 'No se pudo guardar la experiencia',
-        description: err instanceof Error ? err.message : 'Error al guardar',
-        variant: 'destructive',
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleSaveDenominations = async () => {
-    if (!canManage) return
-    const list = denominations.filter((d) => d.denomination > 0).map((d) => ({ denomination: d.denomination, type: d.type }))
-    if (list.length === 0) {
-      toast({ title: 'Agregue al menos una denominación con valor mayor a 0', variant: 'destructive' })
-      return
-    }
-    setSaving(true)
-    try {
-      await updateSettings({ cash_closure_denominations: list })
-      setSettings((s) => ({ ...s, cash_closure_denominations: list }))
-      toast({ title: 'Denominaciones guardadas' })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar denominaciones'
-      toast({ title: msg, variant: 'destructive' })
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleLogoUpload = async (file: File) => {
-    if (!canManage) return
-    setLogoUploading(true)
-    try {
-      const { company_logo_url } = await uploadCompanyLogo(file)
-      setLogoUrl(company_logo_url)
-      setSettings((s) => ({ ...s, company_logo_url }))
-      await refetchSystemSettings()
-      toast({ title: 'Logo actualizado', description: 'Se usará en la app, reportes y documentos.' })
-    } catch (err) {
-      toast({
-        title: 'Error al subir logo',
-        description: err instanceof Error ? err.message : 'No se pudo subir la imagen',
-        variant: 'destructive',
-      })
-    } finally {
-      setLogoUploading(false)
-    }
-  }
-
-  const handleLogoRemove = async () => {
-    if (!canManage) return
-    setLogoUploading(true)
-    try {
-      await removeCompanyLogo()
-      setLogoUrl('')
-      setSettings((s) => ({ ...s, company_logo_url: '' }))
-      await refetchSystemSettings()
-      toast({ title: 'Logo eliminado' })
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: err instanceof Error ? err.message : 'No se pudo quitar el logo',
-        variant: 'destructive',
-      })
-    } finally {
-      setLogoUploading(false)
-    }
-  }
-
-  const addDenomination = () => {
-    setDenominations((d) => [...d, { denomination: 0, type: 'Billete' }])
-  }
-
-  const updateDenomination = (index: number, field: 'denomination' | 'type', value: number | string) => {
-    setDenominations((d) => {
-      const next = [...d]
-      if (field === 'denomination') next[index] = { ...next[index], denomination: Number(value) || 0 }
-      else next[index] = { ...next[index], type: value as 'Billete' | 'Moneda' }
-      return next
+    setVisited(old => old.has(active) ? old : new Set([...old, active]))
+  }, [requested, active, params, setParams])
+  useEffect(() => { owner.active = true; return () => { owner.active = false } }, [contextKey])
+  useEffect(() => {
+    allowUnload.current = false
+    const unregister = registerTenantExitGuard(() => {
+      const activity = latest.current.draft.getActivity()
+      if (activity.pending) { toast({ title: 'Espera a que termine la operación actual.' }); return false }
+      if (activity.dirty && !window.confirm('Hay cambios sin guardar en Configuración. ¿Descartarlos y cambiar de empresa o sucursal?')) return false
+      allowUnload.current = true
+      return true
     })
+    const guard = (event: BeforeUnloadEvent) => {
+      const activity = latest.current.draft.getActivity()
+      if (allowUnload.current || (!activity.dirty && !activity.pending)) return
+      event.preventDefault(); event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', guard)
+    return () => { unregister(); window.removeEventListener('beforeunload', guard) }
+  }, [registerTenantExitGuard, contextKey, toast])
+  useEffect(() => { if (focusErrors) document.getElementById('config-errors')?.focus() }, [focusErrors])
+
+  function selectSection(id: typeof active) {
+    if (draft.getActivity().pending) { toast({ title: 'Espera a que termine la operación actual.' }); return }
+    const next = new URLSearchParams(params); next.set('seccion', id); setNotice(''); setParams(next)
   }
-
-  const removeDenomination = (index: number) => {
-    setDenominations((d) => d.filter((_, i) => i !== index))
+  function confirmLeave(to: string) {
+    const activity = draft.getActivity()
+    if (activity.pending) { toast({ title: 'Espera a que termine la operación actual.' }); return }
+    if (activity.dirty) setConfirmation({ type: 'leave', to, key: contextKey })
+    else navigate(to)
   }
-
-  if (loading) {
-    return (
-      <main className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8"><h1 className="sr-only">Configuración</h1><LoadingState variant="page" message="Cargando configuración…" /></main>
-    )
+  function feedback(outcome: SaveOutcome) {
+    if (!current() || outcome === 'ignored') return
+    if (outcome === 'invalid' || outcome === 'failed') { setFocusErrors(n => n + 1); return }
+    toast({ title: outcome === 'saved-refresh-failed' ? 'Cambios guardados; no se pudo actualizar la vista.' : 'Configuración guardada',
+      description: outcome === 'saved-refresh-failed' ? 'Puedes recargar la página. No necesitas guardar otra vez.' : undefined })
   }
+  async function logoAction(file?: File) {
+    if (!draft.canStartOperation()) return
+    setLogoOperation(contextKey)
+    const outcome = file ? await draft.uploadLogo(file) : await draft.removeLogo()
+    if (current()) { setLogoOperation(null); feedback(outcome) }
+  }
+  const common = editable ? { section: editable, values: draft.drafts[editable], disabled: !canMutate || draft.pending, errors: draft.errors[editable] || {}, onField: (key: Parameters<typeof draft.setField>[1], value: unknown) => draft.setField(editable, key, value) } : null
+  const scopedConfirmation = confirmation?.key === contextKey ? confirmation : null
 
-  return (
-    <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
-      <h1 className="sr-only">{activeTab === 'modules' ? 'Configuración de módulos' : activeTab === 'experience' ? 'Experiencia de venta' : activeTab === 'fiscal' ? 'Datos fiscales' : activeTab === 'denominations' ? 'Cierre de caja' : 'Configuración general'}</h1>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="config-tabs-root">
-        <div className="max-w-full overflow-x-auto pb-1">
-          <ModuleTabsList aria-label="Secciones de configuración">
-            <ModuleTabsTrigger value="general"><Building2 className="h-4 w-4" aria-hidden="true" /> Preferencias de empresa</ModuleTabsTrigger>
-            <ModuleTabsTrigger value="experience"><Settings2 className="h-4 w-4" aria-hidden="true" /> Experiencia de venta</ModuleTabsTrigger>
-            <ModuleTabsTrigger value="fiscal"><FileText className="h-4 w-4" aria-hidden="true" /> Datos fiscales</ModuleTabsTrigger>
-            <ModuleTabsTrigger value="denominations"><Banknote className="h-4 w-4" aria-hidden="true" /> Cierre de caja</ModuleTabsTrigger>
-            <ModuleTabsTrigger value="modules"><UsersRound className="h-4 w-4" aria-hidden="true" /> Módulos</ModuleTabsTrigger>
-            <ModuleTabsTrigger value="hr-documents"><FileText className="h-4 w-4" aria-hidden="true" /> Expedientes de empleados</ModuleTabsTrigger>
-          </ModuleTabsList>
-        </div>
-
-        <TabsContent value="hr-documents" className="config-tab-content"><HrDocumentsSettings /></TabsContent>
-        <TabsContent value="general" className="config-tab-content">
-          <Card className="config-panel">
-            <CardHeader>
-              <CardTitle>Información de la empresa</CardTitle>
-              <CardDescription>Datos generales que se mostrarán en documentos y comunicaciones.</CardDescription>
-            </CardHeader>
-            <CardContent className="config-company-grid">
-              <div className="config-logo-field grid gap-4 sm:grid-cols-[auto_1fr] sm:items-start">
-                <div className="flex flex-col items-center gap-2">
-                  <CompanyLogo src={logoUrl} size="lg" fallback={form.company_name?.slice(0, 1) || 'A'} />
-                  {logoUrl && canManage && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      disabled={logoUploading}
-                      onClick={handleLogoRemove}
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Quitar
-                    </Button>
-                  )}
-                </div>
-                <div className="space-y-3 min-w-0">
-                  <div>
-                    <Label>Logo del negocio</Label>
-                    <p className="text-xs text-muted-foreground mt-1 mb-2">
-                      Aparece en la app, cotizaciones, tickets, facturas y reportes PDF.
-                    </p>
-                    {canManage ? (
-                      <ImageUploadDropzone
-                        onFileSelect={handleLogoUpload}
-                        onReject={(msg) => toast({ title: msg, variant: 'destructive' })}
-                        disabled={!canManage}
-                        isUploading={logoUploading}
-                        helperText="PNG o JPG · fondo transparente recomendado · máx. 5 MB"
-                      />
-                    ) : (
-                      <p className="text-sm text-muted-foreground">Sin permiso para cambiar el logo.</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="config-name-field grid gap-2">
-                <Label htmlFor="company_name">Nombre de la empresa</Label>
-                <Input
-                  id="company_name"
-                  value={form.company_name}
-                  onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))}
-                  placeholder="Mi Empresa"
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="flex items-start justify-between gap-4 sm:col-span-2">
-                <div className="space-y-1">
-                  <Label htmlFor="inventory_services_enabled">Vender servicios</Label>
-                  <p className="text-xs text-muted-foreground">Gestiona servicios dentro de Inventario, sin existencias físicas. No activa agendas ni concede permisos.</p>
-                </div>
-                <Switch id="inventory_services_enabled" checked={form.inventory_services_enabled === 'true'} disabled={!canManage || saving}
-                  onCheckedChange={enabled => setForm(current => ({ ...current, inventory_services_enabled: String(enabled) }))} />
-              </div>
-              <div className="config-currency-field grid gap-2">
-                <Label>Moneda</Label>
-                <Select
-                  value={form.currency_code || undefined}
-                  onValueChange={(code) => {
-                    const cur = CURRENCIES.find((c) => c.code === code)
-                    if (cur) setForm((f) => ({ ...f, currency_code: cur.code, currency_name: cur.name }))
-                    else setForm((f) => ({ ...f, currency_code: code, currency_name: code }))
-                  }}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione la moneda">
-                      {form.currency_code && !CURRENCIES.some((c) => c.code === form.currency_code)
-                        ? `${form.currency_code} – ${form.currency_name || form.currency_code}`
-                        : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {form.currency_code && !CURRENCIES.some((c) => c.code === form.currency_code) && (
-                      <SelectItem value={form.currency_code}>
-                        {form.currency_code} – {form.currency_name || form.currency_code}
-                      </SelectItem>
-                    )}
-                    {CURRENCIES.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {c.code} – {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="config-panel-row">
-          <Card className="config-panel">
-            <CardHeader><CardTitle>Zona horaria e idioma</CardTitle><CardDescription>Formato regional para toda la empresa.</CardDescription></CardHeader>
-            <CardContent className="config-fields-grid">
-              <div className="grid gap-2">
-                <Label>Zona horaria</Label>
-                <Select
-                  value={form.timezone || undefined}
-                  onValueChange={(value) => setForm((f) => ({ ...f, timezone: value }))}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione la zona horaria">
-                      {form.timezone && !TIMEZONES.some((t) => t.value === form.timezone)
-                        ? form.timezone
-                        : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {form.timezone && !TIMEZONES.some((t) => t.value === form.timezone) && (
-                      <SelectItem value={form.timezone}>{form.timezone}</SelectItem>
-                    )}
-                    {TIMEZONES.map((tz) => (
-                      <SelectItem key={tz.value} value={tz.value}>
-                        {tz.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="date_format">Formato de fecha</Label>
-                <Select
-                  value={form.date_format || 'dd/MM/yyyy'}
-                  onValueChange={(value) => setForm((f) => ({ ...f, date_format: value }))}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger id="date_format">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="dd/MM/yyyy">dd/MM/yyyy (día/mes/año)</SelectItem>
-                    <SelectItem value="MM/dd/yyyy">MM/dd/yyyy (mes/día/año)</SelectItem>
-                    <SelectItem value="yyyy-MM-dd">yyyy-MM-dd (ISO)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2 config-full-width">
-                <Label>Locale (números y fechas)</Label>
-                <Select
-                  value={form.locale || 'es-GT'}
-                  onValueChange={(value) => setForm((f) => ({ ...f, locale: value }))}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger id="locale">
-                    <SelectValue placeholder="Seleccione el locale">
-                      {form.locale && !LOCALES.some((l) => l.value === form.locale)
-                        ? form.locale
-                        : undefined}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {form.locale && !LOCALES.some((l) => l.value === form.locale) && (
-                      <SelectItem value={form.locale}>{form.locale}</SelectItem>
-                    )}
-                    {LOCALES.map((loc) => (
-                      <SelectItem key={loc.value} value={loc.value}>
-                        {loc.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  Ejemplo de cómo se verá en el sistema: montos como <strong>{localePreview.num}</strong> y fechas como <strong>{localePreview.date}</strong> (ventas, inventario, cierre de caja, etc.).
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="config-panel">
-            <CardHeader><CardTitle>Documentos y operación</CardTitle><CardDescription>Vigencias y tolerancia para ventas y caja.</CardDescription></CardHeader>
-            <CardContent className="config-fields-grid">
-              <div className="grid gap-2">
-                <Label htmlFor="cash_closure_max_diff_pct">Diferencia máxima en cierre de caja (%)</Label>
-                <Input
-                  id="cash_closure_max_diff_pct"
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={form.cash_closure_max_diff_pct}
-                  onChange={(e) => setForm((f) => ({ ...f, cash_closure_max_diff_pct: e.target.value }))}
-                  placeholder="5"
-                  disabled={!canManage}
-                />
-                <p className="text-xs text-muted-foreground">Si la diferencia supera este %, se pedirá confirmación al guardar.</p>
-              </div>
-              <div className="config-full-width grid sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="quote_validity_days">Vigencia cotizaciones (días)</Label>
-                  <Input
-                    id="quote_validity_days"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.quote_validity_days}
-                    onChange={(e) => setForm((f) => ({ ...f, quote_validity_days: e.target.value }))}
-                    placeholder="30"
-                    disabled={!canManage}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Días por defecto al crear cotizaciones (Q-). Al vencer pasan a «Vencida».
-                  </p>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="order_validity_days">Vigencia pedidos / reserva (días)</Label>
-                  <Input
-                    id="order_validity_days"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.order_validity_days}
-                    onChange={(e) => setForm((f) => ({ ...f, order_validity_days: e.target.value }))}
-                    placeholder="7"
-                    disabled={!canManage}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Días de reserva al confirmar pedidos (P-). Al vencer se libera stock reservado.
-                  </p>
-                </div>
-                <div className="grid gap-2 sm:col-span-2">
-                  <Label htmlFor="quote_soft_hold_hours">Apartado blando al enviar cotización (horas)</Label>
-                  <Input
-                    id="quote_soft_hold_hours"
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={form.quote_soft_hold_hours}
-                    onChange={(e) => setForm((f) => ({ ...f, quote_soft_hold_hours: e.target.value }))}
-                    placeholder="48"
-                    disabled={!canManage}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Reserva temporal al marcar cotización «Enviada». Típico 24–48 h.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          </div>
-          {canManage && (
-            <div className="config-actions"><Button onClick={handleSaveGeneral} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Guardar cambios
-            </Button></div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="experience" className="config-tab-content">
-          <Card className="config-panel config-panel-narrow">
-            <CardHeader>
-              <CardTitle>Experiencia progresiva</CardTitle>
-              <CardDescription>
-                Define qué tan detallada inicia la pantalla de venta. Los módulos y permisos siguen
-                controlando qué funciones existen y quién puede usarlas.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="config-experience-content">
-              <div className="space-y-2">
-                <Label>Perfil predeterminado</Label>
-                <Select
-                  value={experienceForm.default_experience_profile}
-                  onValueChange={(value) => setExperienceForm((current) => ({
-                    ...current,
-                    default_experience_profile: value as ExperienceProfile,
-                  }))}
-                  disabled={!canManage}
-                >
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {EXPERIENCE_PROFILES.map((profile) => (
-                      <SelectItem key={profile} value={profile}>
-                        {EXPERIENCE_PROFILE_LABELS[profile]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">
-                  {EXPERIENCE_PROFILE_DESCRIPTIONS[experienceForm.default_experience_profile]}
-                </p>
-              </div>
-
-              <div className="config-switch-list">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <Label htmlFor="sales-credit">Permitir ventas al crédito</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Muestra métodos marcados como crédito. El servidor mantiene límite, vencimiento y autorización.
-                    </p>
-                  </div>
-                  <Switch
-                    id="sales-credit"
-                    checked={experienceForm.sales_allow_credit}
-                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_allow_credit: checked }))}
-                    disabled={!canManage}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <Label htmlFor="sales-fiscal">Datos fiscales del cliente</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Conserva NIT y consumidor final para negocios que facturan o se conectarán a FEL.
-                    </p>
-                  </div>
-                  <Switch
-                    id="sales-fiscal"
-                    checked={experienceForm.sales_show_fiscal_fields}
-                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_show_fiscal_fields: checked }))}
-                    disabled={!canManage}
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <Label htmlFor="sales-channels">Canales de venta</Label>
-                    <p className="text-xs text-muted-foreground">
-                      Permite cambiar entre mostrador, mayoreo/ruta y venta en línea.
-                    </p>
-                  </div>
-                  <Switch
-                    id="sales-channels"
-                    checked={experienceForm.sales_show_channels}
-                    onCheckedChange={(checked) => setExperienceForm((current) => ({ ...current, sales_show_channels: checked }))}
-                    disabled={!canManage}
-                  />
-                </div>
-              </div>
-
-              {canManage && (
-                <Button onClick={handleSaveExperience} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Guardar experiencia
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="fiscal" className="config-tab-content">
-          <Card className="config-panel config-panel-narrow">
-            <CardHeader>
-              <CardTitle>Datos fiscales</CardTitle>
-              <CardDescription>
-                NIT, dirección y afiliación IVA del emisor. Se usarán en facturación electrónica (FEL).
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="config-fiscal-grid">
-              <div className="sm:col-span-2 flex items-start justify-between gap-4 border-b pb-4">
-                <div className="space-y-1"><Label htmlFor="fel_enabled">Este negocio emitirá facturas electrónicas</Label><p className="text-sm text-muted-foreground">Las nuevas ventas del POS solicitarán su factura automáticamente. Las demás se solicitarán desde el detalle de la venta.</p><p className="text-xs text-muted-foreground">El certificador aún no está conectado: las solicitudes quedarán pendientes, sin autorización fiscal. Activar esta opción no envía ventas históricas.</p></div>
-                <Switch id="fel_enabled" disabled={!canManage||saving} checked={fiscalForm.fel_enabled==='true'} onCheckedChange={checked=>setFiscalForm(f=>({...f,fel_enabled:checked?'true':'false'}))}/>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="company_nit">NIT del emisor</Label>
-                <Input
-                  id="company_nit"
-                  value={fiscalForm.company_nit}
-                  onChange={(e) => setFiscalForm((f) => ({ ...f, company_nit: e.target.value }))}
-                  placeholder="Ej. 12345678-9"
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="company_address">Dirección fiscal</Label>
-                <Input
-                  id="company_address"
-                  value={fiscalForm.company_address}
-                  onChange={(e) => setFiscalForm((f) => ({ ...f, company_address: e.target.value }))}
-                  placeholder="Dirección completa"
-                  disabled={!canManage}
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="company_municipality">Municipio</Label>
-                  <Input
-                    id="company_municipality"
-                    value={fiscalForm.company_municipality}
-                    onChange={(e) => setFiscalForm((f) => ({ ...f, company_municipality: e.target.value }))}
-                    disabled={!canManage}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="company_department">Departamento</Label>
-                  <Input
-                    id="company_department"
-                    value={fiscalForm.company_department}
-                    onChange={(e) => setFiscalForm((f) => ({ ...f, company_department: e.target.value }))}
-                    disabled={!canManage}
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="company_postal_code">Código postal</Label>
-                  <Input
-                    id="company_postal_code"
-                    value={fiscalForm.company_postal_code}
-                    onChange={(e) => setFiscalForm((f) => ({ ...f, company_postal_code: e.target.value }))}
-                    disabled={!canManage}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="establishment_code">Código de establecimiento</Label>
-                  <Input
-                    id="establishment_code"
-                    value={fiscalForm.establishment_code}
-                    onChange={(e) => setFiscalForm((f) => ({ ...f, establishment_code: e.target.value }))}
-                    placeholder="Si aplica (FEL)"
-                    disabled={!canManage}
-                  />
-                </div>
-              </div>
-              <div className="grid gap-2">
-                <Label>Afiliación IVA</Label>
-                <Select
-                  value={fiscalForm.vat_affiliation || VAT_NONE}
-                  onValueChange={(value) =>
-                    setFiscalForm((f) => ({ ...f, vat_affiliation: value === VAT_NONE ? '' : value }))
-                  }
-                  disabled={!canManage}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione régimen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VAT_AFFILIATION_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {canManage && (
-                <Button onClick={handleSaveFiscal} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                  Guardar datos fiscales
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="denominations" className="config-tab-content">
-          <Card className="config-panel config-panel-narrow">
-            <CardHeader>
-              <CardTitle>Denominaciones para cierre de caja</CardTitle>
-              <CardDescription>
-                Billetes y monedas que se muestran en el conteo de efectivo al hacer un cierre.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="config-denominations-content">
-              <div className="config-denominations-table auna-data-table-shell auna-table-embedded" role="region" aria-label="Denominaciones para cierre de caja" tabIndex={0}>
-                <Table className="auna-data-table">
-                  <caption className="sr-only">Valores y tipos de billetes y monedas disponibles en el arqueo</caption>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col" className="w-40">Valor</TableHead>
-                      <TableHead scope="col">Tipo</TableHead>
-                      {canManage && <TableHead scope="col" className="w-24 text-right">Acciones</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                {denominations.map((d, i) => (
-                  <TableRow key={i}>
-                    <TableCell>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      aria-label={`Valor de denominación ${i + 1}`}
-                      value={d.denomination || ''}
-                      onChange={(e) => updateDenomination(i, 'denomination', e.target.value)}
-                      disabled={!canManage}
-                      placeholder="Valor"
-                    />
-                    </TableCell>
-                    <TableCell>
-                    <Select
-                      value={d.type}
-                      onValueChange={(value) => updateDenomination(i, 'type', value)}
-                      disabled={!canManage}
-                    >
-                      <SelectTrigger aria-label={`Tipo de denominación ${i + 1}`}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Billete">Billete</SelectItem>
-                        <SelectItem value="Moneda">Moneda</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    </TableCell>
-                    {canManage && (
-                      <TableCell className="text-right">
-                      <Button type="button" variant="ghost" size="sm" aria-label={`Quitar denominación ${i + 1}`} onClick={() => removeDenomination(i)}>
-                        Quitar
-                      </Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                    {!denominations.length && <TableRow><TableCell colSpan={canManage ? 3 : 2} className="text-muted-foreground">No hay denominaciones configuradas.</TableCell></TableRow>}
-                  </TableBody>
-                </Table>
-              </div>
-              {canManage && (
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-                  <Button type="button" variant="outline" onClick={addDenomination}>
-                    Agregar denominación
-                  </Button>
-                    <Button type="button" onClick={handleSaveDenominations} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                      Guardar denominaciones
-                    </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="modules" className="config-tab-content">
-          <ModulesSettings canManage={canManage} />
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
+  return <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+    <h1 className="sr-only">Configuración</h1>
+    <div className="config-context-line"><p>Se aplica a <strong>{draft.confirmed.company_name || company?.name || 'la empresa activa'}</strong></p>{draft.hasChanges && <span>Hay cambios pendientes</span>}</div>
+    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} /><div className="config-center-content space-y-5">
+      {notice && <p role="status" className="config-note">{notice}</p>}
+      {draft.status === 'loading' ? <LoadingState variant="page" message="Cargando configuración…" /> : draft.status === 'error' ? <div role="alert" className="config-panel p-5 space-y-3"><p>No se pudo cargar la configuración. No se guardó ningún cambio.</p><p className="text-sm text-muted-foreground">{draft.loadError}</p><Button variant="outline" onClick={() => void draft.reload()}>Reintentar</Button></div> : draft.status === 'unavailable' ? <div className="config-panel p-5 space-y-3"><p>Verifica tu empresa, sucursal y sesión para abrir la configuración.</p><Button variant="outline" onClick={() => window.location.reload()}>Recargar página</Button></div> : <>
+        {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
+        {editable && common && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions[active]}</CardDescription></CardHeader><CardContent className="space-y-5">
+          <SettingsErrorSummary errors={common.errors} error={draft.error} />
+          {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === contextKey} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
+          <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, key: contextKey })} />
+        </CardContent></Card>}
+        {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}
+        {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
+        {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings /></div>}
+        {visited.has('modulos') && <div hidden={active !== 'modulos'} key={`modules-${contextKey}`}><ModulesSettings canManage={canMutate} /></div>}
+      </>}
+    </div></div>
+    <AlertDialog open={!!scopedConfirmation} onOpenChange={open => { if (!open) setConfirmation(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Descartar cambios sin guardar?</AlertDialogTitle><AlertDialogDescription>{scopedConfirmation?.type === 'reset' ? 'Se restablecerá únicamente esta sección. Los cambios de otras secciones se conservan.' : 'Al salir se perderán los cambios pendientes de Configuración. Los cambios ya guardados se conservan.'}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Seguir editando</AlertDialogCancel><AlertDialogAction onClick={() => {
+      if (!scopedConfirmation || draft.getActivity().pending) return
+      if (scopedConfirmation.type === 'reset') draft.reset(scopedConfirmation.section)
+      else { allowUnload.current = true; navigate(scopedConfirmation.to) }
+      setConfirmation(null)
+    }}>Descartar cambios</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+  </div>
 }

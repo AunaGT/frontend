@@ -62,6 +62,7 @@ export function validateSection(id: EditableSection, draft: SectionValues): Fiel
     if (!['GTQ', 'MXN', 'USD'].includes(draft.currency_code || '')) errors.currency_code = 'Selecciona una moneda de la lista para actualizar esta sección.'
     if (!['America/Guatemala', 'America/El_Salvador', 'UTC'].includes(draft.timezone || '')) errors.timezone = 'Selecciona una zona horaria de la lista.'
     if (!['es-GT', 'es-MX', 'en-US'].includes(draft.locale || '')) errors.locale = 'Selecciona un idioma y formato regional de la lista.'
+    if (!['dd/MM/yyyy', 'MM/dd/yyyy', 'yyyy-MM-dd'].includes(draft.date_format || '')) errors.date_format = 'Selecciona un formato de fecha de la lista.'
   }
   if (id === 'ventas' && !['CASHIER', 'MANAGER', 'OWNER', 'ADVANCED'].includes(String(draft.default_experience_profile))) errors.default_experience_profile = 'Selecciona un perfil de la lista.'
   if (id === 'fiscal' && !['', 'general', 'pequeno_contribuyente', 'no_obligado', 'exento', 'otro'].includes(draft.vat_affiliation || '')) errors.vat_affiliation = 'Selecciona una afiliación de la lista.'

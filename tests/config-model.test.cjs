@@ -23,6 +23,7 @@ test('unknown, empty and zero stored values survive projection; defaults fill on
   assert.equal(m.sectionValues('caja', { cash_closure_max_diff_pct: '0' }).cash_closure_max_diff_pct, '0')
   assert.deepEqual(m.sectionValues('pedidos', {}), { order_validity_days: '7' })
   assert.ok(m.validateSection('regional', m.sectionValues('regional', { currency_code: 'LEGADO' })).currency_code)
+  assert.ok(m.validateSection('regional', m.sectionValues('regional', { date_format: 'formato desconocido' })).date_format)
 })
 test('draft comparison ignores temporary denomination fields but catches real edits', () => {
   const m = model(), a = { cash_closure_denominations: [{ denomination: 100, type: 'Billete', quantity: 2 }] }
