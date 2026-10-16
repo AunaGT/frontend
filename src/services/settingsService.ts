@@ -9,6 +9,8 @@ import type { ExperienceProfile } from '@/config/experienceProfiles'
 import type { ReturnPolicy } from '@/modules/returns/policy'
 
 export interface SystemSettings {
+  _revisions?: Record<string, number>
+  warning?: string
   'returns.policy'?: ReturnPolicy
   currency_code?: string
   currency_name?: string
@@ -48,7 +50,7 @@ export interface DenominationItem {
 }
 
 export type SettingsScope = { companyId: string; branchId: string }
-export type SettingsRequestOptions = { scope?: SettingsScope; signal?: AbortSignal }
+export type SettingsRequestOptions = { scope?: SettingsScope; signal?: AbortSignal; expectedRevisions?: Record<string,number>; expectedRevision?: number }
 function requestOptions(options: SettingsRequestOptions = {}): RequestInit {
   if (options.scope && (!options.scope.companyId?.trim() || !options.scope.branchId?.trim())) throw new Error('Selecciona una empresa y sucursal válidas.')
   return { signal: options.signal, ...(options.scope ? { headers: { 'X-Company-Id': options.scope.companyId, 'X-Branch-Id': options.scope.branchId } } : {}) }
@@ -93,11 +95,12 @@ export async function getCompanyNamePublic(): Promise<{ company_name: string; co
   }
 }
 
-export async function uploadCompanyLogo(file: File, options?: SettingsRequestOptions): Promise<{ imageUrl: string; company_logo_url: string }> {
+export async function uploadCompanyLogo(file: File, options?: SettingsRequestOptions): Promise<SystemSettings & { imageUrl: string; company_logo_url: string }> {
   // La sesión son cookies httpOnly: no hay bearer que mandar. Exigir uno hacía
   // fallar toda subida con "No estás autenticado" sin llegar al servidor.
   const fd = new FormData()
   fd.append('image', file)
+  if(options?.expectedRevision!==undefined)fd.append('expectedRevision',String(options.expectedRevision))
   const res = await fetch(`${getApiBaseUrl()}/settings/upload-logo`, {
     ...requestOptions(options),
     method: 'POST',
@@ -108,19 +111,24 @@ export async function uploadCompanyLogo(file: File, options?: SettingsRequestOpt
   if (!res.ok) throw new Error(data.message || 'Error al subir el logo')
   const imageUrl = data.imageUrl ?? data.company_logo_url
   if (!imageUrl) throw new Error('No se recibió la URL del logo')
-  return { imageUrl, company_logo_url: imageUrl }
+  return { imageUrl, company_logo_url: imageUrl,_revisions:data._revisions,warning:data.warning }
 }
 
-export async function removeCompanyLogo(options?: SettingsRequestOptions): Promise<void> {
-  await apiFetch('/settings/logo', { ...requestOptions(options), method: 'DELETE' })
+export async function removeCompanyLogo(options?: SettingsRequestOptions): Promise<SystemSettings> {
+  return apiFetch('/settings/logo', { ...requestOptions(options), method: 'DELETE',body:JSON.stringify({expectedRevision:options?.expectedRevision}) })
 }
 
 export async function updateSettings(settings: Partial<SystemSettings>, options?: SettingsRequestOptions): Promise<SystemSettings> {
   return apiFetch<SystemSettings>('/settings', {
     ...requestOptions(options),
     method: 'PATCH',
-    body: JSON.stringify({ settings }),
+    body: JSON.stringify({ settings,expectedRevisions:options?.expectedRevisions }),
   })
+}
+
+export type SettingHistoryItem={id:string;key:string;before_value:string|null;after_value:string|null;actor_id:string|null;actor_name?:string|null;source:string;created_at:string;revision:number}
+export async function getSettingsHistory(page:number,keys:string[],options?:SettingsRequestOptions){
+  return apiFetch<{items:SettingHistoryItem[];totalItems:number;totalPages:number;page:number}>(`/settings/history?page=${page}&pageSize=10${keys.length?`&keys=${encodeURIComponent(keys.join(','))}`:''}`,requestOptions(options))
 }
 
 export async function getDenominations(): Promise<DenominationItem[]> {

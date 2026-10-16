@@ -40,7 +40,7 @@ test('selector guard reads current activity before render and avoids a second un
     'react-router-dom': { useSearchParams: () => [params, p => { params = p }], useNavigate: () => () => {} },
     '@/components/layout/PageNavigation': { usePageTrail() {} }, '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user: { id: 'U' }, permissionsReady: true, hasPermission: () => true }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ refetch() {} }) }, '@/hooks/use-toast': { useToast: () => ({ toast }) }, '../useSettingsDraft': { useSettingsDraft: () => draft },
-    './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null },
+    './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null }, '../components/SettingsHistorySection': { SettingsHistorySection: () => null },
   }, nodes).default
   try {
     h.render(() => Page()); activity.dirty = true
@@ -66,7 +66,7 @@ test('logo progress and reset confirmation never revive after permission or comp
         '@/context/useTenant': { useTenant: tenant }, 'react-router-dom': { useSearchParams: () => [new URLSearchParams('seccion=empresa'), () => {}], useNavigate: () => () => {} },
         '@/components/layout/PageNavigation': { usePageTrail() {} }, '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user: { id: 'U' }, permissionsReady: true, hasPermission: (...codes) => codes.includes('settings.view') || manage }) },
         '@/hooks/useSystemSettings': { useSystemSettings: () => ({ refetch() {} }) }, '@/hooks/use-toast': { useToast: () => ({ toast() {} }) }, '../useSettingsDraft': { useSettingsDraft: () => draft },
-        './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null },
+        './ModulesSettings': { ModulesSettings: () => null }, './HrDocumentsSettings': { HrDocumentsSettings: () => null }, '../components/SettingsHistorySection': { SettingsHistorySection: () => null },
       }, nodes).default
       const render = () => { nodes.length = 0; h.render(() => Page()) }
       const logo = () => nodes.find(n => n.type?.name === 'CompanySettingsSection').props

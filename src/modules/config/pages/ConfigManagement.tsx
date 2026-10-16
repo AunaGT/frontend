@@ -18,6 +18,7 @@ import { CompanySettingsSection } from '../components/CompanySettingsSection'
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection'
 import { OperationalSettingsSection } from '../components/OperationalSettingsSection'
 import { ReturnsPolicySettingsSection } from '../components/ReturnsPolicySettingsSection'
+import { SettingsHistorySection } from '../components/SettingsHistorySection'
 import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
@@ -36,7 +37,7 @@ const descriptions: Record<string, string> = {
   accesos: 'Abre los editores existentes de cada módulo, sin duplicar configuraciones.',
 }
 type PageOwner = { key: string; active: boolean }
-type Confirmation = { type: 'reset'; section: EditableSection; owner: PageOwner } | { type: 'leave'; to: string; owner: PageOwner } | null
+type Confirmation = { type: 'reset'; section: EditableSection; owner: PageOwner } | { type: 'reload'; section: EditableSection; owner: PageOwner } | { type: 'leave'; to: string; owner: PageOwner } | null
 
 export default function ConfigManagement() {
   const { company, branch, isConsolidated, registerTenantExitGuard } = useTenant()
@@ -128,18 +129,21 @@ export default function ConfigManagement() {
         {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
         {editable && common && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions[active]}</CardDescription></CardHeader><CardContent className="space-y-5">
           <SettingsErrorSummary errors={common.errors} error={draft.error} />
+          {draft.error&&context.canManage&&<Button variant="outline" disabled={draft.pending} onClick={()=>setConfirmation({type:'reload',section:editable,owner})}>Revisar valores actuales de esta sección</Button>}
           {active === 'empresa' || active === 'regional' ? <CompanySettingsSection {...common} logoUrl={draft.logoUrl} logoPending={logoOperation === owner} canManage={context.canManage} onUpload={file => void logoAction(file)} onRemove={() => void logoAction()} onReject={message => toast({ title: message, variant: 'destructive' })} /> : active === 'fiscal' ? <FiscalSettingsSection {...common} /> : active === 'devoluciones' ? <ReturnsPolicySettingsSection {...common} /> : <OperationalSettingsSection {...common} />}
           <SettingsSectionActions dirty={draft.dirty(editable)} pending={draft.pending} canManage={canMutate} onSave={async () => feedback(await draft.save(editable))} onReset={() => setConfirmation({ type: 'reset', section: editable, owner })} />
         </CardContent></Card>}
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}
+        {active === 'historial' && <SettingsHistorySection />}
         {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
         {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings active={active === 'rrhh'} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={hrActivity} /></div>}
         {visited.has('modulos') && <div hidden={active !== 'modulos'} key={`modules-${contextKey}`}><ModulesSettings active={active === 'modulos'} canManage={canMutate} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={modulesActivity} /></div>}
       </>}
     </div></div>
-    <AlertDialog open={!!scopedConfirmation} onOpenChange={open => { if (!open) setConfirmation(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Descartar cambios sin guardar?</AlertDialogTitle><AlertDialogDescription>{scopedConfirmation?.type === 'reset' ? 'Se restablecerá únicamente esta sección. Los cambios de otras secciones se conservan.' : 'Al salir se perderán los cambios pendientes de Configuración. Los cambios ya guardados se conservan.'}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Seguir editando</AlertDialogCancel><AlertDialogAction onClick={() => {
+    <AlertDialog open={!!scopedConfirmation} onOpenChange={open => { if (!open) setConfirmation(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Descartar cambios sin guardar?</AlertDialogTitle><AlertDialogDescription>{scopedConfirmation?.type === 'reset' || scopedConfirmation?.type === 'reload' ? 'Se restablecerá únicamente esta sección. Los cambios de otras secciones se conservan.' : 'Al salir se perderán los cambios pendientes de Configuración. Los cambios ya guardados se conservan.'}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Seguir editando</AlertDialogCancel><AlertDialogAction onClick={async () => {
       if (!scopedConfirmation || draft.getActivity().pending) return
       if (scopedConfirmation.type === 'reset') draft.reset(scopedConfirmation.section)
+      else if(scopedConfirmation.type==='reload'){await draft.reloadSection(scopedConfirmation.section);if(!current())return}
       else { allowUnload.current = true; navigate(scopedConfirmation.to) }
       setConfirmation(null)
     }}>Descartar cambios</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>

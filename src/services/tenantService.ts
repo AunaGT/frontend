@@ -27,7 +27,7 @@ export interface CreateCompanyPayload {
 export const createCompany = (payload: CreateCompanyPayload) =>
   apiFetch<Company>("/api/companies", { method: "POST", body: JSON.stringify(payload) });
 
-export const updateCompany = (id: string, payload: Partial<CreateCompanyPayload> & { active?: boolean }) =>
+export const updateCompany = (id: string, payload: Partial<CreateCompanyPayload> & { active?: boolean; expectedRevisions?:Record<string,number> }) =>
   apiFetch<Company>(`/api/companies/${encodeURIComponent(id)}`, {
     method: "PUT",
     body: JSON.stringify(payload),

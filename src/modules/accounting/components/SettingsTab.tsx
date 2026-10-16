@@ -8,7 +8,9 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import {useTenant} from '@/context/useTenant'
+import {useAuthPermissions} from '@/hooks/useAuthPermissions'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
@@ -69,28 +71,43 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   const [pequenoRate, setPequenoRate] = useState('5')
   const [savingRates, setSavingRates] = useState(false)
   const [section, setSection] = useState('impuestos')
+  const [configRevision,setConfigRevision]=useState<number|null>(null)
+  const [fiscalRevisions,setFiscalRevisions]=useState<Record<string,number>|null>(null)
+  const [loadError,setLoadError]=useState('')
+  const {company,branch,isConsolidated}=useTenant(),{hasPermission}=useAuthPermissions()
+  const scope={companyId:company?.id||'',branchId:branch?.id||(isConsolidated?'all':'')},canEditFiscal=hasPermission('settings.manage')&&!isConsolidated
+  const scopeKey=JSON.stringify([scope.companyId,scope.branchId,canManage,canEditFiscal])
+  const live=useRef({key:scopeKey,active:true});if(live.current.key!==scopeKey)live.current={key:scopeKey,active:true}
+  const owner=live.current,current=()=>owner.active&&live.current===owner
 
   const postables = accounts.filter((a) => a.active && !a.is_group)
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i)
 
-  useEffect(() => {
-    getAccountingConfig()
-      .then((res) => { setDefaults(res.defaults); setKeys(res.keys) })
-      .catch(() => { /* config puede no existir aún */ })
-    getSettings()
+  function loadSettings(){
+    setConfigRevision(null);setFiscalRevisions(null);setLoadError('');setSavingConfig(false);setSavingRates(false);setSavingRegime(false)
+    if(!scope.companyId||!scope.branchId)return
+    getAccountingConfig(scope)
+      .then((res) => { if(current()){setDefaults(res.defaults); setKeys(res.keys);setConfigRevision(res.revision)} })
+      .catch(() => {if(current())setLoadError('No se pudo cargar la configuración. No guardes valores predeterminados; vuelve a cargar.')} )
+    if(canEditFiscal)getSettings({scope})
       .then((s) => {
+        if(!current())return
         setVatRegime(/peque/i.test(s.vat_affiliation || '') ? 'pequeno' : 'general')
         if (s.iva_rate) setIvaRate(s.iva_rate)
         if (s.pequeno_rate) setPequenoRate(s.pequeno_rate)
+        setFiscalRevisions(s._revisions||{})
       })
-      .catch(() => { /* defaults legales GT: general, 12%, 5% */ })
-  }, [])
+      .catch(() => {if(current())setLoadError('No se pudieron cargar los ajustes fiscales. Reintenta antes de guardar.')} )
+  }
+  useEffect(()=>{owner.active=true;loadSettings();return()=>{owner.active=false}},[scopeKey])
 
   const handleSaveRegime = async (value: 'general' | 'pequeno') => {
+    if(!current()||!canEditFiscal||!fiscalRevisions||savingRegime)return
     setSavingRegime(true)
-    setVatRegime(value)
     try {
-      await updateSettings({ vat_affiliation: value === 'pequeno' ? 'Pequeño contribuyente' : 'Régimen general' })
+      const saved=await updateSettings({ vat_affiliation: value === 'pequeno' ? 'pequeno_contribuyente' : 'general' },{scope,expectedRevisions:{vat_affiliation:fiscalRevisions.vat_affiliation??0}})
+      if(!current())return
+      setVatRegime(value);setFiscalRevisions(old=>({...old,vat_affiliation:saved._revisions?.vat_affiliation??0}))
       toast({
         title: 'Régimen de IVA actualizado',
         description: value === 'pequeno'
@@ -98,13 +115,15 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           : `Los próximos asientos desglosarán IVA débito y crédito (${ivaRate}%)`,
       })
     } catch (e) {
+      if(!current())return
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo guardar el régimen', variant: 'destructive' })
     } finally {
-      setSavingRegime(false)
+      if(current())setSavingRegime(false)
     }
   }
 
   const handleSaveRates = async () => {
+    if(!current()||!canEditFiscal||!fiscalRevisions||savingRates)return
     const iva = Number(ivaRate)
     const pequeno = Number(pequenoRate)
     if (!Number.isFinite(iva) || iva < 0 || iva >= 100 || !Number.isFinite(pequeno) || pequeno < 0 || pequeno >= 100) {
@@ -113,12 +132,15 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
     }
     setSavingRates(true)
     try {
-      await updateSettings({ iva_rate: String(iva), pequeno_rate: String(pequeno) })
+      const saved=await updateSettings({ iva_rate: String(iva), pequeno_rate: String(pequeno) },{scope,expectedRevisions:{iva_rate:fiscalRevisions.iva_rate??0,pequeno_rate:fiscalRevisions.pequeno_rate??0}})
+      if(!current())return
+      setFiscalRevisions(old=>({...old,iva_rate:saved._revisions?.iva_rate??0,pequeno_rate:saved._revisions?.pequeno_rate??0}))
       toast({ title: 'Tasas guardadas', description: 'Aplican a los próximos asientos automáticos' })
     } catch (e) {
+      if(!current())return
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudieron guardar las tasas', variant: 'destructive' })
     } finally {
-      setSavingRates(false)
+      if(current())setSavingRates(false)
     }
   }
 
@@ -130,14 +152,18 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   useEffect(() => { loadPeriods(periodYear) }, [periodYear])
 
   const handleSaveConfig = async () => {
+    if(!current()||configRevision===null||savingConfig||isConsolidated)return
     setSavingConfig(true)
     try {
-      await updateAccountingConfig(defaults)
+      const saved=await updateAccountingConfig(defaults,configRevision,scope)
+      if(!current())return
+      setConfigRevision(saved.revision)
       toast({ title: 'Configuración guardada', description: 'Las cuentas por defecto fueron actualizadas' })
     } catch (e) {
+      if(!current())return
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo guardar', variant: 'destructive' })
     } finally {
-      setSavingConfig(false)
+      if(current())setSavingConfig(false)
     }
   }
 
@@ -186,6 +212,9 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
 
   return (
     <Tabs value={section} onValueChange={setSection} className="accounting-settings-tabs space-y-4">
+      {loadError&&<p role="alert" className="text-destructive">{loadError}</p>}
+      <Button variant="outline" disabled={savingConfig||savingRates||savingRegime} onClick={()=>{if(window.confirm('Se descartarán los cambios no guardados de estos ajustes contables. ¿Cargar valores actuales?'))loadSettings()}}>Recargar ajustes actuales</Button>
+      {!canEditFiscal&&<p className="text-sm text-muted-foreground">Para editar impuestos necesitas permiso de gestión de Configuración. Los datos fiscales compartidos se administran también desde Configuración.</p>}
       <div className="max-w-full overflow-x-auto pb-1"><ModuleTabsList aria-label="Tareas de configuración contable">
         <ModuleTabsTrigger value="impuestos">Impuestos</ModuleTabsTrigger>
         <ModuleTabsTrigger value="cuentas">Cuentas por defecto</ModuleTabsTrigger>
@@ -207,7 +236,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1 w-full max-w-md">
               <Label className="text-xs">Régimen</Label>
-              <Select value={vatRegime} onValueChange={(v) => void handleSaveRegime(v as 'general' | 'pequeno')} disabled={savingRegime}>
+              <Select value={vatRegime} onValueChange={(v) => void handleSaveRegime(v as 'general' | 'pequeno')} disabled={savingRegime||!canEditFiscal||!fiscalRevisions}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="general">Régimen general — desglosa IVA débito/crédito ({ivaRate}%)</SelectItem>
@@ -217,13 +246,13 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
             </div>
             <div className="space-y-1 w-[150px]">
               <Label className="text-xs">Tasa IVA general (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} />
+              <Input type="number" min={0} max={99} step="0.5" disabled={!canEditFiscal||!fiscalRevisions||savingRates} value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} />
             </div>
             <div className="space-y-1 w-[190px]">
               <Label className="text-xs">Tarifa pequeño contribuyente (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" value={pequenoRate} onChange={(e) => setPequenoRate(e.target.value)} />
+              <Input type="number" min={0} max={99} step="0.5" disabled={!canEditFiscal||!fiscalRevisions||savingRates} value={pequenoRate} onChange={(e) => setPequenoRate(e.target.value)} />
             </div>
-            <Button variant="outline" onClick={handleSaveRates} disabled={savingRates}>
+            <Button variant="outline" onClick={handleSaveRates} disabled={savingRates||!canEditFiscal||!fiscalRevisions}>
               {savingRates ? 'Guardando…' : 'Guardar tasas'}
             </Button>
           </div>
@@ -266,7 +295,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
               </div>
             ))}
           </div>
-          <Button onClick={handleSaveConfig} disabled={savingConfig}>
+          <Button onClick={handleSaveConfig} disabled={savingConfig||configRevision===null||isConsolidated}>
             {savingConfig ? 'Guardando…' : 'Guardar configuración'}
           </Button>
         </CardContent>

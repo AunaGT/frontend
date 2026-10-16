@@ -71,6 +71,6 @@ test('late policy saves cannot overwrite a new company generation or permit obso
     h.context({...context,companyId:'B',branchId:'BB'});h.render();await flush();h.render()
     h.context(context);h.render();await flush();h.render();done.resolve({'returns.policy':{...policy,windowDays:45}})
     assert.equal(await saving,'ignored');h.render();assert.equal(h.value().drafts.devoluciones['returns.policy'].windowDays,60)
-    assert.equal(await old.save('devoluciones'),'ignored');assert.equal(writes.length,1);assert.deepEqual(writes[0][1],{scope:{companyId:'A',branchId:'BA'}})
+    assert.equal(await old.save('devoluciones'),'ignored');assert.equal(writes.length,1);assert.deepEqual(writes[0][1],{scope:{companyId:'A',branchId:'BA'},expectedRevisions:{'returns.policy':0}})
   }finally{h.unmount()}
 })

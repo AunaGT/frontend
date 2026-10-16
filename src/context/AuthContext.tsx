@@ -13,6 +13,7 @@ import { createContext } from "react";
 import type { ExperienceProfile } from "@/config/experienceProfiles";
 
 export interface Company {
+  _revisions?: Record<string,number>;
   id: string;
   name: string;
   code: string;

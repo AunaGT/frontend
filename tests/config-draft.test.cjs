@@ -17,7 +17,7 @@ test('double click acquires one synchronous operation and sends captured section
   const pending = deferred(), writes = [], { h } = await ready({ updateSettings: (p, options) => { writes.push([p, options]); return pending.promise } })
   change(h); const first = h.value().save('pedidos'), second = h.value().save('pedidos')
   assert.equal(await second, 'ignored'); assert.equal(writes.length, 1)
-  assert.deepEqual(writes[0], [{ order_validity_days: '12' }, { scope: { companyId: 'A', branchId: 'BA' } }])
+  assert.deepEqual(writes[0], [{ order_validity_days: '12' }, { scope: { companyId: 'A', branchId: 'BA' },expectedRevisions:{order_validity_days:0} }])
   pending.resolve({ order_validity_days: '12' }); assert.equal(await first, 'saved'); h.unmount()
 })
 test('failed load, missing identity, read-only and consolidated never write defaults', async () => {

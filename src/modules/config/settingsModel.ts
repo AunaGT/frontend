@@ -14,7 +14,7 @@ export const SECTION_KEYS = {
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
-export type SettingsSection = EditableSection | 'rrhh' | 'modulos' | 'accesos'
+export type SettingsSection = EditableSection | 'rrhh' | 'modulos' | 'accesos' | 'historial'
 export type SectionValues = Partial<SystemSettings>
 export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
@@ -30,6 +30,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; l
   { id: 'rrhh', group: 'Operación', label: 'Recursos humanos', keywords: ['expedientes', 'documentos', 'empleados', 'requisitos'] },
   { id: 'modulos', group: 'Administración', label: 'Módulos', keywords: ['activación', 'dependencias', 'disponibilidad'] },
   { id: 'accesos', group: 'Administración', label: 'Accesos relacionados', keywords: ['pagos', 'cobros', 'cajas', 'condiciones', 'agenda', 'contabilidad', 'roles', 'permisos', 'catálogos'] },
+  { id: 'historial', group: 'Administración', label: 'Historial de ajustes', keywords: ['auditoría', 'cambios', 'quién', 'revisiones'] },
 ]
 
 const defaults: SystemSettings = {

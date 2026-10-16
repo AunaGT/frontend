@@ -66,7 +66,7 @@ export type PostPendingResult = {
   hasMore?: boolean
 }
 
-export type AccountingConfig = { defaults: Record<string, string>; keys: string[] }
+export type AccountingConfig = { defaults: Record<string, string>; keys: string[];revision:number }
 
 export type LedgerResponse = {
   account: { id: number; code: string; name: string; type: AccountType }
@@ -141,10 +141,10 @@ export const closePeriod = (year: number, month: number) =>
 export const reopenPeriod = (year: number, month: number) =>
   apiFetch<AccountingPeriod>(`/accounting/periods/${year}/${month}/reopen`, { method: 'POST' })
 
-export const getAccountingConfig = () => apiFetch<AccountingConfig>('/accounting/config')
+export const getAccountingConfig = (scope?:{companyId:string;branchId:string}) => apiFetch<AccountingConfig>('/accounting/config',scope?{headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}}:{})
 
-export const updateAccountingConfig = (defaults: Record<string, string>) =>
-  apiFetch<AccountingConfig>('/accounting/config', { method: 'PUT', body: JSON.stringify({ defaults }) })
+export const updateAccountingConfig = (defaults: Record<string, string>, expectedRevision:number,scope?:{companyId:string;branchId:string}) =>
+  apiFetch<AccountingConfig>('/accounting/config', { method: 'PUT',...(scope?{headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}}:{}), body: JSON.stringify({ defaults,expectedRevision }) })
 
 export const getJournal = (params: { from?: string; to?: string; source?: string; branch_id?: string; page?: number; pageSize?: number }) =>
   apiFetch<JournalListResponse>(`/accounting/journal${qs(params)}`)

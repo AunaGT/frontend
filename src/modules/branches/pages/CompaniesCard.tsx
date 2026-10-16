@@ -35,7 +35,7 @@ export function CompaniesCard({ canManage, activeBranches, onAddBranch }: { canM
   const updateMutation = useMutation({ mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof updateCompany>[1] }) => updateCompany(id, payload), onSuccess: async () => { setEditing(null); await refresh(); toast({ title: 'Empresa actualizada' }) }, onError: fail })
   const beginEdit = (row: Company) => { setEditing(row); setEditForm({ name: row.name, tax_id: row.tax_id || '', address: row.address || '', phone: row.phone || '', active: row.active !== false }) }
   const create = () => { if (!form.name.trim() || !form.code.trim()) return; createMutation.mutate({ ...form, name: form.name.trim(), code: form.code.trim().toUpperCase(), branch_code: (form.branch_code || 'PRIN').trim().toUpperCase() }) }
-  const save = () => { if (!editing || !editForm.name.trim()) return; updateMutation.mutate({ id: editing.id, payload: { ...editForm, name: editForm.name.trim() } }) }
+  const save = () => { if (!editing || editing.id!==company?.id || !editForm.name.trim()) return; updateMutation.mutate({ id: editing.id, payload: { ...editForm, name: editForm.name.trim(),expectedRevisions:editing._revisions } }) }
 
   return <section className="branches-companies">
     <h2 className="sr-only">Empresas y sucursales</h2>

@@ -99,21 +99,35 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
     owner.errors = { ...owner.errors, [id]: errors }; paint()
     if (Object.keys(errors).length) return 'invalid'
     const payload = structuredClone(sectionPayload(id, owner.drafts[id]))
-    return mutate(() => updateSettings(payload, { scope: { companyId: context.companyId, branchId: context.branchId } }), result => {
+    const expectedRevisions=Object.fromEntries(Object.keys(payload).map(key=>[key,owner.confirmed._revisions?.[key]??0]))
+    return mutate(() => updateSettings(payload, { scope: { companyId: context.companyId, branchId: context.branchId },expectedRevisions }), result => {
       const confirmed = sectionValues(id, { ...payload, ...result })
-      owner.confirmed = { ...owner.confirmed, ...confirmed }
+      owner.confirmed = { ...owner.confirmed, ...confirmed,_revisions:{...owner.confirmed._revisions,...Object.fromEntries(Object.keys(payload).map(key=>[key,result._revisions?.[key]??expectedRevisions[key]]))} }
       owner.drafts = { ...owner.drafts, [id]: confirmed }; owner.errors = { ...owner.errors, [id]: {} }
     })
   }
   function uploadLogo(file: File) {
-    return mutate(async () => uploadCompanyLogo(file, { scope: { companyId: context.companyId, branchId: context.branchId } }), result => {
-      owner.confirmed = { ...owner.confirmed, company_logo_url: result.company_logo_url }
+    return mutate(async () => uploadCompanyLogo(file, { scope: { companyId: context.companyId, branchId: context.branchId },expectedRevision:owner.confirmed._revisions?.company_logo_url??0 }), result => {
+      owner.confirmed = { ...owner.confirmed, company_logo_url: result.company_logo_url,_revisions:{...owner.confirmed._revisions,...result._revisions} };owner.error=result.warning??null
     })
   }
   function removeLogo() {
-    return mutate(async () => { await removeCompanyLogo({ scope: { companyId: context.companyId, branchId: context.branchId } }); return { company_logo_url: '' } }, result => {
-      owner.confirmed = { ...owner.confirmed, company_logo_url: result.company_logo_url }
+    return mutate(async () => (await removeCompanyLogo({ scope: { companyId: context.companyId, branchId: context.branchId },expectedRevision:owner.confirmed._revisions?.company_logo_url??0 }))||{company_logo_url:''}, result => {
+      owner.confirmed = { ...owner.confirmed, company_logo_url: result.company_logo_url,_revisions:{...owner.confirmed._revisions,...result._revisions} };owner.error=result.warning??null
     })
+  }
+  async function reloadSection(id:EditableSection){
+    if(!canStartOperation())return false
+    owner.busy=true;paint()
+    try{
+      const result=await getSettings({scope:{companyId:context.companyId,branchId:context.branchId}})
+      if(!current())return false
+      const confirmed=sectionValues(id,result),revisions=Object.fromEntries(SECTION_KEYS[id].map(key=>[key,result._revisions?.[key]??0]))
+      owner.confirmed={...owner.confirmed,...confirmed,_revisions:{...owner.confirmed._revisions,...revisions}}
+      if(id==='empresa')owner.confirmed={...owner.confirmed,company_logo_url:result.company_logo_url,_revisions:{...owner.confirmed._revisions,company_logo_url:result._revisions?.company_logo_url??0}}
+      owner.drafts={...owner.drafts,[id]:confirmed};owner.errors={...owner.errors,[id]:{}};owner.error=null;return true
+    }catch(error){if(current())owner.error=message(error);return false}
+    finally{if(current()){owner.busy=false;paint()}}
   }
   const reportActivity = useCallback((id: 'rrhh' | 'modulos', activity: EditorActivity) => {
     if (!current()) return
@@ -124,7 +138,7 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
 
   return { status: owner.status, loadError: owner.loadError, confirmed: owner.confirmed, drafts: owner.drafts, errors: owner.errors, error: owner.error,
     pending: pending(), hasChanges: (Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) || Object.values(owner.activities).some(a => a?.dirty),
-    logoUrl: owner.confirmed.company_logo_url || '', dirty, setField, reset, save, uploadLogo, removeLogo, reportActivity, canStartOperation,
+    logoUrl: owner.confirmed.company_logo_url || '', dirty, setField, reset, save, uploadLogo, removeLogo, reloadSection, reportActivity, canStartOperation,
     getActivity: (): EditorActivity => ({ pending: pending(), dirty: (Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) || Object.values(owner.activities).some(a => a?.dirty) }),
     reload: async () => {
       if (current() && !pending() && !(Object.keys(SECTION_KEYS) as EditableSection[]).some(dirty) && !Object.values(owner.activities).some(a => a?.dirty)) await load()
