@@ -57,3 +57,7 @@ La validación autenticada de claro, oscuro, móvil, cambios de empresa y éxito
 No se implementaron en esta entrega la política editable de devoluciones, alertas de vencimiento por empresa, parámetros de nómina con vigencia ni el rediseño visual B. Son los siguientes bloques del alcance general, en ese orden antes de B.
 
 Los cambios se conservan localmente en `Modularizado`; esta entrega no publica ni integra automáticamente otra rama.
+
+## Continuación autorizada — selectores antiguos
+
+El usuario pidió continuar con los pendientes. El detalle menor de los selectores reservados quedó corregido usando un mapa sin propiedades heredadas. Regresión `reserved or unknown catalog selectors stay on an internal canonical page`, observada RED→GREEN para ambos alias y sus importaciones. Suite posterior: 761/761, `test:modules` 23 módulos y build correctos. No se cambió la base ni el backend. El registro anterior del detalle diferido se conserva como historial, no como un fallo todavía abierto.

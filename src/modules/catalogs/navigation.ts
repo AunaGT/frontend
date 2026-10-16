@@ -7,9 +7,14 @@ export function legacyCatalogDestination(pathname: string, search: string): stri
   const params = new URLSearchParams(search)
   const importing = !!(matchPath(paths.import, pathname) || matchPath(paths.legacyImport, pathname))
   const selector = params.get(importing ? 'type' : 'tab')
+  const destinations = new Map<string, string>([
+    ['cash-registers', paths.cashRegisters],
+    ['payment-methods', paths.paymentMethods],
+    ['payment-terms', paths.paymentTerms],
+  ])
   const destination = importing
     ? selector === 'payment-terms' ? paths.paymentTermsImport : paths.categoriesImport
-    : ({ 'cash-registers': paths.cashRegisters, 'payment-methods': paths.paymentMethods, 'payment-terms': paths.paymentTerms } as Record<string, string>)[selector ?? ''] ?? paths.categories
+    : destinations.get(selector ?? '') ?? paths.categories
   params.delete('tab'); params.delete('type')
   const query = params.toString()
   return destination + (query ? `?${query}` : '')

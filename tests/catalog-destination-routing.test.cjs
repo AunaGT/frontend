@@ -10,6 +10,15 @@ test('old catalogs and imports resolve their canonical destination without losin
     for (const variant of [prefix + '/importar/', (prefix + '/importar').toUpperCase(), (prefix + '/importar/').toUpperCase()]) assert.equal(resolve(variant, '?type=payment-terms&source=qa'), '/configuracion/condiciones-de-pago/importar?source=qa')
   }
 })
+test('reserved or unknown catalog selectors stay on an internal canonical page', () => {
+  const { legacyCatalogDestination: resolve } = loadReportModule('../catalogs/navigation.ts')
+  for (const prefix of ['/datos-maestros', '/catalogos']) {
+    for (const selector of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'desconocida']) {
+      assert.equal(resolve(prefix, `?tab=${selector}&source=qa`), '/inventario/categorias?source=qa')
+      assert.equal(resolve(prefix + '/importar', `?type=${selector}`), '/inventario/categorias/importar')
+    }
+  }
+})
 test('relocated catalog gate checks original availability, destination permissions and import authority', () => {
   for (const [kind, enabled, perms, flags, allowed] of [
     ['categories', ['catalogs','inventory'], ['catalogs.manage'], {}, true],
