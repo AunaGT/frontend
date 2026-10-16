@@ -66,7 +66,7 @@ import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 
 
-import { MASTER_DATA_IMPORT_PATH } from '@/config/appModules'
+import { catalogsModule } from '../manifest'
 
 /** Filas de catálogo: API actual devuelve `_count.supplier_payment_terms`; respuestas antiguas `suppliers`. */
 function paymentTermSupplierUsageCount(term: {
@@ -80,7 +80,7 @@ export function PaymentTermsPanel() {
  const navigate = useNavigate()
  const [showDeleted, setShowDeleted] = useState(false)
  const [dialog, setDialog] = useState<PaymentTermDialogState>({open:false, mode:'create'})
- return <><PaymentTermsTab showDeleted={showDeleted} setShowDeleted={setShowDeleted} dialog={dialog} setDialog={setDialog} onImportClick={() => navigate(`${MASTER_DATA_IMPORT_PATH}?type=payment-terms`)} /><PaymentTermDialog dialog={dialog} setDialog={setDialog} /></>
+ return <><PaymentTermsTab showDeleted={showDeleted} setShowDeleted={setShowDeleted} dialog={dialog} setDialog={setDialog} onImportClick={() => navigate(catalogsModule.paths.paymentTermsImport)} /><PaymentTermDialog dialog={dialog} setDialog={setDialog} /></>
 }
 function PaymentTermsTab({
   showDeleted,

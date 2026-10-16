@@ -2,9 +2,9 @@ const test = require('node:test'), assert = require('node:assert/strict'), React
 const { renderToStaticMarkup } = require('react-dom/server'), { MemoryRouter } = require('react-router-dom')
 const { catalogPanelHarness } = require('./helpers/catalogPanelHarness.cjs'), { assertPaginationOutside } = require('./pagination-assertions.cjs')
 const { loadReportModule } = require('./helpers/loadReportModule.cjs'), { flush } = require('./helpers/configHarness.cjs')
-test('legacy category and terms screens establish the extraction baseline', () => {
+test('category and terms screens preserve the established extraction baseline', () => {
   for (const kind of ['categories', 'payment-terms']) {
-    const h = catalogPanelHarness(kind, { legacy: true })
+    const h = catalogPanelHarness(kind)
     try {
       const html = h.render(); assertPaginationOutside(html)
       assert.ok(html.indexOf('metric-strip') < html.indexOf('compact-filter-toolbar'))
@@ -21,7 +21,7 @@ test('standalone extracted panels retain summaries, deletion filter and external
       assert.ok(html.indexOf('metric-strip') < html.indexOf('compact-filter-toolbar'))
       assert.ok(h.queries.every(q => q.includeSummary && q.pageSize === 10))
       h.button('Ver eliminados').props.onClick(); h.render(); assert.equal(h.queries.at(-1).includeDeleted, true)
-      h.button('Importar').props.onClick(); assert.equal(h.navigations.at(-1), `/datos-maestros/importar?type=${kind}`)
+      h.button('Importar').props.onClick(); assert.equal(h.navigations.at(-1), kind === 'categories' ? '/inventario/categorias/importar' : '/configuracion/condiciones-de-pago/importar')
     } finally { h.unmount() }
   }
 })
@@ -71,6 +71,8 @@ test('read-only extracted catalogs never offer mutations or import', () => {
 test('catalog import can receive an explicit type and return destination without reading a return URL', () => {
   const nodes = [], navigate = []
   const Page = loadReportModule('../catalogs/pages/CatalogImportPage.tsx', {
+    '@/context/useModules': { useModules: () => ({isEnabled:()=>true,isLoading:false,isError:false}) },
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({permissionsReady:true,hasPermission:()=>true}) },
     'react-router-dom': { ...require('react-router-dom'), useNavigate: () => path => navigate.push(path) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) }, '@/services/api': { getApiBaseUrl: () => 'https://api.invalid' },
   }, nodes).default

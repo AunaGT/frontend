@@ -1,5 +1,5 @@
 import { matchPath } from 'react-router-dom'
-import { MODULE_MANIFEST_BY_CODE, usersModule, inventoryModule, hrModule, merchandiseModule } from '@/modules/catalog'
+import { MODULE_MANIFEST_BY_CODE, usersModule, inventoryModule, hrModule, merchandiseModule, catalogsModule } from '@/modules/catalog'
 
 export type PageTrailItem = { label: string; to?: string; permissions?: readonly string[] }
 export type ModuleOwner = { code: string; label: string; path: string }
@@ -35,7 +35,17 @@ export function getRouteTrail(pathname: string, search: string, module?: ModuleO
   }
   const matches = (pattern?: string) => !!pattern && !!matchPath({ path: pattern, end: true }, pathname)
   const roles = { label: 'Roles y permisos', to: usersModule.paths.roles, permissions: ['roles.view', 'roles.manage'] }
-  if (module.code === 'users' && (pathname === roles.to || pathname.startsWith(roles.to + '/'))) {
+  const catalogDestinations = [
+    [catalogsModule.paths.categories, catalogsModule.paths.categoriesImport, 'Categorías'],
+    [catalogsModule.paths.paymentTerms, catalogsModule.paths.paymentTermsImport, 'Condiciones de pago'],
+    [catalogsModule.paths.cashRegisters, undefined, 'Cajas'],
+    [catalogsModule.paths.paymentMethods, undefined, 'Métodos de pago'],
+  ] as const
+  const catalog = catalogDestinations.find(([list, importing]) => matches(list) || matches(importing))
+  if (catalog) {
+    trail.push({ label: catalog[2], to: catalog[0], permissions: ['catalogs.view', 'catalogs.manage'] })
+    if (catalog[1] && matches(catalog[1])) trail.push({ label: 'Importar' })
+  } else if (module.code === 'users' && (pathname === roles.to || pathname.startsWith(roles.to + '/'))) {
     trail.push(roles)
     if (matches(usersModule.paths.roleCreate)) trail.push({ label: 'Nuevo rol' })
     else if (matches(usersModule.paths.roleDetail)) trail.push({ label: 'Detalle' })

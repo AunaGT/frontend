@@ -84,7 +84,15 @@ interface ValidationError {
 
 const HR = () => <div className="border-t my-4" />
 
-export default function CatalogImportPage({ catalogType: explicitType, backPath: explicitBackPath }: { catalogType?: 'categories' | 'payment-terms'; backPath?: string } = {}) {
+import { CatalogAccess } from '../components/CatalogAccess'
+type CatalogImportProps = { catalogType?: 'categories' | 'payment-terms'; backPath?: string }
+export default function CatalogImportPage(props: CatalogImportProps = {}) {
+    const [params] = useSearchParams()
+    const kind = props.catalogType ?? (params.get('type') === 'payment-terms' ? 'payment-terms' : 'categories')
+    return <CatalogAccess kind={kind} importing><CatalogImportWorkflow {...props} /></CatalogAccess>
+}
+
+function CatalogImportWorkflow({ catalogType: explicitType, backPath: explicitBackPath }: CatalogImportProps) {
     const navigate = useNavigate()
     const [searchParams] = useSearchParams()
     const { toast } = useToast()

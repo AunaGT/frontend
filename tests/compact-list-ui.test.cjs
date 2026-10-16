@@ -273,15 +273,16 @@ test('all four master-data tabs and companies use flat summaries outside result 
   const companies = [{ id: 'c1', name: 'Activa', code: 'C1', active: true }, { id: 'c2', name: 'Inactiva', code: 'C2', active: false }]
   const registers = Array.from({ length: 12 }, (_, index) => ({ id: String(index), name: `Caja ${index}`, code: String(index), active: index < 11, branch: { id: 'b1', name: 'Principal' }, assigned_users: [] }))
   overrides.set('@tanstack/react-query', { useQuery: options => options.queryKey[0] === 'companies' ? { ...state, data: companies } : options.queryKey[0] === 'cash-registers' ? { ...state, data: registers } : options.queryKey[0] === 'users' ? { data: { items: [] } } : state, useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) })
-  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => canManage }) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ permissionsReady: true, hasPermission: (...codes) => codes.includes('catalogs.view') || canManage }) })
   overrides.set('@/hooks/use-toast', { useToast: () => ({ toast() {} }) })
   overrides.set('@/context/useTenant', { useTenant: () => ({ branch: { id: 'b1' }, company: companies[0], companies }) })
   overrides.set('@/context/useAuth', { useAuth: () => ({ refreshUser() {} }) })
   overrides.set('@/services/userService', {})
+  overrides.set('@/context/useModules', {useModules:()=>({isEnabled:()=>true,isLoading:false,isError:false})})
   for (const name of ['@/services/api', '../services/api', './api']) overrides.set(name, { ApiError: Error, getApiBaseUrl: () => 'http://test.invalid', apiFetch() { throw Error('No remote calls') } })
   try {
-    const { CatalogsManagement } = load(path.join(__dirname, '../src/modules/catalogs/pages/CatalogsManagement.tsx'))
-    const render = tab => renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, { initialEntries: [`/datos-maestros?tab=${tab}`] }, React.createElement(CatalogsManagement)))
+    const CatalogPanelPage = load(path.join(__dirname, '../src/modules/catalogs/pages/CatalogPanelPage.tsx')).default
+    const render = tab => renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, null, React.createElement(CatalogPanelPage, {kind:tab})))
     for (const tab of ['categories', 'payment-terms', 'payment-methods', 'cash-registers']) {
       const html = render(tab)
       assert.match(html, /^<div class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)

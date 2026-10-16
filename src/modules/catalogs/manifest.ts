@@ -9,6 +9,12 @@ export const catalogsModule = {
     import: '/datos-maestros/importar',
     legacyList: '/catalogos',
     legacyImport: '/catalogos/importar',
+    categories: '/inventario/categorias',
+    categoriesImport: '/inventario/categorias/importar',
+    cashRegisters: '/configuracion/cajas',
+    paymentMethods: '/configuracion/metodos-de-pago',
+    paymentTerms: '/configuracion/condiciones-de-pago',
+    paymentTermsImport: '/configuracion/condiciones-de-pago/importar',
   },
   routePrefixes: ['/catalogos'] as const,
   pages: {

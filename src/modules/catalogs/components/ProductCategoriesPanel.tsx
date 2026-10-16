@@ -66,14 +66,14 @@ import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { getApiBaseUrl } from '@/services/api'
-import { MASTER_DATA_IMPORT_PATH } from '@/config/appModules'
+import { catalogsModule } from '../manifest'
 
 type ProductCategoryDialogState = { open: boolean; mode: 'create' | 'edit'; item?: ProductCategory }
 export function ProductCategoriesPanel() {
  const navigate = useNavigate()
  const [showDeleted, setShowDeleted] = useState(false)
  const [dialog, setDialog] = useState<ProductCategoryDialogState>({open:false, mode:'create'})
- return <><ProductCategoriesTab showDeleted={showDeleted} setShowDeleted={setShowDeleted} dialog={dialog} setDialog={setDialog} onImportClick={() => navigate(`${MASTER_DATA_IMPORT_PATH}?type=categories`)} /><ProductCategoryDialog dialog={dialog} setDialog={setDialog} /></>
+ return <><ProductCategoriesTab showDeleted={showDeleted} setShowDeleted={setShowDeleted} dialog={dialog} setDialog={setDialog} onImportClick={() => navigate(catalogsModule.paths.categoriesImport)} /><ProductCategoryDialog dialog={dialog} setDialog={setDialog} /></>
 }
 function ProductCategoriesTab({
   showDeleted,

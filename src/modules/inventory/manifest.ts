@@ -1,10 +1,13 @@
 import { lazy } from 'react'
+import { catalogsModule } from '../catalogs/manifest'
 
 export const inventoryModule = {
   code: 'inventory',
   dependencies: [] as const,
   paths: {
     list: '/inventario',
+    categories: catalogsModule.paths.categories,
+    categoriesImport: catalogsModule.paths.categoriesImport,
     barcodePrint: '/inventario/codigos-de-barras',
     shelfPricePrint: '/inventario/etiquetas-de-precio',
     legacyList: '/productos',
@@ -18,6 +21,8 @@ export const inventoryModule = {
   },
   routePrefixes: ['/productos', '/scanner'] as const,
   pages: {
+    Categories: lazy(() => import('./pages/CategoryManagementPage')),
+    CategoriesImport: lazy(() => import('./pages/CategoryImportPage')),
     Management: lazy(() => import('./products/ProductManagement')),
     BarcodePrint: lazy(() => import('./barcodeLabels/BarcodePrintPage')),
     ShelfPricePrint: lazy(() => import('./barcodeLabels/ShelfPricePrintPage')),

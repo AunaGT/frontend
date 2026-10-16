@@ -117,6 +117,10 @@ const RolesPermissionsManagement = usersModule.pages.Roles;
 const RolePermissionsDetail = usersModule.pages.RoleDetail;
 const RoleCreatePage = usersModule.pages.RoleCreate;
 const ConfigManagement = configModule.pages.Management;
+const CategoryManagementPage = inventoryModule.pages.Categories;
+const CategoryImportPage = inventoryModule.pages.CategoriesImport;
+const CatalogSettingsPage = configModule.pages.Catalog;
+const PaymentTermsImportPage = configModule.pages.PaymentTermsImport;
 const PromotionsManagement = promotionsModule.pages.Management;
 const PromotionCreatePage = promotionsModule.pages.Create;
 const PromotionEditPage = promotionsModule.pages.Edit;
@@ -381,6 +385,14 @@ const App = () => (
                   }
                 />
                 <Route
+                  path={inventoryModule.paths.categories}
+                  element={<PermissionRoute any={["catalogs.view", "catalogs.manage"]}><CategoryManagementPage /></PermissionRoute>}
+                />
+                <Route
+                  path={inventoryModule.paths.categoriesImport}
+                  element={<PermissionRoute any={["catalogs.manage"]}><CategoryImportPage /></PermissionRoute>}
+                />
+                <Route
                   path={inventoryModule.paths.detail}
                   element={
                     <PermissionRoute any={["products.view"]}>
@@ -630,12 +642,16 @@ const App = () => (
                   path={catalogsModule.paths.import}
                   element={
                     <PermissionRoute any={["catalogs.manage"]}>
-                      <CatalogImportPage />
+                      <CatalogsManagement />
                     </PermissionRoute>
                   }
                 />
-                <Route path={catalogsModule.paths.legacyList} element={<Navigate to={catalogsModule.paths.list} replace />} />
-                <Route path={catalogsModule.paths.legacyImport} element={<Navigate to={catalogsModule.paths.import} replace />} />
+                <Route path={catalogsModule.paths.legacyList} element={<CatalogsManagement />} />
+                <Route path={catalogsModule.paths.legacyImport} element={<CatalogsManagement />} />
+                <Route path={configModule.paths.cashRegisters} element={<PermissionRoute any={["catalogs.view", "catalogs.manage", "settings.manage"]}><CatalogSettingsPage kind="cash-registers" /></PermissionRoute>} />
+                <Route path={configModule.paths.paymentMethods} element={<PermissionRoute any={["catalogs.view", "catalogs.manage"]}><CatalogSettingsPage kind="payment-methods" /></PermissionRoute>} />
+                <Route path={configModule.paths.paymentTerms} element={<PermissionRoute any={["catalogs.view", "catalogs.manage"]}><CatalogSettingsPage kind="payment-terms" /></PermissionRoute>} />
+                <Route path={configModule.paths.paymentTermsImport} element={<PermissionRoute any={["catalogs.manage"]}><PaymentTermsImportPage /></PermissionRoute>} />
 
                 {/* RRHH */}
                 <Route
