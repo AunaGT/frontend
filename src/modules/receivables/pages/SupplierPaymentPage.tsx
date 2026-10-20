@@ -145,7 +145,7 @@ export function SupplierPaymentForm({
                 <Label htmlFor="supplier-method">Medio de pago</Label>
                 <select
                   id="supplier-method"
-                  className="h-10 w-full rounded-md border border-input bg-background px-3"
+                  className="auna-control auna-control-select"
                   value={draft.method}
                   onChange={(e) => draft.setMethod(e.target.value)}
                   required
@@ -211,7 +211,7 @@ export function SupplierPaymentForm({
                   id="supplier-notes"
                   rows={2}
                   maxLength={2000}
-                  className="w-full rounded-md border border-input bg-background p-3 text-sm"
+                  className="auna-control auna-control-textarea"
                   value={draft.notes}
                   onChange={(e) => draft.setNotes(e.target.value)}
                 />

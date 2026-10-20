@@ -9,6 +9,7 @@
  * Fila 2: Tarjeta Seguridad (Contraseña, 2FA, Métodos de recuperación) | Tarjeta Sesiones activas (Cerrar todas + Dispositivos)
  * Fila 3: Tarjeta Preferencias (Tema, Idioma, Zona horaria, Formatos) | Tarjeta Información (Soporte + Watermark AUNA)
  */
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { useState, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -396,7 +397,7 @@ export default function MyProfilePage() {
             <div className="divide-y divide-border/40">
               {sessionsQuery.isLoading && <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando sesiones…" />}
               {sessionsQuery.error && <p role="alert" className="text-destructive py-4">No se pudieron cargar las sesiones. <Button variant="ghost" onClick={() => void sessionsQuery.refetch()}>Reintentar</Button></p>}
-              {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <p className="users-muted py-4">No hay sesiones registradas.</p>}
+              {!sessionsQuery.isLoading && !sessionsQuery.error && !displayedSessions.length && <CollectionEmptyState compact title="Tus sesiones tendrán su espacio" description="No hay sesiones registradas para mostrar en esta consulta." />}
               {displayedSessions.map((session) => {
                 const DeviceIcon = getDeviceIcon(session.device)
                 return (

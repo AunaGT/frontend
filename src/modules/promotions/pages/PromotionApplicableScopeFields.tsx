@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ProductCombobox } from '@/components/shared/ProductCombobox'
 import { LoadingIndicator } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useProductCategories } from '@/hooks/useProductCategories'
 import { fetchAllProducts } from '@/services/productService'
 import {useSystemSettings} from '@/hooks/useSystemSettings'
@@ -45,7 +46,7 @@ export function PromotionApplicableScopeFields({
   const {inventoryServicesEnabled}=useSystemSettings()
   const catalogType=allowServices && inventoryServicesEnabled ? 'all' : 'goods'
   const [productPickerKey, setProductPickerKey] = useState(0)
-  const { data: catData, isLoading: catLoading } = useProductCategories({
+  const { data: catData, isLoading: catLoading, isError: catError, refetch: refetchCategories } = useProductCategories({
     page: 1,
     pageSize: 500,
     includeDeleted: false,
@@ -119,11 +120,13 @@ export function PromotionApplicableScopeFields({
         <Label className="text-xs font-medium">Categorías</Label>
         {catLoading ? (
           <LoadingIndicator message="Cargando categorías…" />
+        ) : catError ? (
+          <div role="alert" className="space-y-2 text-sm text-destructive"><p>No se pudieron cargar las categorías.</p><Button type="button" variant="outline" size="sm" onClick={() => void refetchCategories()}>Reintentar</Button></div>
         ) : (
           <ScrollArea className="h-[180px] rounded-md border p-3">
             <div className="space-y-2">
               {catItems.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No hay categorías.</p>
+                <CollectionEmptyState compact title="El alcance espera sus categorías" description="Las categorías disponibles aparecerán aquí. También puedes elegir productos específicos arriba." />
               ) : (
                 catItems.map((c) => (
                   <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">

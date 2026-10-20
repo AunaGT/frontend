@@ -44,8 +44,8 @@ export const generateTransferPDF = (
     body: transfer.lines.map((line) => [
       line.product?.name ?? line.product_id,
       line.product?.barcode ?? '—',
-      String(line.qty_sent),
-      line.qty_received == null ? '—' : String(line.qty_received),
+      `${line.qty_sent} ${line.unit_snapshot?.baseUnit.label??'unidades'}`,
+      line.qty_received == null ? '—' : `${line.qty_received} ${line.unit_snapshot?.baseUnit.label??'unidades'}`,
     ]),
     theme: 'grid',
     ...documentTableStyles,

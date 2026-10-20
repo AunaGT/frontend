@@ -73,7 +73,7 @@ test('search filters the authorized catalogue by description and clearing restor
   result.nodes.find(node => node.props['aria-label'] === 'Limpiar búsqueda').props.onClick()
   assert.deepEqual(result.changes, [''])
   const empty = renderHome({ search: 'inexistente' })
-  assert.match(empty.html, /No encontramos módulos/)
+  assert.match(empty.html, /Busquemos por otro lado/)
   assert.doesNotMatch(empty.html, /home-module-card/)
 })
 
@@ -84,7 +84,7 @@ test('disabled or unauthorized modules stay absent from catalogue, shortcuts and
   assert.equal((result.html.match(/<button[^>]*aria-label="Abrir [^"]+"/g) || []).length, 1)
   assert.doesNotMatch(renderHome({ enabled: new Set(['sales']) }).html, /Abrir Inventario|Acceso rápido a Inventario/)
   const denied = renderHome({ admin: false })
-  assert.match(denied.html, /No hay módulos disponibles/)
+  assert.match(denied.html, /Tu espacio de trabajo está por abrirse/)
   assert.doesNotMatch(denied.html, /Abrir |Acceso rápido a /)
 })
 

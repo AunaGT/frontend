@@ -1,3 +1,4 @@
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Dónde está el producto dentro de la sucursal y cuánto debe haber en cada
  * anaquel. El mínimo de aquí no pide comprar: pide bajar de la bodega.
@@ -17,9 +18,11 @@ import { useTenant } from "@/context/useTenant";
 import { fetchStockByLocation, setLocationMin } from "@/services/stockMoveService";
 import { Pagination } from "@/components/shared/Pagination";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { CollectionEmptyState } from "@/components/shared/CollectionEmptyState";
 import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
 
-export const ProductLocationsSection = ({ productId }: { productId: string }) => {
+import {normalizeUnitDecimal,compareUnitQuantities,remainingUnitQuantity} from '@/modules/inventory/units/public';
+export const ProductLocationsSection = ({ productId,baseDecimals=0,baseLabel='unidades' }: { productId: string;baseDecimals?:number;baseLabel?:string }) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { branch } = useTenant();
@@ -27,8 +30,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
   const { hasPermission } = useAuthPermissions();
   const canMove = hasPermission("stock_moves.create");
   const [edits, setEdits] = useState<Record<string, string>>({});
-  const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventario/producto/ubicaciones', {defaultPageSize:10});
 
   const query = useQuery({
     queryKey: ["stock-by-location", productId, branch?.id],
@@ -67,7 +69,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
         {!branch ? <EmptyState icon={Warehouse} title="Selecciona una sucursal" description="Las existencias por ubicación pertenecen a una sucursal." />
           : query.isLoading ? <LoadingState columns={['Ubicación', 'Existencia', 'Mínimo interno', 'Reposición']} message="Cargando ubicaciones…" />
           : query.isError ? <div role="alert" className="py-6 text-center"><p>No se pudieron cargar las ubicaciones.</p><Button variant="outline" className="mt-3" onClick={() => void query.refetch()}>Reintentar</Button></div>
-          : rows.length === 0 ? <EmptyState icon={Warehouse} title="Sin existencias por ubicación" description="Todavía no hay existencias registradas en ubicaciones para este producto en la sucursal seleccionada." />
+          : rows.length === 0 ? <CollectionEmptyState compact title="Un lugar por ocupar" description="Todavía no hay existencias registradas en ubicaciones para este producto en la sucursal seleccionada." />
           : <div className="auna-data-table-shell auna-table-embedded overflow-x-auto" aria-busy={query.isFetching}>
           <Table>
             <TableHeader>
@@ -82,7 +84,8 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
               {visibleRows.map((r) => {
                 const key = r.location.id;
                 const value = edits[key] ?? String(r.min_stock);
-                const dirty = Number(value) !== r.min_stock;
+                let normalized:string|null=null;try{normalized=normalizeUnitDecimal(value,{decimals:baseDecimals})}catch{/* Invalid edits remain visible until corrected. */}
+                const dirty=normalized==null||compareUnitQuantities(normalized,String(r.min_stock))!==0;
                 return (
                   <TableRow key={key}>
                     <TableCell>
@@ -92,13 +95,13 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
                         <Badge variant="outline" className="ml-2">No despacha</Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-medium">{r.stock}</TableCell>
+                    <TableCell className="text-right font-medium">{r.stock} {baseLabel}</TableCell>
                     <TableCell className="text-right">
                       {canMove ? (
                         <div className="flex items-center justify-end gap-2">
                           <Input
                             type="number"
-                            min={0}
+                            min={0} step="any"
                             aria-label={`Mínimo interno de ${r.location.code}`}
                             className="w-20 text-right"
                             value={value}
@@ -108,12 +111,12 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
                             <Button
                               size="sm"
                               variant="secondary"
-                              disabled={minMutation.isPending}
+                              disabled={minMutation.isPending||normalized==null}
                               onClick={() =>
                                 minMutation.mutate({
                                   product_id: productId,
                                   location_id: key,
-                                  min_stock: Math.max(0, Math.floor(Number(value) || 0)),
+                                  min_stock: normalized!,
                                 })
                               }
                             >
@@ -126,8 +129,8 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {r.stock < r.min_stock && (
-                        <Badge variant="destructive">Faltan {r.min_stock - r.stock}</Badge>
+                      {compareUnitQuantities(String(r.stock),String(r.min_stock))<0 && (
+                        <Badge variant="destructive">Faltan {remainingUnitQuantity(String(r.min_stock),String(r.stock))} {baseLabel}</Badge>
                       )}
                     </TableCell>
                   </TableRow>
@@ -144,7 +147,7 @@ export const ProductLocationsSection = ({ productId }: { productId: string }) =>
         )}
       </CardContent>
     </Card>
-      {branch && !query.isLoading && !query.isError && rows.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={rows.length} pageSize={pageSize} count={visibleRows.length} itemLabel="ubicaciones" onPageChange={setPage} /></div>}</>
+      {branch && !query.isLoading && !query.isError && rows.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={rows.length} pageSize={pageSize} count={visibleRows.length} itemLabel="ubicaciones" onPageChange={setPage} onPageSizeChange={setPageSize} /></div>}</>
   );
 };
 

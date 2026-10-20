@@ -65,7 +65,7 @@ test('transfer search and per-product quantity and remove controls have accessib
   let index = 0
   const transfer = { id: 'transfer-a', reference: 'TR-001', status: 'EN_TRANSITO', from_branch_id: 'branch-b', to_branch_id: 'branch-a', sent_at: '2026-10-01T12:00:00Z', received_at: null, notes: null, fromBranch: { id: 'branch-b', name: 'Norte', code: 'NOR' }, toBranch: { id: 'branch-a', name: 'Centro', code: 'CTR' }, lines: [{ id: 'line-a', product_id: 'product-a', product: { id: 'product-a', name: 'Agua', barcode: '740' }, qty_sent: 3, qty_received: null }] }
   const { html, nodes } = render('../transfers/pages/TransfersManagement.tsx', {
-    react: { ...React, useState: initial => { const position = index++; return React.useState(position === 8 ? transfer : position === 12 ? [{ product_id: 'product-a', name: 'Agua', qty: 3 }] : initial) } },
+    react: { ...React, useState: initial => { const position = index++; return React.useState(position === 9 ? transfer : position === 13 ? [{ product_id: 'product-a', name: 'Agua', qty: 3 }] : initial) } },
     '@tanstack/react-query': queryMock(config => ({ ...idle, data: config.queryKey[0] === 'transfers' ? { items: [], totalItems: 0, totalPages: 1, summary: { total: 0, inTransit: 0, received: 0, cancelled: 0 } } : [] })),
   }, 'TransfersManagement')
   assert.match(html, /aria-label="Buscar traslados"/)

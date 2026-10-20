@@ -15,7 +15,7 @@ const base = {
   './api': api,
   '../services/api': api,
   '@/hooks/useRealtimeSales': { useRealtimeSales() {} },
-  'react-router-dom': { useNavigate: () => () => {}, useParams: () => ({ id: 'qa' }), useSearchParams: () => [new URLSearchParams()], useLocation: () => ({ pathname: '/promociones/qa/editar', state: null }) },
+  'react-router-dom': { UNSAFE_NavigationContext: React.createContext(null), useNavigate: () => () => {}, useParams: () => ({ id: 'qa' }), useSearchParams: () => [new URLSearchParams()], useLocation: () => ({ pathname: '/promociones/qa/editar', state: null }) },
   '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
   '@/hooks/useSystemSettings': { useSystemSettings: () => settings },
   '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => true }) },
@@ -165,7 +165,7 @@ test('contact listing uses shared tabs and a semantic table without losing data 
     '@/hooks/useUpdateSupplier': { useUpdateSupplier: () => mutation },
     '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => ({ page: 1, pageSize: 20, viewMode: 'table' }), useResetPageOnFilterChange() {} },
   })
-  assert.match(result.html, /max-w-\[1560px\]/)
+  assert.match(result.html, /^<div class="[^"]*auna-page-fluid\b/)
   assert.match(result.html, /role="tablist"/)
   assert.match(result.html, /auna-data-table/)
   assert.match(result.html, /Contacto QA/)

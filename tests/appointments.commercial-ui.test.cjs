@@ -159,6 +159,8 @@ test('cash collection cannot submit without an open turn',async()=>{
 test('collections display committed and refunded funds separately and hide money from operational readers',()=>{
   let Component
   try{Component=loadReportModule('../appointments/components/EngagementPayments.tsx',{
+    '@/context/useTenant':{useTenant:()=>({company:{id:'a'},branch:{id:'b'}})},
+    '@/hooks/useAuthPermissions':{useAuthPermissions:()=>({user:{id:'u'},permissionsReady:true,hasPermission:()=>false})},
     '../useAgendaContext':{useAgendaContext:()=>({scope:{companyId:'a',branchId:'b'},writable:true,hasPermission:()=>true})},
     '@/hooks/useSystemSettings':{useSystemSettings:()=>({companyName:'QA'})},'@/services/api':{getApiBaseUrl:()=>''},
   }).EngagementPayments}catch(error){if(error.code!=='ENOENT')throw error}

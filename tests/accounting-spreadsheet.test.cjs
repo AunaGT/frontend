@@ -132,7 +132,8 @@ test('accounting dialogs await download failures and pass the active company wit
       let index = 0, settle, args
       const nodes = [], changes = [], toasts = []
       const { [name]: Component } = loadReportModule(`../accounting/components/${name}.tsx`, {
-        react: { ...React, useEffect() {}, useCallback: callback => callback, useState(initial) { const key = index++; return [key < states.length ? states[key] : initial, value => changes.push({ key, value })] } },
+        '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => { const key = index++; return { page: states[key] ?? 1, setPage: value => changes.push({ key, value }), pageSize: 10, setPageSize() {} } } },
+        react: { ...React, useRef: initial => ({ current: initial }), useEffect() {}, useCallback: callback => callback, useState(initial) { const key = index++; return [key < states.length ? states[key] : initial, value => changes.push({ key, value })] } },
         '@/context/useTenant': { useTenant: () => ({ company: { id: 'active-company', name: 'Depósito El Roble' }, branches: [] }) },
         '@/hooks/use-toast': { useToast: () => ({ toast: value => toasts.push(value) }) },
         '@/hooks/useSystemSettings': { useSystemSettings: () => ({ timezone: 'Europe/Paris' }) },

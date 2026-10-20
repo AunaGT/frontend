@@ -15,6 +15,7 @@ import { useState, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import type { Product } from '@/types/product'
 import { ProductFormData, EMPTY_PRODUCT_FORM } from '../types'
+import {normalizeUnitDecimal,exactProductValues,unitsDraft,initialUnitsConfiguration,productDecimalPayload} from '../../units/public'
 
 interface UseProductFormReturn {
     formData: ProductFormData
@@ -52,7 +53,7 @@ export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFo
             return false
         }
 
-        if (!formData.price || !Number.isFinite(Number(formData.price)) || Number(formData.price) <= 0) {
+        if (!formData.price) {
             toast({
                 title: 'Campo requerido',
                 description: 'El precio debe ser mayor a 0',
@@ -75,10 +76,9 @@ export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFo
         }
 
         if (formData.productKind === 'KIT') {
-            const valid = formData.kitComponents.filter(
-                (c) => c.component_product_id && c.qty_per_unit > 0
-            )
-            if (valid.length === 0) {
+            let valid=0;
+            try{for(const component of formData.kitComponents){if(!component.component_product_id)throw Error('Selecciona cada componente');normalizeUnitDecimal(String(component.qty_per_unit),{decimals:6,allowZero:false});valid++}}catch(error){toast({title:'Revisa los componentes',description:error instanceof Error?error.message:undefined,variant:'destructive'});return false}
+            if (valid === 0) {
                 toast({
                     title: 'Kit incompleto',
                     description: 'Agrega al menos un componente con cantidad',
@@ -88,32 +88,11 @@ export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFo
             }
         }
 
-        if (formData.minStock && Number(formData.minStock) < 0) {
-            toast({
-                title: 'Valor inválido',
-                description: 'El stock mínimo no puede ser negativo',
-                variant: 'destructive'
-            })
-            return false
-        }
-
-        if (formData.stock && Number(formData.stock) < 0) {
-            toast({
-                title: 'Valor inválido',
-                description: 'El stock no puede ser negativo',
-                variant: 'destructive'
-            })
-            return false
-        }
-
-        if (formData.cost && Number(formData.cost) < 0) {
-            toast({
-                title: 'Valor inválido',
-                description: 'El costo no puede ser negativo',
-                variant: 'destructive'
-            })
-            return false
-        }
+        try {
+            initialUnitsConfiguration(formData.units,formData.productKind)
+            const values=productDecimalPayload(formData,{kind:formData.productKind,quantityDecimals:Number(formData.units.baseUnitId?formData.units.quantityDecimals:formData.quantityDecimals),advanced:!!formData.units.baseUnitId})
+            if(values.price==='0')throw new Error('El precio debe ser mayor a 0')
+        }catch(error){toast({title:'Revisa cantidades y precios',description:(error as Error).message,variant:'destructive'});return false}
 
         return true
     }, [formData, toast])
@@ -150,26 +129,24 @@ export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFo
             categoryValue = String(matchCategory.id)
         }
 
+        const exact=exactProductValues(product)
         setFormData({
+            units:unitsDraft(product.unitConfiguration),
             name: product.name,
             category: categoryValue,
             brand: product.brand,
             size: product.size,
-            price: product.price.toString(),
+            price: exact.price,
             priceWholesale:
-                product.priceWholesale != null && product.priceWholesale > 0
-                    ? String(product.priceWholesale)
-                    : '',
+                exact.priceWholesale??'',
             pricePromotion:
-                product.pricePromotion != null && product.pricePromotion > 0
-                    ? String(product.pricePromotion)
-                    : '',
+                exact.pricePromotion??'',
             promotionValidUntil: product.promotionValidUntil
                 ? String(product.promotionValidUntil).slice(0, 16)
                 : '',
-            cost: product.cost.toString(),
-            stock: product.stock.toString(),
-            minStock: product.minStock.toString(),
+            cost: exact.cost,
+            stock: exact.stock,
+            minStock: exact.minStock,
             supplier: supplierValue,
             barcode: product.barcode,
             description: product.description || '',

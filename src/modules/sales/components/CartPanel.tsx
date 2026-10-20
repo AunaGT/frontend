@@ -18,7 +18,10 @@ import { Plus, Minus, X, Search, Calculator } from 'lucide-react'
 import type { Product } from '@/types/product'
 import type { CartProduct } from '../types'
 import { LoadingState } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import {stepQuantity,previewLineTotal} from '@/lib/commercialQuantity'
+import {stepUnitQuantity,selectedLineTotal,formatUnitDecimal} from '@/modules/inventory/units/public'
+import {UnitLineFields} from '@/components/shared/UnitLineFields'
 
 interface CartPanelProps {
     cartItems: CartProduct[]
@@ -30,6 +33,8 @@ interface CartPanelProps {
     onAddToCart: (product: Product) => void
     onRemoveFromCart: (productId: string) => void
     onUpdateQuantity: (productId: string, newQty: string | number) => void
+    onSelectUnit?: (lineKey:string,id:string|null)=>void
+    onAcceptRounding?: (lineKey:string,accepted:boolean)=>void
     // Payment
     paymentMethodName?: string
     amountReceived: string
@@ -47,11 +52,13 @@ export const CartPanel = ({
     onAddToCart,
     onRemoveFromCart,
     onUpdateQuantity,
+    onSelectUnit,onAcceptRounding,
     paymentMethodName,
     amountReceived,
     onAmountReceivedChange,
     changeAmount
 }: CartPanelProps) => {
+    const total=(item:CartProduct)=>{try{return item.unitSelection?selectedLineTotal(item.qty,item.unitSelection):previewLineTotal(item.qty,item.price.toFixed(2))}catch{return '—'}}
     const isCash = paymentMethodName?.toLowerCase() === 'efectivo'
 
     return (
@@ -73,7 +80,7 @@ export const CartPanel = ({
                         {isLoadingProducts ? (
                             <LoadingState variant="cards" rows={3} message="Cargando productos…" />
                         ) : filteredProducts.length === 0 ? (
-                            <div className='p-4 text-center text-muted-foreground'>No se encontraron productos</div>
+                            <CollectionEmptyState compact filtered title="El catálogo espera tus productos" onReset={() => onProductSearchChange('')} />
                         ) : filteredProducts.map(product => (
                             <div
                                 key={product.id}
@@ -98,25 +105,26 @@ export const CartPanel = ({
                 <Label>Productos en Venta ({cartItems.length})</Label>
                 <div className='border rounded-lg'>
                     {cartItems.length === 0 ? (
-                        <div className='p-4 text-center text-muted-foreground'>No hay productos agregados</div>
+                        <CollectionEmptyState compact title="La venta empieza con un producto" description="Busca un producto arriba para agregarlo a esta venta." />
                     ) : (
                         <div className='divide-y'>
                             {cartItems.map(item => (
-                                <div key={item.id} className='p-3 flex items-center justify-between'>
+                                <div key={item.lineKey??item.id} className='p-3 flex items-center justify-between'>
                                     <div className='flex-1'>
                                         <div className='font-medium'>{item.name}</div>
-                                        <div className='text-sm text-muted-foreground'>Q {item.price.toFixed(2)} c/u</div>
+                                        <div className='text-sm text-muted-foreground'>Q {item.unitSelection?formatUnitDecimal(item.unitSelection.unitPrice):item.price.toFixed(2)} / {item.unitSelection?.snapshot.presentation?.label??item.unitSelection?.snapshot.baseUnit.label??'unidad'}</div>
+                                        {item.unitSelection&&<UnitLineFields product={item} selection={item.unitSelection} quantity={item.qty} disabled={!onSelectUnit||!!item.unitSelection.sourceLineId} onSelect={id=>onSelectUnit?.(item.lineKey??item.id,id)} onAcceptRounding={accepted=>onAcceptRounding?.(item.lineKey??item.id,accepted)}/>}
                                     </div>
                                     <div className='flex items-center space-x-2'>
-                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, stepQuantity(item.qty,-1))}>
+                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,-1):stepQuantity(item.qty,-1))}>
                                             <Minus className='w-4 h-4' />
                                         </Button>
-                                        <span className='w-8 text-center'>{item.qty}</span>
-                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.id, stepQuantity(item.qty,1))}>
+                                        {item.unitSelection?<Input aria-label={`Cantidad de ${item.name}`} inputMode="decimal" className="w-24 text-center" value={item.qty} onChange={event=>onUpdateQuantity(item.lineKey??item.id,event.target.value)}/>:<span className='w-8 text-center'>{item.qty}</span>}
+                                        <Button size='sm' variant='outline' onClick={() => onUpdateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,1):stepQuantity(item.qty,1))}>
                                             <Plus className='w-4 h-4' />
                                         </Button>
-                                        <div className='w-20 text-right font-medium'>Q {item.qty && /^\d+(?:\.\d{1,4})?$/.test(item.qty) ? previewLineTotal(item.qty,item.price.toFixed(2)) : '—'}</div>
-                                        <Button size='sm' variant='ghost' onClick={() => onRemoveFromCart(item.id)}>
+                                        <div className='w-20 text-right font-medium'>Q {total(item)}</div>
+                                        <Button size='sm' variant='ghost' onClick={() => onRemoveFromCart(item.lineKey??item.id)}>
                                             <X className='w-4 h-4' />
                                         </Button>
                                     </div>

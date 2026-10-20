@@ -1,0 +1,22 @@
+import * as quantity from './unitQuantity.mjs'
+export type DecimalInputRules={decimals?:number;max?:string;allowZero?:boolean}
+export type ProductQuantityRules={kind:'STANDARD'|'KIT'|'SERVICE';quantityDecimals:number;advanced:boolean}
+export type UnitConversionPreview={baseQty:string;exactBaseQty:string;roundingDelta:string;roundingRequired:boolean}
+export const normalizeUnitDecimal:(raw:string,rules?:DecimalInputRules)=>string=quantity.normalizeUnitDecimal
+export const normalizeProductQuantity:(raw:string,rules:ProductQuantityRules,locale?:string)=>string=quantity.normalizeProductQuantity
+export const convertUnitQuantity:(qty:string,factor:string,baseDecimals?:number)=>UnitConversionPreview=quantity.convertUnitQuantity
+export const deriveUnitPrice:(price:string,factor:string)=>string=quantity.deriveUnitPrice
+export const deriveMeasureFactor:(measureFactor:string,baseFactor:string)=>string=quantity.deriveMeasureFactor
+export const unitLineTotal:(qty:string,price:string)=>string=quantity.unitLineTotal
+export const formatUnitDecimal:(qty:string,locale?:string)=>string=quantity.formatUnitDecimal
+export const unitProductMetrics:(price:string,cost:string,stock:string)=>{marginMoney:string;marginPercent:string;inventoryValue:string}=quantity.unitProductMetrics
+export const formatUnitMoney:(value:string,locale?:string,currency?:string)=>string=quantity.formatUnitMoney
+export const unitTicks:(raw:string)=>bigint=quantity.unitTicks
+export const unitFromTicks:(raw:bigint)=>string=quantity.unitFromTicks
+export const addUnitQuantities:(a:string,b:string)=>string=quantity.addUnitQuantities
+export const remainingUnitQuantity:(a:string,b:string)=>string=quantity.remainingUnitQuantity
+export const compareUnitDecimals:(a:string,b:string)=>number=quantity.compareUnitDecimals
+export const compareUnitQuantities:(a:string,b:string)=>number=quantity.compareUnitQuantities
+export const stepUnitQuantity:(raw:string,direction:1|-1)=>string=quantity.stepUnitQuantity
+export const previewUnitPartialTotal:(totalBase:string,lineTotal:string,baseQty:string,consumedBase:string)=>string=quantity.previewUnitPartialTotal
+export const displayUnitRate:(price:string,factor:string,originalQty?:string)=>string=quantity.displayUnitRate

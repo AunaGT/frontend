@@ -49,7 +49,10 @@ export interface Promotion {
 
 export interface CartItemForPromotion {
     product_id: string
-    price: number
+    price: number|string
+    presentation_id?:string|null
+    unit_revision?:number
+    accept_rounding?:boolean
     qty: number | string
     category_id?: number
 }

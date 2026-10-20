@@ -7,6 +7,7 @@
 .pos-opening{padding:24px;display:grid;grid-template-columns:1fr 1fr;align-items:start;gap:32px}
 @media(max-width:639px){.pos-opening{grid-template-columns:minmax(0,1fr);padding:16px;gap:20px}}
 .pos-workspace{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);align-items:start;gap:20px}
+@media(min-width:1680px){.pos-page.auna-page-fluid .pos-workspace{grid-template-columns:minmax(0,960px) minmax(320px,1fr)}}
 .pos-sale-column,.pos-catalog-column{display:grid;min-width:0;gap:16px}
 .pos-section-heading{padding:14px 16px;border-bottom:1px solid hsl(var(--border))}
 .pos-context-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:16px}

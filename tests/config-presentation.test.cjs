@@ -2,9 +2,9 @@ const test = require('node:test'), assert = require('node:assert/strict'), React
 const { renderConfig } = require('./helpers/configViewHarness.cjs')
 const denominations = [{ denomination: 100, type: 'Billete' }, { denomination: 0.5, type: 'Moneda' }, { denomination: 0, type: 'Billete' }]
 const renderCash = options => renderConfig({ section: 'caja', values: { cash_closure_denominations: denominations }, ...options })
-test('configuration retains its bounded width and accessible navigation without horizontal tabs', () => {
+test('configuration uses the available workspace with accessible navigation without horizontal tabs', () => {
   const { html } = renderCash()
-  assert.match(html, /^<div class="[^"]*mx-auto[^\"]*max-w-\[1560px\]/); assert.match(html, /aria-label="Secciones de configuración"/); assert.doesNotMatch(html, /role="tablist"/)
+  assert.match(html, /^<div class="[^"]*auna-page-fluid\b/); assert.match(html, /aria-label="Secciones de configuración"/); assert.doesNotMatch(html, /role="tablist"/)
 })
 test('fiscal activation remains independent of customer fiscal visibility and starts inactive', async () => {
   const view = renderConfig({ section: 'fiscal' }), toggle = view.nodes.find(n => n.props.id === 'fel_enabled')
@@ -38,7 +38,7 @@ test('read-only keeps values visible without add, remove or save actions', () =>
   assert.doesNotMatch(html, /Agregar denominación|>Guardar cambios<|Quitar denominación/)
 })
 test('loading retains the same content measure', () => {
-  const { html } = renderCash({ status: 'loading' }); assert.match(html, /max-w-\[1560px\]/); assert.match(html, /Cargando configuración/)
+  const { html } = renderCash({ status: 'loading' }); assert.match(html, /^<div class="[^"]*auna-page-fluid\b/); assert.match(html, /Cargando configuración/)
 })
 test('service capability starts disabled in Inventory and respects settings permissions', () => {
   const view = renderConfig({ section: 'inventario' }), toggle = view.nodes.find(n => n.props.id === 'inventory_services_enabled')

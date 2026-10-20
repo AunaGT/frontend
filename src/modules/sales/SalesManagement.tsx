@@ -44,6 +44,7 @@ import { STATUS_DB_NAMES, NegativeStockDialogState, SaleStatusKey } from './type
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getApiBaseUrl, getAuthToken } from '@/services/api'
 import { hasNewSaleDraft } from '@/services/saleDraftStorage'
+import {useTenant} from '@/context/useTenant'
 
 const API_URL = getApiBaseUrl()
 
@@ -55,6 +56,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
     const navigate = useNavigate()
     const location = useLocation()
     const { isAuthenticated, user } = useAuth()
+    const tenant=useTenant()
     const [hasPendingSaleDraft, setHasPendingSaleDraft] = useState(false)
 
     useEffect(() => {
@@ -63,8 +65,8 @@ const SalesManagement = (_props: SalesManagementProps) => {
             setHasPendingSaleDraft(false)
             return
         }
-        setHasPendingSaleDraft(hasNewSaleDraft(uid))
-    }, [user?.id, location.pathname])
+        setHasPendingSaleDraft(hasNewSaleDraft(uid,{companyId:tenant.company?.id??'',branchId:tenant.branch?.id??''}))
+    }, [user?.id, location.pathname,tenant.company?.id,tenant.branch?.id])
     const { toast } = useToast()
     const { hasPermission } = useAuthPermissions()
     const { isEnabled } = useModules()
@@ -145,7 +147,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
     }
 
     return (
-        <div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+        <div className="auna-page-fluid mx-auto w-full space-y-5 p-4 sm:p-8">
             {/* Header */}
             <h1 className="sr-only">Ventas</h1>
 
@@ -247,6 +249,9 @@ const SalesManagement = (_props: SalesManagementProps) => {
                         isFetching={salesData.isFetching}
                         error={salesData.error}
                         emptyMessage={salesData.filters.searchHint}
+                        filtered={Boolean(salesData.filters.searchTerm.trim() || salesData.filters.statusFilter !== 'all' || salesData.filters.paymentFilter !== 'all' || (!salesData.filters.isGlobalSearch && salesData.filters.period !== 'all'))}
+                        onReset={() => { salesData.setSearchTerm(''); salesData.setStatusFilter('all'); salesData.setPaymentFilter('all'); salesData.setPeriod('all') }}
+                        action={canCreateSale && <Button onClick={() => navigate('/ventas/nueva')}><Plus className="h-4 w-4" aria-hidden="true" />Nueva venta</Button>}
                         onRetry={salesData.refreshSales}
                         updatingSaleIds={updatingSaleIds}
                         onPageChange={salesData.setPage}

@@ -8,6 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 
 import { useState, useEffect } from 'react'
@@ -91,9 +92,9 @@ function ProductCategoriesTab({
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
   const canManageCatalogs = hasPermission('catalogs.manage')
-  const { page: currentPage, setPage: setCurrentPage, pageSize } = usePersistedListUiState(
+  const { page: currentPage, setPage: setCurrentPage, pageSize, setPageSize } = usePersistedListUiState(
     'catalogs/categories',
-    { defaultPage: 1, defaultPageSize: 10 }
+    { defaultPage: 1, defaultPageSize: 50 }
   )
   const { search, setSearch, query } = useCatalogSearch()
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
@@ -202,7 +203,7 @@ function ProductCategoriesTab({
               {isLoading ? <TableLoadingRows columns={5} message="Cargando categorías…" /> : categories?.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center text-muted-foreground py-12">
-                    No hay categorías registradas
+                    <CollectionEmptyState title="Cada producto en su categoría" description="Crea categorías para organizar los bienes y servicios de tu catálogo." filtered={Boolean(search.trim() || showDeleted)} onReset={() => { setSearch(''); setShowDeleted(false); setCurrentPage(1) }} action={canManageCatalogs && <Button onClick={() => setDialog({ open: true, mode: 'create' })}>Nueva categoría</Button>} />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -327,6 +328,7 @@ function ProductCategoriesTab({
               loading={isLoading}
               totalItems={categoriesData.totalItems}
               pageSize={pageSize}
+              onPageSizeChange={setPageSize}
               count={categories.length}
               itemLabel="categorías"
             />

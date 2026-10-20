@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -133,7 +134,7 @@ const CashClosureManagement = () => {
           </div>
         )}</>
   return (
-    <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+    <div className="auna-page-fluid mx-auto w-full min-w-0 space-y-5 p-4 sm:p-8">
       <h1 className="sr-only">Cierre de caja</h1>
       {!canViewHistory && <div className="auna-page-toolbar"><div className="compact-filter-actions">{pageActions}</div></div>}
 
@@ -165,7 +166,7 @@ const CashClosureManagement = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {[5, 10, 25, 50, 100].map((num) => (
+                        {TABLE_PAGE_SIZES.map((num) => (
                           <SelectItem key={num} value={String(num)}>
                             {num}
                           </SelectItem>
@@ -223,6 +224,8 @@ const CashClosureManagement = () => {
                 isSeller={form.isSeller}
                 currentPage={api.currentPage}
                 totalPages={api.totalPages}
+                filtered={activeHistoryFilters > 0}
+                onReset={clearHistoryFilters}
                 onViewClosure={handleViewClosure}
                 onPageChange={(page) => {
                   const f =

@@ -11,6 +11,7 @@
 import { apiFetch, downloadFile, getApiBaseUrl } from "./api";
 import type { Product, StockStatus } from "@/types";
 import type { ApiProduct as ApiProductType, CreateProductPayload as CreateProductPayloadType, UpdateProductPayload as UpdateProductPayloadType } from "@/types/product";
+import {advancedProduct} from '@/modules/inventory/units/public';
 
 // API product shape (flexible; fields optional to adapt to various backends)
 export type ApiProduct = ApiProductType;
@@ -51,6 +52,11 @@ const toNumber = (value: unknown, fallback = 0): number => {
 };
 
 export const adaptApiProduct = (p: ApiProduct): Product => {
+  // Capture authoritative strings before making legacy display projections.
+  const unitValues=p.base_unit_id?{stock:String(p.stock??'0'),minStock:String(p.min_stock??'0'),price:String(p.price??'0'),priceWholesale:p.price_wholesale==null?null:String(p.price_wholesale),pricePromotion:p.price_promotion==null?null:String(p.price_promotion),cost:String(p.cost??'0')}:undefined;
+  const advanced=advancedProduct(p);
+  const baseUnitConfiguration=p.base_unit_id?{base_unit_id:p.base_unit_id,base_unit:p.base_unit??null,quantity_decimals:p.quantity_decimals??0,unit_revision:p.unit_revision??1,presentations:p.presentations??[],default_purchase_presentation_id:p.default_purchase_presentation_id??null,default_sale_presentation_id:p.default_sale_presentation_id??null,base_unit_locked:p.base_unit_locked}:undefined;
+  const unitConfiguration=advanced?baseUnitConfiguration:undefined;
   const category =
     (typeof p.category === "object" && p.category?.name)
       ? p.category.name
@@ -80,6 +86,7 @@ export const adaptApiProduct = (p: ApiProduct): Product => {
       : (p.supplier_id != null ? String(p.supplier_id) : undefined);
 
   return {
+    ...(unitValues?{unitValues,unitConfiguration,baseUnitConfiguration}:{}),
     id: String(p.id),
     name: p.name,
     category: category || "Sin categoría",
@@ -152,7 +159,7 @@ export interface ProductsResponse {
   prevPage: number | null;
 }
 
-export const fetchProducts = async (params?: ProductsQueryParams): Promise<ProductsResponse> => {
+export const fetchProducts = async (params?: ProductsQueryParams,options:RequestInit={}): Promise<ProductsResponse> => {
   const search = new URLSearchParams();
   if (params?.catalogType) search.set('catalog_type', params.catalogType);
   if (params?.includeSummary) search.set('includeSummary', 'true');
@@ -170,17 +177,17 @@ export const fetchProducts = async (params?: ProductsQueryParams): Promise<Produ
   if (params?.locationId) search.set("location_id", params.locationId);
 
   const url = `/api/products${search.toString() ? `?${search.toString()}` : ""}`;
-  const data = await apiFetch<ProductsResponse>(url, { method: "GET" });
+  const data = await apiFetch<ProductsResponse>(url, { ...options,method: "GET" });
   return data;
 };
 
 // Legacy function for backward compatibility (returns all products)
-export const fetchAllProducts = async (options?: Pick<ProductsQueryParams, 'forSaleOnly' | 'inBranchOnly' | 'catalogType'>): Promise<Product[]> => {
+export const fetchAllProducts = async (options?: Pick<ProductsQueryParams, 'forSaleOnly' | 'inBranchOnly' | 'catalogType'>,requestOptions:RequestInit={}): Promise<Product[]> => {
   const products: Product[] = [];
   let page = 1;
   let totalPages = 1;
   do {
-    const data = await fetchProducts({ ...options, page, pageSize: 100 });
+    const data = await fetchProducts({ ...options, page, pageSize: 100 },requestOptions);
     if (!Array.isArray(data?.items)) throw new Error('Respuesta de catálogo inválida');
     products.push(...data.items.map(adaptApiProduct));
     totalPages = data.totalPages ?? 1;
@@ -189,8 +196,8 @@ export const fetchAllProducts = async (options?: Pick<ProductsQueryParams, 'forS
   return products;
 };
 
-export const fetchProductById = async (id: string): Promise<ApiProduct | null> => {
-  const data = await apiFetch<ApiProduct>(`/api/products/${id}`, { method: "GET" });
+export const fetchProductById = async (id: string,options?:{signal?:AbortSignal;scope?:import('@/modules/inventory/units/public').UnitScope}): Promise<ApiProduct | null> => {
+  const data = await apiFetch<ApiProduct>(`/api/products/${id}`, { method: "GET",signal:options?.signal,...(options?.scope?{headers:{'X-Company-Id':options.scope.companyId,'X-Branch-Id':options.scope.branchId}}:{}) });
   return data ?? null;
 };
 
@@ -221,9 +228,10 @@ export interface PricingPreviewResponse {
 }
 
 export const postPricingPreview = async (
-  body: PricingPreviewRequest
+  body: PricingPreviewRequest,options:RequestInit={}
 ): Promise<PricingPreviewResponse> => {
   return apiFetch<PricingPreviewResponse>("/api/products/pricing-preview", {
+    ...options,
     method: "POST",
     body: JSON.stringify(body),
   });
@@ -242,13 +250,13 @@ export type ProductAvailability = {
 export type SalesLocationInfo = { configured: boolean; id: string | null };
 
 export async function fetchProductsAvailability(
-  productIds: string[]
+  productIds: string[],options:RequestInit={}
 ): Promise<Record<string, ProductAvailability>> {
   if (productIds.length === 0) return {};
   const q = new URLSearchParams({ ids: productIds.join(",") });
   const res = await apiFetch<{ availability: Record<string, ProductAvailability> }>(
     `/api/products/availability?${q.toString()}`,
-    { method: "GET" }
+    { ...options,method: "GET" }
   );
   return res.availability ?? {};
 }
@@ -258,7 +266,7 @@ export async function fetchProductsAvailability(
  * ubicación desde la que la caja despacha, y avisa si no hay ninguna configurada.
  */
 export async function fetchPosAvailability(
-  productIds: string[]
+  productIds: string[],options:RequestInit={}
 ): Promise<{ availability: Record<string, ProductAvailability>; salesLocation: SalesLocationInfo }> {
   if (productIds.length === 0) {
     return { availability: {}, salesLocation: { configured: true, id: null } };
@@ -267,7 +275,7 @@ export async function fetchPosAvailability(
   const res = await apiFetch<{
     availability: Record<string, ProductAvailability>;
     sales_location: SalesLocationInfo;
-  }>(`/api/products/availability?${q.toString()}`, { method: "GET" });
+  }>(`/api/products/availability?${q.toString()}`, { ...options,method: "GET" });
   return {
     availability: res.availability ?? {},
     salesLocation: res.sales_location ?? { configured: false, id: null },
@@ -301,7 +309,7 @@ export const updateProductBom = async (
 ): Promise<ProductBomResponse> => {
   return apiFetch<ProductBomResponse>(`/api/products/${encodeURIComponent(productId)}/bom`, {
     method: "PUT",
-    body: JSON.stringify({ components }),
+    body: JSON.stringify({ components:components.map(({component_product_id,qty_per_unit})=>({component_product_id,qty_per_unit})) }),
   });
 };
 
@@ -314,6 +322,17 @@ export const assembleKitStock = async (
     { method: "POST", body: JSON.stringify(qty ? { qty } : {}) }
   );
 };
+
+export type KitAssembly = {
+  assembly_group_id: string | null; created_at: string; qty: string;
+  value: string | null; unit_cost: string | null;
+  status: 'READY' | 'REVERSED' | 'SNAPSHOT_REQUIRED'; reversal_group_id: string | null;
+  components: Array<{product_id:string;location_id:string;qty:string;value:string;unit_cost:string;unit_snapshot:unknown}>;
+};
+export const fetchKitAssemblies = (productId:string,options:{page?:number;signal?:AbortSignal;scope?:import('@/modules/inventory/units/public').UnitScope}={}) =>
+  apiFetch<{items:KitAssembly[];page:number;pageSize:number;totalItems:number;totalPages:number}>(`/api/products/${encodeURIComponent(productId)}/kit/assemblies?page=${options.page??1}`,{method:'GET',signal:options.signal,...(options.scope?{headers:{'X-Company-Id':options.scope.companyId,'X-Branch-Id':options.scope.branchId}}:{})});
+export const reverseKitAssembly = (productId:string,assemblyGroupId:string,scope?:import('@/modules/inventory/units/public').UnitScope) =>
+  apiFetch<{assembly_group_id:string;reversal_group_id:string;qty:string;value:string}>(`/api/products/${encodeURIComponent(productId)}/kit/disassemble`,{method:'POST',body:JSON.stringify({assembly_group_id:assemblyGroupId}),...(scope?{headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}}:{})});
 
 export const deleteProduct = async (id: string): Promise<{ ok?: boolean }> => {
   const data = await apiFetch<{ ok?: boolean }>(`/api/products/${id}`, {

@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { AvailabilityDialogState } from '../types'
+import {remainingUnitQuantity,addUnitQuantities,normalizeUnitDecimal} from '@/modules/inventory/units/public'
 
 interface AvailabilityDialogProps {
     state: AvailabilityDialogState
@@ -32,6 +33,9 @@ export const AvailabilityDialog = ({
     onConfirm,
     onCancel
 }: AvailabilityDialogProps) => {
+    const requested=state.requestedBaseQty??String(state.requestedQty),label=state.unitLabel??'unidades'
+    let total='—'
+    try{total=addUnitQuantities(String(state.availableStock),normalizeUnitDecimal(additionalQty||'0'))}catch{}
     return (
         <Dialog open={state.open} onOpenChange={(open) => !open && onCancel()}>
             <DialogContent className="sm:max-w-md">
@@ -45,27 +49,28 @@ export const AvailabilityDialog = ({
                     <div className="bg-muted p-3 rounded-md space-y-1">
                         <div className="flex justify-between text-sm">
                             <span>Stock en sistema:</span>
-                            <span className="font-medium">{state.availableStock} unidades</span>
+                            <span className="font-medium">{state.availableStock} {label}</span>
                         </div>
                         <div className="flex justify-between text-sm">
                             <span>Cantidad solicitada:</span>
-                            <span className="font-medium text-orange-600">{state.requestedQty} unidades</span>
+                            <span className="font-medium text-orange-600">{requested} {label}</span>
                         </div>
                         <div className="flex justify-between text-sm border-t pt-1 mt-1">
                             <span>Faltante:</span>
                             <span className="font-medium text-red-600">
-                                {Math.max(0, state.requestedQty - state.availableStock)} unidades
+                                {remainingUnitQuantity(requested,String(state.availableStock))} {label}
                             </span>
                         </div>
                     </div>
 
                     <div className="space-y-2">
                         <Label htmlFor="additional-qty" className="text-sm font-medium">
-                            ¿Cuántas unidades adicionales hay disponibles físicamente?
+                            ¿Cuánto hay disponible físicamente además del saldo? ({label})
                         </Label>
                         <Input
                             id="additional-qty"
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             min="1"
                             placeholder="Ej: 5"
                             value={additionalQty}
@@ -75,7 +80,7 @@ export const AvailabilityDialog = ({
                             autoFocus
                         />
                         <p className="text-xs text-muted-foreground">
-                            Total disponible: {state.availableStock} + {additionalQty || '0'} = <strong>{state.availableStock + (parseInt(additionalQty) || 0)}</strong> unidades
+                            Total disponible: {state.availableStock} + {additionalQty || '0'} = <strong>{total}</strong> {label}
                         </p>
                     </div>
                 </div>

@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -89,11 +91,11 @@ export const AttendanceSheet = () => {
 
   const [detail, setDetail] = useState<{ employeeId: string; date: string } | null>(null)
   const [overtime, setOvertime] = useState(0)
-  const [page, setPage] = useState(1)
+  const {page,setPage,pageSize,setPageSize}=usePersistedListUiState('rrhh/asistencia')
 
   const { data: employees, isLoading: employeesLoading, isFetching: employeesFetching, isError: employeesError, refetch: reloadEmployees } = useQuery({
-    queryKey: ['hr-employees', 'attendance', page],
-    queryFn: () => fetchEmployeeDirectory('attendance', { page, pageSize: 10 }),
+    queryKey: ['hr-employees', 'attendance', page, pageSize],
+    queryFn: () => fetchEmployeeDirectory('attendance', { page, pageSize }),
   })
   const { data: attendance, isLoading, isFetching } = useQuery({
     queryKey: ['hr-attendance', from, to, employees?.items.map(e => e.id).join(',')],
@@ -228,7 +230,7 @@ export const AttendanceSheet = () => {
                   {(employees?.items ?? []).length === 0 && (
                     <tr>
                       <td colSpan={daysInMonth + 2} className="py-8 text-center text-muted-foreground">
-                        Sin empleados activos
+                        <CollectionEmptyState title="La asistencia empieza con tu equipo" description="No hay empleados activos disponibles en este ámbito para la hoja mensual." />
                       </td>
                     </tr>
                   )}
@@ -275,7 +277,7 @@ export const AttendanceSheet = () => {
         </DialogContent>
       </Dialog>
     </Card>
-<div className="auna-pagination-outside">{employees && <Pagination currentPage={employees.page} totalPages={employees.totalPages} totalItems={employees.totalItems} count={employees.items.length} pageSize={10} onPageChange={setPage} itemLabel="empleados" />}</div></>
+<div className="auna-pagination-outside">{employees && <Pagination currentPage={employees.page} totalPages={employees.totalPages} totalItems={employees.totalItems} count={employees.items.length} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={setPageSize} itemLabel="empleados" />}</div></>
   )
 }
 

@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +14,7 @@ import { venueLabels } from './AgendaVenueFields'
 export const defaultProfile: ProfileInput = { enabled: false, mode: 'INDIVIDUAL',schedulingStyle:'APPOINTMENT',durationPolicy:'FIXED',completionPolicy:'MANUAL', durationMinutes: 45, beforeMinutes: 0, afterMinutes: 0, intervalMinutes: 15, leadMinutes: 0, horizonDays: 60, cancellationHours: 24, confirmation: 'AUTOMATIC', capacity: 1, requiresProvider: true, requiresResource: false, branchIds: [], providerIds: [], resourceIds: [], instructions: '', expectedVersion: 0 }
 export const schedulingLabels={APPOINTMENT:'Atención individual · cita',CLASS:'Sesión con cupos',WORK:'Trabajo o evento completo'}
 export function AssignmentChoices({ label, items, value, onChange, disabled }: { label: string; items: { id: string; name: string }[]; value: string[]; onChange: (ids: string[]) => void; disabled?: boolean }) {
-  return <fieldset className="space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="flex max-h-40 flex-wrap gap-x-5 gap-y-2 overflow-auto">{items.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><Checkbox checked={value.includes(item.id)} onCheckedChange={checked => onChange(checked ? [...value, item.id] : value.filter(id => id !== item.id))} disabled={disabled} />{item.name}</label>)}{!items.length && <p className="text-sm text-muted-foreground">Sin registros disponibles. Agrégalos en Configuración de Agenda.</p>}</div></fieldset>
+  return <fieldset className="space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="flex max-h-40 flex-wrap gap-x-5 gap-y-2 overflow-auto">{items.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><Checkbox checked={value.includes(item.id)} onCheckedChange={checked => onChange(checked ? [...value, item.id] : value.filter(id => id !== item.id))} disabled={disabled} />{item.name}</label>)}{!items.length && <CollectionEmptyState compact title="Prepara las opciones de atención" description="Agrega las asignaciones que necesites en Configuración de Agenda; luego podrás elegirlas aquí." />}</div></fieldset>
 }
 export function ServiceScheduleFields({ value, onChange, disabled, directory, errors }: { value: ProfileInput; onChange: (value: ProfileInput) => void; disabled: boolean; directory: Pick<Directory, 'branches' | 'providers' | 'resources'>; errors: Record<string, string> }) {
   const [nextStyle,setNextStyle]=useState<SchedulingStyle|null>(null)

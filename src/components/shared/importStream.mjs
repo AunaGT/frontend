@@ -1,8 +1,9 @@
-export async function consumeImportStream(url, { body, token, signal, onEvent = () => {} }) {
+export async function consumeImportStream(url, { body, token, signal, headers = {}, onEvent = () => {} }) {
   const response = await fetch(url, {
     method: 'POST',
     credentials: 'include',
     headers: {
+      ...headers,
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

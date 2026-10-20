@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useTenant } from '@/context/useTenant'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 
 interface PromotionBranchesFieldProps {
   appliesToAll: boolean
@@ -46,7 +47,7 @@ export function PromotionBranchesField({
       {!appliesToAll && (
         <div className="space-y-1 rounded-md border p-3">
           {branches.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay sucursales en esta empresa.</p>
+            <CollectionEmptyState compact title="El alcance espera sus sucursales" description="Las sucursales de esta empresa aparecerán aquí para definir dónde aplica la promoción." />
           ) : (
             branches.map((b) => (
               <div key={b.id} className="flex items-center gap-3 py-1">

@@ -43,6 +43,6 @@ export const STATUS_COLORS = {
  */
 export const PAGINATION = {
   DEFAULT_PAGE: 1,
-  DEFAULT_PAGE_SIZE: 20,
-  PAGE_SIZE_OPTIONS: [10, 20, 50, 100],
+  DEFAULT_PAGE_SIZE: 50,
+  PAGE_SIZE_OPTIONS: [10, 25, 50, 100],
 } as const

@@ -1,3 +1,6 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 import {useCarteraField} from '../carteraViewState'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -45,8 +48,7 @@ export default function ReceivablesManagement() {
   const [from, setFrom] = useCarteraField('cobrar','from','')
   const [to, setTo] = useCarteraField('cobrar','to','')
   const [filter, setFilter] = useCarteraField('cobrar','filter',{ search: '', customer_id: '', date_from: '', date_to: '' })
-  const [page, setPage] = useCarteraField('cobrar','page',1)
-  const [pageSize, setPageSize] = useCarteraField('cobrar','pageSize',10)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('cartera/cobrar')
   const [exportOpen, setExportOpen] = useState(false)
   const [exportPending, setExportPending] = useState(false)
   const [chooseCustomer, setChooseCustomer] = useState(false)
@@ -96,7 +98,7 @@ export default function ReceivablesManagement() {
     finally { setExportPending(false) }
   }
 
-  return <div className="receivables-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+  return <div className="receivables-page auna-page-fluid mx-auto w-full space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Cuentas por cobrar</h1>
     {summary.data && aging.data ? <ReceivableMetrics balance={summary.data.total_por_cobrar} overdue={summary.data.total_vencido} upcoming={aging.data.totales.corriente} customers={summary.data.items.filter(row => row.saldo > .005).length} /> : <div className="grid gap-4 border-y py-3 sm:grid-cols-2 xl:grid-cols-4" aria-busy={summary.isLoading || aging.isLoading} aria-label="Resumen de cartera no disponible">{[0, 1, 2, 3].map(index => <Skeleton key={index} className="h-12 rounded-sm" />)}</div>}
     {(summary.isError || aging.isError) && <p role="alert" className="text-sm text-destructive">No se pudo cargar el resumen completo. <Button variant="outline" onClick={() => { void summary.refetch(); void aging.refetch() }}>Reintentar</Button></p>}
@@ -108,12 +110,12 @@ export default function ReceivablesManagement() {
     {from && to && from > to && <p role="alert" className="mt-2 text-sm text-destructive">La fecha final debe ser posterior a la inicial.</p>}</CompactFilterPanel>
     <div className="flex flex-wrap items-end justify-between gap-3"><ModuleTabBar items={tabs} value={tab} ariaLabel="Vista de cartera" onValueChange={(value) => { setTab(value); setPage(1) }} /><Button variant="outline" onClick={() => setExportOpen(true)} disabled={!total || query.isError}><Download className="mr-2 h-4 w-4" />Exportar</Button></div>
     <><section className="auna-data-table-shell" aria-label="Registros de cartera" aria-busy={query.isFetching}>{query.isFetching && !query.isLoading && <LoadingIndicator message="Actualizando cartera…" className="px-4 py-2" />}<Table className="min-w-[980px]"><TableHeader><TableRow>{[...headings, 'Acciones'].map(label => <TableHead key={label}>{label}</TableHead>)}</TableRow></TableHeader><TableBody>
-      {query.isLoading ? <TableLoadingRows columns={headings.length + 1} message="Cargando cartera…" /> : query.isError ? <TableRow><TableCell colSpan={headings.length + 1} className="text-center text-destructive">No se pudo cargar la cartera. <Button variant="outline" onClick={() => query.refetch()}>Reintentar</Button></TableCell></TableRow> : !total ? <TableRow><TableCell colSpan={headings.length + 1} className="text-center text-muted-foreground">No hay registros para estos filtros.</TableCell></TableRow> : invoiceMode ? rows.map(row => <TableRow key={row.id}>
+      {query.isLoading ? <TableLoadingRows columns={headings.length + 1} message="Cargando cartera…" /> : query.isError ? <TableRow><TableCell colSpan={headings.length + 1} className="text-center text-destructive">No se pudo cargar la cartera. <Button variant="outline" onClick={() => query.refetch()}>Reintentar</Button></TableCell></TableRow> : !total ? <TableRow><TableCell colSpan={headings.length + 1} className="text-center text-muted-foreground"><CollectionEmptyState title="Tu cartera tendrá su historia aquí" description="Los documentos y saldos de tus clientes aparecerán en esta vista cuando correspondan." filtered={activeFilters > 0} onReset={reset} /></TableCell></TableRow> : invoiceMode ? rows.map(row => <TableRow key={row.id}>
         <TableCell><button className="font-semibold text-brand-orange hover:underline" onClick={() => open(row.customer_id)}>{row.reference || row.id.slice(0, 8)}</button></TableCell><TableCell>{row.customer_name}</TableCell><TableCell>{date(row.date)}</TableCell><TableCell>{date(row.due_date)}</TableCell><TableCell className={row.vencida ? 'font-semibold text-destructive' : 'text-muted-foreground'}>{row.dias_vencida}</TableCell><TableCell className="whitespace-nowrap">{money(row.total)}</TableCell><TableCell className="whitespace-nowrap font-semibold">{money(row.saldo)}</TableCell><TableCell><ReceivableStatus sale={row} /></TableCell><TableCell><div className="flex gap-2">{hasPermission('receivables.manage') && branchId !== 'all' && <Button size="sm" className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => open(row.customer_id, true, row.id)}>Cobrar</Button>}<Button variant="outline" size="icon" aria-label={`Ver estado de cuenta de ${row.customer_name}`} onClick={() => open(row.customer_id)}><Eye className="h-4 w-4" /></Button></div></TableCell>
       </TableRow>) : pageCustomers.map(row => <TableRow key={row.id}>{row.cells.map((cell, i) => <TableCell key={i} className={i ? 'whitespace-nowrap tabular-nums' : 'font-semibold'}>{i ? cell : <button className="hover:text-brand-orange" onClick={() => open(row.id)}>{cell}</button>}</TableCell>)}<TableCell><Button variant="outline" size="icon" aria-label={`Ver estado de cuenta de ${row.name}`} onClick={() => open(row.id)}><Eye className="h-4 w-4" /></Button></TableCell></TableRow>)}
     </TableBody></Table></section>
 <div className="auna-pagination-outside"><Pagination currentPage={currentPage} totalPages={invoiceMode ? invoices.data?.totalPages ?? 1 : totalPages} totalItems={total} pageSize={pageSize} count={invoiceMode ? rows.length : pageCustomers.length} itemLabel={invoiceMode ? 'facturas' : 'clientes'} loading={query.isFetching} onPageChange={setPage} /></div></>
-    <div className="flex items-center justify-end gap-3"><Label>Filas por página</Label><Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1) }}><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
+    <div className="flex items-center justify-end gap-3"><Label>Filas por página</Label><Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(1) }}><SelectTrigger className="w-20"><SelectValue /></SelectTrigger><SelectContent>{TABLE_PAGE_SIZES.map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
     <ExportDialog open={exportOpen} onOpenChange={v => { if (!exportPending) setExportOpen(v) }} title="Exportar cartera" summary={`Se exportan todos los ${total} registros de la vista con los filtros aplicados.`} columns={exportColumns} formats={['csv']} fileName="cartera" pending={exportPending} onExport={options => void exportData(options.columns ?? [], options.fileName)} />
     <Dialog open={chooseCustomer} onOpenChange={setChooseCustomer}><DialogContent variant="auna"><DialogHeader><DialogTitle>Registrar cobro</DialogTitle><DialogDescription>Selecciona un cliente para consultar sus facturas y registrar el pago.</DialogDescription></DialogHeader><SavedCustomerMany2One mode="required" valueId="__none__" linkedDisplayName="" onPick={c => open(c.id, true)} onClear={() => {}} /></DialogContent></Dialog>
   </div>

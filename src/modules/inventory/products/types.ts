@@ -14,6 +14,7 @@
 import type { Product } from '@/types/product'
 
 export interface ProductFormData {
+    units:import('../units/types').ProductUnitsDraft
     name: string
     category: string
     brand: string
@@ -54,6 +55,7 @@ export interface DialogStates {
 }
 
 export const EMPTY_PRODUCT_FORM: ProductFormData = {
+    units:{baseUnitId:'',quantityDecimals:'0',presentations:[],defaultPurchaseKey:null,defaultSaleKey:null},
     name: '',
     category: '',
     brand: '',

@@ -8,7 +8,7 @@ const { assertPaginationOutside } = require('./pagination-assertions.cjs')
 
 const product = { id: 'qa-product', name: 'Bebida QA 330 ml', category: 'Bebidas', brand: 'QA', size: '330 ml', stock: 24, minStock: 5, price: 25.5, cost: 12, supplier: 'Proveedor QA', barcode: '7401001000098', description: '', imageUrl: '/qa-bottle.png', status: 'available', availableForSale: true, inBranch: true, kind: 'STANDARD' }
 
-function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario', catalogsEnabled=true } = {}) {
+function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario', catalogsEnabled=true, stockError=false } = {}) {
   let index = 0
   const nodes = [], changes = [], navigations = [], queries = [], mutations = [], reads = []
   const Page = loadReportModule('../inventory/products/ProductManagement.tsx', {
@@ -32,7 +32,7 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
     '@/services/stockMoveService': { fetchStockByLocation() { throw Error('No real stock query') } },
     '@/services/api': { apiFetch() { throw Error('No real requests') } },
     '@tanstack/react-query': {
-      useQuery: options => { queries.push(options); return { data: options.queryKey[0] === 'stock-by-location' ? [{ stock: 24, location: { id: 'loc-qa', code: 'A-01', warehouse: { name: 'Bodega', branch: { name: 'Principal' } } } }] : [], isLoading: false } },
+      useQuery: options => { queries.push(options); return { data: options.queryKey[0] === 'stock-by-location' ? stockError ? undefined : [{ stock: 24, location: { id: 'loc-qa', code: 'A-01', warehouse: { name: 'Bodega', branch: { name: 'Principal' } } } }] : [], isLoading: false, isError: options.queryKey[0] === 'stock-by-location' && stockError, refetch() {} } },
       useMutation: options => ({ isPending: false, mutate: value => mutations.push({ options, value }) }), useQueryClient: () => ({ invalidateQueries() {} }),
     },
   }, nodes).default
@@ -130,6 +130,13 @@ test('stock breakdown spans the new action column and continues to query only ex
   assert.deepEqual(expanded.queries.find(q => q.queryKey[0] === 'stock-by-location').queryKey, ['stock-by-location', 'qa-product'])
 })
 
+test('failed stock breakdown offers retry without claiming that every location is empty', () => {
+  const result = renderList({ states: { 11: 'qa-product' }, stockError: true })
+  assert.match(result.html, /No se pudieron cargar las ubicaciones/)
+  assert.match(result.html, /Reintentar/)
+  assert.doesNotMatch(result.html, /workspace-flat\.png|Este producto aún no tiene ubicación/)
+})
+
 test('missing product photo and barcode use truthful fallbacks without hiding stock or branch actions', () => {
   const result = renderList({ view: 'cards', products: [{ ...product, imageUrl: undefined, barcode: '', inBranch: false }] })
   assert.match(result.html, /Sin código/)
@@ -176,7 +183,7 @@ function renderDetail(editable, query = 'editar=1', states = {}, item=product, s
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: code => editable && code === 'products.edit' }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ', inventoryServicesEnabled:servicesEnabled }) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
-    '@/context/useTenant': { useTenant: () => ({ branch: { id: 'qa', name: 'Principal' }, branches: [] }) },
+    '@/context/useTenant': { useTenant: () => ({ company:{id:'qa-company'}, branch: { id: 'qa', name: 'Principal' }, branches: [] }) },
     '@/services/productService': { adaptApiProduct: p => p, fetchProductById() { throw Error('No real product reads') } },
     '@/services/supplierService': { SUPPLIERS_DROPDOWN_PARAMS: {} },
     '@/services/api': { getApiBaseUrl: () => '/api', apiFetch() { throw Error('No real requests') } },

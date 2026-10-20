@@ -7,7 +7,7 @@ export const SECTION_KEYS = {
   empresa: ['company_name'],
   regional: ['currency_code', 'currency_name', 'timezone', 'date_format', 'locale'],
   fiscal: ['fel_enabled', 'company_nit', 'company_address', 'company_municipality', 'company_department', 'company_postal_code', 'establishment_code', 'vat_affiliation'],
-  inventario: ['inventory_services_enabled','inventory.expiry_alert_policy'],
+  inventario: ['inventory_services_enabled','inventory_units_enabled','inventory.expiry_alert_policy'],
   ventas: ['default_experience_profile', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels'],
   cotizaciones: ['quote_validity_days', 'quote_soft_hold_hours'],
   pedidos: ['order_validity_days'],
@@ -15,7 +15,7 @@ export const SECTION_KEYS = {
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
-export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial'
+export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial' | 'hardware'
 export type SectionValues = Partial<SystemSettings>
 export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath | ExpiryPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
@@ -28,6 +28,7 @@ export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; l
   { id: 'pedidos', group: 'Operación', label: 'Pedidos', keywords: ['vigencia', 'reserva', 'días'] },
   { id: 'devoluciones', group: 'Operación', label: 'Devoluciones', keywords: ['plazo', 'excepciones', 'reembolsos', 'resoluciones', 'cambios'] },
   { id: 'caja', group: 'Operación', label: 'Caja y cierres', keywords: ['billetes', 'monedas', 'denominaciones', 'tolerancia', 'diferencia'] },
+  { id: 'hardware', group: 'Operación', label: 'Hardware y puntos de cobro', keywords: ['lector', 'impresora', 'hardware', 'puesto', 'gaveta', 'equipo', 'ticket', 'USB'] },
   { id: 'rrhh', group: 'Operación', label: 'Recursos humanos', keywords: ['expedientes', 'documentos', 'empleados', 'requisitos'] },
   { id:'nomina',group:'Operación',label:'Nómina',keywords:['tasas','IGSS','ISR','provisiones','bonificación','vigencias'] },
   { id: 'modulos', group: 'Administración', label: 'Módulos', keywords: ['activación', 'dependencias', 'disponibilidad'] },
@@ -40,11 +41,11 @@ const defaults: SystemSettings = {
   'returns.policy': DEFAULT_RETURN_POLICY,
   company_name: '', currency_code: 'GTQ', currency_name: 'Quetzal', timezone: 'America/Guatemala', date_format: 'dd/MM/yyyy', locale: 'es-GT',
   cash_closure_max_diff_pct: '5', cash_closure_denominations: [], quote_validity_days: '30', order_validity_days: '7', quote_soft_hold_hours: '48',
-  inventory_services_enabled: 'false', default_experience_profile: 'CASHIER', sales_allow_credit: 'true', sales_show_fiscal_fields: 'true', sales_show_channels: 'true',
+  inventory_services_enabled: 'false', inventory_units_enabled:'false', default_experience_profile: 'CASHIER', sales_allow_credit: 'true', sales_show_fiscal_fields: 'true', sales_show_channels: 'true',
   fel_enabled: 'false', company_nit: '', company_address: '', company_municipality: '', company_department: '', company_postal_code: '', establishment_code: '', vat_affiliation: '',
 }
 const days = new Set(['quote_validity_days', 'order_validity_days', 'quote_soft_hold_hours'])
-const booleans = new Set(['inventory_services_enabled', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels', 'fel_enabled'])
+const booleans = new Set(['inventory_services_enabled', 'inventory_units_enabled', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels', 'fel_enabled'])
 const positiveInteger = (v: unknown) => ['number', 'string'].includes(typeof v) && Number.isSafeInteger(Number(v)) && Number(v) >= 1
 function normalized(key: string, value: unknown): unknown {
   if(key==='inventory.expiry_alert_policy')return expiryPolicyPayload(value)

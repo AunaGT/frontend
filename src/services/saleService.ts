@@ -13,8 +13,11 @@ import type {SaleCommercialView} from '@/types/sale';
 
 export interface SaleItemPayload {
   product_id: string;
-  price: number;
+  price: number|string;
   qty: string | number;
+  presentation_id?:string|null;
+  unit_revision?:number;
+  accept_rounding?:boolean;
 }
 
 export interface CreateSalePayload {
@@ -35,6 +38,10 @@ export interface CreateSalePayload {
 }
 
 export interface SaleItem {
+  unit_metadata_version?:1|2;
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  base_qty?:string|null;
+  base_unit_cost?:string|null;
   id: number;
   product_id: string;
   product: {
@@ -43,7 +50,7 @@ export interface SaleItem {
     barcode?: string;
     image_url?: string | null;
   };
-  price: number;
+  price: number|string;
   qty: number | string;
   item_name?: string;
   item_kind?: 'STANDARD' | 'KIT' | 'SERVICE';
@@ -163,17 +170,21 @@ export const fetchSalesByCustomerContact = async (
   return apiFetch<SalesListResponse>(`/api/sales?${q.toString()}`, { method: "GET" });
 };
 
-export const createSale = async (payload: CreateSalePayload): Promise<Sale> => {
+export const createSale = async (payload: CreateSalePayload, options: RequestInit = {}): Promise<Sale> => {
   return await apiFetch<Sale>("/api/sales", {
+    ...options,
     method: "POST",
     body: JSON.stringify(payload),
   });
 };
 
-export const fetchSaleById = async (saleId: string): Promise<Sale> => {
+export const fetchSaleById = async (saleId: string, options: RequestInit = {}): Promise<Sale> => {
   return await apiFetch(`/api/sales/${saleId}`, {
+    ...options,
     method: "GET",
   });
 };
+
+export const fetchCheckoutAttempt=(key:string,options:RequestInit={})=>apiFetch<{state:'CONFIRMED';saleId:string;kind:'SALE'|'ORDER';orderId?:string}>(`/sales/checkout-attempts/${encodeURIComponent(key)}`,{...options,method:'GET'});
 
 export const requestSaleInvoice=(saleId:string,input:{expectedVersion:number;idempotencyKey:string})=>apiFetch<SaleCommercialView>(`/sales/${encodeURIComponent(saleId)}/invoice-request`,{method:'POST',body:JSON.stringify(input)});

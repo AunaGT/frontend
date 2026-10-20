@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState,useRef,useMemo,useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Truck, Receipt, Loader2 } from 'lucide-react'
@@ -15,12 +15,22 @@ import { formatMoney } from '@/utils/formatters'
 import { listCashRegisters } from '@/services/cashSessionsService'
 import { deliverOrder, invoiceOrder, type Order } from '@/services/orderService'
 import {remainingQuantity,normalizeQuantityInput,quantityTicks,previewLineTotal,previewPartialLineTotal} from '@/lib/commercialQuantity'
+import {isUnitDocumentLine,remainingDocumentQuantity,partialDocumentInput,previewUnitPartialTotal,documentNetAmounts,compareUnitQuantities,type PartialUnitBasis} from '@/modules/inventory/units/public'
+import {useTenant} from '@/context/useTenant'
+import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
 
 export function OrderOperations({ order }: { order: Order }) {
   const { hasPermission } = useAuthPermissions()
   const modules = useModules()
   const { toast } = useToast()
   const { locale, currencyCode } = useSystemSettings()
+  const {company,branch,registerTenantExitGuard}=useTenant()
+  const scopeKey=JSON.stringify([company?.id,branch?.id,order.id])
+  const live=useRef(scopeKey);live.current=scopeKey
+  const owner=useMemo(()=>({key:scopeKey,active:true,controller:new AbortController()}),[scopeKey])
+  useEffect(()=>{owner.active=true;return()=>{owner.active=false;owner.controller.abort()}},[owner])
+  const options={signal:owner.controller.signal,headers:{'X-Company-Id':company?.id??'','X-Branch-Id':branch?.id??''}}
+  const current=()=>owner.active&&live.current===owner.key
   const money = (amount: number) => formatMoney(amount, locale, currencyCode)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
@@ -28,22 +38,25 @@ export function OrderOperations({ order }: { order: Order }) {
   const [action, setAction] = useState<'delivery' | 'invoice' | null>(null)
   const [key, setKey] = useState('')
   const [quantities, setQuantities] = useState<Record<string, string>>({})
+  const [bases,setBases]=useState<Record<string,PartialUnitBasis>>({})
   const [methodId, setMethodId] = useState('')
   const [cashId, setCashId] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [initialAmount, setInitialAmount] = useState('')
   const [initialMethod, setInitialMethod] = useState('')
+  const guard=useDraftGuard(action!==null,registerTenantExitGuard,scopeKey)
   const credit = methods.find(method => String(method.id) === methodId)?.is_credit === true
   const { data: registers = [] } = useQuery({
     queryKey: ['cash-registers', 'order-invoice', order.branch_id], queryFn: () => listCashRegisters(),
     enabled: action === 'invoice' && (!credit || Number(initialAmount) > 0),
   })
-  const pending = (line: Order['lines'][number], kind = action) => kind === 'invoice'
+  const pending = (line: Order['lines'][number], kind = action) => isUnitDocumentLine(line)?remainingDocumentQuantity(line,kind==='invoice'?'invoice':'delivery','BASE'):kind === 'invoice'
     ? remainingQuantity(String(line.qty_fulfilled || 0),String(line.qty_invoiced || 0))
     : remainingQuantity(String(line.qty),String(line.qty_fulfilled || 0))
   const open = (kind: 'delivery' | 'invoice') => {
     setKey(crypto.randomUUID())
     setQuantities(Object.fromEntries(order.lines.map(line => [line.id, String(pending(line, kind))])))
+    setBases(Object.fromEntries(order.lines.map(line=>[line.id,isUnitDocumentLine(line)?'BASE':'ORIGINAL'])))
     setMethodId(String(methods.find(method => Boolean(method.is_credit) === (order.payment_condition === 'CREDIT'))?.id ?? ''))
     setInitialAmount('')
     setInitialMethod(String(methods.find(method => !method.is_credit)?.id ?? ''))
@@ -51,23 +64,25 @@ export function OrderOperations({ order }: { order: Order }) {
     setDueDate('')
     setAction(kind)
   }
-  const normalized=(line:Order['lines'][number])=>normalizeQuantityInput(quantities[line.id] || '0',{kind:line.item_kind ?? 'STANDARD',quantityDecimals:line.quantity_decimals ?? 0},locale)
-  const lines = order.lines.filter(line=>quantities[line.id] && quantities[line.id]!=='0').flatMap(line=>{try{return[{line_id:line.id,qty:normalized(line)}]}catch{return[]}})
-  const invoiceTotal = Number(order.lines.reduce((sum,line)=>{try{return sum+BigInt(previewPartialLineTotal(String(line.qty),String(line.line_total ?? previewLineTotal(String(line.qty),Number(line.unit_price).toFixed(2))),normalized(line),String(line.qty_invoiced || 0)).replace('.',''))}catch{return sum}},0n))/100
+  const input=(line:Order['lines'][number])=>isUnitDocumentLine(line)?partialDocumentInput(line,quantities[line.id]||'0',bases[line.id]??'BASE'):{qty:normalizeQuantityInput(quantities[line.id]||'0',{kind:line.item_kind??'STANDARD',quantityDecimals:line.quantity_decimals??0},locale),baseQty:quantities[line.id]}
+  const lines = order.lines.filter(line=>quantities[line.id] && quantities[line.id]!=='0').flatMap(line=>{try{const selected=input(line);return[{line_id:line.id,qty:selected.qty,...('presentation_id' in selected?{presentation_id:null}:{})}]}catch{return[]}})
+  const netAmounts=documentNetAmounts(order)
+  const invoiceTotal = Number(order.lines.reduce((sum,line,index)=>{try{const selected=input(line);return sum+BigInt((isUnitDocumentLine(line)?previewUnitPartialTotal(String(line.base_qty),netAmounts[index],selected.baseQty,String(line.base_invoiced||'0')):previewPartialLineTotal(String(line.qty),String(line.line_total ?? previewLineTotal(String(line.qty),Number(line.unit_price).toFixed(2))),selected.qty,String(line.qty_invoiced || 0))).replace('.',''))}catch{return sum}},0n))/100
   const initial = Number(initialAmount || 0)
   const invalidInitial = credit && (!Number.isFinite(initial) || initial < 0 || initial >= invoiceTotal || (initial > 0 && !initialMethod))
   const invalid = order.lines.some(line => {
     const quantity=quantities[line.id]
     if (!quantity || quantity==='0') return false
-    try {return quantityTicks(normalized(line))>quantityTicks(pending(line))}catch{return true}
+    try {return compareUnitQuantities(input(line).baseQty,pending(line))>0}catch{return true}
   })
   const mutation = useMutation({
-    mutationFn: () => action === 'delivery'
-      ? deliverOrder(order.id, { request_key: key, lines })
+    mutationFn: () => {if(!current()||!company?.id||!branch?.id||branch.id==='all')throw Error('Selecciona la sucursal del pedido');return action === 'delivery'
+      ? deliverOrder(order.id, { request_key: key, lines },options)
       : invoiceOrder(order.id, { request_key: key, lines, payment_method_id: Number(methodId),
         cash_register_id: cashId || (registers.length === 1 ? registers[0].id : undefined), due_date: dueDate || undefined,
-        initial_payment: credit && Number(initialAmount) > 0 ? { amount: Number(initialAmount), payment_method_id: Number(initialMethod) } : undefined }),
+        initial_payment: credit && Number(initialAmount) > 0 ? { amount: Number(initialAmount), payment_method_id: Number(initialMethod) } : undefined },options)},
     onSuccess: () => {
+      if(!current())return
       queryClient.invalidateQueries({ queryKey: ['order'] })
       queryClient.invalidateQueries({ queryKey: ['orders'] })
       queryClient.invalidateQueries({ queryKey: ['receivables'] })
@@ -75,13 +90,14 @@ export function OrderOperations({ order }: { order: Order }) {
         description: action === 'invoice' && credit ? `Abono: ${money(initial)} · Saldo en Cartera: ${money(invoiceTotal - initial)}` : undefined })
       setAction(null)
     },
-    onError: (error: Error) => toast({ title: 'No se pudo completar la operación', description: error.message, variant: 'destructive' }),
+    onError: (error: Error) => {if(current())toast({ title: 'No se pudo completar la operación', description: error.message, variant: 'destructive' })},
   })
   const canDeliver = ['CONFIRMED', 'PARTIALLY_FULFILLED'].includes(order.status)
-  const canInvoice = ['CONFIRMED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'EXPIRED'].includes(order.status) && order.lines.some(line => quantityTicks(pending(line, 'invoice'))>0n)
+  const canInvoice = ['CONFIRMED', 'PARTIALLY_FULFILLED', 'FULFILLED', 'EXPIRED'].includes(order.status) && order.lines.some(line => compareUnitQuantities(pending(line, 'invoice'),'0')>0)
   const servicesOnly=order.lines.every(line=>line.item_kind==='SERVICE')
   const selectClass = 'h-11 w-full rounded-xl border border-input bg-background px-3 text-sm'
   return <>
+    {guard.dialog}
     {hasPermission('orders.manage') && canDeliver && <Button variant="outline" className="rounded-xl" onClick={() => open('delivery')}><Truck className="mr-2 h-4 w-4" />{servicesOnly ? 'Registrar prestación' : 'Registrar entrega'}</Button>}
     {hasPermission('orders.manage') && hasPermission('sales.create') && modules.isEnabled('sales') && canInvoice && <Button className="rounded-xl bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => open('invoice')}><Receipt className="mr-2 h-4 w-4" />Facturar entregas</Button>}
     {order.customer_contact_id && hasPermission('receivables.view') && modules.isEnabled('receivables') && <Button variant="outline" className="rounded-xl" onClick={() => navigate(`/cartera/${order.customer_contact_id}`)}>Ver cartera</Button>}
@@ -91,8 +107,9 @@ export function OrderOperations({ order }: { order: Order }) {
           ? 'Registra la salida de productos del pedido. Puedes entregar una parte y completar el resto después.'
           : 'Esta venta cubre productos ya entregados. Selecciona crédito para administrar sus cobros desde Cartera.'}</DialogDescription></DialogHeader>
         <div className="max-h-[55vh] space-y-4 overflow-y-auto py-2">
-          {order.lines.filter(line => quantityTicks(pending(line))>0n).map(line => <div className="flex items-center gap-3" key={line.id}>
-            <Label htmlFor={`quantity-${line.id}`} className="flex-1">{line.item_name || line.product?.name || line.product_id}<span className="block text-xs text-muted-foreground">{line.item_kind==='SERVICE' ? 'Por prestar' : 'Disponible'}: {pending(line)} {line.unit_label || 'unidades'}</span></Label>
+          {order.lines.filter(line => compareUnitQuantities(pending(line),'0')>0).map(line => <div className="flex flex-wrap items-center gap-3" key={line.id}>
+            <Label htmlFor={`quantity-${line.id}`} className="flex-1">{line.item_name || line.product?.name || line.product_id}<span className="block text-xs text-muted-foreground">{line.item_kind==='SERVICE' ? 'Por prestar' : 'Disponible'}: {pending(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label || 'unidades'}</span></Label>
+            {isUnitDocumentLine(line)&&line.unit_snapshot!.presentation&&<select className="auna-control auna-control-select max-w-40" aria-label={`Unidad de ${line.item_name||line.product_id}`} value={bases[line.id]??'BASE'} disabled={mutation.isPending} onChange={event=>{const basis=event.target.value as PartialUnitBasis;setBases(old=>({...old,[line.id]:basis}));let qty='';try{qty=remainingDocumentQuantity(line,action==='invoice'?'invoice':'delivery',basis)}catch{}setQuantities(old=>({...old,[line.id]:qty}))}}><option value="BASE">{line.unit_snapshot!.baseUnit.label}</option><option value="ORIGINAL">{line.unit_snapshot!.presentation.label} original</option></select>}
             <Input id={`quantity-${line.id}`} className="w-24" type="text" inputMode={line.item_kind==='SERVICE' ? 'decimal' : 'numeric'} value={quantities[line.id] || ''} disabled={mutation.isPending} onChange={event => setQuantities(current => ({ ...current, [line.id]: event.target.value }))} />
           </div>)}
           {action === 'invoice' && <>

@@ -12,13 +12,15 @@ const alerts = [{ id: 'qa-alert', title: 'Stock bajo', message: 'Reponer product
 function renderAlerts({ canManage = true, states = {} } = {}) {
   let stateIndex = 0
   const nodes = [], changes = [], requests = []
+  const hooks = { ...React, useEffect() {}, useState: initial => {
+    const i = stateIndex++
+    const values = { 0: alerts, 1: [{ id: 'qa-user', name: 'Responsable' }], 2: false, ...states }
+    const [value, setValue] = React.useState(Object.hasOwn(values, i) ? values[i] : initial)
+    return [value, next => { changes.push({ index: i, value: typeof next === 'function' ? next(value) : next }); setValue(next) }]
+  } }
   const Page = loadReportModule('../alerts/pages/AlertsManagement.tsx', {
-    react: { ...React, useEffect() {}, useState: initial => {
-      const i = stateIndex++
-      const values = { 0: alerts, 1: [{ id: 'qa-user', name: 'Responsable' }], 2: false, ...states }
-      const [value, setValue] = React.useState(Object.hasOwn(values, i) ? values[i] : initial)
-      return [value, next => { changes.push({ index: i, value: typeof next === 'function' ? next(value) : next }); setValue(next) }]
-    } },
+    react: hooks,
+    '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => { const [page, setPage] = hooks.useState(1), [pageSize, setPageSize] = hooks.useState(10); return { page, setPage, pageSize, setPageSize } } },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => canManage }) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
     '@/services/api': { apiFetch: async path => { requests.push({ path }); return [] } },
@@ -35,9 +37,9 @@ function renderAlerts({ canManage = true, states = {} } = {}) {
   return { html: renderToStaticMarkup(React.createElement(Page)), nodes, changes, requests }
 }
 
-test('alerts use the same bounded page measure as Sales and keep metrics before the toolbar', () => {
+test('alerts opt into operational width and keep metrics before the toolbar', () => {
   const { html } = renderAlerts()
-  assert.match(html, /^<main class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)
+  assert.match(html, /^<main class="[^"]*auna-page-fluid\b/)
   assert.ok(html.indexOf('Resumen de alertas') < html.indexOf('compact-filter-toolbar'))
   assert.ok(html.indexOf('Nueva alerta') < html.indexOf('Listado de alertas'))
   assertPaginationOutside(html)

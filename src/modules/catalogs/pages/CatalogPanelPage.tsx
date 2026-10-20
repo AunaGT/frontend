@@ -13,5 +13,5 @@ const panels = { categories: ProductCategoriesPanel, 'cash-registers': CashRegis
 export default function CatalogPanelPage({ kind }: { kind: CatalogKind }) {
   usePageTrail([{ label: labels[kind] }])
   const Panel = panels[kind]
-  return <CatalogAccess kind={kind}><div className="catalogs-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8"><h1 className="sr-only">{labels[kind]}</h1><Panel /></div></CatalogAccess>
+  return <CatalogAccess kind={kind}><div className="catalogs-page auna-page-fluid mx-auto w-full min-w-0 space-y-5 p-4 sm:p-8"><h1 className="sr-only">{labels[kind]}</h1><Panel /></div></CatalogAccess>
 }

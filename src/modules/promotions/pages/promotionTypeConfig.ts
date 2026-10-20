@@ -5,6 +5,8 @@
  * Alineado con backend (promotionCalculator + promotions.controller).
  */
 
+import {normalizeUnitDecimal} from '@/modules/inventory/units/public'
+
 export const PROMOTION_TYPE_NAMES = [
   'PERCENTAGE',
   'FIXED_AMOUNT',
@@ -110,8 +112,8 @@ export function validatePayloadForType(
         return { valid: false, message: 'El porcentaje debe estar entre 0 y 100' }
       }
     }
-    if ((field === 'buy_quantity' || field === 'get_quantity' || field === 'min_quantity') && Number(value) < 0) {
-      return { valid: false, message: 'La cantidad debe ser mayor o igual a 0' }
+    if (field === 'buy_quantity' || field === 'get_quantity' || field === 'min_quantity') {
+      try{normalizeUnitDecimal(String(value),{decimals:6,allowZero:field==='get_quantity'})}catch(error){return {valid:false,message:error instanceof Error?error.message:'Cantidad inválida'}}
     }
     if (field === 'discount_value' && Number(value) < 0) {
       return { valid: false, message: 'El monto debe ser mayor o igual a 0' }

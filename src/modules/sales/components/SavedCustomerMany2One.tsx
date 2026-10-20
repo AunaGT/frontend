@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -25,6 +24,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ChevronsUpDown, Loader2, UserPlus } from 'lucide-react'
 import { LoadingIndicator } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { cn } from '@/lib/utils'
 import { fetchSuppliers } from '@/services/supplierService'
 import type { Supplier } from '@/types'
@@ -155,11 +155,7 @@ export function SavedCustomerMany2One({
                 </div>
               ) : (
                 <>
-                  <CommandEmpty>
-                    {debouncedSearch.trim()
-                      ? 'Sin resultados. Prueba otro término o crea el contacto.'
-                      : 'Escribe para buscar o desplázate para ver más.'}
-                  </CommandEmpty>
+                  {!flatRows.length && <CollectionEmptyState compact title="Cada relación empieza con un contacto" description="Los clientes guardados aparecerán aquí para vincularlos a este documento." filtered={Boolean(debouncedSearch.trim())} onReset={() => {setInputValue('');setDebouncedSearch('')}} />}
                   <CommandGroup>
                     <ScrollArea className="h-[min(55vh,320px)]">
                       <div className="p-1">

@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * Licensed under Proprietary License. For licensing: GitHub @dpatzan2
@@ -420,7 +421,7 @@ export default function UserCreatePage() {
         </div>
 
         <AunaPanel title="Permisos del rol" subtitle="Los permisos se heredan del rol; la activación comercial de módulos es independiente." icon={Shield}>
-          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando permisos…" /> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
+          {!selectedRoles.length ? <p className="users-muted text-sm">Selecciona un rol para ver sus permisos.</p> : selectedRole.isLoading ? <LoadingState className="auna-loading-embedded" variant="cards" message="Cargando permisos…" /> : selectedRole.error ? <p role="alert" className="text-destructive text-sm">No se pudieron cargar los permisos del rol.</p> : !selectedRole.data?.permissions?.length ? <CollectionEmptyState compact title="Este rol espera sus permisos" description="Este rol todavía no tiene permisos configurados. Puedes revisarlo desde Roles y permisos." /> : <div className="grid gap-4 md:grid-cols-3">{[0,1,2].map(column => <div key={column} className="space-y-2">{(selectedRole.data?.permissions || []).filter((_, index) => index % 3 === column).map(permission => <div key={permission.code} className="users-chip w-full" title={permission.code}><Shield size={12}/><span className="truncate">{permission.name}</span></div>)}</div>)}</div>}
           <Link className="text-orange-500 text-sm inline-block mt-3" to="/usuarios/roles-permisos">Consultar roles y permisos</Link>
         </AunaPanel>
 

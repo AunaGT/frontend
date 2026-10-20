@@ -34,7 +34,7 @@
 }
 
 .config-page-heading { margin-bottom: 26px; }
-.config-center { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 0; align-items: stretch; min-height: calc(100dvh - 128px); border: 1px solid hsl(var(--auna-surface-border)); border-radius: 12px; background: hsl(var(--auna-surface-card)); }
+.config-center { display: grid; grid-template-columns: 248px minmax(0, 1fr); gap: 0; align-items: stretch; min-height: calc(100dvh - 128px); border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .config-center-content { min-width: 0; max-width: 1100px; padding: 24px; }
 .config-context-line { display: flex; flex-wrap: wrap; gap: 8px 20px; justify-content: space-between; font-size: 13px; color: hsl(var(--muted-foreground)); }
 .config-context-line strong { color: hsl(var(--foreground)); font-weight: 600; }
@@ -63,6 +63,7 @@
 .config-logo-editor .auna-file-dropzone > svg { width: 24px; height: 24px; }
 .config-section-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid hsl(var(--border)); padding-top: 18px; }
 .config-section-actions button { min-height: 40px; }
+.config-page .hardware-pagination .auna-data-table-pagination { background: transparent; padding-inline: 0; }
 .config-error-summary { border: 1px solid hsl(var(--destructive) / .5); border-radius: 8px; padding: 12px 16px; font-size: 13px; color: hsl(var(--destructive)); }
 .config-error-summary ul { list-style: disc; padding-left: 18px; }
 .config-error-summary a { text-decoration: underline; }
@@ -123,7 +124,7 @@
 .config-denominations-table thead { position: sticky; top: 0; z-index: 1; }
 .config-denominations-table .auna-data-table :is(th, td) { padding: 8px 12px; }
 .config-denominations-table .auna-data-table th.text-right { text-align: right; }
-/* The integrated workspace owns the frame; its editors and tables do not. */
+/* Settings, editors and tables share the page background without nested frames. */
 .config-center-content .config-panel { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .config-center-content .auna-data-table-shell { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .config-center-content .config-panel > div { padding-inline: 0; }

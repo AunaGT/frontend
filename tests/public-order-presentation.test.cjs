@@ -38,6 +38,7 @@ function render({ data = order, token = 'public-qa-token', page = 1, ...querySta
     const native = mod.require.bind(mod)
     mod.require = dependency => {
       if (dependency.endsWith('.css')) return {}
+      if (dependency === '@/services/api') return { apiFetch() { throw Error('Unexpected private request') } }
       if (dependency === 'react' && file === target) return { ...React, useState: () => [page, value => pages.push(value)] }
       if (dependency === 'react-router-dom') return { useParams: () => ({ token }) }
       if (dependency === '@tanstack/react-query') return { useQuery: options => { queries.push(options); return { data, refetch: () => retries++, ...queryState } } }
@@ -51,7 +52,7 @@ function render({ data = order, token = 'public-qa-token', page = 1, ...querySta
       if (!local) return native(dependency)
       return load(['', '.tsx', '.ts', '.js', '.mjs', '/index.ts'].map(ext => local + ext).find(p => fs.existsSync(p) && fs.statSync(p).isFile()))
     }
-    mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, compilerOptions: { target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, file)
+    mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file.replace(/\.mjs$/, '.ts'), compilerOptions: { target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, file)
     return mod.exports
   }
   const Page = load(target).default
@@ -126,7 +127,7 @@ test('loading, unavailable and stale-error states never display a successful or 
 })
 
 test('an empty order shows a clear product empty state and a background refresh keeps the document visible', () => {
-  assert.ok(render({ data: { ...order, lines: [] } }).html.includes('No hay productos registrados'))
+  assert.ok(render({ data: { ...order, lines: [] } }).html.includes('Tu pedido espera sus partidas'))
   const { html } = render({ isFetching: true })
   assert.ok(html.includes('Actualizando pedido'))
   assert.ok(html.includes('Producto QA'))

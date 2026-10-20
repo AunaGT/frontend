@@ -1,3 +1,5 @@
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -47,6 +49,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { adaptApiSupplier } from '@/services/supplierService'
 import { ImageUploadDropzone } from '@/components/ui/image-upload-dropzone'
 import { ContactImage } from '@/components/shared/ContactImage'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import type { Supplier, Sale } from '@/types'
 import { SaleDetailDialog, normalizeRawSale } from '@/modules/sales'
 import { generateSupplierPDF, type SupplierPDFOptions, type SupplierPDFMerchandiseEntry, type CustomerPDFMetrics } from './generateSupplierPDF'
@@ -109,8 +112,8 @@ export default function SupplierDetailPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat(locale || 'es-GT', { style: 'currency', currency: currencyCode || 'GTQ' }).format(value)
+  const formatCurrency = (value: number|string) =>
+    new Intl.NumberFormat(locale || 'es-GT', { style: 'currency', currency: currencyCode || 'GTQ' }).format(Number(value))
   const formatDate = (dateString: string) => {
     try {
       const d = new Date(dateString)
@@ -130,10 +133,8 @@ export default function SupplierDetailPage() {
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
 
-  const [merchPage, setMerchPage] = useState(1)
-  const [merchPageSize, setMerchPageSize] = useState(10)
-  const [salesPage, setSalesPage] = useState(1)
-  const [salesPageSize, setSalesPageSize] = useState(10)
+  const {page:merchPage,setPage:setMerchPage,pageSize:merchPageSize,setPageSize:setMerchPageSize}=usePersistedListUiState('contactos/detalle/mercancia', {defaultPageSize:10})
+  const {page:salesPage,setPage:setSalesPage,pageSize:salesPageSize,setPageSize:setSalesPageSize}=usePersistedListUiState('contactos/detalle/ventas', {defaultPageSize:10})
   const [detailRecordId, setDetailRecordId] = useState<string | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null)
@@ -170,7 +171,7 @@ export default function SupplierDetailPage() {
   const canViewCustomerSales = hasPermission('sales.view')
   const canViewSaleInvoice = hasPermission('sales.view_invoice')
   const canViewSaleDetail = hasPermission('sales.view_detail')
-  const { data: merchData, isLoading: merchLoading, isFetching: merchFetching } = useIncomingMerchandise({
+  const { data: merchData, isLoading: merchLoading, isFetching: merchFetching, isError: merchError, refetch: refetchMerchandise } = useIncomingMerchandise({
     supplier_id: id ?? undefined,
     page: merchPage,
     pageSize: merchPageSize,
@@ -189,7 +190,7 @@ export default function SupplierDetailPage() {
   const showMerchTab = isSupplierParty && canViewMerchandise
   const showSalesHistoryTab = !isSupplierParty && canViewCustomerSales
 
-  const { data: customerSalesData, isLoading: customerSalesLoading, isFetching: customerSalesFetching } = useCustomerSales(id, {
+  const { data: customerSalesData, isLoading: customerSalesLoading, isFetching: customerSalesFetching, isError: customerSalesError, refetch: refetchCustomerSales } = useCustomerSales(id, {
     page: salesPage,
     pageSize: salesPageSize,
     enabled:
@@ -240,8 +241,10 @@ export default function SupplierDetailPage() {
   const { mutateAsync: deleteSupplierAsync, isPending: deleteIsLoading } = deleteMutation
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
-  const { data: categoriesData } = useCategories()
-  const { data: paymentTermsData } = usePaymentTerms()
+  const categoriesQuery = useCategories()
+  const { data: categoriesData } = categoriesQuery
+  const paymentTermsQuery = usePaymentTerms()
+  const { data: paymentTermsData } = paymentTermsQuery
 
   const categories = useMemo(() => {
     if (!categoriesData) return [] as Array<{ id: number | string; name: string }>
@@ -288,8 +291,7 @@ export default function SupplierDetailPage() {
   const [editEntityKind, setEditEntityKind] = useState<'PERSON' | 'ORGANIZATION'>('ORGANIZATION')
   const [contactPhoto, setContactPhoto] = useState<File | null>(null)
   const [contactPhotoPreview, setContactPhotoPreview] = useState<string | null>(null)
-  const [productsPage, setProductsPage] = useState(1)
-  const productsPageSize = 10
+  const {page:productsPage,setPage:setProductsPage,pageSize:productsPageSize,setPageSize:setProductsPageSize}=usePersistedListUiState('contactos/detalle/productos', {defaultPageSize:10})
   const productsTotalPages = Math.max(1, Math.ceil((supplier?.productsList?.length ?? 0) / productsPageSize))
   const currentProductsPage = Math.min(productsPage, productsTotalPages)
 
@@ -967,7 +969,7 @@ export default function SupplierDetailPage() {
                           <Command>
                             <CommandInput placeholder="Buscar categoría..." />
                             <CommandList>
-                              <CommandEmpty>Sin resultados.</CommandEmpty>
+                              {categoriesQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando categorías…</p> : categoriesQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar categorías.<Button type="button" variant="ghost" onClick={() => void categoriesQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={categories.length > 0} title="Las categorías del catálogo aparecerán aquí" description="Configura las categorías para organizar tus registros." /></CommandEmpty>}
                               <CommandGroup>
                                 <ScrollArea className="max-h-64">
                                   {categories.map((c) => {
@@ -994,7 +996,7 @@ export default function SupplierDetailPage() {
                                       </CommandItem>
                                     )
                                   })}
-                                  {categories.length === 0 && (
+                                  {categories.length === 0 && !categoriesQuery.isLoading && !categoriesQuery.isError && (
                                     <div className="px-2 py-3 text-xs text-muted-foreground">
                                       Configura categorías en Inventario → Categorías primero.
                                     </div>
@@ -1060,7 +1062,7 @@ export default function SupplierDetailPage() {
                             <Command>
                               <CommandInput placeholder="Buscar términos de pago..." />
                               <CommandList>
-                                <CommandEmpty>No se encontraron términos.</CommandEmpty>
+                                {paymentTermsQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando condiciones de pago…</p> : paymentTermsQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar condiciones de pago.<Button type="button" variant="ghost" onClick={() => void paymentTermsQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={paymentTerms.length > 0} title="Aquí aparecerán las condiciones de pago" description="Las condiciones configuradas estarán disponibles para este contacto." /></CommandEmpty>}
                                 <CommandGroup>
                                   <ScrollArea className="h-48">
                                     {(paymentTerms.length > 0
@@ -1217,13 +1219,11 @@ export default function SupplierDetailPage() {
                         </tbody>
                       </table>
                     ) : (
-                      <div className="p-4 text-center text-muted-foreground">
-                        No hay productos asociados a este proveedor
-                      </div>
+                      <CollectionEmptyState compact title="Los productos de este proveedor llegarán aquí" description="No hay productos asociados a este proveedor. Aparecerán cuando lo vincules a tus artículos del catálogo." />
                     )}
                   </div>
                   </div>
-                  {productsTotalPages > 1 && <div className="auna-pagination-outside"><Pagination currentPage={currentProductsPage} totalPages={productsTotalPages} onPageChange={setProductsPage} /></div>}
+                  {(supplier?.productsList?.length ?? 0) > 0 && <div className="auna-pagination-outside"><Pagination currentPage={currentProductsPage} totalPages={productsTotalPages} onPageChange={setProductsPage} pageSize={productsPageSize} onPageSizeChange={setProductsPageSize} totalItems={supplier.productsList.length} count={supplier.productsList.slice((currentProductsPage - 1) * productsPageSize, currentProductsPage * productsPageSize).length} itemLabel="productos" /></div>}
                 </section>
               )}
               {!isEditing && (showMerchTab || showSalesHistoryTab) && (
@@ -1232,10 +1232,10 @@ export default function SupplierDetailPage() {
                 <h2 id="contact-activity-heading">{(isSupplierParty ? merchPage : salesPage) === 1 ? 'Actividad reciente' : `Actividad · página ${isSupplierParty ? merchPage : salesPage}`}</h2>
                 <Button variant="outline" onClick={() => setDetailPane(isSupplierParty ? 'entradas' : 'compras')}>Ver historial</Button>
               </div>
-              {(isSupplierParty ? merchLoading : customerSalesLoading) ? <LoadingIndicator message="Cargando actividad…" /> : (
+              {(isSupplierParty ? merchLoading : customerSalesLoading) ? <LoadingIndicator message="Cargando actividad…" /> : (isSupplierParty ? merchError : customerSalesError) ? <div role="alert" className="space-y-3"><p>No se pudo cargar la actividad reciente.</p><Button variant="outline" onClick={() => isSupplierParty ? refetchMerchandise() : refetchCustomerSales()}>Reintentar</Button></div> : (
                 <ul className="contact-detail-activity">
                   {isSupplierParty ? records.slice(0, 3).map(record => <li key={record.id}><span>{formatDate(record.date)}</span><span>{record.itemsCount} productos · {record.registeredBy.name}</span><strong>{formatCurrency(record.totalValue)}</strong></li>) : saleRows.slice(0, 3).map(sale => <li key={sale.id}><span>{formatDate(sale.date)}</span><span>{sale.reference ?? sale.id}</span><strong>{formatCurrency(Number(sale.adjusted_total ?? sale.total))}</strong></li>)}
-                  {(isSupplierParty ? records.length : saleRows.length) === 0 && <li>Sin movimientos registrados.</li>}
+                  {(isSupplierParty ? records.length : saleRows.length) === 0 && <li><CollectionEmptyState compact title="Aún no hay actividad que contar" description="Aquí aparecerán los movimientos de este contacto cuando se registren." /></li>}
                 </ul>
               )}
             </section>
@@ -1380,11 +1380,10 @@ export default function SupplierDetailPage() {
               {merchFetching && !merchLoading && <LoadingIndicator message="Actualizando entradas…" className="mb-3" />}
               {merchLoading ? (
                 <LoadingState columns={['Fecha', 'Registrado por', 'Productos', 'Total']} message="Cargando entradas…" />
+              ) : merchError ? (
+                <div role="alert" className="space-y-3 py-6 text-center"><p>No se pudieron cargar las entradas.</p><Button variant="outline" onClick={() => refetchMerchandise()}>Reintentar</Button></div>
               ) : records.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Package className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                  <p className="text-muted-foreground">No hay entradas de mercancía para este proveedor</p>
-                </div>
+                <CollectionEmptyState compact title="La primera entrega aún está por llegar" description="No hay entradas de mercancía para este proveedor en la consulta actual. Aquí podrás revisar cada recepción registrada." />
               ) : (
                 <>
                   <div className="contact-detail-scroll" role="region" aria-label="Entradas del proveedor" tabIndex={0}>
@@ -1448,7 +1447,7 @@ export default function SupplierDetailPage() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            {[5, 10, 25, 50, 100].map((n) => (
+                            {TABLE_PAGE_SIZES.map((n) => (
                               <SelectItem key={n} value={String(n)}>{n}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1483,11 +1482,10 @@ export default function SupplierDetailPage() {
                 {customerSalesFetching && !customerSalesLoading && <LoadingIndicator message="Actualizando ventas…" className="mb-3" />}
                 {customerSalesLoading ? (
                   <LoadingState columns={['Fecha', 'Referencia', 'Total', 'Ítems', 'Estado']} message="Cargando ventas…" />
+                ) : customerSalesError ? (
+                  <div role="alert" className="space-y-3 py-6 text-center"><p>No se pudieron cargar las ventas.</p><Button variant="outline" onClick={() => refetchCustomerSales()}>Reintentar</Button></div>
                 ) : saleRows.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <Receipt className="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-                    <p className="text-muted-foreground">No hay ventas registradas para este cliente</p>
-                  </div>
+                  <CollectionEmptyState compact title="La historia con este cliente está por comenzar" description="No hay ventas registradas para este cliente en la consulta actual. Sus compras aparecerán aquí cuando se registren." />
                 ) : (
                   <>
                     <div className="contact-detail-scroll" role="region" aria-label="Compras del cliente" tabIndex={0}>
@@ -1551,7 +1549,7 @@ export default function SupplierDetailPage() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              {[5, 10, 25, 50].map((n) => (
+                              {TABLE_PAGE_SIZES.map((n) => (
                                 <SelectItem key={n} value={String(n)}>
                                   {n}
                                 </SelectItem>
@@ -1614,6 +1612,7 @@ export default function SupplierDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
+                      {!detailData.items.length && <tr><td colSpan={4}><CollectionEmptyState compact title="Sin partidas para consultar" description="Esta entrada no contiene productos para mostrar en el detalle recibido." /></td></tr>}
                       {detailData.items.map((item) => (
                         <tr key={item.id} className="border-b">
                           <td className="p-3">{item.product.name}</td>

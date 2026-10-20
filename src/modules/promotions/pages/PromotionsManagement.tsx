@@ -21,6 +21,7 @@ import {resolveCouponAssets} from '../coupons/couponAssetsApi'
 import type {CouponAssets} from '../coupons/CouponCanvas'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -166,7 +167,7 @@ const PromotionsManagement = () => {
     const [searchTerm, setSearchTerm] = useState('')
     const [codesDialog, setCodesDialog] = useState<CodesDialogState>({ open: false })
 
-    const { data: promotions = [], isLoading, isFetching } = usePromotions()
+    const { data: promotions = [], isLoading, isFetching, isError, refetch } = usePromotions()
 
     // Filter promotions
     const filteredPromotions = useMemo(() => {
@@ -287,10 +288,10 @@ const PromotionsManagement = () => {
                     {isFetching && !isLoading && <LoadingIndicator message="Actualizando promociones…" className="mb-3" />}
                     {isLoading ? (
                         <LoadingState columns={['Códigos', 'Nombre', 'Tipo', 'Valor', 'Sucursales', 'Usos', 'Estado', 'Acciones']} message="Cargando promociones…" />
+                    ) : isError ? (
+                        <div role="alert" className="space-y-3 py-8 text-center"><p className="text-destructive">No se pudieron cargar las promociones.</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
                     ) : filteredPromotions.length === 0 ? (
-                        <div className='text-center py-8 text-muted-foreground'>
-                            {searchTerm ? 'No se encontraron promociones' : 'No hay promociones creadas'}
-                        </div>
+                        <CollectionEmptyState title="La próxima buena oferta empieza aquí" description="Crea una promoción para definir descuentos y compartirlos con tus clientes." filtered={Boolean(searchTerm.trim())} onReset={() => setSearchTerm('')} action={canManagePromos && <Button onClick={() => navigate('/promociones/nueva')}><Plus className="mr-2 h-4 w-4" />Nueva promoción</Button>} />
                     ) : (
                         <div className='rounded-md border overflow-hidden'>
                             <Table>

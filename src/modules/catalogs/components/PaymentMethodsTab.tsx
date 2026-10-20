@@ -2,6 +2,7 @@
  * Pestaña de métodos de pago en Datos maestros (ventas y cierre de caja).
  */
 
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -73,9 +74,9 @@ export function PaymentMethodsTab() {
   const scope = { companyId: company?.id ?? '', branchId: branch?.id ?? 'all' }
   const canManageCatalogs = hasPermission('catalogs.manage') && !isConsolidated && Boolean(branch)
 
-  const { page: currentPage, setPage: setCurrentPage, pageSize } = usePersistedListUiState(
+  const { page: currentPage, setPage: setCurrentPage, pageSize, setPageSize } = usePersistedListUiState(
     'catalogs/payment-methods',
-    { defaultPage: 1, defaultPageSize: 10 }
+    { defaultPage: 1, defaultPageSize: 50 }
   )
 
   const { search, setSearch, query } = useCatalogSearch()
@@ -139,7 +140,7 @@ export function PaymentMethodsTab() {
             )}</>} search={search} onSearch={setSearch} order={order} onOrder={setOrder} />
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <Label htmlFor="pm-state">Estado</Label>
-        <select id="pm-state" className="h-10 rounded-md border bg-background px-3 text-sm" value={state} onChange={e=>setState(e.target.value as typeof state)}>
+        <select id="pm-state" className="auna-control auna-control-select w-auto" value={state} onChange={e=>setState(e.target.value as typeof state)}>
           <option value="all">Todos</option><option value="active">Activos</option><option value="inactive">Inactivos</option>
         </select>
         {isConsolidated && <p className="text-sm text-muted-foreground">Selecciona una sucursal para administrar los medios de esta empresa.</p>}
@@ -165,7 +166,7 @@ export function PaymentMethodsTab() {
                 {isLoading ? <TableLoadingRows columns={8} message="Cargando métodos de pago…" /> : items.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground">
-                      No hay métodos de pago registrados
+                      <CollectionEmptyState title="Abre nuevas formas de cobrar" description="Configura los métodos de pago disponibles para ventas y cierres de caja." filtered={Boolean(search.trim() || state !== 'all')} onReset={() => { setSearch(''); setState('all'); setCurrentPage(1) }} action={canManageCatalogs && <Button onClick={() => setDialog({ open: true, mode: 'create' })}>Nuevo método de pago</Button>} />
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -217,6 +218,7 @@ export function PaymentMethodsTab() {
                 loading={isLoading}
                 totalItems={data.totalItems}
                 pageSize={pageSize}
+              onPageSizeChange={setPageSize}
                 count={items.length}
                 itemLabel="métodos de pago"
               />
@@ -373,12 +375,12 @@ function PaymentMethodDialog({
             </div>
             {dialog.mode === 'create' ? <div className="space-y-2">
               <Label htmlFor="pm-kind">Tipo de medio</Label>
-              <select id="pm-kind" className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={kind} onChange={e=>setKind(e.target.value as SettlementKind)}>
+              <select id="pm-kind" className="auna-control auna-control-select" value={kind} onChange={e=>setKind(e.target.value as SettlementKind)}>
                 <option value="CASH">Efectivo</option><option value="BANK">Medio bancario</option><option value="CREDIT">Venta a crédito</option>
               </select>
               <p className="text-sm text-muted-foreground">Crédito genera saldo por cobrar; no representa dinero recibido. El tipo no se cambia después.</p>
             </div> : <>
-              <Label className="flex items-center gap-2"><input type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} />Activo para nuevos movimientos</Label>
+              <Label className="flex items-center gap-2"><input className="auna-checkbox" type="checkbox" checked={enabled} onChange={e=>setEnabled(e.target.checked)} />Activo para nuevos movimientos</Label>
               {!enabled && <p className="text-sm text-muted-foreground">Al guardar se bloquearán nuevos cobros, pagos y reintegros por este medio. Su historial seguirá disponible.</p>}
               <div className="space-y-2"><Label htmlFor="pm-position">Orden de presentación</Label><Input id="pm-position" type="number" min={0} max={1000000} step={1} value={position} onChange={e=>setPosition(Number(e.target.value))} /></div>
             </>}

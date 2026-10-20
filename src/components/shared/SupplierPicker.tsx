@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from './CollectionEmptyState'
 import { useEffect, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { ChevronsUpDown } from 'lucide-react'
@@ -35,7 +36,7 @@ export function SupplierPicker({ label, onSelect, allowAll = false }: { label: s
         </CommandGroup>
         {query.isFetching && (suppliers.length ? <LoadingIndicator message="Actualizando proveedores…" /> : <LoadingState size="sm" message="Buscando proveedores…" />)}
         {query.isError && <p role="alert" className="p-4 text-sm text-destructive">No se pudieron cargar los proveedores.</p>}
-        {!query.isFetching && !query.isError && !suppliers.length && <p className="p-4 text-sm text-muted-foreground">Sin proveedores para esta búsqueda.</p>}
+        {!query.isFetching && !query.isError && !suppliers.length && <CollectionEmptyState compact title="Tu próxima relación comercial empieza aquí" description="Los proveedores disponibles aparecerán aquí para que puedas elegirlos." filtered={!!search.trim() || !!queryText} onReset={() => {setSearch('');setQueryText('')}} />}
         {query.hasNextPage && <Button type="button" variant="ghost" className="w-full" disabled={query.isFetchingNextPage} onClick={() => query.fetchNextPage()}>Cargar más resultados</Button>}
       </CommandList></Command>
     </PopoverContent>

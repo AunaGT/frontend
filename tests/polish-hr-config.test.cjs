@@ -85,7 +85,7 @@ test('replacement and archive or restore retain the existing employee and versio
   assert.deepEqual(changes, [['upload', 'qa-employee', 'type-0', file], ['archive', 'qa-employee', 'version-0', false], ['archive', 'qa-employee', 'version-1', true]])
 })
 
-const modules = Array.from({ length: 10 }, (_, i) => ({ code: `module-${i}`, name: `Módulo ${i}`, status: i === 1 ? 'DISABLED' : i === 2 ? 'TRIAL' : 'ACTIVE', effectiveEnabled: i !== 1 && i !== 3, protected: i === 0, dependencies: i === 3 ? ['module-1'] : [], blockedBy: i === 3 ? ['module-1'] : [], trialEndsAt: null }))
+const modules = Array.from({ length: 12 }, (_, i) => ({ code: `module-${i}`, name: `Módulo ${i}`, status: i === 1 ? 'DISABLED' : i === 2 ? 'TRIAL' : 'ACTIVE', effectiveEnabled: i !== 1 && i !== 3, protected: i === 0, dependencies: i === 3 ? ['module-1'] : [], blockedBy: i === 3 ? ['module-1'] : [], trialEndsAt: null }))
 function renderModules({ canManage = true, state = {} } = {}) {
   const nodes = [], changes = [], requests = []
   let stateIndex = 0
@@ -113,7 +113,7 @@ test('module summary precedes compact filters and shared pagination stays outsid
   assert.match(html, /auna-data-table-shell/)
   assert.match(html, /auna-pagination-outside/)
   assertPaginationOutside(html)
-  assert.match(html, /Mostrando 1 a 8 de 10 módulos/)
+  assert.match(html, /Mostrando 1 a 10 de 12 módulos/)
   nodes.find(n => n.props?.['aria-label'] === 'Página siguiente').props.onClick()
   assert.deepEqual(changes.at(-1), { index: 4, value: 2 })
 })
@@ -210,7 +210,7 @@ test('payslip screen surface preserves employee, earnings, deductions and net re
   assert.match(html, /Pago: Efectivo/)
 })
 
-test('payroll pages share the same responsive page measure and keep pagination outside cards', () => {
+test('payroll expands the list but keeps detail bounded and pagination outside cards', () => {
   const run = { id: 'run-1', code: 'NOM-1', name: 'Octubre', type: 'ORDINARIA', status: 'BORRADOR', period_start: '2026-10-01', period_end: '2026-10-31', pay_date: '2026-10-31', total_earnings: '3250', total_deductions: '145', total_net: '3105', total_employer_cost: '380', payslips: [payslip] }
   for (const page of ['PayrollRunsManagement', 'PayrollRunDetail']) {
     const Page = loadReportModule(`../payroll/pages/${page}.tsx`, {
@@ -222,7 +222,7 @@ test('payroll pages share the same responsive page measure and keep pagination o
       '@tanstack/react-query': { useQuery: () => ({ data: page === 'PayrollRunDetail' ? run : { items: [run] }, isLoading: false, isFetching: false, isError: false }), useMutation: () => ({ isPending: false }), useQueryClient: () => ({ invalidateQueries() {} }) },
     }).default
     const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/nomina/run-1' }, React.createElement(Page)))
-    assert.match(html, /max-w-\[1560px\] space-y-5 p-4 sm:p-8/)
+    assert.match(html, page === 'PayrollRunDetail' ? /max-w-\[1560px\] space-y-5 p-4 sm:p-8/ : /^<div class="[^"]*auna-page-fluid\b/)
     assertPaginationOutside(html)
     assert.doesNotMatch(html, /Nueva corrida|Confirmar nómina|Marcar pagada|>Anular</)
   }

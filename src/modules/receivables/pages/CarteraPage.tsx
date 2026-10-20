@@ -54,7 +54,7 @@ export default function CarteraPage() {
   ];
   return (
     <CarteraViewStateProvider key={access.key.join(":")}>
-      <div className="mx-auto max-w-[1560px] px-4 pt-6 sm:px-6">
+      <div className="auna-page-fluid mx-auto px-4 pt-6 sm:px-6">
         <ModuleTabBar
           items={items}
           value={section}

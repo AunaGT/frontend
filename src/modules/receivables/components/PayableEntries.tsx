@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useNavigate } from "react-router-dom";
 import { Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,8 +39,12 @@ export function PayableEntries({
   rows,
   selected = [],
   onSelect,
+  filtered = false,
+  onReset,
 }: {
   rows: PayableEntry[];
+  filtered?: boolean;
+  onReset?: () => void;
   selected?: PayableEntry[];
   onSelect?: (row: PayableEntry) => void;
 }) {
@@ -73,7 +78,7 @@ export function PayableEntries({
               colSpan={onSelect ? 11 : 10}
               className="text-center text-muted-foreground"
             >
-              No hay entradas para estos filtros.
+              <CollectionEmptyState compact filtered={filtered} onReset={onReset} title="Las compras tendrán su lugar aquí" description="Aquí aparecerán las entradas del proveedor que correspondan a esta consulta." />
             </TableCell>
           </TableRow>
         ) : (

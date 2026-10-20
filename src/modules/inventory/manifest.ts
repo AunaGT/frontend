@@ -6,6 +6,7 @@ export const inventoryModule = {
   dependencies: [] as const,
   paths: {
     list: '/inventario',
+    units:'/inventario/unidades',
     categories: catalogsModule.paths.categories,
     categoriesImport: catalogsModule.paths.categoriesImport,
     barcodePrint: '/inventario/codigos-de-barras',
@@ -24,6 +25,7 @@ export const inventoryModule = {
     Categories: lazy(() => import('./pages/CategoryManagementPage')),
     CategoriesImport: lazy(() => import('./pages/CategoryImportPage')),
     Management: lazy(() => import('./products/ProductManagement')),
+    Units:lazy(()=>import('./units/UnitsPage')),
     BarcodePrint: lazy(() => import('./barcodeLabels/BarcodePrintPage')),
     ShelfPricePrint: lazy(() => import('./barcodeLabels/ShelfPricePrintPage')),
     Create: lazy(() => import('./products/ProductCreatePage')),

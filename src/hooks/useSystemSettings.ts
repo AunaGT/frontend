@@ -52,6 +52,7 @@ export interface UseSystemSettingsReturn {
   salesShowFiscalFields: boolean
   salesShowChannels: boolean
   inventoryServicesEnabled: boolean
+  inventoryUnitsEnabled: boolean
   loading: boolean
   /** Recarga la configuración pública (útil tras guardar en Configuración). */
   refetch: () => Promise<boolean>
@@ -77,6 +78,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
       salesShowFiscalFields: true,
       salesShowChannels: true,
       inventoryServicesEnabled: false,
+      inventoryUnitsEnabled: false,
       loading: false,
       refetch: async () => false
     }
@@ -97,6 +99,7 @@ export function useSystemSettings(): UseSystemSettingsReturn {
     salesShowFiscalFields: ctx.salesShowFiscalFields,
     salesShowChannels: ctx.salesShowChannels,
     inventoryServicesEnabled: ctx.inventoryServicesEnabled,
+    inventoryUnitsEnabled: ctx.inventoryUnitsEnabled,
     loading: ctx.loading,
     refetch: ctx.refetch
   }

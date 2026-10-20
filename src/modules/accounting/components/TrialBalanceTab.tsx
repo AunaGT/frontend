@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -87,7 +88,7 @@ export const TrialBalanceTab = () => {
         ) : loadError ? (
           <div role="alert" className="py-8 text-center"><p>No se pudo cargar la balanza.</p><Button variant="outline" className="mt-3" onClick={() => setRetry(value => value + 1)}>Reintentar</Button></div>
         ) : !data || data.rows.length === 0 ? (
-          <p className="py-10 text-center text-muted-foreground">Sin movimientos en el rango seleccionado.</p>
+          <CollectionEmptyState filtered={from !== firstOfMonthISO() || to !== todayISO()} onReset={() => {setFrom(firstOfMonthISO());setTo(todayISO())}} title="El balance espera sus movimientos" description="Consulta otro período o vuelve cuando haya movimientos contables para este alcance." />
         ) : (
           <div className="auna-data-table-shell overflow-x-auto">
             <table className="auna-data-table">

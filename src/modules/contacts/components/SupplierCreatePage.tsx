@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -44,8 +45,10 @@ export default function SupplierCreatePage() {
   const queryClient = useQueryClient()
   const { hasPermission } = useAuthPermissions()
   const createSupplierMutation = useCreateSupplier()
-  const { data: categoriesData } = useCategories()
-  const { data: paymentTermsData } = usePaymentTerms()
+  const categoriesQuery = useCategories()
+  const { data: categoriesData } = categoriesQuery
+  const paymentTermsQuery = usePaymentTerms()
+  const { data: paymentTermsData } = paymentTermsQuery
 
   const [newName, setNewName] = useState('')
   const [newContact, setNewContact] = useState('')
@@ -387,7 +390,7 @@ export default function SupplierCreatePage() {
                     <Command>
                       <CommandInput placeholder="Buscar categoría..." />
                       <CommandList>
-                        <CommandEmpty>Sin resultados.</CommandEmpty>
+                        {categoriesQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando categorías…</p> : categoriesQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar categorías.<Button type="button" variant="ghost" onClick={() => void categoriesQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={categories.length > 0} title="Las categorías del catálogo aparecerán aquí" description="Configura las categorías para organizar tus registros." /></CommandEmpty>}
                         <CommandGroup>
                           <ScrollArea className="max-h-64">
                             {categories.map((c) => {
@@ -408,7 +411,7 @@ export default function SupplierCreatePage() {
                                 </CommandItem>
                               )
                             })}
-                            {categories.length === 0 && (
+                            {categories.length === 0 && !categoriesQuery.isLoading && !categoriesQuery.isError && (
                               <div className="px-2 py-3 text-xs text-muted-foreground">
                                 Configura categorías en Inventario → Categorías primero.
                               </div>
@@ -446,7 +449,7 @@ export default function SupplierCreatePage() {
                   <PopoverContent className="w-[320px] p-0" align="start">
                     <Command>
                       <CommandInput placeholder="Buscar términos de pago..." />
-                      <CommandEmpty>No se encontraron términos.</CommandEmpty>
+                      {paymentTermsQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando condiciones de pago…</p> : paymentTermsQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar condiciones de pago.<Button type="button" variant="ghost" onClick={() => void paymentTermsQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={paymentTerms.length > 0} title="Aquí aparecerán las condiciones de pago" description="Las condiciones configuradas estarán disponibles para este contacto." /></CommandEmpty>}
                       <CommandList>
                         <CommandGroup>
                           <ScrollArea className="h-48">

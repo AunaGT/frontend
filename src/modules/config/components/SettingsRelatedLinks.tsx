@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Link } from 'react-router-dom'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useModules } from '@/context/useModules'
@@ -24,5 +25,5 @@ export function SettingsRelatedLinks({ confirmLeave, inventoryOnly = false, cata
   return <div className="config-related-links">{visible.map(link => <Link key={link.to} to={link.to} onClick={event => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
     event.preventDefault(); confirmLeave(link.to)
-  }}><strong>{link.label}</strong><span>{link.description}</span></Link>)}{!visible.length && <p className="text-sm text-muted-foreground">No hay accesos relacionados disponibles con tus permisos y módulos activos.</p>}</div>
+  }}><strong>{link.label}</strong><span>{link.description}</span></Link>)}{!visible.length && <CollectionEmptyState compact title="Tus accesos aparecerán aquí" description="No hay accesos relacionados disponibles con tus permisos y módulos activos." />}</div>
 }

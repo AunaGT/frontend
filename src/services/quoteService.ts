@@ -13,6 +13,12 @@ export async function previewQuoteServiceConditions(productIds:string[],signal?:
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
 
 export type QuoteLine = {
+  unit_metadata_version?:1|2;
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  base_qty?:string|null;
+  base_fulfilled?:string|null;
+  base_invoiced?:string|null;
+  base_unit_cost?:string|null;
   service_schedule_snapshot?:PublicServiceConditions|null;
   id: string;
   product_id: string;
@@ -86,7 +92,10 @@ export type Quote = {
 export type QuoteLinePayload = {
   product_id: string;
   qty: string | number;
-  unit_price?: number;
+  unit_price?: number|string;
+  presentation_id?:string|null;
+  unit_revision?:number;
+  accept_rounding?:boolean;
 };
 
 export type CreateQuotePayload = {
@@ -156,8 +165,9 @@ export async function fetchQuoteById(idOrRef: string): Promise<Quote> {
   return apiFetch<Quote>(`/api/quotes/${encodeURIComponent(idOrRef)}`, { method: "GET" });
 }
 
-export async function createQuote(payload: CreateQuotePayload): Promise<Quote> {
+export async function createQuote(payload: CreateQuotePayload,options:RequestInit={}): Promise<Quote> {
   return apiFetch<Quote>("/api/quotes", {
+    ...options,
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -213,6 +223,9 @@ export type PublicQuote = {
   company_name: string;
   company_logo_url?: string;
   lines: Array<{
+    unit_metadata_version?:1|2;
+    unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+    base_qty?:string|null;
     service_schedule_snapshot?:PublicServiceConditions|null;
     product_name?: string | null;
     barcode?: string | null;

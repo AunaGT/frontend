@@ -1,3 +1,5 @@
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { PageSizeSelect } from '@/components/shared/PageSizeSelect'
 import { useDeferredValue, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -73,8 +75,11 @@ import {
 import { fetchProducts } from '@/services/productService'
 import { fetchWarehouses } from '@/services/warehouseService'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
-import { initialTransferView, transferPaginationItems, visibleTransferViews, type TransferView } from '../transferViewModel'
+import {normalizeUnitDecimal} from '@/modules/inventory/units/public'
+import type {ApiProduct} from '@/types/product'
+import { transferReceiptLines,initialTransferView, transferPaginationItems, visibleTransferViews, type TransferView } from '../transferViewModel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useCardPagination } from '@/hooks/useCardPagination'
 
 const STATUS_LABEL: Record<TransferStatus, string> = {
@@ -89,10 +94,10 @@ const STATUS_STYLE: Record<TransferStatus, string> = {
     CANCELADA: 'bg-red-500/15 text-red-700 dark:bg-red-500/25 dark:text-red-300',
 }
 
-type Draft = { product_id: string; name: string; qty: number }
+type Draft = { product_id: string; name: string; qty: string;decimals:number;label:string }
 type StatusFilter = 'all' | TransferStatus
 
-const totalUnits = (transfer: Transfer) => transfer.lines.reduce((sum, line) => sum + line.qty_sent, 0)
+const totalUnits = (transfer: Transfer) => transfer.lines.length
 const dateTime = (value: string) => new Intl.DateTimeFormat('es-GT', {
     day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
 }).format(new Date(value))
@@ -145,17 +150,6 @@ function TransferPagination({ current, totalPages, totalItems, pageSize, count, 
     )
 }
 
-function EmptyState({ filtered, onCreate }: { filtered: boolean; onCreate?: () => void }) {
-    return (
-        <div className="rounded-2xl border border-dashed border-border bg-card/60 px-6 py-16 text-center dark:bg-[#101f34]/70">
-            <Truck className="mx-auto h-11 w-11 text-muted-foreground/60" />
-            <h2 className="mt-4 text-lg font-semibold">{filtered ? 'No encontramos traslados' : 'Aún no hay traslados'}</h2>
-            <p className="mt-2 text-sm text-muted-foreground">{filtered ? 'Prueba cambiando o limpiando los filtros.' : 'Crea el primero para mover inventario entre sucursales.'}</p>
-            {!filtered && onCreate ? <Button className="mt-5 bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={onCreate}><Plus className="mr-2 h-4 w-4" />Nuevo traslado</Button> : null}
-        </div>
-    )
-}
-
 export const TransfersManagement = () => {
     const { toast } = useToast()
     const { companyName, companyLogoUrl, locale } = useSystemSettings()
@@ -167,12 +161,11 @@ export const TransfersManagement = () => {
     const canCancel = hasPermission('transfers.cancel')
 
     const [status, setStatus] = useState<StatusFilter>('all')
-    const [view, setView] = useState<TransferView>(() => initialTransferView(typeof window === 'undefined' ? 1024 : window.innerWidth))
+    const { viewMode: view, setViewMode: setView, page, setPage, pageSize: tablePageSize, setPageSize } = usePersistedListUiState('traslados/lista', { defaultView: initialTransferView(typeof window === 'undefined' ? 1024 : window.innerWidth) })
     const [origin, setOrigin] = useState('all')
     const [destination, setDestination] = useState('all')
     const [search, setSearch] = useState('')
     const deferredSearch = useDeferredValue(search.trim())
-    const [page, setPage] = useState(1)
     const [createOpen, setCreateOpen] = useState(false)
     const [selected, setSelected] = useState<Transfer | null>(null)
     const [receiving, setReceiving] = useState<Transfer | null>(null)
@@ -185,7 +178,7 @@ export const TransfersManagement = () => {
     const [receiveLocation, setReceiveLocation] = useState('default')
     const [exportingId, setExportingId] = useState<string | null>(null)
 
-    const cardPagination = useCardPagination({ enabled: view === "cards", tablePageSize: 10, onPageChange: setPage })
+    const cardPagination = useCardPagination({ enabled: view === "cards", tablePageSize, onPageChange: setPage, storageKey: 'traslados/lista' })
     const pageSize = cardPagination.pageSize
     const transferQuery = useQuery({
         queryKey: ['transfers', status, origin, destination, deferredSearch, page, pageSize, branch?.id, 'summary'],
@@ -234,7 +227,7 @@ export const TransfersManagement = () => {
         onError: (error: Error) => toast({ title: 'No se pudo enviar', description: error.message, variant: 'destructive' }),
     })
     const receiveMutation = useMutation({
-        mutationFn: ({ id, lines, locationId }: { id: string; lines: { line_id: string; qty_received: number }[]; locationId?: string }) => receiveTransfer(id, lines, locationId),
+        mutationFn: ({ id, lines, locationId }: { id: string; lines: { line_id: string; qty_received: number|string }[]; locationId?: string }) => receiveTransfer(id, lines, locationId),
         onSuccess: (transfer) => {
             toast({ title: `Traslado ${transfer.reference} recibido` })
             setReceiving(null); setSelected(null); setReceivedQty({}); setReceiveLocation('default'); invalidate()
@@ -256,20 +249,19 @@ export const TransfersManagement = () => {
     const activeFilterCount = Number(status !== 'all') + Number(origin !== 'all') + Number(destination !== 'all') + Number(Boolean(search.trim()))
     const visibleViews = visibleTransferViews(view)
     const openReceive = (transfer: Transfer) => { setSelected(null); setReceiving(transfer); setReceivedQty({}) }
-    const addProduct = (id: string, name: string) => setDraft((rows) => rows.some((row) => row.product_id === id) ? rows : [...rows, { product_id: id, name, qty: 1 }])
+    const addProduct = (product:ApiProduct) => {if(product.base_unit_id&&!product.base_unit?.label){toast({title:'No está disponible la unidad base; recarga el producto.',variant:'destructive'});return}setDraft(rows=>rows.some(row=>row.product_id===product.id)?rows:[...rows,{product_id:String(product.id),name:product.name,qty:'1',decimals:product.kind==='KIT'?0:product.base_unit_id?product.quantity_decimals??0:0,label:product.base_unit?.label??'unidades'}])}
 
     const submitCreate = () => {
         if (!toBranchId) return toast({ title: 'Elige la sucursal destino', variant: 'destructive' })
-        const items = draft.filter((row) => row.qty > 0).map((row) => ({ product_id: row.product_id, qty: row.qty }))
+        let items:Array<{product_id:string;qty:string}>;
+        try{items=draft.map(row=>({product_id:row.product_id,qty:normalizeUnitDecimal(row.qty,{decimals:row.decimals,allowZero:false})}))}catch(error){return toast({title:'Revisa las cantidades base',description:error instanceof Error?error.message:undefined,variant:'destructive'})}
         if (!items.length) return toast({ title: 'Agrega al menos un producto', variant: 'destructive' })
         createMutation.mutate({ to_branch_id: toBranchId, items, notes: notes.trim() || undefined })
     }
     const submitReceive = () => {
         if (!receiving) return
-        const lines = receiving.lines.map((line) => ({ line_id: line.id, qty_received: receivedQty[line.id] === undefined ? line.qty_sent : Number(receivedQty[line.id]) }))
-        if (lines.some((line) => !Number.isInteger(line.qty_received) || line.qty_received < 0)) {
-            return toast({ title: 'Cantidades inválidas', description: 'Usa enteros mayores o iguales a 0.', variant: 'destructive' })
-        }
+        let lines:ReturnType<typeof transferReceiptLines>;
+        try{lines=transferReceiptLines(receiving.lines,receivedQty)}catch(error){return toast({title:'Cantidades inválidas',description:error instanceof Error?error.message:undefined,variant:'destructive'})}
         receiveMutation.mutate({ id: receiving.id, lines, locationId: receiveLocation === 'default' ? undefined : receiveLocation })
     }
 
@@ -295,7 +287,7 @@ export const TransfersManagement = () => {
 
     return (
         <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
-            <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
+            <div className="auna-page-fluid mx-auto space-y-5 p-4 sm:p-8">
                 <h1 className="sr-only">Traslados</h1>
 
 <MetricStrip label="Resumen traslados consultados" loading={transferQuery.isLoading} items={[
@@ -322,12 +314,13 @@ export const TransfersManagement = () => {
                     <div className="min-w-[170px] flex-1"><Select value={status} onValueChange={(value) => resetPage(setStatus, value as StatusFilter)}><SelectTrigger className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Todos los estados</SelectItem><SelectItem value="EN_TRANSITO">En tránsito</SelectItem><SelectItem value="RECIBIDA">Recibidos</SelectItem><SelectItem value="CANCELADA">Cancelados</SelectItem></SelectContent></Select></div>
                 </CompactFilterPanel>
                 <section ref={cardPagination.containerRef} aria-label="Listado de traslados">
+                {view === "table" && <div className="mb-3"><PageSizeSelect value={tablePageSize} onChange={size => { setPageSize(size); setPage(1) }} label="Traslados por página" /></div>}
                 {view === "cards" && <label className="mb-3 flex items-center justify-end gap-2 text-sm text-muted-foreground">Tarjetas por página<Select value={String(pageSize)} onValueChange={value => cardPagination.setCardPageSize(Number(value))}><SelectTrigger className="w-20" aria-label="Traslados por página"><SelectValue /></SelectTrigger><SelectContent>{cardPagination.pageSizeOptions.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></label>}
                 {transferQuery.isFetching && !transferQuery.isLoading && <LoadingIndicator message="Actualizando traslados…" />}
                 {transferQuery.isError ? (
                     <Card className="rounded-2xl border-red-500/30 bg-card dark:bg-[#101f34]"><CardContent className="flex flex-col items-center gap-3 p-12 text-center"><AlertTriangle className="h-9 w-9 text-red-500" /><p className="font-semibold">No pudimos cargar los traslados</p><Button onClick={() => transferQuery.refetch()}>Reintentar</Button></CardContent></Card>
                 ) : !transfers.length && !transferQuery.isLoading ? (
-                    <EmptyState filtered={hasFilters} onCreate={canCreate && branch ? () => setCreateOpen(true) : undefined} />
+                    <CollectionEmptyState title="Tu inventario aún no ha salido de viaje" description="Aquí podrás seguir la mercancía que se envía y se recibe entre sucursales." filtered={hasFilters} onReset={clearFilters} action={canCreate && branch ? <Button onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Nuevo traslado</Button> : undefined} />
                 ) : (
                     <>
                         {visibleViews.table ? <><div className="auna-data-table-shell">
@@ -342,7 +335,7 @@ export const TransfersManagement = () => {
                                             <td className="px-5 py-4 font-medium">{transfer.fromBranch?.name ?? '—'}</td>
                                             <td className="px-1 py-4"><ArrowRight className="h-4 w-4 text-muted-foreground" /></td>
                                             <td className="px-5 py-4 font-medium">{transfer.toBranch?.name ?? '—'}</td>
-                                            <td className="px-5 py-4"><div className="flex items-center gap-3"><ProductThumb transfer={transfer} /><span><strong className="font-medium">{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} unidades</small></span></div></td>
+                                            <td className="px-5 py-4"><div className="flex items-center gap-3"><ProductThumb transfer={transfer} /><span><strong className="font-medium">{transfer.lines.length} productos</strong><small className="block text-muted-foreground">{totalUnits(transfer)} partidas</small></span></div></td>
                                             <td className="px-5 py-4"><StatusBadge status={transfer.status} /></td>
                                             <td className="px-5 py-4"><div className="flex justify-end gap-2">
                                                 <Button size="icon" variant="outline" className="rounded-lg" aria-label={`Ver ${transfer.reference}`} onClick={() => setSelected(transfer)}><Eye className="h-4 w-4" /></Button>
@@ -372,7 +365,7 @@ export const TransfersManagement = () => {
                                             <div className="flex flex-wrap gap-1"><dt className="text-muted-foreground">Origen:</dt><dd className="font-medium">{transfer.fromBranch?.name}</dd></div>
                                             <div className="flex flex-wrap gap-1"><dt className="text-muted-foreground">Destino:</dt><dd className="font-medium">{transfer.toBranch?.name}</dd></div>
                                         </dl>
-                                        <div className="auna-record-meta text-muted-foreground"><span>{transfer.lines.length} productos</span><span>{totalUnits(transfer)} unidades</span></div>
+                                        <div className="auna-record-meta text-muted-foreground"><span>{transfer.lines.length} productos</span><span>{totalUnits(transfer)} partidas</span></div>
                                     </div>
                                     <div className="auna-record-side"><StatusBadge status={transfer.status} /></div>
                                 </button>
@@ -388,7 +381,7 @@ export const TransfersManagement = () => {
             <Dialog open={selected != null} onOpenChange={(open) => !open && setSelected(null)}>
                 <DialogContent variant="auna" className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl">
                     <DialogHeader><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange/15 text-brand-orange"><Truck className="h-5 w-5" /></span><div><DialogTitle>{selected?.reference}</DialogTitle><DialogDescription>{selected ? dateTime(selected.sent_at) : ''}</DialogDescription></div></div></DialogHeader>
-                    {selected ? <div className="space-y-5"><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl bg-muted/50 p-4"><div><p className="text-xs text-muted-foreground">Origen</p><p className="font-semibold">{selected.fromBranch?.name}</p></div><ArrowRight className="h-5 w-5 text-brand-orange" /><div><p className="text-xs text-muted-foreground">Destino</p><p className="font-semibold">{selected.toBranch?.name}</p></div></div><div className="flex items-center justify-between"><StatusBadge status={selected.status} /><span className="text-sm text-muted-foreground">{totalUnits(selected)} unidades</span></div><div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{selected.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_auto_auto] gap-6 border-t border-border/70 px-4 py-3 text-sm"><span className="truncate">{line.product?.name ?? line.product_id}</span><strong>{line.qty_sent}</strong><span className="min-w-14 text-right">{line.qty_received ?? '—'}</span></div>)}</div>{selected.notes ? <div className="rounded-xl border border-border/70 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Notas</p><p className="mt-1 text-sm">{selected.notes}</p></div> : null}</div> : null}
+                    {selected ? <div className="space-y-5"><div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl bg-muted/50 p-4"><div><p className="text-xs text-muted-foreground">Origen</p><p className="font-semibold">{selected.fromBranch?.name}</p></div><ArrowRight className="h-5 w-5 text-brand-orange" /><div><p className="text-xs text-muted-foreground">Destino</p><p className="font-semibold">{selected.toBranch?.name}</p></div></div><div className="flex items-center justify-between"><StatusBadge status={selected.status} /><span className="text-sm text-muted-foreground">{totalUnits(selected)} partidas</span></div><div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_auto_auto] gap-3 bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{!selected.lines.length && <CollectionEmptyState compact title="Sin partidas para consultar" description="Esta consulta no contiene productos del traslado." />}{selected.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_auto_auto] gap-6 border-t border-border/70 px-4 py-3 text-sm"><span className="truncate">{line.product?.name ?? line.product_id}</span><strong>{line.qty_sent} {line.unit_snapshot?.baseUnit.label??'unidades'}</strong><span className="min-w-14 text-right">{line.qty_received ?? '—'} {line.unit_snapshot?.baseUnit.label??'unidades'}</span></div>)}</div>{selected.notes ? <div className="rounded-xl border border-border/70 p-4"><p className="text-xs font-semibold uppercase text-muted-foreground">Notas</p><p className="mt-1 text-sm">{selected.notes}</p></div> : null}</div> : null}
                     <DialogFooter>{selected?.status === 'EN_TRANSITO' && selected.to_branch_id === branch?.id && canReceive ? <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={() => openReceive(selected)}><PackageCheck className="mr-2 h-4 w-4" />Recibir traslado</Button> : null}{selected?.status === 'EN_TRANSITO' && selected.from_branch_id === branch?.id && canCancel ? <Button variant="outline" className="text-red-500" onClick={() => setCancelling(selected)}><X className="mr-2 h-4 w-4" />Cancelar traslado</Button> : null}</DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -396,7 +389,7 @@ export const TransfersManagement = () => {
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogContent variant="auna" className="max-h-[92vh] max-w-3xl overflow-y-auto rounded-2xl">
                     <DialogHeader><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-orange text-white"><Plus className="h-5 w-5" /></span><div><DialogTitle>Nuevo traslado</DialogTitle><DialogDescription>El stock sale de {branch?.name} al enviar y entra cuando el destino confirma la recepción.</DialogDescription></div></div></DialogHeader>
-                    <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr]"><div className="rounded-xl border border-border/70 p-3"><Label className="text-xs text-muted-foreground">Origen</Label><p className="mt-1 font-semibold">{branch?.name}</p></div><ArrowRight className="hidden self-center text-brand-orange sm:block" /><div><Label>Sucursal destino</Label><Select value={toBranchId} onValueChange={setToBranchId}><SelectTrigger className="mt-2"><SelectValue placeholder="Elige una sucursal" /></SelectTrigger><SelectContent>{otherBranches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor="transfer-search">Agregar productos</Label><div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input id="transfer-search" className="pl-10" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Nombre o código de barras" /></div>{productSearch ? <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-border/70">{productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="p-3" />}{productsQuery.isLoading ? <LoadingState variant="cards" rows={3} message="Buscando productos…" /> : (productsQuery.data?.items ?? []).map((product) => <button key={product.id} type="button" className="flex w-full items-center justify-between border-b border-border/60 px-4 py-3 text-left text-sm last:border-0 hover:bg-muted" onClick={() => addProduct(String(product.id), product.name)}><span>{product.name}</span><span className="text-muted-foreground">Stock: {product.stock ?? 0}</span></button>)}</div> : null}</div>{draft.length ? <div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_90px_40px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Cantidad</span><span /></div>{draft.map((row) => <div key={row.product_id} className="grid grid-cols-[1fr_90px_40px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm font-medium">{row.name}</span><Input aria-label={`Cantidad a enviar de ${row.name}`} type="number" min={1} value={row.qty} onChange={(event) => setDraft((items) => items.map((item) => item.product_id === row.product_id ? { ...item, qty: Number(event.target.value) } : item))} /><Button size="icon" variant="ghost" aria-label={`Quitar ${row.name} del traslado`} onClick={() => setDraft((items) => items.filter((item) => item.product_id !== row.product_id))}><X className="h-4 w-4" /></Button></div>)}</div> : null}<div><Label htmlFor="transfer-notes">Notas</Label><Input id="transfer-notes" className="mt-2" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></div></div>
+                    <div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[1fr_auto_1fr]"><div className="rounded-xl border border-border/70 p-3"><Label className="text-xs text-muted-foreground">Origen</Label><p className="mt-1 font-semibold">{branch?.name}</p></div><ArrowRight className="hidden self-center text-brand-orange sm:block" /><div><Label>Sucursal destino</Label><Select value={toBranchId} onValueChange={setToBranchId}><SelectTrigger className="mt-2"><SelectValue placeholder="Elige una sucursal" /></SelectTrigger><SelectContent>{otherBranches.map((item) => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div></div><div><Label htmlFor="transfer-search">Agregar productos</Label><div className="relative mt-2"><Search className="absolute left-3 top-3.5 h-5 w-5 text-muted-foreground" /><Input id="transfer-search" className="pl-10" value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Nombre o código de barras" /></div>{productSearch ? <div className="mt-2 max-h-44 overflow-y-auto rounded-xl border border-border/70">{productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="p-3" />}{productsQuery.isLoading ? <LoadingState variant="cards" rows={3} message="Buscando productos…" /> : (productsQuery.data?.items ?? []).map((product) => <button key={product.id} type="button" className="flex w-full items-center justify-between border-b border-border/60 px-4 py-3 text-left text-sm last:border-0 hover:bg-muted" onClick={() => addProduct(product)}><span>{product.name}</span><span className="text-muted-foreground">Stock: {product.stock ?? 0}</span></button>)}{!productsQuery.isLoading && !productsQuery.isError && productsQuery.data && !productsQuery.data.items.length && <CollectionEmptyState compact filtered title="Sin productos para esta búsqueda" onReset={() => setProductSearch('')} />}</div> : null}</div>{draft.length ? <div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_90px_40px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Cantidad</span><span /></div>{draft.map((row) => <div key={row.product_id} className="grid grid-cols-[1fr_90px_40px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm font-medium">{row.name} · {row.label}</span><Input aria-label={`Cantidad a enviar de ${row.name}`} type="number" min="0" step="any" value={row.qty} onChange={(event) => setDraft((items) => items.map((item) => item.product_id === row.product_id ? { ...item, qty: event.target.value } : item))} /><Button size="icon" variant="ghost" aria-label={`Quitar ${row.name} del traslado`} onClick={() => setDraft((items) => items.filter((item) => item.product_id !== row.product_id))}><X className="h-4 w-4" /></Button></div>)}</div> : <CollectionEmptyState compact title="El traslado espera su carga" description="Busca y agrega los productos que enviarás a la sucursal destino." />}<div><Label htmlFor="transfer-notes">Notas</Label><Input id="transfer-notes" className="mt-2" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Opcional" /></div></div>
                     <DialogFooter><Button variant="outline" onClick={() => setCreateOpen(false)}>Cerrar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={submitCreate} disabled={createMutation.isPending}>{createMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Truck className="mr-2 h-4 w-4" />}Enviar traslado</Button></DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -404,7 +397,7 @@ export const TransfersManagement = () => {
             <Dialog open={receiving != null} onOpenChange={(open) => !open && setReceiving(null)}>
                 <DialogContent variant="auna" className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl">
                     <DialogHeader><div className="flex items-center gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600"><PackageCheck className="h-5 w-5" /></span><div><DialogTitle>Recibir {receiving?.reference}</DialogTitle><DialogDescription>Confirma las cantidades que llegaron realmente.</DialogDescription></div></div></DialogHeader>
-                    <div className="space-y-4">{receiveLocations.length === 1 ? <p className="rounded-xl bg-muted/50 p-3 text-sm">Entrada: <strong>{receiveLocations[0].warehouse} · {receiveLocations[0].code}</strong></p> : null}{receiveLocations.length > 1 ? <div><Label>Ubicación de recepción</Label><Select value={receiveLocation} onValueChange={setReceiveLocation}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Ubicación predeterminada</SelectItem>{receiveLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.warehouse} · {location.code}{location.name ? ` — ${location.name}` : ''}</SelectItem>)}</SelectContent></Select></div> : null}<div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_80px_100px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{receiving?.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_80px_100px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm">{line.product?.name ?? line.product_id}</span><strong className="text-center">{line.qty_sent}</strong><Input aria-label={`Cantidad recibida de ${line.product?.name ?? line.product_id}`} type="number" min={0} max={line.qty_sent} value={receivedQty[line.id] ?? String(line.qty_sent)} onChange={(event) => setReceivedQty((values) => ({ ...values, [line.id]: event.target.value }))} /></div>)}</div><p className="text-xs text-muted-foreground">Una cantidad menor registra un faltante de tránsito para conciliación.</p></div>
+                    <div className="space-y-4">{receiveLocations.length === 1 ? <p className="rounded-xl bg-muted/50 p-3 text-sm">Entrada: <strong>{receiveLocations[0].warehouse} · {receiveLocations[0].code}</strong></p> : null}{receiveLocations.length > 1 ? <div><Label>Ubicación de recepción</Label><Select value={receiveLocation} onValueChange={setReceiveLocation}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="default">Ubicación predeterminada</SelectItem>{receiveLocations.map((location) => <SelectItem key={location.id} value={location.id}>{location.warehouse} · {location.code}{location.name ? ` — ${location.name}` : ''}</SelectItem>)}</SelectContent></Select></div> : null}<div className="overflow-hidden rounded-xl border border-border/70"><div className="grid grid-cols-[1fr_80px_100px] bg-muted/50 px-4 py-3 text-xs font-semibold uppercase text-muted-foreground"><span>Producto</span><span>Enviado</span><span>Recibido</span></div>{receiving?.lines.map((line) => <div key={line.id} className="grid grid-cols-[1fr_80px_100px] items-center gap-2 border-t border-border/70 px-4 py-3"><span className="truncate text-sm">{line.product?.name ?? line.product_id}</span><strong className="text-center">{line.qty_sent} {line.unit_snapshot?.baseUnit.label??'unidades'}</strong><Input aria-label={`Cantidad recibida de ${line.product?.name ?? line.product_id}`} type="number" min={0} max={line.qty_sent} step="any" value={receivedQty[line.id] ?? String(line.qty_sent)} onChange={(event) => setReceivedQty((values) => ({ ...values, [line.id]: event.target.value }))} /></div>)}</div><p className="text-xs text-muted-foreground">Una cantidad menor registra un faltante de tránsito para conciliación.</p></div>
                     <DialogFooter><Button variant="outline" onClick={() => setReceiving(null)}>Cerrar</Button><Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" onClick={submitReceive} disabled={receiveMutation.isPending}>{receiveMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}Confirmar recepción</Button></DialogFooter>
                 </DialogContent>
             </Dialog>

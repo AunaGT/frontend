@@ -56,9 +56,10 @@ export type InventoryCountLineRow = {
   id: string;
   session_id: string;
   product_id: string;
-  stock_snapshot: number;
-  qty_counted: number | null;
-  qty_counted_secondary: number | null;
+  stock_snapshot: number|string;
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  qty_counted: number|string|null;
+  qty_counted_secondary: number|string|null;
   counted_at: string | null;
   counted_secondary_at: string | null;
   counted_by_id: string | null;
@@ -81,8 +82,8 @@ export type InventoryCountLineRow = {
   };
   countedBy?: { id: string; name: string } | null;
   countedSecondaryBy?: { id: string; name: string } | null;
-  difference: number | null;
-  valueDifference: number | null;
+  difference: number|string|null;
+  valueDifference: number|string|null;
   countMismatch?: boolean;
 };
 
@@ -141,7 +142,7 @@ export async function listInventorySessionLines(
 export async function updateInventoryLine(
   sessionId: string,
   lineId: string,
-  body: { qty_counted?: number; qty_counted_secondary?: number; note?: string }
+  body: { qty_counted?: number|string; qty_counted_secondary?: number|string; note?: string }
 ): Promise<InventoryCountLineRow> {
   return apiFetch(path(`/${sessionId}/lines/${lineId}`), {
     method: "PATCH",

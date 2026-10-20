@@ -8,6 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 
 import { useState, useEffect } from 'react'
@@ -98,9 +99,9 @@ function PaymentTermsTab({
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
   const canManageCatalogs = hasPermission('catalogs.manage')
-  const { page: currentPage, setPage: setCurrentPage, pageSize } = usePersistedListUiState(
+  const { page: currentPage, setPage: setCurrentPage, pageSize, setPageSize } = usePersistedListUiState(
     'catalogs/payment-terms',
-    { defaultPage: 1, defaultPageSize: 10 }
+    { defaultPage: 1, defaultPageSize: 50 }
   )
   const { search, setSearch, query } = useCatalogSearch()
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
@@ -211,7 +212,7 @@ function PaymentTermsTab({
               {isLoading ? <TableLoadingRows columns={6} message="Cargando términos de pago…" /> : paymentTerms?.length === 0 ? (
                 <TableRow>
                     <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No hay términos de pago registrados
+                    <CollectionEmptyState title="Dale tiempo a cada pago" description="Define las condiciones de pago que utilizarás con tus proveedores." filtered={Boolean(search.trim() || showDeleted)} onReset={() => { setSearch(''); setShowDeleted(false); setCurrentPage(1) }} action={canManageCatalogs && <Button onClick={() => setDialog({ open: true, mode: 'create' })}>Nueva condición de pago</Button>} />
                   </TableCell>
                 </TableRow>
               ) : (
@@ -321,6 +322,7 @@ function PaymentTermsTab({
               loading={isLoading}
               totalItems={paymentTermsData.totalItems}
               pageSize={pageSize}
+              onPageSizeChange={setPageSize}
               count={paymentTerms.length}
               itemLabel="términos de pago"
             />

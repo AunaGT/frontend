@@ -1,7 +1,7 @@
 const test=require('node:test'),assert=require('node:assert/strict')
 const {loadReportModule}=require('./helpers/loadReportModule.cjs')
 test('returns validate snapshot quantities, preserve final cents and omit physical service decisions',()=>{
-  const {returnQuantity,estimateLineRefund,returnLineDecision}=loadReportModule('../returns/returnQuantity.ts')
+  const {returnQuantity,estimateLineRefund,returnLineDecision}=loadReportModule('../returns/returnQuantity.ts',{'@/services/api':{}})
   const item={id:1,qty:'1.5',item_kind:'SERVICE',quantity_decimals:2,unit_label:'Hora',available_to_return:'1',net_total:150,refundable_amount:100}
   assert.equal(returnQuantity('0.5',item,'es-GT'),'0.5')
   assert.equal(returnQuantity('1.01',item,'es-GT'),null)

@@ -13,6 +13,7 @@
  */
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { PageSizeSelect } from './PageSizeSelect'
 
 interface PaginationProps {
   currentPage: number
@@ -25,6 +26,7 @@ interface PaginationProps {
   pageSize?: number
   count?: number
   itemLabel?: string
+  onPageSizeChange?: (size: number) => void
 }
 
 export const Pagination = ({
@@ -38,6 +40,7 @@ export const Pagination = ({
   pageSize = 10,
   count = 0,
   itemLabel = 'registros',
+  onPageSizeChange,
 }: PaginationProps) => {
   const canGoPrev = hasPrevPage !== undefined ? hasPrevPage : currentPage > 1
   const canGoNext = hasNextPage !== undefined ? hasNextPage : currentPage < totalPages
@@ -47,6 +50,7 @@ export const Pagination = ({
   const pages = Array.from({ length: last - first + 1 }, (_, index) => first + index)
   return (
     <footer className={totalItems === undefined ? 'flex justify-end items-center gap-2 mt-4' : 'auna-data-table-pagination'}>
+      {onPageSizeChange && <PageSizeSelect value={pageSize} label={`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} por página`} onChange={size => { onPageSizeChange(size); onPageChange(1) }} disabled={loading} />}
       <span className="text-sm text-muted-foreground mr-2">
         {totalItems === undefined ? `Página ${currentPage} de ${totalPages}` : `Mostrando ${totalItems ? (currentPage - 1) * pageSize + 1 : 0} a ${totalItems ? (currentPage - 1) * pageSize + count : 0} de ${totalItems} ${itemLabel}`}
       </span>

@@ -6,10 +6,10 @@ import type { EditorActivity } from './useSettingsDraft'
 export type RelatedEditorProps = { active?: boolean; disabled?: boolean; onActivityChange?: (activity: EditorActivity) => void; canStartOperation?: () => boolean }
 type Owner = { key: string; epoch: number; active: boolean; blocked: boolean; pending: boolean; dirty: boolean }
 type Ticket = { owner: Owner; epoch: number }
-export function useRelatedSettingsEditor(props: RelatedEditorProps, dirty = false) {
+export function useRelatedSettingsEditor(props: RelatedEditorProps, dirty = false, managePermission = 'settings.manage', permissionContext = '') {
   const { company, branch, isConsolidated } = useTenant(), { user, hasPermission, permissionsReady } = useAuthPermissions()
-  const companyId = company?.id || '', branchId = branch?.id || (isConsolidated ? 'all' : ''), canManage = hasPermission('settings.manage')
-  const key = JSON.stringify([companyId, branchId, user?.id, permissionsReady, canManage])
+  const companyId = company?.id || '', branchId = branch?.id || (isConsolidated ? 'all' : ''), canManage = hasPermission(managePermission)
+  const key = JSON.stringify([companyId, branchId, user?.id, permissionsReady, canManage, managePermission, permissionContext])
   const live = useRef<Owner>({ key, epoch: 0, active: true, blocked: false, pending: false, dirty }), latest = useRef(props), [, paint] = useState(0)
   latest.current = props
   if (live.current.key !== key) live.current = { key, epoch: live.current.epoch + 1, active: true, blocked: false, pending: false, dirty: false }

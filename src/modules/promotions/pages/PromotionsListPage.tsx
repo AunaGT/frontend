@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { Pagination } from '@/components/shared/Pagination'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -48,16 +49,16 @@ export default function PromotionsListPage() {
   const [scope, setScope] = useState('all')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('promociones/lista')
   const [codesDialog, setCodesDialog] = useState<CodesDialogState>({ open: false })
   useEffect(()=>{setCodesDialog({open:false});return()=>{codesRequest.current?.abort()}},[contextKey])
   const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null)
 
   const typesQuery = useQuery({ queryKey: ['promotion-types'], queryFn: () => apiFetch<PromotionType[]>('/promotions/types') })
   const listQuery = useQuery({
-    queryKey: ['promotions', page, deferredSearch, type, status, scope, dateFrom, dateTo, 'summary',contextKey],
+    queryKey: ['promotions', page, pageSize, deferredSearch, type, status, scope, dateFrom, dateTo, 'summary',contextKey],
     queryFn: () => {
-      const params = new URLSearchParams({ page: String(page), pageSize: '10', includeSummary: 'true' })
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), includeSummary: 'true' })
       if (deferredSearch) params.set('search', deferredSearch)
       if (type !== 'all') params.set('type_id', type)
       if (status !== 'all') params.set('status', status)
@@ -103,7 +104,7 @@ export default function PromotionsListPage() {
   })
 
   return <div className="min-h-full bg-brand-surface/70 dark:bg-brand-navy">
-    <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="auna-page-fluid mx-auto space-y-5 px-4 py-6 sm:px-6 lg:px-8">
       <h1 className="sr-only">Promociones</h1>
 
       <MetricStrip label="Resumen promociones consultadas" loading={listQuery.isLoading} items={[
@@ -125,7 +126,7 @@ export default function PromotionsListPage() {
         {listQuery.isFetching && !listQuery.isLoading && <LoadingIndicator message="Actualizando promociones…" className="px-4 py-2" />}
         {listQuery.isLoading ? <LoadingState columns={['Promoción', 'Tipo', 'Vigencia', 'Alcance', 'Estado', 'Uso', 'Acciones']} message="Cargando promociones…" />
           : listQuery.isError ? <div className="p-8 text-center"><p>No se pudieron cargar las promociones.</p><Button variant="outline" className="mt-3" onClick={() => listQuery.refetch()}>Reintentar</Button></div>
-          : rows.length === 0 ? <div className="p-12 text-center text-muted-foreground">{listQuery.data?.totalItems === 0 && !deferredSearch && type === 'all' && status === 'all' ? 'Aún no hay promociones creadas.' : 'No hay promociones para estos filtros.'}</div>
+          : rows.length === 0 ? <CollectionEmptyState title="La próxima buena oferta empieza aquí" description="Crea una promoción para definir descuentos, vigencia y alcance para tus clientes." filtered={Boolean(deferredSearch || type !== 'all' || status !== 'all' || scope !== 'all' || dateFrom || dateTo)} onReset={() => {setSearch('');setType('all');setStatus('all');setScope('all');setDateFrom('');setDateTo('');setPage(1)}} action={canManage && <Button onClick={() => navigate('/promociones/nueva')}><Plus className="mr-2 h-4 w-4" />Nueva promoción</Button>} />
           : <div className="overflow-x-auto"><Table className="auna-data-table min-w-[940px]"><TableHeader><TableRow><TableHead>Promoción</TableHead><TableHead>Tipo</TableHead><TableHead>Vigencia</TableHead><TableHead>Alcance</TableHead><TableHead>Estado</TableHead><TableHead>Uso</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>{rows.map((promo) => {
             const state = statusOf(promo)
             const used = uses(promo)
@@ -143,9 +144,10 @@ export default function PromotionsListPage() {
           })}</TableBody></Table></div>}
 
       </section>
-<div className="auna-pagination-outside">{!listQuery.isLoading && !listQuery.isError && <Pagination currentPage={listQuery.data?.page ?? page} totalPages={listQuery.data?.totalPages ?? 1} totalItems={listQuery.data?.totalItems ?? 0} pageSize={listQuery.data?.pageSize ?? 10} count={rows.length} itemLabel="promociones" onPageChange={setPage} loading={listQuery.isFetching} />}</div></>
+<div className="auna-pagination-outside">{!listQuery.isLoading && !listQuery.isError && <Pagination currentPage={listQuery.data?.page ?? page} totalPages={listQuery.data?.totalPages ?? 1} totalItems={listQuery.data?.totalItems ?? 0} pageSize={listQuery.data?.pageSize ?? pageSize} onPageSizeChange={setPageSize} count={rows.length} itemLabel="promociones" onPageChange={setPage} loading={listQuery.isFetching} />}</div></>
     </div>
     <CodesDialog dialog={codesDialog} setDialog={setCodesDialog} onCopyCode={(code) => { navigator.clipboard.writeText(code); toast({ title: 'Código copiado', description: code }) }} locale={locale} currencyCode={currencyCode} companyLogoUrl={companyLogoUrl} companyName={companyName} timezone={timezone}/>
     <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}><AlertDialogContent variant="auna"><AlertDialogHeader><AlertDialogTitle>¿Eliminar promoción?</AlertDialogTitle><AlertDialogDescription>Se eliminará “{deleteTarget?.name}” y sus códigos dejarán de poder utilizarse.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction className="bg-destructive text-destructive-foreground" disabled={deleteMutation.isPending} onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget.id) }}>Eliminar</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>
 }
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'

@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import {formatUnitDecimal,formatUnitMoney,compareUnitDecimals} from '@/lib/unitQuantity'
 
 export const REPORT_IDS = ['sales', 'inventory', 'financial', 'alerts', 'merchandise', 'suppliers', 'products', 'inventory-counts', 'stock-by-location', 'kardex', 'internal-moves', 'replenishment', 'occupancy'] as const
 export type ReportId = typeof REPORT_IDS[number]
 const cell = z.union([z.string(), z.number().finite(), z.boolean(), z.null()])
 const cellType = z.enum(['text', 'integer', 'decimal', 'money', 'percent', 'date', 'datetime', 'boolean'])
-const columnSchema = z.object({ id: z.string(), label: z.string(), type: cellType, align: z.enum(['left', 'right']),quantityDecimals:z.number().int().min(0).max(4).optional() })
+const columnSchema = z.object({ id: z.string(), label: z.string(), type: cellType, align: z.enum(['left', 'right']),quantityDecimals:z.number().int().min(0).max(6).optional() })
 const sectionSchema = z.object({ id: z.string(), title: z.string(), columns: z.array(columnSchema).min(1), rows: z.array(z.record(cell)), totals: z.record(cell).nullable() })
 const namedId = z.object({ id: z.string(), name: z.string() })
 export const preparedReportSchema = z.object({
@@ -42,11 +43,24 @@ export function projectReport(report: PreparedReport, selection: ReportSelection
   })
   return { ...report, sections, charts: report.charts.filter(c => selection.sections.includes(c.sectionId)) }
 }
+// Legacy numeric cells may stringify with an exponent. Expand only those
+// compatibility numbers; authoritative decimal strings never pass through Number.
+function decimalCell(value:CellValue):string{
+  const text=String(value)
+  if(typeof value!=='number'||!Number.isFinite(value)||!/[eE]/.test(text))return text
+  const [coefficient,exponent]=text.toLowerCase().split('e'),sign=coefficient.startsWith('-')?'-':'',unsigned=coefficient.replace(/^-/,''),[whole,fraction='']=unsigned.split('.'),digits=whole+fraction,point=whole.length+Number(exponent)
+  return sign+(point<=0?'0.'+'0'.repeat(-point)+digits:point>=digits.length?digits+'0'.repeat(point-digits.length):digits.slice(0,point)+'.'+digits.slice(point))
+}
+export function compareReportCells(a:CellValue,b:CellValue,column:Pick<ReportColumn,'type'>){
+  if(a==null||b==null)return a==null?(b==null?0:-1):1
+  if(['integer','decimal','money','percent'].includes(column.type))return compareUnitDecimals(decimalCell(a),decimalCell(b))
+  return String(a).localeCompare(String(b),'es-GT',{numeric:true})
+}
 export function formatReportCell(value: CellValue, column: Pick<ReportColumn, 'type' | 'quantityDecimals'>, meta: ReportMeta): string {
   if (value == null) return '—'
-  if (column.type === 'money') return new Intl.NumberFormat('es-GT', { style: 'currency', currency: meta.currency }).format(Number(value))
+  if (column.type === 'money') return formatUnitMoney(decimalCell(value),'es-GT',meta.currency)
   if (column.type === 'percent') return `${new Intl.NumberFormat('es-GT', { maximumFractionDigits: 2 }).format(Number(value))}%`
-  if (column.type === 'integer' || column.type === 'decimal') return new Intl.NumberFormat('es-GT', { maximumFractionDigits: column.type === 'integer' ? 0 : column.quantityDecimals ?? 2 }).format(Number(value))
+  if (column.type === 'integer' || column.type === 'decimal') return formatUnitDecimal(decimalCell(value),'es-GT')
   if (column.type === 'boolean') return value ? 'Sí' : 'No'
   if (column.type === 'date' || column.type === 'datetime') {
     const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(String(value))

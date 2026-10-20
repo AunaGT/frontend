@@ -12,6 +12,7 @@
  * ClosuresHistoryList - List of historical cash closures
  */
 import { LoadingState } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react'
@@ -27,6 +28,8 @@ interface ClosuresHistoryListProps {
     totalPages: number
     onViewClosure: (closureId: string) => void
     onPageChange: (page: number) => void
+    filtered?: boolean
+    onReset?: () => void
 }
 
 const getStatusBadge = (status: string) => {
@@ -47,7 +50,9 @@ export const ClosuresHistoryList = ({
     currentPage,
     totalPages,
     onViewClosure,
-    onPageChange
+    onPageChange,
+    filtered = false,
+    onReset
 }: ClosuresHistoryListProps) => {
     const { currencyCode, locale } = useSystemSettings()
     if (isLoading) {
@@ -55,7 +60,7 @@ export const ClosuresHistoryList = ({
     }
 
     if (!Array.isArray(closures) || closures.length === 0) {
-        return <p className="text-center text-muted-foreground py-8">No hay cierres registrados</p>
+        return <CollectionEmptyState compact title="Cada cierre deja su registro" description="Los cierres registrados aparecerán aquí para consultar sus montos y revisiones." filtered={filtered} onReset={onReset} />
     }
 
     return (

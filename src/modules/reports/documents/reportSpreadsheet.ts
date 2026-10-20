@@ -80,6 +80,7 @@ export function generateReportCsv(report: SpreadsheetDocument | PreparedReport, 
   const csvCell = (value: CellValue, column: ReportColumn) => {
     if (value == null) return ''
     if (typeof value === 'number') return String(value)
+    if (['integer','decimal','money','percent'].includes(column.type) && /^-?\d+(?:\.\d+)?$/.test(String(value))) return String(value)
     const formatted = column.type === 'date' || column.type === 'datetime' ? formatReportCell(value, column, report) : String(value)
     return /^[\s\u0000-\u001f]*[=+\-@]/u.test(formatted) ? `'${formatted}` : formatted
   }

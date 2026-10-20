@@ -1,0 +1,14 @@
+.auna-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;min-width:0;padding:32px 16px;text-align:center;color:hsl(var(--foreground))}
+.auna-empty-state-art{display:block;flex-shrink:0;max-width:100%;object-fit:contain;margin-bottom:12px}
+.auna-empty-state-title{max-width:40ch;font-size:18px;line-height:1.4;font-weight:600;overflow-wrap:anywhere}
+.auna-empty-state-description{max-width:48ch;margin-top:8px;font-size:14px;line-height:1.6;color:hsl(var(--muted-foreground));overflow-wrap:anywhere}
+.auna-empty-state-action{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:100%;margin-top:20px}
+.auna-empty-state-action>*{max-width:100%;white-space:normal}
+/* Empty results stay readable at the start of a horizontally scrollable table. */
+td > .auna-empty-state{max-width:calc(100vw - 64px)}
+.auna-empty-state--compact{padding:16px 12px}
+.auna-empty-state--compact .auna-empty-state-art{margin-bottom:8px}
+.auna-empty-state--compact .auna-empty-state-title{font-size:14px}
+.auna-empty-state--compact .auna-empty-state-description{font-size:13px;margin-top:4px}
+.auna-empty-state--compact .auna-empty-state-action{margin-top:12px}
+@media(max-width:479px){.auna-empty-state{padding:24px 12px}.auna-empty-state--compact{padding:12px 8px}}

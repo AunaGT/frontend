@@ -97,11 +97,11 @@ test('merchandise cards keep supplier and terms left, payment and total right, a
   assert.doesNotMatch(renderMerchandise({ allowed: false }).html, /Ver detalles/)
 })
 
-test('transfer cards retain the full route and unit totals without filler images or nested controls', () => {
+test('transfer cards retain the full route and line counts without filler images or nested controls', () => {
   const result = renderTransfers()
   assertHorizontal(result)
   const content = region(result.nodes, 'auna-record-content')
-  for (const text of ['TR-001', transfer.fromBranch.name, transfer.toBranch.name, '1 productos', '7 unidades']) assert.ok(content.includes(text), text)
+  for (const text of ['TR-001', transfer.fromBranch.name, transfer.toBranch.name, '1 productos', '1 partidas']) assert.ok(content.includes(text), text)
   const side = region(result.nodes, 'auna-record-side')
   assert.match(side, /En tránsito/)
   const button = result.nodes.find(node => node.type === 'button' && node.props?.className?.includes('auna-record-card'))

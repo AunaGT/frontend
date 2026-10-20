@@ -1,0 +1,37 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+const q=loadReportModule('../../lib/unitQuantity.ts')
+test('regional decimal input stays exact through six-place quantities and twelve-place factors',()=>{
+  assert.equal(q.normalizeUnitDecimal('0,123456',{decimals:6}),'0.123456')
+  assert.equal(q.normalizeUnitDecimal('99999999.999999',{decimals:6}),'99999999.999999')
+  assert.equal(q.deriveUnitPrice('1.23','0.0000001'),'0.000000123')
+  assert.equal(q.deriveMeasureFactor('0.001','1'),'0.001')
+  assert.throws(()=>q.deriveMeasureFactor('1','3'),/doce decimales/)
+  assert.equal(q.unitLineTotal('10000000','0.000000123'),'1.23')
+  assert.equal(q.unitLineTotal('1','0.005'),'0.01')
+})
+test('box and divisible previews do not depend on binary float arithmetic',()=>{
+  assert.deepEqual(q.convertUnitQuantity('2','24',0),{baseQty:'48',exactBaseQty:'48',roundingDelta:'0',roundingRequired:false})
+  assert.deepEqual(q.convertUnitQuantity('0.1','0.000001',6),{baseQty:'0',exactBaseQty:'0.0000001',roundingDelta:'-0.0000001',roundingRequired:true})
+  assert.throws(()=>q.convertUnitQuantity('0.1','1',0),/entera|indivisible/)
+})
+test('incomplete drafts are rejected on submission without coercing them to zero',()=>{
+  for(const raw of ['',',','.','1,','1.','1e2','-1','1,2.3','NaN'])assert.throws(()=>q.normalizeUnitDecimal(raw,{decimals:6}))
+  assert.throws(()=>q.normalizeUnitDecimal('1.1234567',{decimals:6}),/decimales/)
+  assert.throws(()=>q.normalizeUnitDecimal('100000000',{decimals:6}),/rango/)
+  assert.throws(()=>q.normalizeUnitDecimal('0',{decimals:6,allowZero:false}),/cero/)
+})
+test('exact formatting retains all supplied decimal places in regional display',()=>{
+  assert.equal(q.formatUnitDecimal('12345678.123456','es-GT'),'12,345,678.123456')
+  assert.equal(q.formatUnitDecimal('0.000000123','es-ES'),'0,000000123')
+})
+test('legacy service precision remains four, kits whole and physical base at most six',()=>{
+  assert.equal(q.normalizeProductQuantity('1,25',{kind:'SERVICE',quantityDecimals:2,advanced:false},'es-ES'),'1.25')
+  assert.throws(()=>q.normalizeProductQuantity('1.00001',{kind:'SERVICE',quantityDecimals:4,advanced:false},'es-GT'))
+  assert.throws(()=>q.normalizeProductQuantity('1.5',{kind:'KIT',quantityDecimals:0,advanced:true},'es-GT'))
+  assert.equal(q.normalizeProductQuantity('0.000001',{kind:'STANDARD',quantityDecimals:6,advanced:true},'es-GT'),'0.000001')
+})
+test('derived twelve-place cost is retained when computing inventory value and margin',()=>{
+  assert.deepEqual(q.unitProductMetrics('2','1.000000000001','2.123456'),{marginMoney:'1.00',marginPercent:'50.0',inventoryValue:'2.12'})
+  assert.equal(q.formatUnitMoney('12345678.125','es-GT','GTQ'),'Q\u00a012,345,678.13')
+})

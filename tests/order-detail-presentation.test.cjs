@@ -42,6 +42,8 @@ function renderOrder({ data = order, permissions = ['orders.manage', 'sales.crea
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
     '@/services/api': { apiFetch() { throw new Error('No real order mutations or queries') } },
     './api': { apiFetch(url,options) {requests.push({url,options});return Promise.resolve({})} },
+    '@/modules/sales/checkout/public':{useCheckoutFlow:()=>({pending:false,attempt:null,error:null,blocked:false,submit:async(kind,payload,orderId)=>requests.push({checkoutKind:kind,orderId,options:{body:JSON.stringify(payload)}}),reconcile(){}}),CheckoutRecoveryNotice:()=>null},
+    '@/modules/appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,proceed:fn=>fn()})},
     '@/services/supplierService': { fetchSupplierById: async id => { reads.push(id); return { id, image_url: photo } } },
     '@/services/cashSessionsService': { listCashRegisters() { throw new Error('No real register queries') } },
     '../documents/generateOrderPDF': { generateOrderPDF() { throw new Error('No real PDF side effects') } },
@@ -67,11 +69,27 @@ test('private order groups overview and products in the main column, administrat
   assert.ok(html.indexOf('Partidas (') < html.indexOf('Información del pedido'))
   for (const value of ['Cumplimiento del pedido', 'Transportista QA', 'TRACK-QA', 'V-QA-001', 'Entregar en recepción']) assert.ok(html.includes(value), value)
 })
+for(const example of [
+  {qty:'0.123456',fulfilled:'0',base:'0.123456',baseFulfilled:'0',pending:'0.123456',factor:'1',label:'kg',decimals:6},
+  {qty:'1',fulfilled:'0.428571',base:'7',baseFulfilled:'3',pending:'4',factor:'7',label:'unidades',decimals:0},
+])test(`actual order detail renders mobile and desktop exact v2 pending ${example.pending} ${example.label}`,()=>{
+  const data={...order,total:'10.00',subtotal:'10.00',lines:[{...order.lines[0],qty:example.qty,qty_fulfilled:example.fulfilled,base_qty:example.base,base_fulfilled:example.baseFulfilled,base_invoiced:'0',unit_metadata_version:2,unit_label:'caja original',unit_snapshot:{version:2,baseUnit:{id:'u',code:'UNIT',name:'Base',label:example.label,decimals:example.decimals},presentation:{id:'box',version:1,name:'Caja',label:'caja original',decimals:6},factor:example.factor,roundingDelta:'0'}}]}
+  const {html}=renderOrder({data})
+  const desktop=html.slice(html.indexOf('order-detail-products-scroll'),html.indexOf('order-detail-mobile-lines'))
+  const mobile=html.slice(html.indexOf('order-detail-mobile-lines'),html.indexOf('Resumen de costos')>0?html.indexOf('Resumen de costos'):undefined)
+  for(const layout of [desktop,mobile]){
+    assert.ok(layout.includes(`${example.pending} ${example.label}`),layout)
+    assert.ok(layout.includes(`${example.baseFulfilled} ${example.label}`),layout)
+    assert.ok(layout.includes(`${example.qty} caja original`),layout)
+  }
+})
 test('legacy order sale payload preserves fractional service strings',async()=>{
   const data={...order,lines:[{...order.lines[0],item_kind:'SERVICE',quantity_decimals:2,qty:'1',qty_fulfilled:'0.5',unit_price:'19.99',line_total:'19.99'}]}
   const {mutationOptions,requests}=renderOrder({data,saleQtys:{[data.lines[0].id]:'0.5'}})
   await mutationOptions[4].mutationFn()
   assert.equal(JSON.parse(requests[0].options.body).lines[0].qty,'0.5')
+  assert.equal(requests[0].checkoutKind,'ORDER')
+  assert.equal(requests[0].orderId,'qa-order')
 })
 test('mixed order uses snapshot names, units and line progress without summing goods and hours', () => {
   const data={...order,lines:[{...order.lines[0],item_kind:'SERVICE',item_name:'Asesoría original',unit_label:'Hora',quantity_decimals:3,qty:'0.125',qty_fulfilled:'0'}, {...order.lines[1],qty:10}]}

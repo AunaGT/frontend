@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 import { Pagination } from '@/components/shared/Pagination'
@@ -6,7 +7,7 @@ import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Building2, Eye, MapPin, Package, Pencil, Plus, Search } from 'lucide-react'
+import { Eye, Pencil, Plus, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -40,7 +41,7 @@ export default function BranchesManagement() {
   const [search, setSearch] = useState('')
   const [status, setStatus] = useState('all')
   const [order, setOrder] = useState('name')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('sucursales/lista')
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState<CreateBranchPayload>(emptyForm)
   const [editBranch, setEditBranch] = useState<Branch | null>(null)
@@ -53,7 +54,6 @@ export default function BranchesManagement() {
   const warehouses = warehousesQuery.data || []
   const managersQuery = useQuery({ queryKey: ['branch-managers', editBranch?.id], queryFn: () => fetchBranchManagers(editBranch!.id), enabled: Boolean(editBranch) && canManage })
   const filtered = useMemo(() => filterBranches(branches.map((branch) => ({ ...branch, state: stateOf(branch) })), { search, status, order }) as Branch[], [branches, search, status, order])
-  const pageSize = 6
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
@@ -66,7 +66,7 @@ export default function BranchesManagement() {
   const create = () => { if (!createForm.name?.trim()) return; createMutation.mutate({ ...createForm, name: createForm.name.trim() }) }
   const save = () => { if (!editBranch || !editForm.name.trim()) return; updateMutation.mutate({ id: editBranch.id, payload: { ...editForm, name: editForm.name.trim(), manager_user_id: editForm.manager_user_id || null } }) }
 
-  return <main className="branches-page">
+  return <main className="branches-page auna-page-fluid">
     <h1 className="sr-only">Empresas, sucursales y almacenes</h1>
     <ModuleTabBar items={[{ value: 'companies', label: 'Empresas' }, { value: 'branches', label: 'Sucursales' }, { value: 'warehouses', label: 'Almacenes' }]} value={tab} onValueChange={setTab} ariaLabel="Secciones del módulo" className="mb-5" />
 
@@ -79,8 +79,8 @@ export default function BranchesManagement() {
         <select className="auna-control auna-control-select" aria-label="Ordenar sucursales" value={order} onChange={(event) => setOrder(event.target.value)}><option value="name">Ordenar por: Nombre</option><option value="code">Ordenar por: Código</option></select>
       </CompactFilterPanel>
       {branchesQuery.isFetching && branchesQuery.data && <LoadingIndicator message="Actualizando sucursales…" />}
-      {branchesQuery.isLoading ? <LoadingState variant="cards" message="Cargando sucursales…" /> : branchesQuery.isError ? <div className="branches-empty">No se pudieron cargar las sucursales. <Button variant="outline" onClick={() => void branchesQuery.refetch()}>Reintentar</Button></div> : !visible.length ? <div className="branches-empty">No hay sucursales que coincidan con los filtros.</div> : <section className="branches-list" aria-label="Sucursales">{visible.map((branch) => { const own = warehouses.filter((warehouse) => warehouse.branch_id === branch.id); const state = stateOf(branch); return <article key={branch.id} className="branches-row"><div className="branches-row-identity"><span className="branches-row-icon"><Building2 /></span><div><strong>{branch.name}</strong><small>{company?.name} · {branch.code}</small><span><MapPin className="h-3 w-3" />{branch.address || 'Dirección no registrada'}</span></div></div><div className="branches-row-warehouses"><strong><Package className="h-4 w-4" /> {own.length} {own.length === 1 ? 'almacén' : 'almacenes'}</strong>{own.slice(0, 2).map((warehouse) => <small key={warehouse.id}>• {warehouse.name}</small>)}</div><div className="branches-row-manager"><small>Responsable</small><strong>{branch.manager?.name || 'Sin asignar'}</strong></div><div className="branches-row-state"><span className={`branches-badge branches-badge--${state}`}><i />{labelOf[state]}</span>{branch.is_default && <small>Predeterminada</small>}</div><div className="branches-row-actions"><Button variant="outline" size="icon" title={`Ver detalles de ${branch.name}`} aria-label={`Ver detalles de ${branch.name}`} onClick={() => setDetail(branch)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>{canManage && <Button variant="outline" size="icon" title="Editar sucursal" aria-label={`Editar ${branch.name}`} onClick={() => beginEdit(branch)}><Pencil className="h-4 w-4" /></Button>}</div></article> })}</section>}
-      <div className="auna-pagination-outside"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={pageSize} count={visible.length} itemLabel="sucursales" loading={branchesQuery.isFetching} /></div>
+      {branchesQuery.isLoading ? <LoadingState variant="cards" message="Cargando sucursales…" /> : branchesQuery.isError ? <div className="branches-empty">No se pudieron cargar las sucursales. <Button variant="outline" onClick={() => void branchesQuery.refetch()}>Reintentar</Button></div> : !visible.length ? <CollectionEmptyState title="Tu siguiente sucursal empieza aquí" description="Organiza los puntos de operación de la empresa activa." filtered={Boolean(search.trim() || status !== 'all')} onReset={() => { setSearch(''); setStatus('all'); setPage(1) }} action={canManage && <Button className="branches-primary" onClick={() => setCreateOpen(true)}>Nueva sucursal</Button>} /> : <section className="branches-list" aria-label="Sucursales">{visible.map((branch) => { const own = warehouses.filter((warehouse) => warehouse.branch_id === branch.id); const state = stateOf(branch); return <article key={branch.id} className="branches-row" aria-labelledby={"branch-name-"+branch.id}><div className="branches-row-identity"><h2 id={"branch-name-"+branch.id}>{branch.name}</h2><small>Código {branch.code} · {company?.name}</small><span>{branch.address || 'Dirección no registrada'}</span></div><div className="branches-row-warehouses"><strong>{own.length} {own.length === 1 ? 'almacén' : 'almacenes'}</strong>{own.slice(0, 2).map((warehouse) => <small key={warehouse.id}>• {warehouse.name}</small>)}</div><div className="branches-row-manager"><small>Responsable</small><strong>{branch.manager?.name || 'Sin asignar'}</strong></div><div className="branches-row-state"><span className={`branches-badge branches-badge--${state}`}><i />{labelOf[state]}</span>{branch.is_default && <small>Predeterminada</small>}</div><div className="branches-row-actions"><Button variant="outline" size="icon" title={`Ver detalles de ${branch.name}`} aria-label={`Ver detalles de ${branch.name}`} onClick={() => setDetail(branch)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>{canManage && <Button variant="outline" size="icon" title="Editar sucursal" aria-label={`Editar ${branch.name}`} onClick={() => beginEdit(branch)}><Pencil className="h-4 w-4" /></Button>}</div></article> })}</section>}
+      <div className="auna-pagination-outside"><Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} pageSize={pageSize} count={visible.length} onPageSizeChange={setPageSize} itemLabel="sucursales" loading={branchesQuery.isFetching} /></div>
     </>}
     {tab === 'warehouses' && <WarehousesCard canManage={hasPermission('warehouses.manage')} branches={branches} />}
 
@@ -89,3 +89,4 @@ export default function BranchesManagement() {
     <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetail(null) }}><DialogContent variant="auna" className="branches-dialog"><DialogHeader><DialogTitle>{detail?.name}</DialogTitle><DialogDescription>Sucursal {detail?.code} de {company?.name}</DialogDescription></DialogHeader>{detail && <div className="branches-detail"><p><span>Estado</span><strong>{labelOf[stateOf(detail)]}</strong></p><p><span>Responsable</span><strong>{detail.manager?.name || 'Sin asignar'}</strong></p><p><span>Dirección</span><strong>{detail.address || 'No registrada'}</strong></p><p><span>Teléfono</span><strong>{detail.phone || 'No registrado'}</strong></p><p><span>Almacenes</span><strong>{warehouses.filter((warehouse) => warehouse.branch_id === detail.id).map((warehouse) => warehouse.name).join(', ') || 'Sin almacenes visibles'}</strong></p></div>}<DialogFooter><Button variant="outline" onClick={() => setDetail(null)}>Cerrar</Button>{canManage && detail && <Button className="branches-primary" onClick={() => { beginEdit(detail); setDetail(null) }}>Editar</Button>}</DialogFooter></DialogContent></Dialog>
   </main>
 }
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'

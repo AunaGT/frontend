@@ -14,6 +14,7 @@
  * (dónde vende, dónde tiene stock). Solo se editan las empresas a las que el
  * administrador que está viendo la ficha también pertenece.
  */
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -62,6 +63,8 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
     const [defaultBranchId, setDefaultBranchId] = useState<string | null>(null)
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
+    const [loadError, setLoadError] = useState<Error | null>(null)
+    const [reload, setReload] = useState(0)
 
     useEffect(() => {
         setCompanyIds(userCompanies.map((c) => c.id))
@@ -70,6 +73,7 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
     useEffect(() => {
         let active = true
         setLoading(true)
+        setLoadError(null)
         Promise.all([fetchBranches(true), fetchUserBranches(userId)])
             .then(([all, assigned]) => {
                 if (!active) return
@@ -78,11 +82,11 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
                 setDefaultBranchId(assigned.default_branch_id)
             })
             .catch((e: Error) => {
-                if (active) toast({ title: 'No se pudo cargar el acceso', description: e.message, variant: 'destructive' })
+                if (active) { setLoadError(e); toast({ title: 'No se pudo cargar el acceso', description: e.message, variant: 'destructive' }) }
             })
             .finally(() => { if (active) setLoading(false) })
         return () => { active = false }
-    }, [userId, company?.id, toast])
+    }, [userId, company?.id, toast, reload])
 
     const toggleCompany = async (companyId: string, next: boolean) => {
         try {
@@ -220,12 +224,14 @@ export const UserTenantAccessCard = ({ userId, userCompanies, canManage, onChang
                     </p>
                     {loading ? (
                         <LoadingState variant="cards" className="auna-loading-embedded" size="sm" message="Cargando sucursales…" />
+                    ) : loadError ? (
+                        <div role="alert"><p className="text-sm text-destructive">{loadError.message || 'No se pudo cargar el acceso.'}</p><Button type="button" variant="outline" onClick={() => setReload(value => value + 1)}>Reintentar</Button></div>
                     ) : !belongsToActive ? (
                         <p className="text-sm text-muted-foreground">
                             El usuario no pertenece a esta empresa. Actívala arriba para asignarle sucursales.
                         </p>
                     ) : branches.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Esta empresa no tiene sucursales.</p>
+                        <CollectionEmptyState compact title="Las sucursales aparecerán aquí" description="Esta empresa todavía no tiene sucursales disponibles para asignar." />
                     ) : (
                         <>
                             {branches.map((b) => (

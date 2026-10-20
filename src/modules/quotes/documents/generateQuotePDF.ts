@@ -1,3 +1,4 @@
+import {documentUnitPrice} from '@/modules/inventory/units/public'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  */
@@ -80,7 +81,7 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   const tableBody = (quote.lines || []).map((line) => [
     [line.item_name ?? line.product?.name ?? line.product_id,serviceConditionText(line.service_schedule_snapshot)].filter(Boolean).join('\n'),
     `${line.qty} ${line.unit_label || ''}`.trim(),
-    fmt(num(line.unit_price)),
+    line.unit_metadata_version===2?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(num(line.unit_price)),
     fmt(num(line.line_total)),
   ]);
 

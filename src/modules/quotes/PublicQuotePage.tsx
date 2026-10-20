@@ -82,7 +82,7 @@ export default function PublicQuotePage() {
       </section>
 
       <div className="public-quote-layout">
-        <div className="min-w-0"><QuoteLines compact lines={data.lines.map(line => ({ ...line, name: line.product_name || 'Producto', code: line.barcode, image: line.image_url }))} money={money} /></div>
+        <div className="min-w-0"><QuoteLines compact locale={locale} currencyCode={currencyCode} lines={data.lines.map(line => ({ ...line, name: line.product_name || 'Producto', code: line.barcode, image: line.image_url }))} money={money} /></div>
         <aside className="public-quote-sidebar" aria-label="Resumen y condiciones">
           <QuoteSummary subtotal={data.subtotal ?? num(data.total) + num(data.discount_total)} discount={data.discount_total} total={data.total} money={money} />
           <section className="auna-surface public-quote-section">

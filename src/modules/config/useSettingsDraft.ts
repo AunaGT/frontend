@@ -13,7 +13,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : 'No
 function initial(key: string, epoch: number) {
   return { key, epoch, active: true, blocked: false, status: 'unavailable' as Status, confirmed: {} as SystemSettings, drafts: makeDrafts({}),
     errors: {} as Partial<Record<EditableSection, FieldErrors>>, error: null as string | null, loadError: null as string | null,
-    busy: false, activities: {} as Partial<Record<'rrhh' | 'nomina' | 'modulos', EditorActivity>>, controller: null as AbortController | null }
+    busy: false, activities: {} as Partial<Record<'rrhh' | 'nomina' | 'modulos' | 'hardware', EditorActivity>>, controller: null as AbortController | null }
 }
 
 export function useSettingsDraft({ context, refresh }: { context: SettingsEditorContext; refresh: () => Promise<boolean> }) {
@@ -130,7 +130,7 @@ export function useSettingsDraft({ context, refresh }: { context: SettingsEditor
     }catch(error){if(current())owner.error=message(error);return false}
     finally{if(current()){owner.busy=false;paint()}}
   }
-  const reportActivity = useCallback((id: 'rrhh' | 'nomina' | 'modulos', activity: EditorActivity) => {
+  const reportActivity = useCallback((id: 'rrhh' | 'nomina' | 'modulos' | 'hardware', activity: EditorActivity) => {
     if (!current()) return
     const old = owner.activities[id]
     if (old?.dirty === activity.dirty && old?.pending === activity.pending) return

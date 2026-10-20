@@ -8,7 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft, Printer } from 'lucide-react'
@@ -24,16 +24,32 @@ import { SaleDetailContent, SaleStatusBadge } from './components/SaleDetailConte
 import {usePageTrail} from '@/components/layout/PageNavigation'
 import {useTenant} from '@/context/useTenant'
 import {SaleFiscalAction} from './components/SaleFiscalAction'
+import {downloadSavedSaleTicket} from './documents/saleTicketRecovery'
+import {usePrintDestination,PrintDestination} from '@/modules/config/hardware/public'
+import {useAuth} from '@/context/useAuth'
+import {getAuthToken} from '@/services/api'
+import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
 
 export const SaleInvoicePage = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const tenant=useTenant()
+  const {user}=useAuth()
+  const ownerKey=JSON.stringify([id,tenant.company?.id,tenant.branch?.id,user?.id,getAuthToken(),authSessionIdentity()])
+  const documentOwner=useMemo(()=>({key:ownerKey}),[ownerKey])
+  const owner=useRef(documentOwner);owner.current=documentOwner
+  const mounted=useRef(true)
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false}},[])
   usePageTrail([{label:'Ventas',to:'/ventas'},{label:'Detalle'}])
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
   const [sale, setSale] = useState<Sale | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [ticketPending,setTicketPending]=useState(false)
+  const [ticketError,setTicketError]=useState<string|null>(null)
+  const printScope={companyId:tenant.company?.id||'',branchId:tenant.branch?.id||'',userId:user?.id||''}
+  const printDestination=usePrintDestination(printScope,'RECEIPT')
+  useEffect(()=>{setTicketPending(false);setTicketError(null)},[ownerKey])
 
   useEffect(() => {
     if (!id) {
@@ -93,6 +109,15 @@ export const SaleInvoicePage = () => {
     }
   }
 
+  const handleTicket=async()=>{
+    if(ticketPending)return
+    const captured=documentOwner,token=getAuthToken(),session=authSessionIdentity(),current=()=>mounted.current&&owner.current===captured&&getAuthToken()===token&&authSessionIdentity()===session&&authSessionMatches(user?.id??'')
+    setTicketPending(true);setTicketError(null)
+    try{await downloadSavedSaleTicket(sale.id,{companyName,logoUrl:companyLogoUrl||undefined,locale,currencyCode},current,{headers:{'X-Company-Id':tenant.company?.id??'','X-Branch-Id':tenant.branch?.id??''}},{scope:printScope,options:printDestination.options,notice:message=>{if(current())setTicketError(message)}})}
+    catch(error){if(current())setTicketError('La venta sigue registrada. No se pudo preparar el ticket; puedes intentarlo de nuevo.')}
+    finally{if(current())setTicketPending(false)}
+  }
+
   return (
     <div className="sale-document-page">
       <header className="sale-document-toolbar">
@@ -108,9 +133,12 @@ export const SaleInvoicePage = () => {
         <SaleFiscalAction sale={sale} onRequested={commercial=>setSale(current=>current?.id===sale.id?{...current,commercial,capabilities:current.capabilities?{...current.capabilities,requestInvoice:false}:undefined}:current)}/>
         <Button variant="outline" onClick={handlePrint}>
           <Printer aria-hidden /> Descargar PDF / Imprimir
-        </Button></div>
+        </Button>
+        <Button variant="outline" onClick={handleTicket} disabled={ticketPending}><Printer aria-hidden />{ticketPending?'Preparando ticket…':'Descargar ticket (80 mm)'}</Button></div>
       </header>
+      <div className="print:hidden"><PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange} disabled={ticketPending}/></div>
       <p className="text-xs text-muted-foreground">El comprobante interno no constituye factura fiscal. Confirmación, pagos y emisión fiscal son procesos separados.</p>
+      {ticketError&&<p role="alert" className="text-sm text-destructive">{ticketError}</p>}
       <SaleDetailContent sale={sale} locale={locale} currencyCode={currencyCode} />
     </div>
   )

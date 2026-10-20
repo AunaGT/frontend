@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -122,7 +123,7 @@ export const LedgerTab = ({ accounts }: { accounts: Account[] }) => {
                 </tr>
                 {data.movements.length === 0 && (
                   <tr className="border-t">
-                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground">Sin movimientos en el rango.</td>
+                    <td colSpan={6} className="px-3 py-8 text-center text-muted-foreground"><CollectionEmptyState compact filtered={!!from || !!to} onReset={() => {setFrom('');setTo('')}} title="Esta cuenta aún no tiene una historia en este período" description="Los movimientos de la cuenta aparecerán aquí cuando correspondan al rango consultado." /></td>
                   </tr>
                 )}
                 {data.movements.map((m, i) => (

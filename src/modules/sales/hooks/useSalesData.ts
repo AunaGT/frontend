@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -43,6 +44,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         const qty = (s.qty ?? s.quantity ?? s.amount ?? 1) as number | string
         return {
             id: String(id), name: String(name), price, qty,
+            ...(s.unit_metadata_version===2?{unitMetadataVersion:2 as const,unitSnapshot:s.unit_snapshot as import('@/modules/inventory/units/public').UnitSnapshot,priceExact:String(priceRaw),lineTotalExact:s.net_total==null?undefined:String(s.net_total),baseQty:String(s.base_qty)}:{}),
             itemKind: s.item_kind as 'STANDARD' | 'KIT' | 'SERVICE' | undefined,
             unitLabel: typeof s.unit_label === 'string' ? s.unit_label : undefined,
             quantityDecimals: typeof s.quantity_decimals === 'number' ? s.quantity_decimals : undefined,
@@ -222,10 +224,10 @@ export const useSalesData = () => {
     const [statusFilter, updateStatusFilter] = useState<SaleStatusKey | 'all'>('all')
     const [paymentFilter, updatePaymentFilter] = useState('all')
     const [period, updatePeriod] = useState('today')
-    const { page, setPage, pageSize: tablePageSize, setPageSize: updatePageSize, viewMode, setViewMode } = usePersistedListUiState(SALES_LIST_KEY, { defaultPageSize: 10, defaultView: 'table' })
+    const { page, setPage, pageSize: tablePageSize, setPageSize: updatePageSize, viewMode, setViewMode } = usePersistedListUiState(SALES_LIST_KEY, { defaultPageSize: 50, defaultView: 'table' })
     const isMobile = useIsMobile()
     const cardsVisible = viewMode === 'cards' || isMobile
-    const cardPagination = useCardPagination({ enabled: cardsVisible, tablePageSize, onPageChange: setPage })
+    const cardPagination = useCardPagination({ enabled: cardsVisible, tablePageSize, onPageChange: setPage, storageKey: SALES_LIST_KEY })
     const pageSize = cardPagination.pageSize
 
     useEffect(() => {
@@ -281,7 +283,7 @@ export const useSalesData = () => {
         setPage,
         pageSize,
         setPageSize: (value: number) => { if (cardsVisible) cardPagination.setCardPageSize(value); else updatePageSize(value); setPage(1) },
-        pageSizeOptions: cardsVisible ? cardPagination.pageSizeOptions : [5, 10, 25, 50],
+        pageSizeOptions: cardsVisible ? cardPagination.pageSizeOptions : TABLE_PAGE_SIZES,
         cardContainerRef: cardPagination.containerRef,
         viewMode,
         setViewMode,

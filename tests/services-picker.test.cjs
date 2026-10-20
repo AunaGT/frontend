@@ -7,6 +7,7 @@ test('shared picker asks for enabled services only in commercial operations',asy
   for(const props of [{},{purchase:true,supplierId:'supplier'},{inventory:true}]){
     let query,request
     const {ProductPicker}=loadReportModule('../../components/shared/ProductPicker.tsx',{
+      '@/services/api':{apiFetch(){throw Error('No network in picker presentation test')}},
       '@tanstack/react-query':{useInfiniteQuery:options=>{query=options;return{}}},
       '@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryServicesEnabled:true})},
       '@/services/productService':{fetchProducts:async options=>{request=options;return{items:[]}},adaptApiProduct:p=>p},

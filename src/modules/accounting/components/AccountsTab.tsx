@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -69,7 +71,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged, loading = false, l
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('contabilidad/cuentas')
 
   const byId = new Map(accounts.map((a) => [a.id, a]))
   const sorted = [...accounts].filter(a =>
@@ -77,9 +79,9 @@ export const AccountsTab = ({ accounts, canManage, onChanged, loading = false, l
     (typeFilter === 'all' || a.type === typeFilter) &&
     (statusFilter === 'all' || a.active === (statusFilter === 'active')),
   ).sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }))
-  const totalPages = Math.max(1, Math.ceil(sorted.length / 25))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const safePage = Math.min(page, totalPages)
-  const pageAccounts = sorted.slice((safePage - 1) * 25, safePage * 25)
+  const pageAccounts = sorted.slice((safePage - 1) * pageSize, safePage * pageSize)
   const groups = accounts.filter((a) => a.is_group && a.active)
 
   const resetNew = () => { setCode(''); setName(''); setType(''); setParentId(''); setIsGroup(false) }
@@ -173,7 +175,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged, loading = false, l
               </tr>
             </thead>
             <tbody>
-              {!pageAccounts.length && <tr><td colSpan={canManage ? 5 : 4} className="text-center text-muted-foreground">No hay cuentas que coincidan con los filtros.</td></tr>}
+              {!pageAccounts.length && <tr><td colSpan={canManage ? 5 : 4} className="text-center text-muted-foreground"><CollectionEmptyState title="Dale estructura a tus cuentas" description="Organiza las cuentas que usarás para registrar y consultar los movimientos del negocio." filtered={!!search.trim() || typeFilter !== 'all' || statusFilter !== 'all'} onReset={() => { setSearch(''); setTypeFilter('all'); setStatusFilter('all'); setPage(1) }} action={canManage && <Button onClick={() => setIsNewOpen(true)}><Plus aria-hidden="true" />Nueva cuenta</Button>} /></td></tr>}
               {pageAccounts.map((account) => {
                 const depth = depthOf(account, byId)
                 return (
@@ -212,7 +214,7 @@ export const AccountsTab = ({ accounts, canManage, onChanged, loading = false, l
             </tbody>
           </table>
         </div>
-        <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={sorted.length} count={pageAccounts.length} pageSize={25} itemLabel="cuentas" /></div>
+        <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={sorted.length} count={pageAccounts.length} pageSize={pageSize} onPageSizeChange={setPageSize} itemLabel="cuentas" /></div>
       </>}
 
       {/* Nueva cuenta */}

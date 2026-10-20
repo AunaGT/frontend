@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Pagination } from '@/components/shared/Pagination'
 import { Button } from '@/components/ui/button'
@@ -48,7 +48,7 @@ interface ExpiringLot {
   id: string
   lot_code: string | null
   expiry_date: string
-  qty_remaining: number
+  qty_remaining: number|string
   days_to_expiry: number
   received_at: string
   branch?: { id: string; name: string; code: string } | null
@@ -60,9 +60,10 @@ interface ExpiringLot {
     size?: string | null
     barcode?: string | null
     image_url?: string | null
-    stock: number
-    lotted: number
-    unlotted: number
+    stock: number|string
+    lotted: number|string
+    unlotted: number|string
+    base_unit?:{code:string;label:string}|null
   }
 }
 
@@ -80,7 +81,7 @@ export const LotsExpiryPage = () => {
   const [days, setDays] = useState('30')
   const [search, setSearch] = useState('')
   const [locationId, setLocationId] = useState('all')
-  const { page, pageSize, setPage } = usePersistedListUiState('inventario/lotes', { defaultPageSize: 10 })
+  const { page, pageSize, setPage, setPageSize } = usePersistedListUiState('inventario/lotes', { defaultPageSize: 50 })
 
   const effectiveDays = Math.min(365, Math.max(1, Number(days) || 30))
   const { data, isLoading, isFetching, isError, refetch } = useQuery<LotsExpiringResponse, Error>({
@@ -133,7 +134,7 @@ export const LotsExpiryPage = () => {
       toast({ title: 'No se pudo dar de baja', description: e.message, variant: 'destructive' }),
   })
 
-  const unitsToWriteOff = (confirming ?? []).reduce((s, l) => s + l.qty_remaining, 0)
+  const lotsToWriteOff=(confirming??[]).length
 
   const appliedFilters = [
     ...(search.trim() ? [{ label: `Búsqueda: ${search}`, onRemove: () => { setSearch(''); setPage(1) } }] : []),
@@ -143,7 +144,7 @@ export const LotsExpiryPage = () => {
   ]
 
   return (
-    <div className="mx-auto grid w-full max-w-[1560px] min-w-0 gap-5 px-4 py-6 sm:px-8">
+    <div className="auna-page-fluid mx-auto grid w-full min-w-0 gap-5 px-4 py-6 sm:px-8">
 
       <h1 className="sr-only">Lotes y caducidades</h1>
 
@@ -202,10 +203,11 @@ export const LotsExpiryPage = () => {
         {isLoading ? <LoadingState columns={['Producto', 'Código de barras', 'Lote', 'Vencimiento', 'Días restantes', 'Existencia del lote', 'Stock (sin lote)', 'Estado', 'Ubicación', 'Acciones']} message="Cargando lotes…" /> : isError ? <div role="alert" className="p-8 text-center">
           <p>No se pudieron cargar los lotes.</p>
           <Button variant="outline" className="mt-3" onClick={() => void refetch()}>Reintentar</Button>
-        </div> : !lots.length ? <EmptyState
-          icon={PackageOpen}
-          title="No hay lotes para esta consulta."
-          description="Revisa los filtros. Los lotes se crean al registrar ingresos de mercancía con fecha de caducidad."
+        </div> : !lots.length ? <CollectionEmptyState
+          title="Esta ventana no tiene lotes que mostrar"
+          description="No hay lotes con existencia vencidos o próximos a vencer en la ventana consultada. Los lotes se registran con los ingresos de mercancía que llevan caducidad."
+          filtered={Boolean(search.trim()) || locationId !== 'all' || status !== 'all' || days !== '30'}
+          onReset={() => { setSearch(''); setLocationId('all'); setStatus('all'); setDays('30'); setPage(1) }}
         /> : <>
           <div className="overflow-x-auto">
             <Table>
@@ -239,8 +241,8 @@ export const LotsExpiryPage = () => {
                   <TableCell className="whitespace-nowrap font-medium">{lot.lot_code || 'Sin código'}</TableCell>
                   <TableCell className={isExpired ? 'whitespace-nowrap text-red-600 dark:text-red-400' : 'whitespace-nowrap'}>{formatDate(lot.expiry_date)}</TableCell>
                   <TableCell className={isExpired ? 'text-right tabular-nums text-red-600 dark:text-red-400' : 'text-right tabular-nums'}>{isExpired ? `Hace ${Math.abs(lot.days_to_expiry)} días` : lot.days_to_expiry === 0 ? 'Vence hoy' : `${lot.days_to_expiry} días`}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">{lot.qty_remaining}</TableCell>
-                  <TableCell className="text-right tabular-nums text-muted-foreground">{lot.product.stock} ({lot.product.unlotted})</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">{lot.qty_remaining} {lot.product.base_unit?.label??'unidades'}</TableCell>
+                  <TableCell className="text-right tabular-nums text-muted-foreground">{lot.product.stock} ({lot.product.unlotted}) {lot.product.base_unit?.label??'unidades'}</TableCell>
                   <TableCell><Badge className={isExpired ? 'border-0 bg-red-500/10 text-red-700 dark:text-red-300 hover:bg-red-500/10' : 'border-0 bg-amber-500/15 text-amber-800 dark:text-amber-300 hover:bg-amber-500/15'}>{isExpired ? 'Vencido' : 'Por vencer'}</Badge></TableCell>
                   <TableCell><span>{lot.location?.code || 'Sin ubicación'}</span>{lot.branch && <p className="mt-1 text-xs text-muted-foreground">{lot.branch.name}</p>}</TableCell>
                   <TableCell>
@@ -256,7 +258,7 @@ export const LotsExpiryPage = () => {
 
         </>}
       </section>
-      {!isLoading && !isError && lots.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={lots.length} pageSize={pageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={isFetching} /></div>}</>
+      {!isLoading && !isError && lots.length > 0 && <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={lots.length} pageSize={pageSize} onPageSizeChange={setPageSize} count={visibleLots.length} itemLabel="lotes" onPageChange={setPage} loading={isFetching} /></div>}</>
 
       <ConfirmDialog
         appearance="auna"
@@ -264,7 +266,7 @@ export const LotsExpiryPage = () => {
         open={confirming !== null}
         onOpenChange={open => { if (!open && !writeOffMutation.isPending) setConfirming(null) }}
         title={`¿Dar de baja ${confirming?.length === 1 ? 'este lote' : `${confirming?.length ?? 0} lotes`}?`}
-        description={`Salen ${unitsToWriteOff} unidad(es) del inventario de la ubicación de cada lote. Esta acción abarca los lotes indicados, aunque estén en otras páginas. Queda registrado como ajuste por lote vencido y no puede deshacerse con un botón: habría que volver a ingresar las unidades.`}
+        description={`Se retira la existencia restante de ${lotsToWriteOff} lote(s), en la unidad base de cada producto. Esta acción abarca los lotes indicados, aunque estén en otras páginas. Queda registrado como ajuste por lote vencido y no puede deshacerse con un botón: habría que volver a registrar la mercancía.`}
         confirmText="Dar de baja"
         loading={writeOffMutation.isPending}
         onConfirm={() => writeOffMutation.mutate((confirming ?? []).map(l => l.id))}

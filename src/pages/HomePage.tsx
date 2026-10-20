@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -102,15 +103,7 @@ export const HomePage = () => {
                         <Button className="mt-4" onClick={() => refetch()}>Reintentar</Button>
                     </div>
                 ) : filteredModules.length === 0 ? (
-                    <div role="status" className="py-10 text-center">
-                        <p className="font-semibold">{search.trim() ? 'No encontramos módulos' : 'No hay módulos disponibles'}</p>
-                        <p className="mt-2 text-sm text-muted-foreground">
-                            {search.trim() ? 'Prueba con otro término de búsqueda.'
-                                : Array.isArray(user?.permissions) && !isAdmin && user.permissions.length === 0
-                                    ? 'Solicita a un administrador que revise tus permisos.'
-                                    : 'Contacta al administrador si crees que se trata de un error.'}
-                        </p>
-                    </div>
+                    <CollectionEmptyState title="Tu espacio de trabajo está por abrirse" description={Array.isArray(user?.permissions) && !isAdmin && user.permissions.length === 0 ? 'Solicita a un administrador que revise tus permisos.' : 'Contacta al administrador para revisar los módulos disponibles para tu empresa.'} filtered={!!search.trim()} onReset={() => setSearch('')} />
                 ) : (
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                         {filteredModules.map((module) => <ModuleCatalogCard key={module.id} module={module}

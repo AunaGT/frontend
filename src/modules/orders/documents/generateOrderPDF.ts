@@ -1,3 +1,4 @@
+import {documentUnitPrice} from '@/modules/inventory/units/public'
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Order } from '@/services/orderService'
@@ -41,8 +42,8 @@ export function generateOrderPDF(order: Order, options: {
       line.product?.barcode ?? '—',
       line.item_name ?? line.product?.name ?? line.product_id,
       `${line.qty} ${line.unit_label || ''}`.trim(),
-      `${line.qty_fulfilled ?? 0} ${line.unit_label || ''}`.trim(),
-      money(line.unit_price),
+      line.unit_metadata_version===2?`${line.base_fulfilled??'0'} ${line.unit_snapshot?.baseUnit.label??''}`:`${line.qty_fulfilled ?? 0} ${line.unit_label || ''}`.trim(),
+      line.unit_metadata_version===2?documentUnitPrice(line,locale):money(line.unit_price),
       money(line.line_total),
     ]),
     theme: 'grid',

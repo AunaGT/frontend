@@ -1,3 +1,6 @@
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -9,6 +12,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { isCashMethod } from '@/services/paymentMethodsService'
 import {normalizeQuantityInput,previewPartialLineTotal} from '@/lib/commercialQuantity';
+import {isUnitDocumentLine,remainingDocumentQuantity,partialDocumentInput,previewUnitPartialTotal,documentNetAmounts,compareUnitQuantities,documentUnitPrice,type PartialUnitBasis} from '@/modules/inventory/units/public'
+import type {Order} from '@/services/orderService'
+import {useCheckoutFlow,CheckoutRecoveryNotice} from '@/modules/sales/checkout/public'
+import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
 import { format } from "date-fns";
 import {
   ArrowLeft,
@@ -104,18 +111,19 @@ export default function OrderDetailPage() {
   const canManage = hasPermission("orders.manage");
   const canSell = hasPermission("sales.create");
   const isAdmin = String(user?.role?.name ?? "").toLowerCase() === "admin";
-  const { branches, company, branch, isConsolidated } = useTenant();
+  const { branches, company, branch, isConsolidated,registerTenantExitGuard } = useTenant();
   const { isEnabled } = useModules();
 
   const [saleDialogOpen, setSaleDialogOpen] = useState(false);
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [amountReceived, setAmountReceived] = useState("");
   const [saleQtys, setSaleQtys] = useState<Record<string, string>>({});
+  const pendingQty=(line:Order['lines'][number])=>isUnitDocumentLine(line)?remainingDocumentQuantity(line):String(pendingOrderLineQty(line))
+  const partialInput=(line:Order['lines'][number])=>isUnitDocumentLine(line)?partialDocumentInput(line,saleQtys[line.id]||'0',saleBases[line.id]??'BASE'):{qty:normalizeQuantityInput(saleQtys[line.id]||'0',{kind:line.item_kind??'STANDARD',quantityDecimals:line.quantity_decimals??0},locale),baseQty:saleQtys[line.id]}
   const [cashRegisterId, setCashRegisterId] = useState<string>("");
   const [shareAction, setShareAction] = useState<"copy" | "share" | "email" | null>(null);
-  const [linePage, setLinePage] = useState(1);
+  const {page:linePage,setPage:setLinePage,pageSize:linePageSize,setPageSize:setLinePageSize}=usePersistedListUiState('pedidos/detalle/partidas', {defaultPageSize:10});
   const [deliveryToReverse, setDeliveryToReverse] = useState<string | null>(null);
-  const [linePageSize, setLinePageSize] = useState(10);
   const [adminDetailsOpen, setAdminDetailsOpen] = useState(false);
   const [legacyDueDate, setLegacyDueDate] = useState('');
   const [paymentTerms, setPaymentTerms] = useState<CommercialPaymentTerms>({ payment_condition: 'CASH', credit_days: null });
@@ -127,6 +135,8 @@ export default function OrderDetailPage() {
     delivery_estimated_at: "",
     notes: "",
   });
+  const [saleBases,setSaleBases]=useState<Record<string,PartialUnitBasis>>({})
+  const guard=useDraftGuard(saleDialogOpen||adminDetailsOpen,registerTenantExitGuard,JSON.stringify([company?.id,branch?.id,id]))
 
   const { data: order, isLoading, isFetching, isError } = useQuery({
     queryKey: ["order", id, company?.id, isConsolidated?'all':branch?.id],
@@ -144,7 +154,7 @@ export default function OrderDetailPage() {
 
   const hasSales = (order?.documentSales?.length ?? 0) > 0;
   const canRegisterSale =
-    order && !order.engagementId && order.fulfillment_mode !== 'SEPARATE' && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => pendingOrderLineQty(l) > 0);
+    order && !order.engagementId && order.fulfillment_mode !== 'SEPARATE' && ["CONFIRMED", "PARTIALLY_FULFILLED"].includes(order.status) && order.lines.some((l) => compareUnitQuantities(pendingQty(l),'0')>0);
 
   // Este botón vende directo desde el pedido, sin pasar por el selector de
   // caja de "Abrir en POS" — necesita saber solas cuáles cajas puede usar
@@ -171,11 +181,12 @@ export default function OrderDetailPage() {
 
   const saleTotal = useMemo(() => {
     if (!order) return 0;
-    return Number(order.lines.reduce((acc, line) => {
-      try { return acc + BigInt(previewPartialLineTotal(String(line.qty),String(line.line_total),normalizeQuantityInput(saleQtys[line.id] || '',{kind:line.item_kind ?? 'STANDARD',quantityDecimals:line.quantity_decimals ?? 0},locale),String(line.qty_fulfilled || 0)).replace('.','')); }
+    const amounts=documentNetAmounts(order)
+    return Number(order.lines.reduce((acc, line,index) => {
+      try { const selected=partialInput(line);return acc + BigInt((isUnitDocumentLine(line)?previewUnitPartialTotal(String(line.base_qty),amounts[index],selected.baseQty,String(line.base_fulfilled??'0')):previewPartialLineTotal(String(line.qty),String(line.line_total),selected.qty,String(line.qty_fulfilled || 0))).replace('.','')); }
       catch { return acc; }
     }, 0n))/100;
-  }, [order, saleQtys,locale]);
+  }, [order, saleQtys,saleBases,locale]);
 
   // Respaldo del recorte en el onChange: si el pedido se refrescó mientras el diálogo
   // estaba abierto (otra entrega en paralelo bajó lo pendiente), no dejar confirmar
@@ -185,10 +196,10 @@ export default function OrderDetailPage() {
     return order.lines.some((line) => {
       const raw=saleQtys[line.id];
       if (!raw || raw==='0') return false;
-      try { return Number(normalizeQuantityInput(raw,{kind:line.item_kind ?? 'STANDARD',quantityDecimals:line.quantity_decimals ?? 0},locale)) > pendingOrderLineQty(line); }
+      try { return compareUnitQuantities(partialInput(line).baseQty,pendingQty(line))>0; }
       catch { return true; }
     });
-  }, [order, saleQtys,locale]);
+  }, [order, saleQtys,saleBases,locale]);
 
   const paginatedLines = useMemo(
     () => paginateOrderLines(order?.lines ?? [], linePage, linePageSize),
@@ -208,10 +219,11 @@ export default function OrderDetailPage() {
     if (!order) return;
     const init: Record<string, string> = {};
     for (const line of order.lines) {
-      const pending = pendingOrderLineQty(line);
-      if (pending > 0) init[line.id] = String(pending);
+      const pending = pendingQty(line);
+      if (compareUnitQuantities(pending,'0')>0) init[line.id] = pending;
     }
     setSaleQtys(init);
+    setSaleBases(Object.fromEntries(order.lines.map(line=>[line.id,isUnitDocumentLine(line)?'BASE':'ORIGINAL'])))
     setPaymentMethodId(String(paymentMethods.find(method => Boolean(method.is_credit) === (order.payment_condition === 'CREDIT'))?.id ?? ''));
     setLegacyDueDate('');
     setCashRegisterId(usableCashRegisters.length === 1 ? usableCashRegisters[0].id : "");
@@ -272,25 +284,17 @@ export default function OrderDetailPage() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const checkout=useCheckoutFlow({companyId:company?.id??'',branchId:branch?.id??'',userId:user?.id??''},canSell&&!isConsolidated,(attempt)=>{invalidate();setSaleDialogOpen(false);toast({title:'Venta registrada'});guard.proceed(()=>navigate(`/ventas/${attempt.saleId}/factura`))},JSON.stringify(user?.permissions??[]))
   const convertMutation = useMutation({
     mutationFn: () => {
-      const lines = (order?.lines ?? []).filter(line=>saleQtys[line.id] && saleQtys[line.id]!=='0').map(line=>({line_id:line.id,qty:normalizeQuantityInput(saleQtys[line.id],{kind:line.item_kind ?? 'STANDARD',quantityDecimals:line.quantity_decimals ?? 0},locale)}));
-      return convertOrderToSale(id!, {
+      const lines = (order?.lines ?? []).filter(line=>saleQtys[line.id] && saleQtys[line.id]!=='0').map(line=>{const selected=partialInput(line);return{line_id:line.id,qty:selected.qty,...('presentation_id' in selected?{presentation_id:null}:{})}});
+      return checkout.submit('ORDER',{
         due_date: legacyDueDate || undefined,
         payment_method_id: Number(paymentMethodId),
         amount_received: amountReceived ? Number(amountReceived) : undefined,
         lines,
         cash_register_id: effectiveCashRegisterId || undefined,
-      });
-    },
-    onSuccess: (result) => {
-      invalidate();
-      setSaleDialogOpen(false);
-      const saleRef = (result.sale as { reference?: string; id?: string })?.reference;
-      toast({ title: "Venta registrada", description: saleRef ?? "OK" });
-      const saleId = (result.sale as { id?: string })?.id;
-      if (saleId) navigate(`/ventas/${saleId}/factura`);
-      else queryClient.setQueryData(["order", id], result.order);
+      },id!);
     },
     onError: (e: Error) => toast({ title: "Error al vender", description: e.message, variant: "destructive" }),
   });
@@ -306,9 +310,9 @@ export default function OrderDetailPage() {
 
   const isCash = isCashMethod(paymentMethods.find((p) => String(p.id) === paymentMethodId),name=>name.toLowerCase()==='efectivo');
   const total = num(order.total);
-  const hasServices = order.lines.some(line => line.item_kind === 'SERVICE');
+  const hasServices = order.lines.some(line => line.item_kind === 'SERVICE'||isUnitDocumentLine(line));
   const totalOrdered = hasServices ? order.lines.length : order.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0);
-  const totalFulfilled = hasServices ? order.lines.filter(line => Number(line.qty_fulfilled) >= Number(line.qty)).length : order.lines.reduce((sum, line) => sum + Number(line.qty_fulfilled || 0), 0);
+  const totalFulfilled = hasServices ? order.lines.filter(line => compareUnitQuantities(pendingQty(line),'0')===0).length : order.lines.reduce((sum, line) => sum + Number(line.qty_fulfilled || 0), 0);
   const progressStep = orderProgressStep(order.status);
   const progress = ["Creado", "Confirmado", "Preparación", "Entrega", "Completado"];
   const progressShort = ["Creado", "Conf.", "Prepar.", "Entrega", "Completo"];
@@ -390,6 +394,8 @@ export default function OrderDetailPage() {
 
   return (
     <div className="order-detail-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+        {guard.dialog}
+        <CheckoutRecoveryNotice attempt={checkout.attempt} pending={checkout.pending} error={checkout.error} onCheck={()=>void checkout.reconcile()} onTicket={()=>{}} onDetail={()=>{}}/>
         {isFetching && <LoadingIndicator message="Actualizando pedido…" />}{order.engagementId&&<div className="flex flex-wrap items-center justify-between gap-3 border-y py-3"><p className="text-sm text-muted-foreground">Este pedido pertenece a una contratación de Agenda. Genera su venta desde el conjunto para aplicar los anticipos sin duplicarlos.</p><Button variant="outline" onClick={()=>navigate(`/agenda/contrataciones/${order.engagementId}`)}>Ver contratación</Button></div>}
         <header className="space-y-4">
           <Button type="button" variant="ghost" size="sm" className="pl-0" onClick={() => navigate("/pedidos")}>
@@ -475,15 +481,16 @@ export default function OrderDetailPage() {
               <div className="order-detail-products-scroll hidden sm:block" tabIndex={0} role="region" aria-label="Partidas del pedido">
                 <Table className="auna-data-table">
                   <TableHeader><TableRow className="bg-muted/45"><TableHead className="pl-6">Código</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Pedido</TableHead><TableHead className="text-right">Entregado</TableHead><TableHead className="text-right">Pendiente</TableHead><TableHead className="text-right">P. unitario</TableHead><TableHead className="pr-6 text-right">Importe</TableHead></TableRow></TableHeader>
-                  <TableBody>{paginatedLines.items.map((line) => <TableRow key={line.id}><TableCell className="pl-6 text-muted-foreground">{line.product?.barcode || "—"}</TableCell><TableCell className="font-medium">{line.item_name ?? line.product?.name ?? line.product_id}</TableCell><TableCell className="text-right">{line.qty} {line.unit_label}</TableCell><TableCell className="text-right text-emerald-600">{Number(line.qty_fulfilled || 0)} {line.unit_label}</TableCell><TableCell className="text-right text-brand-orange">{pendingOrderLineQty(line)} {line.unit_label}</TableCell><TableCell className="text-right">{fmt(num(line.unit_price))}</TableCell><TableCell className="pr-6 text-right font-semibold">{fmt(num(line.line_total))}</TableCell></TableRow>)}</TableBody>
+                  <TableBody>{paginatedLines.items.map((line) => <TableRow key={line.id}><TableCell className="pl-6 text-muted-foreground">{line.product?.barcode || "—"}</TableCell><TableCell className="font-medium">{line.item_name ?? line.product?.name ?? line.product_id}</TableCell><TableCell className="text-right">{line.qty} {line.unit_label}</TableCell><TableCell className="text-right text-emerald-600">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right text-brand-orange">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right">{isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(num(line.unit_price))}</TableCell><TableCell className="pr-6 text-right font-semibold">{fmt(num(line.line_total))}</TableCell></TableRow>)}</TableBody>
                 </Table>
               </div>
-              <div className="order-detail-mobile-lines auna-section-list px-4 sm:hidden" tabIndex={0} role="region" aria-label="Productos del pedido">{paginatedLines.items.map((line) => <article key={line.id} className="auna-section-row py-4"><div className="flex justify-between gap-3"><div><strong>{line.item_name ?? line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="text-muted-foreground">Pedido<strong className="block text-sm">{line.qty} {line.unit_label}</strong></span><span className="text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{Number(line.qty_fulfilled || 0)} {line.unit_label}</strong></span><span className="text-brand-orange">Pendiente<strong className="block text-sm">{pendingOrderLineQty(line)} {line.unit_label}</strong></span></div></article>)}</div>
+              <div className="order-detail-mobile-lines auna-section-list px-4 sm:hidden" tabIndex={0} role="region" aria-label="Productos del pedido">{paginatedLines.items.map((line) => <article key={line.id} className="auna-section-row py-4"><div className="flex justify-between gap-3"><div><strong>{line.item_name ?? line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="text-muted-foreground">Pedido<strong className="block text-sm">{line.qty} {line.unit_label}</strong></span><span className="text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span><span className="text-brand-orange">Pendiente<strong className="block text-sm">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span></div></article>)}</div>
 
+              {!order.lines.length && <CollectionEmptyState compact title="Este pedido espera sus partidas" description="Los productos registrados en el pedido aparecerán aquí con sus cantidades y entregas." />}
               <div className="ml-auto w-full max-w-sm space-y-2 border-t border-border/70 p-5 text-sm"><InfoRow label="Subtotal" value={fmt(num(order.subtotal))} />{num(order.discount_total) > 0 ? <InfoRow label="Descuento" value={`-${fmt(num(order.discount_total))}`} /> : null}<div className="flex items-center justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{fmt(total)}</span></div></div>
             </CardContent>
           </Card>
-<div className="auna-pagination-outside">{paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{[10, 25, 50].map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}</div></>
+<div className="auna-pagination-outside">{paginatedLines.totalItems > 10 ? <div className="flex flex-col gap-3 border-t border-border/70 px-5 pb-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-2 pt-4 text-sm text-muted-foreground"><span>Mostrar</span><Select value={String(linePageSize)} onValueChange={(value) => { setLinePageSize(Number(value)); setLinePage(1); }}><SelectTrigger className="w-20" aria-label="Partidas por página"><SelectValue /></SelectTrigger><SelectContent>{TABLE_PAGE_SIZES.map((size) => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select><span>de {paginatedLines.totalItems}</span></div><Pagination currentPage={paginatedLines.page} totalPages={paginatedLines.totalPages} onPageChange={setLinePage} /></div> : null}</div></>
 
             </div>
           </div>
@@ -513,16 +520,16 @@ export default function OrderDetailPage() {
                 <p className="text-xs text-muted-foreground">El saldo corresponde únicamente a ventas emitidas. Los importes del pedido todavía sin facturar no son deuda.</p>
                 <div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${paymentSummary.percentage}%` }} /></div>
                 <p className="text-right text-xs text-muted-foreground">{paymentSummary.percentage}% aplicado a ventas vigentes</p>
-                {order.documentSales?.length ? <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">{order.documentSales.map(link => link.sale?.id ? <Button key={link.id} variant="outline" size="sm" onClick={() => navigate(`/ventas/${link.sale!.id}/factura`)}>{link.sale.reference ?? link.sale.id.slice(0, 8)}</Button> : null)}</div> : <p className="text-muted-foreground">Sin ventas emitidas. No hay saldo por cobrar.</p>}
+                {order.documentSales?.length ? <div className="flex flex-wrap gap-2 border-t border-border/70 pt-3">{order.documentSales.map(link => link.sale?.id ? <Button key={link.id} variant="outline" size="sm" onClick={() => navigate(`/ventas/${link.sale!.id}/factura`)}>{link.sale.reference ?? link.sale.id.slice(0, 8)}</Button> : null)}</div> : <CollectionEmptyState compact title="Las ventas se vincularán aquí" description="Este pedido todavía no tiene ventas emitidas para consultar." />}
               </CardContent>
             </Card>
             {order.fulfillment_mode === 'SEPARATE' && <Card className="auna-surface rounded-xl">
               <CardHeader className="p-4"><CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-brand-orange" />Entregas registradas</CardTitle></CardHeader>
               <CardContent className="auna-section-list max-h-72 overflow-y-auto text-sm p-4 pt-0">{order.deliveries?.length ? order.deliveries.map((delivery, index) => <div key={delivery.id} className="auna-section-row py-3">
                 <p className="font-medium">Entrega {order.deliveries!.length - index}{delivery.reversed_at ? ' · Revertida' : ''}</p><p className="text-xs text-muted-foreground">{formatDateTime(delivery.created_at, undefined, locale)}</p>
-                {delivery.lines.map(line => <p key={line.document_line_id}>{order.lines.find(item => item.id === line.document_line_id)?.item_name ?? order.lines.find(item => item.id === line.document_line_id)?.product?.name ?? 'Producto'}: {line.qty} {order.lines.find(item => item.id === line.document_line_id)?.unit_label}</p>)}
-                {canManage && !delivery.reversed_at && delivery.lines.every(line => Number(line.qty_invoiced) === 0) && <Button variant="outline" size="sm" className="mt-2" onClick={() => setDeliveryToReverse(delivery.id)}>Revertir entrega</Button>}
-              </div>) : <p className="text-muted-foreground">Todavía no se han registrado entregas.</p>}</CardContent>
+                {delivery.lines.map(line => <p key={line.document_line_id}>{order.lines.find(item => item.id === line.document_line_id)?.item_name ?? order.lines.find(item => item.id === line.document_line_id)?.product?.name ?? 'Producto'}: {line.qty} {line.unit_snapshot?.presentation?.label??line.unit_snapshot?.baseUnit.label??line.unit_label??order.lines.find(item => item.id === line.document_line_id)?.unit_label}</p>)}
+                {canManage && !delivery.reversed_at && delivery.lines.every(line => line.unit_metadata_version===2?compareUnitQuantities(line.base_invoiced??'0','0')===0:Number(line.qty_invoiced)===0) && <Button variant="outline" size="sm" className="mt-2" onClick={() => setDeliveryToReverse(delivery.id)}>Revertir entrega</Button>}
+              </div>) : <CollectionEmptyState compact title="Cada entrega deja su huella" description="Las entregas registradas de este pedido aparecerán aquí." />}</CardContent>
             </Card>}
             <Card className="auna-surface rounded-xl"><CardHeader className="flex-row items-center justify-between p-4"><CardTitle className="text-lg">Notas</CardTitle>{canManage ? <Button variant="link" size="sm" className="h-auto p-0 text-brand-orange" onClick={openAdminDetails}><Edit3 className="mr-1 h-3.5 w-3.5" />Editar</Button> : null}</CardHeader><CardContent className="p-4 pt-0"><p className="whitespace-pre-wrap text-sm text-muted-foreground">{order.notes || "Sin notas para este pedido."}</p></CardContent></Card>
 
@@ -558,12 +565,13 @@ export default function OrderDetailPage() {
           </DialogHeader>
           <div className="space-y-4 py-2 max-h-[50vh] overflow-y-auto">
             {order.lines
-              .filter((l) => pendingOrderLineQty(l) > 0)
+              .filter((l) => compareUnitQuantities(pendingQty(l),'0')>0)
               .map((line) => {
-                const pending = pendingOrderLineQty(line);
+                const pending = pendingQty(line);
                 return (
                   <div key={line.id} className="flex items-center gap-2 text-sm">
                     <span className="flex-1 truncate">{line.item_name ?? line.product?.name ?? line.product_id}</span>
+                    {isUnitDocumentLine(line)&&line.unit_snapshot!.presentation&&<select className="auna-control auna-control-select max-w-32" aria-label={`Unidad de ${line.item_name??line.product_id}`} value={saleBases[line.id]??'BASE'} onChange={event=>{const basis=event.target.value as PartialUnitBasis;setSaleBases(old=>({...old,[line.id]:basis}));let qty='';try{qty=remainingDocumentQuantity(line,'delivery',basis)}catch{}setSaleQtys(old=>({...old,[line.id]:qty}))}}><option value="BASE">{line.unit_snapshot!.baseUnit.label}</option><option value="ORIGINAL">{line.unit_snapshot!.presentation.label} original</option></select>}
                     <Input
                       type="text"
                       inputMode={line.item_kind==='SERVICE' ? 'decimal' : 'numeric'}
@@ -574,7 +582,7 @@ export default function OrderDetailPage() {
                         setSaleQtys((s) => ({ ...s, [line.id]: raw }))
                       }}
                     />
-                    <span className="text-muted-foreground w-16 text-right">/ {pending}</span>
+                    <span className="text-muted-foreground w-24 text-right">/ {pending} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</span>
                   </div>
                 );
               })}
@@ -617,6 +625,7 @@ export default function OrderDetailPage() {
                 !paymentMethodId ||
                 !effectiveCashRegisterId ||
                 convertMutation.isPending ||
+                checkout.pending||!!checkout.attempt||checkout.blocked||
                 saleTotal <= 0 ||
                 hasQtyOverPending
               }

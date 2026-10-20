@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -19,19 +20,18 @@ export default function UserManagement() {
   const [search, setSearch] = useState('')
   const [role, setRole] = useState('')
   const [status, setStatus] = useState('')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('usuarios/lista')
   const [sort, setSort] = useState('name')
   const [direction, setDirection] = useState('asc')
-  const pageSize = 8
   const activeFilterCount = Number(Boolean(search.trim())) + Number(Boolean(role)) + Number(Boolean(status))
-  const query = useQuery({ queryKey: ['users', company?.id, { page, search, role, status, sort, direction, includeSummary: true }], queryFn: () => getUsers({ page, pageSize, search, role_id: role ? Number(role) : undefined, status, sort, direction, includeSummary: true }), enabled: hasPermission('users.view') })
+  const query = useQuery({ queryKey: ['users', company?.id, { page, pageSize, search, role, status, sort, direction, includeSummary: true }], queryFn: () => getUsers({ page, pageSize, search, role_id: role ? Number(role) : undefined, status, sort, direction, includeSummary: true }), enabled: hasPermission('users.view') })
   const roles = useQuery({ queryKey: ['users-role-options', company?.id], queryFn: getRoles, enabled: hasPermission('users.view') })
   function order(key: string) { setSort(key); setDirection(sort === key && direction === 'asc' ? 'desc' : 'asc'); setPage(1) }
   const pageActions = <>
     {(hasPermission('roles.view') || hasPermission('roles.manage') || hasPermission('users.import')) && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline"><MoreHorizontal size={16} className="mr-2"/>Más opciones</Button></DropdownMenuTrigger><DropdownMenuContent className="users-overlay" align="end">{(hasPermission('roles.view') || hasPermission('roles.manage')) && <DropdownMenuItem onSelect={() => navigate('/usuarios/roles-permisos')}><Shield size={16} className="mr-2"/>Roles y permisos</DropdownMenuItem>}{hasPermission('users.import') && <DropdownMenuItem onSelect={() => navigate('/usuarios/importar')}><FileUp size={16} className="mr-2"/>Importar usuarios</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
     {hasPermission('users.create') && <Button asChild><Link to="/usuarios/nuevo"><Plus size={18} className="mr-2"/>Nuevo usuario</Link></Button>}
   </>
-  return <UsersPage compact title="Usuarios y roles" back="/" backLabel="Administración" description="Gestiona los usuarios, sus roles y el acceso a las empresas del grupo." actions={!hasPermission('users.view') ? pageActions : undefined}>
+  return <UsersPage compact fluid title="Usuarios y roles" back="/" backLabel="Administración" description="Gestiona los usuarios, sus roles y el acceso a las empresas del grupo." actions={!hasPermission('users.view') ? pageActions : undefined}>
     {!hasPermission('users.view') ? <Feedback error={new Error('No tienes permiso para consultar usuarios')}/> : <>
 <MetricStrip label="Resumen de usuarios" loading={query.isLoading} items={([['total', 'Usuarios'], ['ACTIVE', 'Activos'], ['INACTIVE', 'Inactivos'], ['BLOCKED', 'Bloqueados']] as const).map(([key, label]) => ({ label, value: query.isError ? '—' : query.data?.summary?.[key] ?? '—' }))} />
 
@@ -43,7 +43,7 @@ export default function UserManagement() {
     </CompactFilterPanel>
     <><section className="users-panel">
       {query.isFetching && query.data && <LoadingIndicator message="Actualizando usuarios…" className="px-4 py-2" />}
-      {!query.isLoading && <Feedback error={query.error} empty={!query.data?.items.length} retry={() => void query.refetch()}/>}
+      {!query.isLoading && <Feedback error={query.error} empty={!query.data?.items.length} retry={() => void query.refetch()} emptyTitle="Aquí empieza tu equipo" emptyDescription="Agrega al primer usuario para organizar los accesos a tu empresa." emptyAction={hasPermission('users.create') && <Button asChild><Link to="/usuarios/nuevo">Nuevo usuario</Link></Button>} filtered={activeFilterCount > 0} onReset={() => { setSearch(''); setRole(''); setStatus(''); setPage(1) }}/>}
       {!query.error && <div className="overflow-x-auto"><table className="users-table"><thead><tr>
         <th aria-sort={sort === 'name' ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="flex items-center gap-2" onClick={() => order('name')}>Usuario <ArrowUpDown size={12}/></button></th>
         <th aria-sort={sort === 'email' ? direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="flex items-center gap-2" onClick={() => order('email')}>Correo <ArrowUpDown size={12}/></button></th><th>Rol</th><th>Empresa</th><th>Estado</th><th>Último acceso</th><th>Acciones</th>
@@ -55,6 +55,6 @@ export default function UserManagement() {
       </tr>)}</tbody></table></div>}
 
     </section>
-<div className="auna-pagination-outside">{query.data && !query.error && <PageFooter page={query.data.page} totalPages={query.data.totalPages} total={query.data.totalItems} pageSize={pageSize} onChange={setPage} busy={query.isFetching}/>}</div></></>}
+<div className="auna-pagination-outside">{query.data && !query.error && <PageFooter page={query.data.page} totalPages={query.data.totalPages} total={query.data.totalItems} pageSize={pageSize} onPageSizeChange={setPageSize} onChange={setPage} busy={query.isFetching}/>}</div></></>}
   </UsersPage>
 }

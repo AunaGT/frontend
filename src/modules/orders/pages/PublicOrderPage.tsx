@@ -1,3 +1,4 @@
+import {isUnitDocumentLine,remainingDocumentQuantity,compareUnitQuantities,formatUnitDecimal,documentUnitPrice} from '@/modules/inventory/units/public'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -6,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { CompanyLogo } from '@/components/branding/CompanyLogo'
 import { EmptyState } from '@/components/shared/EmptyState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Pagination } from '@/components/shared/Pagination'
@@ -55,9 +57,9 @@ export default function PublicOrderPage() {
 
   const fmt = (value: number | string | null | undefined) => formatMoney(num(value), locale, currencyCode)
   const step = orderProgressStep(data.status)
-  const hasServices = data.lines.some(line => line.item_kind === 'SERVICE')
+  const hasServices = data.lines.some(line => line.item_kind === 'SERVICE'||isUnitDocumentLine(line))
   const ordered = hasServices ? data.lines.length : data.lines.reduce((sum, line) => sum + num(line.qty), 0)
-  const fulfilled = hasServices ? data.lines.filter(line => num(line.qty_fulfilled) >= num(line.qty)).length : data.lines.reduce((sum, line) => sum + num(line.qty_fulfilled), 0)
+  const fulfilled = hasServices ? data.lines.filter(line => isUnitDocumentLine(line)?compareUnitQuantities(remainingDocumentQuantity(line),'0')===0:num(line.qty_fulfilled)>=num(line.qty)).length : data.lines.reduce((sum, line) => sum + num(line.qty_fulfilled), 0)
   const lines = paginateOrderLines(data.lines, page, 10)
   const creditTerm = num(data.credit_days) > 0 ? 'Crédito a ' + data.credit_days + ' días desde la venta' : 'Crédito · Plazo según lo acordado'
   const subtotal = data.subtotal ?? num(data.total) + num(data.discount_total)
@@ -103,22 +105,22 @@ export default function PublicOrderPage() {
           <div className="min-w-0">
             <section className="auna-surface public-order-section" aria-label="Productos del pedido">
               <header className="public-order-section-heading"><Package aria-hidden="true" /><h2>Productos</h2><span className="ml-auto text-xs text-muted-foreground">{data.lines.length} partidas</span></header>
-              {!data.lines.length ? <EmptyState icon={Package} title="No hay productos registrados" description="Los productos aparecerán aquí cuando la empresa los agregue al pedido." /> : <>
+              {!data.lines.length ? <CollectionEmptyState compact title="Tu pedido espera sus partidas" description="Los productos aparecerán aquí cuando la empresa los agregue al pedido." /> : <>
                 <div className="auna-data-table-shell auna-table-embedded public-order-products-table hidden sm:block" tabIndex={0} role="region" aria-label="Lista de productos">
                   <Table className="auna-data-table min-w-[640px]">
                     <TableHeader><TableRow><TableHead>Producto / código</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead className="text-right">Entregado</TableHead><TableHead className="text-right">P. unitario</TableHead><TableHead className="text-right">Importe</TableHead></TableRow></TableHeader>
                     <TableBody>{lines.items.map((line, index) => <TableRow key={index}>
                       <TableCell><strong className="block font-medium">{line.product_name || 'Producto'}</strong><span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></TableCell>
-                      <TableCell className="text-right tabular-nums">{formatQuantity(String(line.qty), locale)} {line.unit_label}</TableCell><TableCell className="text-right tabular-nums">{formatQuantity(String(line.qty_fulfilled), locale)} {line.unit_label}</TableCell>
-                      <TableCell className="whitespace-nowrap text-right tabular-nums">{fmt(line.unit_price)}</TableCell><TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">{fmt(line.line_total)}</TableCell>
+                      <TableCell className="text-right tabular-nums">{isUnitDocumentLine(line)?formatUnitDecimal(String(line.qty),locale):formatQuantity(String(line.qty), locale)} {line.unit_label}</TableCell><TableCell className="text-right tabular-nums">{isUnitDocumentLine(line)?`${line.base_fulfilled??'0'} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(String(line.qty_fulfilled),locale)} ${line.unit_label??''}`}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right tabular-nums">{isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(line.unit_price)}</TableCell><TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">{fmt(line.line_total)}</TableCell>
                     </TableRow>)}</TableBody>
                   </Table>
                 </div>
                 <ul className="auna-section-list public-order-mobile-products sm:hidden" tabIndex={0} aria-label="Partidas del pedido">
                   {lines.items.map((line, index) => <li key={index} className="auna-section-row">
                     <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block font-medium">{line.product_name || 'Producto'}</strong><span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></div><strong className="shrink-0 tabular-nums">{fmt(line.line_total)}</strong></div>
-                    <dl className="public-order-mobile-quantities"><InfoRow label="Cantidad" value={`${formatQuantity(String(line.qty), locale)} ${line.unit_label || ''}`} /><InfoRow label="Entregado" value={`${formatQuantity(String(line.qty_fulfilled), locale)} ${line.unit_label || ''}`} /><InfoRow label="Pendiente" value={`${formatQuantity(remainingQuantity(String(line.qty), String(line.qty_fulfilled)), locale)} ${line.unit_label || ''}`} /></dl>
-                    <p className="text-xs text-muted-foreground">Precio unitario: {fmt(line.unit_price)}</p>
+                    <dl className="public-order-mobile-quantities"><InfoRow label="Cantidad" value={`${isUnitDocumentLine(line)?formatUnitDecimal(String(line.qty),locale):formatQuantity(String(line.qty),locale)} ${line.unit_label||''}`} /><InfoRow label="Entregado" value={isUnitDocumentLine(line)?`${line.base_fulfilled??'0'} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(String(line.qty_fulfilled),locale)} ${line.unit_label||''}`} /><InfoRow label="Pendiente" value={isUnitDocumentLine(line)?`${remainingDocumentQuantity(line)} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(remainingQuantity(String(line.qty),String(line.qty_fulfilled)),locale)} ${line.unit_label||''}`} /></dl>
+                    <p className="text-xs text-muted-foreground">Precio unitario: {isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(line.unit_price)}</p>
                   </li>)}
                 </ul>
               </>}

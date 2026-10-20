@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -9,10 +10,10 @@
  */
 
 /**
- * Vista para crear un nuevo producto. Mismo estilo que detalle/editar: layout 40/60 (imagen | datos).
+ * Vista para crear un nuevo producto con fotografía acotada y opciones a todo el ancho.
  * Conserva todos los atributos del inventario.
  */
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { ServiceQuantityFields } from './ServiceQuantityFields'
@@ -50,6 +51,11 @@ import { useKitAssemblePrompt } from './hooks/useKitAssemblePrompt'
 import { getApiBaseUrl } from '@/services/api'
 import type { ApiProduct } from '@/services/productService'
 import type { ProductFormData } from './types'
+import {EMPTY_PRODUCT_FORM} from './types'
+import {UnitSettingsFields} from '../units/UnitSettingsFields'
+import {useUnitCatalog} from '../units/useUnitCatalog'
+import {normalizeUnitDecimal,initialUnitsConfiguration,productDecimalPayload} from '../units/public'
+import {useTenant} from '@/context/useTenant'
 
 type CategoryItem = { id: string | number; name: string }
 
@@ -58,10 +64,11 @@ export default function ProductCreatePage() {
   const [searchParams] = useSearchParams()
   const serviceRequested = searchParams.get('tipo') === 'services'
   const { toast } = useToast()
-  const { locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
+  const { locale, currencyCode,inventoryServicesEnabled,inventoryUnitsEnabled } = useSystemSettings()
+  const unitCatalog=useUnitCatalog(inventoryUnitsEnabled)
+  const {registerTenantExitGuard}=useTenant()
   const isService = serviceRequested && inventoryServicesEnabled
   const agenda = useServiceScheduleDraft(isService)
-  const agendaGuard = useDraftGuard(!!agenda.dirty)
   usePageTrail([...(isService ? [{label:'Servicios',to:'/inventario?tipo=services'}] : []),{label:isService?'Nuevo servicio':'Nuevo producto'}])
   const currencySymbol = useMemo(() => {
     try {
@@ -73,8 +80,10 @@ export default function ProductCreatePage() {
   }, [locale, currencyCode])
   const productForm = useProductForm(isService ? 'SERVICE' : 'STANDARD')
   const createProductMutation = useCreateProduct()
-  const { data: categoriesData } = useCategories()
-  const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
+  const categoriesQuery = useCategories()
+  const { data: categoriesData } = categoriesQuery
+  const suppliersQuery = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
+  const { data: suppliersData } = suppliersQuery
   const { showAdvancedByDefault } = useExperienceProfile()
 
   const [isUploadingImage, setIsUploadingImage] = useState(false)
@@ -88,6 +97,10 @@ export default function ProductCreatePage() {
 
   const formData = productForm.formData
   const setFormData = productForm.setFormData
+  const scopeKey=JSON.stringify(unitCatalog.scope),liveScope=useRef(scopeKey),imageOperation=useRef(0)
+  liveScope.current=scopeKey
+  useEffect(()=>{liveScope.current=scopeKey;imageOperation.current++;setIsUploadingImage(false);productForm.resetForm();createdIdRef.current='';return()=>{imageOperation.current++;if(liveScope.current===scopeKey)liveScope.current='disposed'}},[scopeKey])
+  const agendaGuard=useDraftGuard(isUploadingImage||!!agenda.dirty||JSON.stringify(formData)!==JSON.stringify({...EMPTY_PRODUCT_FORM,productKind:isService?'SERVICE':'STANDARD'}),registerTenantExitGuard,scopeKey)
   const onFormChange = <K extends keyof ProductFormData>(field: K, value: ProductFormData[K]) => {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
@@ -114,6 +127,7 @@ export default function ProductCreatePage() {
   }, [formData.supplier, suppliers])
 
   const handleProductImageFile = async (file: File) => {
+    const owner=scopeKey,operation=++imageOperation.current
     try {
       setIsUploadingImage(true)
       if (file.size > 5 * 1024 * 1024) {
@@ -132,45 +146,42 @@ export default function ProductCreatePage() {
         body: fd,
       })
       const data = await response.json()
+      if(liveScope.current!==owner||imageOperation.current!==operation)return
       if (!response.ok) throw new Error(data.message || 'Error al subir la imagen')
       const imageUrl = data.imageUrl ?? data.url
       if (!imageUrl) throw new Error('No se recibió la URL de la imagen')
       onFormChange('imageUrl', imageUrl)
       toast({ title: 'Imagen subida', description: 'La imagen del producto se subió correctamente.' })
     } catch (err: unknown) {
+      if(liveScope.current!==owner||imageOperation.current!==operation)return
       toast({
         title: 'Error al subir imagen',
         description: (err as Error)?.message ?? 'No se pudo subir la imagen',
         variant: 'destructive',
       })
     } finally {
-      setIsUploadingImage(false)
+      if(liveScope.current===owner&&imageOperation.current===operation)setIsUploadingImage(false)
     }
   }
 
   const handleSubmit = () => {
-    if (!agenda.ready) return
+    if (!agenda.ready || !unitCatalog.canWrite || createProductMutation.isPending) return
     if (!productForm.validateForm()) return
     const isKit = formData.productKind === 'KIT'
+    const requestScope=scopeKey
+    const units=inventoryUnitsEnabled?initialUnitsConfiguration(formData.units,formData.productKind):undefined
+    const decimals=productDecimalPayload({...formData,stock:isKit?'0':formData.stock},{kind:formData.productKind,quantityDecimals:units?.quantity_decimals??Number(formData.quantityDecimals),advanced:!!units},locale)
     const payload = {
+      ...(units?{units_configuration:units}:{}),
+      ...decimals,
       name: formData.name.trim(),
       category_id: Number(formData.category),
       ...(!isService ? {
       brand: formData.brand?.trim() || undefined,
       size: formData.size?.trim() || undefined,
-      stock: isKit ? 0 : formData.stock ? Number(formData.stock) : 0,
-      min_stock: formData.minStock ? Number(formData.minStock) : 0,
-      cost: formData.cost ? Number(formData.cost) : 0,
       supplier_id: formData.supplier,
       tracks_expiry: formData.tracksExpiry,
-      } : {service_unit_label:formData.serviceUnitLabel.trim(),quantity_decimals:Number(formData.quantityDecimals)}),
-      price: Number(formData.price),
-      price_wholesale: formData.priceWholesale?.trim()
-        ? Number(formData.priceWholesale)
-        : undefined,
-      price_promotion: formData.pricePromotion?.trim()
-        ? Number(formData.pricePromotion)
-        : undefined,
+      } : {service_unit_label:formData.serviceUnitLabel.trim(),quantity_decimals:units?.quantity_decimals??Number(formData.quantityDecimals)}),
       promotion_valid_until: formData.promotionValidUntil?.trim()
         ? new Date(formData.promotionValidUntil).toISOString()
         : undefined,
@@ -184,16 +195,16 @@ export default function ProductCreatePage() {
       ...(isKit
         ? {
             bom_components: formData.kitComponents
-              .filter((c) => c.component_product_id && c.qty_per_unit > 0)
               .map((c) => ({
                 component_product_id: c.component_product_id,
-                qty_per_unit: c.qty_per_unit,
+                qty_per_unit: normalizeUnitDecimal(String(c.qty_per_unit),{decimals:6,allowZero:false}),
               })),
           }
         : {}),
     }
     createProductMutation.mutate(payload, {
       onSuccess: (data: ApiProduct) => {
+        if(liveScope.current!==requestScope)return
         toast({ title: 'Producto creado', description: 'El producto fue creado correctamente' })
         productForm.resetForm()
         const id = data?.id != null ? String(data.id) : ''
@@ -207,13 +218,14 @@ export default function ProductCreatePage() {
         }
       },
       onError: (err: unknown) => {
+        if(liveScope.current!==requestScope)return
         const message = (err as { message?: string })?.message || 'No se pudo crear el producto'
         toast({ title: 'Error', description: message, variant: 'destructive' })
       },
     })
   }
 
-  const isLoading = createProductMutation.isPending || isUploadingImage
+  const isLoading = createProductMutation.isPending || isUploadingImage || !unitCatalog.canWrite
   const isKit = formData.productKind === 'KIT'
   if (serviceRequested && !inventoryServicesEnabled) return <div role="alert" className="mx-auto max-w-[1560px] p-8">Los servicios están desactivados para esta empresa.</div>
 
@@ -246,21 +258,23 @@ export default function ProductCreatePage() {
           </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            {/* Imagen - 40% */}
-            <div className={advancedOpen ? 'lg:col-span-2' : 'hidden'}>
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Imagen del producto</p>
-              <div className="rounded-md overflow-hidden border border-border bg-muted flex flex-col items-center justify-center p-4 gap-4 min-h-[220px]">
+        <CardContent className="space-y-5">
+          <section aria-labelledby="create-identity-heading" className="space-y-3">
+            <h2 id="create-identity-heading" className="text-sm font-semibold">Datos del producto</h2>
+            <div className={advancedOpen ? "grid items-start gap-5 lg:grid-cols-[180px_minmax(0,1fr)]" : "grid"}>
+            <div className={advancedOpen ? 'min-w-0 space-y-2' : 'hidden'}>
+              <p className="text-xs text-muted-foreground">Fotografía · opcional</p>
+              <div className="space-y-2">
                 {formData.imageUrl ? (
-                  <img src={formData.imageUrl} alt={formData.name || 'Producto'} className="w-full max-h-64 object-contain rounded-lg" />
+                  <img src={formData.imageUrl} alt={formData.name || 'Producto'} className="h-28 w-full object-contain rounded-lg" />
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-muted-foreground py-8">
-                    <ImageIcon className="w-12 h-12 mb-2" />
+                  <div className="flex h-20 items-center justify-center gap-2 text-muted-foreground">
+                    <ImageIcon className="h-6 w-6" />
                     <span className="text-sm">Sin imagen</span>
                   </div>
                 )}
                 <ImageUploadDropzone
+                  className="[&_.auna-file-dropzone]:min-h-0 [&_.auna-file-dropzone]:py-3 [&_.auna-file-dropzone_svg]:h-5 [&_.auna-file-dropzone_svg]:w-5"
                   onFileSelect={(f) => {
                     void handleProductImageFile(f)
                   }}
@@ -269,21 +283,11 @@ export default function ProductCreatePage() {
                   }
                   disabled={isUploadingImage || isLoading}
                   isUploading={isUploadingImage}
-                  helperText={
-                    <>
-                      Opcional. Máx 5MB. Se almacenará en el bucket <span className="font-semibold">productos</span>.
-                    </>
-                  }
                 />
               </div>
             </div>
-
-            {/* Datos - 60% */}
-            <div className={`${advancedOpen ? 'lg:col-span-3' : 'lg:col-span-5'} space-y-6`}>
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">Datos del producto</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
+              <div className={advancedOpen ? "grid min-w-0 gap-3 sm:grid-cols-3" : "grid min-w-0 gap-3 sm:grid-cols-2"}>
+                  <div className={advancedOpen ? "sm:col-span-2" : ""}>
                     <Label className="text-muted-foreground">Nombre del Producto *</Label>
                     <Input
                       placeholder="Whisky Buchanans 18..."
@@ -304,7 +308,7 @@ export default function ProductCreatePage() {
                       <PopoverContent className="w-[320px] p-0" align="start">
                         <Command>
                           <CommandInput placeholder="Buscar categoría..." />
-                          <CommandEmpty>No se encontraron categorías.</CommandEmpty>
+                          {categoriesQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando categorías…</p> : categoriesQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar categorías.<Button type="button" variant="ghost" onClick={() => void categoriesQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={categories.length > 0} title="Las categorías del catálogo aparecerán aquí" description="Configura las categorías para organizar tus registros." /></CommandEmpty>}
                           <CommandList>
                             <CommandGroup>
                               <ScrollArea className="h-48">
@@ -328,8 +332,6 @@ export default function ProductCreatePage() {
                       </PopoverContent>
                     </Popover>
                   </div>
-                  {isService && <ServiceQuantityFields unit={formData.serviceUnitLabel} decimals={formData.quantityDecimals} onUnitChange={value=>onFormChange('serviceUnitLabel',value)} onDecimalsChange={value=>onFormChange('quantityDecimals',value)} />}
-                  {agenda.allowed && <div className="space-y-3 border-t pt-4 md:col-span-2">{agenda.error ? <p role="alert" className="text-destructive">No se pudo cargar la configuración de Agenda. Recarga antes de guardar.</p> : <ServiceScheduleFields value={agenda.value} onChange={agenda.change} directory={agenda.directory} disabled={!agenda.ready || createProductMutation.isPending} errors={{}} />}</div>}
                   {advancedOpen && !isService && (
                     <>
                       <div>
@@ -352,132 +354,7 @@ export default function ProductCreatePage() {
                       </div>
                     </>
                   )}
-                  <div>
-                    <Label className="text-muted-foreground">Precio de Venta *</Label>
-                    <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
-                      <Input
-                        type="number"
-                        placeholder="0.00"
-                        value={formData.price}
-                        onChange={(e) => onFormChange('price', e.target.value)}
-                        className="pl-[4.5rem]"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>
-                  {advancedOpen && <div>
-                    <Label className="text-muted-foreground">Precio mayoreo (opcional)</Label>
-                    <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
-                      <Input
-                        type="number"
-                        placeholder="—"
-                        value={formData.priceWholesale}
-                        onChange={(e) => onFormChange('priceWholesale', e.target.value)}
-                        className="pl-[4.5rem]"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>}
-                  {advancedOpen && <div>
-                    <Label className="text-muted-foreground">Precio promoción (opcional)</Label>
-                    <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
-                      <Input
-                        type="number"
-                        placeholder="—"
-                        value={formData.pricePromotion}
-                        onChange={(e) => onFormChange('pricePromotion', e.target.value)}
-                        className="pl-[4.5rem]"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>}
-                  {advancedOpen && <div>
-                    <Label className="text-muted-foreground">Promoción válida hasta</Label>
-                    <Input
-                      type="datetime-local"
-                      value={formData.promotionValidUntil}
-                      onChange={(e) => onFormChange('promotionValidUntil', e.target.value)}
-                      className="mt-1"
-                    />
-                  </div>}
-                  {advancedOpen && !isService && <div>
-                    <Label className="text-muted-foreground">Costo</Label>
-                    <div className="relative mt-1">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground min-w-[3.5rem]">{currencySymbol}</span>
-                      <Input
-                        type="number"
-                        placeholder="0.00"
-                        value={formData.cost}
-                        onChange={(e) => onFormChange('cost', e.target.value)}
-                        className="pl-[4.5rem]"
-                        step="0.01"
-                      />
-                    </div>
-                  </div>}
-                  {advancedOpen && !isService && <div>
-                    <Label className="text-muted-foreground">Tipo de producto</Label>
-                    <Select
-                      value={formData.productKind}
-                      onValueChange={(v) =>
-                        onFormChange('productKind', v as ProductFormData['productKind'])
-                      }
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="STANDARD">Producto normal</SelectItem>
-                        <SelectItem value="KIT">Kit / combo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>}
-
-                  {!isService && (advancedOpen && isKit ? (
-                    <div className="border-t pt-4">
-                      <ProductKitComponentsEditor
-                        value={formData.kitComponents}
-                        onChange={(kitComponents) => onFormChange('kitComponents', kitComponents)}
-                      />
-                      <p className="text-xs text-muted-foreground mt-3">
-                        El stock del kit se calcula según los componentes. No lleva stock propio.
-                      </p>
-                    </div>
-                  ) : (
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-muted-foreground">Stock Inicial</Label>
-                    <div className="relative mt-1">
-                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={formData.stock}
-                        onChange={(e) => onFormChange('stock', e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-muted-foreground">Stock Mínimo</Label>
-                    <div className="relative mt-1">
-                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        type="number"
-                        placeholder="0"
-                        value={formData.minStock}
-                        onChange={(e) => onFormChange('minStock', e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                </div>
-                  ))}
-                </div>
-
-                {!isService && <div className="mt-4">
+                {!isService && <div>
                   <Label className="text-muted-foreground">Proveedor *</Label>
                   <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
                     <PopoverTrigger asChild>
@@ -489,7 +366,7 @@ export default function ProductCreatePage() {
                     <PopoverContent className="w-[320px] p-0" align="start">
                       <Command>
                         <CommandInput placeholder="Buscar proveedor..." />
-                        <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
+                        {suppliersQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando proveedores…</p> : suppliersQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar proveedores.<Button type="button" variant="ghost" onClick={() => void suppliersQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={suppliers.length > 0} title="Aquí aparecerán tus proveedores" description="Registra un contacto de tipo proveedor para asociarlo a tus productos." /></CommandEmpty>}
                         <CommandList>
                           <CommandGroup>
                             <ScrollArea className="h-48">
@@ -513,8 +390,7 @@ export default function ProductCreatePage() {
                     </PopoverContent>
                   </Popover>
                 </div>}
-
-                <div className="mt-4">
+                <div>
                   <Label className="text-muted-foreground">Código de Barras</Label>
                   <div className="flex gap-2 mt-1">
                     <Input
@@ -529,18 +405,45 @@ export default function ProductCreatePage() {
                     </Button>
                   </div>
                 </div>
-
-                {advancedOpen && <div className="mt-4">
+                {advancedOpen && <div className="sm:col-span-2">
                   <Label className="text-muted-foreground">Descripción</Label>
                   <Textarea
                     placeholder="Descripción del producto..."
                     value={formData.description}
                     onChange={(e) => onFormChange('description', e.target.value)}
-                    rows={3}
+                    rows={2}
                     className="mt-1 resize-none"
                   />
                 </div>}
-                {advancedOpen && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
+              </div>
+            </div>
+          </section>
+          <div className={isService ? "space-y-5" : "grid items-start gap-6 xl:grid-cols-2"}>
+            <section aria-labelledby="create-prices-heading" className="min-w-0 space-y-3 border-t pt-4">
+              <h2 id="create-prices-heading" className="text-sm font-semibold">Precios y venta</h2>
+              <div className={advancedOpen ? isService ? "grid gap-3 sm:grid-cols-2" : "grid gap-3 sm:grid-cols-3" : "grid gap-3"}>
+                {([{field:'price',label:'Precio de Venta *',placeholder:'0.00',visible:true},{field:'priceWholesale',label:'Precio mayoreo (opcional)',placeholder:'—',visible:advancedOpen},{field:'cost',label:'Costo',placeholder:'0.00',visible:advancedOpen&&!isService}] as const).filter(field=>field.visible).map(field=><div key={field.field} className="min-w-0 space-y-1.5">
+                  <Label htmlFor={"create-"+field.field} className="text-muted-foreground">{field.label}</Label>
+                  <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
+                    <Input id={"create-"+field.field} type="text" inputMode="decimal" placeholder={field.placeholder} value={formData[field.field]} onChange={e=>onFormChange(field.field,e.target.value)} className="pl-12" step="0.01" />
+                  </div>
+                </div>)}
+              </div>
+              {advancedOpen&&<div className="grid gap-3 sm:grid-cols-2">
+                <div className="min-w-0 space-y-1.5"><Label htmlFor="create-promotion" className="text-muted-foreground">Precio promoción (opcional)</Label>
+                  <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">{currencySymbol}</span>
+                    <Input id="create-promotion" type="text" inputMode="decimal" placeholder="—" value={formData.pricePromotion} onChange={e=>onFormChange("pricePromotion",e.target.value)} className="pl-12" step="0.01" />
+                  </div>
+                </div>
+                <div className="min-w-0 space-y-1.5"><Label htmlFor="create-promotion-until" className="text-muted-foreground">Promoción válida hasta</Label>
+                  <Input id="create-promotion-until" type="datetime-local" value={formData.promotionValidUntil} onChange={e=>onFormChange("promotionValidUntil",e.target.value)} />
+                </div>
+              </div>}
+              {isService&&<div className="grid gap-3 sm:grid-cols-2">
+                  <ServiceQuantityFields unit={formData.serviceUnitLabel} decimals={formData.quantityDecimals} onUnitChange={value=>onFormChange('serviceUnitLabel',value)} onDecimalsChange={value=>onFormChange('quantityDecimals',value)} />
+              </div>}
+              {isService&&<div className="min-w-0">{unitCatalog.isError&&inventoryUnitsEnabled?<p role="alert" className="text-sm text-destructive">No se pudieron cargar las unidades. <Button type="button" variant="ghost" onClick={()=>void unitCatalog.refetch()}>Reintentar</Button></p>:<UnitSettingsFields enabled={inventoryUnitsEnabled} kind={formData.productKind} units={unitCatalog.units} value={formData.units} onChange={value=>onFormChange('units',value)} disabled={isLoading||unitCatalog.isLoading} basePrice={formData.price} locale={locale} />}</div>}
+                {advancedOpen && <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="create-available-sale">Disponible para la venta</Label>
                     <p className="text-xs text-muted-foreground max-w-xl">
@@ -553,7 +456,70 @@ export default function ProductCreatePage() {
                     onCheckedChange={(v) => onFormChange('availableForSale', v)}
                   />
                 </div>}
-                {advancedOpen && !isService && <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-lg border border-border p-4">
+            </section>
+            {!isService&&<section aria-labelledby="create-stock-heading" className="min-w-0 space-y-3 border-t pt-4">
+              <h2 id="create-stock-heading" className="text-sm font-semibold">Existencias y unidades</h2>
+              <div className="grid gap-3 sm:grid-cols-3">
+                  {advancedOpen && !isService && <div>
+                    <Label className="text-muted-foreground">Tipo de producto</Label>
+                    <Select
+                      value={formData.productKind}
+                      onValueChange={(v) =>
+                        onFormChange('productKind', v as ProductFormData['productKind'])
+                      }
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="STANDARD">Producto normal</SelectItem>
+                        <SelectItem value="KIT">Kit / combo</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>}
+                  {!isService && (advancedOpen && isKit ? (
+                    <div className="border-t pt-4 sm:col-span-3">
+                      <ProductKitComponentsEditor
+                        value={formData.kitComponents}
+                        onChange={(kitComponents) => onFormChange('kitComponents', kitComponents)}
+                      />
+                      <p className="text-xs text-muted-foreground mt-3">
+                        El stock del kit se calcula según los componentes. No lleva stock propio.
+                      </p>
+                    </div>
+                  ) : (
+                <div className={advancedOpen ? "grid gap-3 sm:col-span-2 sm:grid-cols-2" : "grid gap-3 sm:col-span-3 sm:grid-cols-2"}>
+                  <div>
+                    <Label className="text-muted-foreground">Stock Inicial</Label>
+                    <div className="relative mt-1">
+                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text" inputMode="decimal"
+                        placeholder="0"
+                        value={formData.stock}
+                        onChange={(e) => onFormChange('stock', e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground">Stock Mínimo</Label>
+                    <div className="relative mt-1">
+                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        type="text" inputMode="decimal"
+                        placeholder="0"
+                        value={formData.minStock}
+                        onChange={(e) => onFormChange('minStock', e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
+                  ))}
+              </div>
+          <div>{unitCatalog.isError&&inventoryUnitsEnabled?<p role="alert" className="text-sm text-destructive">No se pudieron cargar las unidades. <Button type="button" variant="ghost" onClick={()=>void unitCatalog.refetch()}>Reintentar</Button></p>:<UnitSettingsFields enabled={inventoryUnitsEnabled} kind={formData.productKind} units={unitCatalog.units} value={formData.units} onChange={value=>onFormChange('units',value)} disabled={isLoading||unitCatalog.isLoading} basePrice={formData.price} locale={locale} />}</div>
+                {advancedOpen && !isService && <div className="flex items-start justify-between gap-3 border-t pt-3">
                   <div className="space-y-0.5">
                     <Label htmlFor="create-tracks-expiry">Controla caducidad</Label>
                     <p className="text-xs text-muted-foreground max-w-xl">
@@ -566,11 +532,9 @@ export default function ProductCreatePage() {
                     onCheckedChange={(v) => onFormChange('tracksExpiry', v)}
                   />
                 </div>}
-
-              </div>
-
-            </div>
+            </section>}
           </div>
+                  {agenda.allowed && <div className="space-y-3 border-t pt-4 md:col-span-2">{agenda.error ? <p role="alert" className="text-destructive">No se pudo cargar la configuración de Agenda. Recarga antes de guardar.</p> : <ServiceScheduleFields value={agenda.value} onChange={agenda.change} directory={agenda.directory} disabled={!agenda.ready || createProductMutation.isPending} errors={{}} />}</div>}
         </CardContent>
       </Card>
       {promptDialog}

@@ -9,22 +9,28 @@ const contact = { id: 'qa-contact', party_type: 'SUPPLIER', entityKind: 'ORGANIZ
 const entry = { id: 'qa-entry', date: '2026-10-09', registeredBy: { name: 'Operador QA' }, itemsCount: 2, totalValue: 125 }
 const sale = { id: 'qa-sale', reference: 'V-QA-001', date: '2026-10-09', total: 125, adjusted_total: 100, items: 2, status: { name: 'Completada' } }
 
-function renderContact({ customer = false, allowed = true, history = true, edit = false, pane = 'detalles', states = {}, updateError = null, permissions = null } = {}) {
+function renderContact({ customer = false, allowed = true, history = true, edit = false, pane = 'detalles', states = {}, updateError = null, permissions = null, historyError = false } = {}) {
   let index = 0
   const nodes = [], changes = [], queries = [], requests = [], notices = [], searches = [], navigations = [], effects = []
   const raw = { ...contact, party_type: customer ? 'CUSTOMER' : 'SUPPLIER', credit_limit: customer ? 500 : null }
+  const useState = initial => {
+    const i = index++
+    const values = { 16: pane, 17: 'Empresa QA', 18: 'Ana QA', 19: '5555-0101', 20: 'qa@example.test', 21: 'Dirección QA', 23: ['3'], 24: '3', 27: '123456-7', 28: '500', ...states }
+    const [value, setValue] = React.useState(Object.hasOwn(values, i) ? values[i] : initial)
+    return [value, next => { const updated = typeof next === 'function' ? next(value) : next; changes.push({ index: i, value: updated }); setValue(updated) }]
+  }
   const Page = loadReportModule('../contacts/components/SupplierDetailPage.tsx', {
-    react: { ...React, useEffect: (run, deps) => effects.push({ run, deps }), useState: initial => {
-      const i = index++
-      const values = { 16: pane, 17: 'Empresa QA', 18: 'Ana QA', 19: '5555-0101', 20: 'qa@example.test', 21: 'Dirección QA', 23: ['3'], 24: '3', 27: '123456-7', 28: '500', ...states }
-      const [value, setValue] = React.useState(Object.hasOwn(values, i) ? values[i] : initial)
-      return [value, next => { const updated = typeof next === 'function' ? next(value) : next; changes.push({ index: i, value: updated }); setValue(updated) }]
+    react: { ...React, useEffect: (run, deps) => effects.push({ run, deps }), useState },
+    '@/hooks/usePersistedListUiState': { usePersistedListUiState: key => {
+      const [page, setPage] = useState(1)
+      const [pageSize, setPageSize] = key.endsWith('/productos') ? React.useState(10) : useState(10)
+      return { page, setPage, pageSize, setPageSize }
     } },
     'react-router-dom': { useParams: () => ({ id: 'qa-contact' }), useNavigate: () => path => navigations.push(path), useSearchParams: () => [new URLSearchParams(`origen=lista${edit ? '&editar=1' : ''}`), (next, options) => searches.push({ value: String(typeof next === 'function' ? next(new URLSearchParams(`origen=lista${edit ? '&editar=1' : ''}`)) : next), options })] },
     '@/components/layout/PageNavigation': { usePageTrail() {} },
     '@/hooks/useSupplier': { useSupplier: () => ({ data: raw, isLoading: false, refetch: async () => requests.push('refetch') }) },
-    '@/hooks/useCustomerSales': { useCustomerSales: (id, options) => { queries.push({ type: 'sales', id, ...options }); return { data: { items: [sale], totalItems: 24, totalPages: 3, customerPurchaseSummary: { totalPurchases: 2400, lastSaleDate: '2026-10-09' } } } } },
-    '@/modules/merchandise': { useIncomingMerchandise: options => { queries.push({ type: 'entries', ...options }); return { data: { items: [entry], totalItems: 24, totalPages: 3 } } }, useIncomingMerchandiseById: () => ({ data: null }), fetchIncomingMerchandise() { throw new Error('Unexpected export fetch') } },
+    '@/hooks/useCustomerSales': { useCustomerSales: (id, options) => { queries.push({ type: 'sales', id, ...options }); return { isError: historyError, refetch: () => requests.push('sales-retry'), data: historyError ? undefined : { items: [sale], totalItems: 24, totalPages: 3, customerPurchaseSummary: { totalPurchases: 2400, lastSaleDate: '2026-10-09' } } } } },
+    '@/modules/merchandise': { useIncomingMerchandise: options => { queries.push({ type: 'entries', ...options }); return { isError: historyError, refetch: () => requests.push('entries-retry'), data: historyError ? undefined : { items: [entry], totalItems: 24, totalPages: 3 } } }, useIncomingMerchandiseById: () => ({ data: null }), fetchIncomingMerchandise() { throw new Error('Unexpected export fetch') } },
     '@/modules/sales': { normalizeRawSale: raw => raw, SaleDetailDialog: () => null },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: permission => permissions ? permissions.includes(permission) : permission.endsWith('.edit') || permission.endsWith('.delete') ? allowed : history }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ' }) },
@@ -101,6 +107,16 @@ test('history tables remain scoped and expose bounded keyboard scroll with exter
     assert.equal(query.supplier_id ?? query.id, 'qa-contact')
     assert.equal(query.page, 1)
     assert.equal(query.pageSize, 10)
+  }
+})
+
+test('failed contact histories offer retry instead of claiming an illustrated empty collection', () => {
+  for (const [customer, pane, message, retry] of [[false, 'entradas', 'No se pudieron cargar las entradas.', 'entries-retry'], [true, 'compras', 'No se pudieron cargar las ventas.', 'sales-retry']]) {
+    const result = renderContact({ customer, pane, historyError: true })
+    assert.ok(result.html.includes(message))
+    assert.doesNotMatch(result.html, /workspace-flat\.png/)
+    result.nodes.find(node => node.props.children === 'Reintentar').props.onClick()
+    assert.deepEqual(result.requests, [retry])
   }
 })
 

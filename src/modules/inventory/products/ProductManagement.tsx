@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -18,6 +19,7 @@ import { Fragment, useState, useMemo, useEffect } from 'react'
 import { useModules } from '@/context/useModules'
 import { inventoryModule } from '../manifest'
 import { MetricStrip } from '@/components/shared/MetricStrip'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -74,12 +76,13 @@ import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/use
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { formatMoney } from '@/utils'
+import {exactProductValues,formatUnitDecimal,formatUnitMoney} from '../units/public'
 
-const PAGE_SIZES = [10, 20, 30, 40]
+const PAGE_SIZES = TABLE_PAGE_SIZES
 
 /** Dónde está lo que hay de un producto. Se consulta al abrir, no antes. */
 const StockBreakdownRow = ({ productId }: { productId: string }) => {
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ['stock-by-location', productId],
         queryFn: () => fetchStockByLocation(productId),
         staleTime: 30_000,
@@ -89,8 +92,10 @@ const StockBreakdownRow = ({ productId }: { productId: string }) => {
             <td colSpan={7} className="px-3 py-2">
                 {isLoading ? (
                     <LoadingIndicator message="Cargando ubicaciones…" />
+                ) : isError ? (
+                    <div role="alert" className="space-y-2 py-3 text-sm"><p>No se pudieron cargar las ubicaciones.</p><Button size="sm" variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
                 ) : !data?.length ? (
-                    <span className="text-xs text-muted-foreground">Sin existencias en ninguna ubicación.</span>
+                    <CollectionEmptyState compact title="Este producto aún no tiene ubicación con existencias" description="Las existencias por ubicación aparecerán al registrar movimientos del producto." />
                 ) : (
                     <div className="space-y-1">
                         {data.map((r) => (
@@ -127,6 +132,9 @@ const ProductManagement = () => {
     const catalogType = serviceCatalog ? 'services' : 'goods'
     usePageTrail(serviceCatalog ? [{label:'Servicios'}] : [])
     const fmt = (n: number) => formatMoney(n, locale, currencyCode)
+    const stockText=(product:Product,minimum=false)=>product.unitValues?formatUnitDecimal(exactProductValues(product)[minimum?'minStock':'stock'],locale):String(minimum?product.minStock:product.stock)
+    const priceText=(product:Product)=>product.unitValues?formatUnitMoney(exactProductValues(product).price,locale,currencyCode):fmt(product.price)
+    const costText=(product:Product)=>product.unitValues?`${formatUnitDecimal(exactProductValues(product).cost,locale)} ${currencyCode}`:fmt(product.cost)
 
     // Filter state
     const [searchTerm, setSearchTerm] = useState('')
@@ -139,7 +147,7 @@ const ProductManagement = () => {
         setPageSize,
         viewMode,
         setViewMode,
-    } = usePersistedListUiState('inventario/productos', { defaultPageSize: 10, defaultView: 'cards', pageSizeOptions: PAGE_SIZES })
+    } = usePersistedListUiState('inventario/productos', { defaultPageSize: 50, defaultView: 'cards', pageSizeOptions: PAGE_SIZES })
 
     // Dialog states
     const [isScannerOpen, setIsScannerOpen] = useState(false)
@@ -191,7 +199,7 @@ const ProductManagement = () => {
         setInBranchOnly(true)
     }
 
-    const cardPagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage })
+    const cardPagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage, storageKey: "inventario/productos" })
     const pageSize = cardPagination.pageSize
     const pageSizeOptions = viewMode === 'cards' ? cardPagination.pageSizeOptions : PAGE_SIZES
 
@@ -393,9 +401,10 @@ const ProductManagement = () => {
     </div>
 
     return (
-        <div className="inventory-products-page mx-auto w-full max-w-[1560px] min-w-0 p-4 sm:p-8 space-y-5">
+        <div className="inventory-products-page auna-page-fluid mx-auto w-full min-w-0 p-4 sm:p-8 space-y-5">
             {/* Header */}
             <h1 className="sr-only">Inventario</h1>
+            <div className="flex justify-end"><Button type="button" variant="outline" onClick={()=>navigate('/inventario/unidades')}>Unidades</Button></div>
             {inventoryServicesEnabled && <ModuleTabBar items={[{value:'goods',label:'Bienes'},{value:'services',label:'Servicios'}]} value={catalogType} ariaLabel="Tipo de catálogo" onValueChange={value=>{const next=new URLSearchParams(searchParams);next.set('tipo',value);setSearchParams(next);setCurrentPage(1);setSelectedIds([]);resetAdvancedFilters()}} />}
 
             <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
@@ -432,7 +441,7 @@ const ProductManagement = () => {
 
             <MetricStrip label={serviceCatalog ? 'Resumen de servicios' : 'Resumen de productos'} loading={isLoading} items={(serviceCatalog ? [['total','Servicios'],['forSale','Disponibles para venta'],['notForSale','No disponibles'],['fractional','Con cantidades fraccionadas']] : [['total', 'Productos'], ['forSale', 'Disponibles para venta'], ['kits', 'Kits'], ['tracksExpiry', 'Con caducidad']]).map(([key, label]) => ({ label, value: isError ? '—' : productsData?.summary?.[key] ?? '—' }))} />
 
-            <div className="space-y-3">
+            <div className="auna-list-toolbar space-y-3">
 
                 <CompactFilterPanel actions={<div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                     <DropdownMenu>
@@ -577,7 +586,7 @@ const ProductManagement = () => {
                         </div>
                     )}
                     {paginatedProducts.length === 0 ? (
-                        <div role="status" className="py-12 text-center text-sm text-muted-foreground">No hay productos para mostrar.</div>
+                        <CollectionEmptyState title={serviceCatalog ? 'Dale espacio a lo que sabes hacer' : 'Luce vacío, ¿no?'} description={serviceCatalog ? 'Registra tus servicios para tener sus precios y condiciones listos en cada venta.' : 'Tu catálogo está listo para recibir su primer producto. Aquí reunirás precios, existencias y detalles de cada artículo.'} filtered={Boolean(searchTerm.trim()) || categoryFilter !== 'all' || (!serviceCatalog && (scopeBranch !== 'all' || scopeWarehouse !== 'all' || scopeLocation !== 'all'))} onReset={() => { setSearchTerm(''); resetAdvancedFilters() }} action={canCreate ? <Button onClick={() => navigate(serviceCatalog ? '/inventario/nuevo?tipo=services' : '/inventario/nuevo')}><Plus className="mr-2 h-4 w-4" aria-hidden="true" />{serviceCatalog ? 'Nuevo servicio' : 'Nuevo producto'}</Button> : undefined} />
                     ) : viewMode === 'table' ? (
                         <div className="auna-data-table-shell">
                             <div className="product-results-scroll" role="region" aria-label="Productos del inventario" tabIndex={0}>
@@ -610,11 +619,11 @@ const ProductManagement = () => {
                                                     <p className="text-xs text-muted-foreground">No se maneja aquí</p>
                                                     {canEdit && <Button variant="outline" disabled={addToBranchMutation.isPending} onClick={() => addToBranchMutation.mutate(product)}><Store className="h-4 w-4" aria-hidden="true" />Manejar aquí</Button>}
                                                 </div> : <Button type="button" variant="ghost" className="h-auto gap-2" aria-label={'Ver ubicaciones de ' + product.name} aria-expanded={expandedId === product.id} aria-controls={'stock-locations-' + product.id} onClick={() => setExpandedId(id => id === product.id ? null : product.id)}>
-                                                    <span className="tabular-nums"><span className="block font-semibold">{product.stock}</span><span className="block text-xs text-muted-foreground">Mín: {product.minStock}</span></span>
+                                                    <span className="tabular-nums"><span className="block font-semibold">{stockText(product)} {product.unitConfiguration?.base_unit?.label??''}</span><span className="block text-xs text-muted-foreground">Mín: {stockText(product,true)}</span></span>
                                                     <ChevronDown className={expandedId === product.id ? 'h-4 w-4 rotate-180' : 'h-4 w-4'} aria-hidden="true" />
                                                 </Button>}
                                             </td>
-                                            <td className="text-right tabular-nums"><strong className="font-semibold">{fmt(product.price)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="mt-1 text-xs text-muted-foreground">Costo: {fmt(product.cost)}</p>}</td>
+                                            <td className="text-right tabular-nums"><strong className="font-semibold">{priceText(product)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="mt-1 text-xs text-muted-foreground">Costo: {costText(product)}</p>}</td>
                                             <td>{getStatusBadge(product)}</td>
                                             <td>{productActions(product)}</td>
                                         </tr>
@@ -642,8 +651,8 @@ const ProductManagement = () => {
                                                 </div>
                                                 {(product.brand || product.size) && <p className="mt-1 text-xs text-muted-foreground">{[product.brand, product.size].filter(Boolean).join(' · ')}</p>}
                                                 <div className="product-card-numbers mt-2 grid grid-cols-2 items-end gap-2">
-                                                    <div className="min-w-0 tabular-nums"><span className="sr-only">Precio</span><strong className="block text-base font-semibold">{fmt(product.price)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="text-xs text-muted-foreground">Costo: {fmt(product.cost)}</p>}</div>
-                                                    <div className="text-right tabular-nums">{product.kind === 'SERVICE' ? <span className="text-xs text-muted-foreground">Por {product.serviceUnitLabel}</span> : product.inBranch === false ? <span className="text-xs text-muted-foreground">No se maneja aquí</span> : <><span className="block text-sm font-semibold">{product.stock} unidades</span><span className="block text-xs text-muted-foreground">Mín: {product.minStock}</span></>}</div>
+                                                    <div className="min-w-0 tabular-nums"><span className="sr-only">Precio</span><strong className="block text-base font-semibold">{priceText(product)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="text-xs text-muted-foreground">Costo: {costText(product)}</p>}</div>
+                                                    <div className="text-right tabular-nums">{product.kind === 'SERVICE' ? <span className="text-xs text-muted-foreground">Por {product.serviceUnitLabel}</span> : product.inBranch === false ? <span className="text-xs text-muted-foreground">No se maneja aquí</span> : <><span className="block text-sm font-semibold">{stockText(product)} {product.unitConfiguration?.base_unit?.label??'unidades'}</span><span className="block text-xs text-muted-foreground">Mín: {stockText(product,true)}</span></>}</div>
                                                 </div>
                                                 {product.inBranch === false && canEdit && <Button variant="outline" className="mt-2 whitespace-normal" disabled={addToBranchMutation.isPending} onClick={() => addToBranchMutation.mutate(product)}><Store className="h-4 w-4 shrink-0" aria-hidden="true" />Manejar aquí</Button>}
                                             </div>

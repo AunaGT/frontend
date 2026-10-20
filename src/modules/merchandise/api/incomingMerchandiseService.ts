@@ -11,6 +11,12 @@
 import { apiFetch, getApiBaseUrl, getAuthToken } from '@/services/api'
 
 export interface IncomingMerchandiseItem {
+  unit_metadata_version?:1|2
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot
+  base_qty?:string
+  base_unit_cost?:string
+  line_total?:string
+  unit_label?:string
   id: string
   product: {
     id: string
@@ -23,9 +29,9 @@ export interface IncomingMerchandiseItem {
     price?: number
     stock?: number
   }
-  quantity: number
-  unit_cost: number
-  subtotal: number
+  quantity: number|string
+  unit_cost: number|string
+  subtotal: number|string
 }
 
 export type MerchandisePaymentStatus = 'PENDING' | 'PARTIAL' | 'PAID'
@@ -42,9 +48,10 @@ export interface IncomingMerchandisePaymentEntry {
 }
 
 export interface IncomingMerchandise {
+  unit_metadata_version?:1|2
   id: string
   source?: 'PURCHASE'|'INITIAL'
-  legacy_settled_amount?: number
+  legacy_settled_amount?: number|string
   payment_revision?: number
   payment_balance_review_required?: boolean
   supplier: {
@@ -70,12 +77,12 @@ export interface IncomingMerchandise {
   payment_updated_at?: string | null
   payment_updated_by?: { id: string; name: string; email?: string | null } | null
   itemsCount: number
-  totalValue: number
+  totalValue: number|string
   items: IncomingMerchandiseItem[]
   /** Solo en detalle GET /:id */
   payment_entries?: IncomingMerchandisePaymentEntry[]
-  amount_paid_total?: number
-  amount_pending?: number | null
+  amount_paid_total?: number|string
+  amount_pending?: number|string|null
 }
 
 export interface IncomingMerchandiseQueryParams {

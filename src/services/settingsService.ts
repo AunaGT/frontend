@@ -41,6 +41,7 @@ export interface SystemSettings {
   sales_show_fiscal_fields?: string
   sales_show_channels?: string
   inventory_services_enabled?: string
+  inventory_units_enabled?: string
 }
 
 export type ExpiryAlertPolicy={warningDays:number;highPriorityDays:number}
@@ -79,6 +80,7 @@ export type PublicSettings = {
   sales_show_fiscal_fields: string
   sales_show_channels: string
   inventory_services_enabled: string
+  inventory_units_enabled: string
   fel_enabled: string
 }
 export async function getPublicSettings(options?: SettingsRequestOptions): Promise<PublicSettings> {
@@ -130,8 +132,8 @@ export async function updateSettings(settings: Partial<SystemSettings>, options?
 }
 
 export type SettingHistoryItem={id:string;key:string;before_value:string|null;after_value:string|null;actor_id:string|null;actor_name?:string|null;source:string;created_at:string;revision:number}
-export async function getSettingsHistory(page:number,keys:string[],options?:SettingsRequestOptions){
-  return apiFetch<{items:SettingHistoryItem[];totalItems:number;totalPages:number;page:number}>(`/settings/history?page=${page}&pageSize=10${keys.length?`&keys=${encodeURIComponent(keys.join(','))}`:''}`,requestOptions(options))
+export async function getSettingsHistory(page:number,keys:string[],options?:SettingsRequestOptions & {pageSize?:number}){
+  return apiFetch<{items:SettingHistoryItem[];totalItems:number;totalPages:number;page:number}>(`/settings/history?page=${page}&pageSize=${options?.pageSize??10}${keys.length?`&keys=${encodeURIComponent(keys.join(','))}`:''}`,requestOptions(options))
 }
 
 export async function getDenominations(): Promise<DenominationItem[]> {

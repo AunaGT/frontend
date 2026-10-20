@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { UNSAFE_NavigationContext, type Navigator } from 'react-router-dom'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 
@@ -44,11 +44,22 @@ export function registerDraftNavigation(navigator: Navigator, blocker: Blocker) 
   return () => { guard.blockers.delete(blocker); if (!guard.blockers.size) guard.destroy() }
 }
 
-export function useDraftGuard(dirty: boolean) {
+export function useDraftGuard(dirty: boolean, registerTenantExitGuard?: (guard: () => boolean) => () => void, tenantKey?: string) {
   const context = useContext(UNSAFE_NavigationContext), [action, setAction] = useState<(() => void) | null>(null)
+  const latestDirty=useRef(dirty),allowUnload=useRef(false)
+  latestDirty.current=dirty
+  useEffect(()=>{
+    allowUnload.current=false
+    return registerTenantExitGuard?.(()=>{
+      if(latestDirty.current&&!window.confirm('Hay cambios sin guardar. ¿Descartarlos y cambiar de empresa o sucursal?'))return false
+      allowUnload.current=true
+      return true
+    })
+  },[registerTenantExitGuard,tenantKey])
+  useEffect(()=>{allowUnload.current=false},[dirty])
   useEffect(() => {
     if (!dirty) return
-    const unload = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    const unload = (event: BeforeUnloadEvent) => { if(!allowUnload.current){event.preventDefault(); event.returnValue = ''} }
     const cleanup = context?.navigator ? registerDraftNavigation(context.navigator, run => setAction(() => run)) : undefined
     window.addEventListener('beforeunload', unload)
     return () => { cleanup?.(); window.removeEventListener('beforeunload', unload) }

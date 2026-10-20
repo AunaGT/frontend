@@ -1,5 +1,5 @@
 /** Copyright (c) 2026 Diego Patzán. All Rights Reserved. */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { LoadingState } from '@/components/shared/LoadingState'
@@ -26,6 +26,7 @@ import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
 import { HrDocumentsSettings } from './HrDocumentsSettings'
 import './config.css'
+const HardwareSettingsSection = lazy(() => import('../hardware/HardwareSettingsSection').then(module => ({ default: module.HardwareSettingsSection })))
 
 const descriptions: Record<string, string> = {
   empresa: 'Nombre y logo que identifican a esta empresa en la aplicación y sus documentos.',
@@ -71,6 +72,7 @@ export default function ConfigManagement() {
   const hrActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('rrhh', activity), [draft.reportActivity])
   const modulesActivity = useCallback((activity: Parameters<typeof draft.reportActivity>[1]) => draft.reportActivity('modulos', activity), [draft.reportActivity])
   const payrollActivity=useCallback((activity:Parameters<typeof draft.reportActivity>[1])=>draft.reportActivity('nomina',activity),[draft.reportActivity])
+  const hardwareActivity=useCallback((activity:Parameters<typeof draft.reportActivity>[1])=>draft.reportActivity('hardware',activity),[draft.reportActivity])
   const editable = Object.prototype.hasOwnProperty.call(SECTION_KEYS, active) ? active as EditableSection : null
 
   useEffect(() => {
@@ -125,14 +127,15 @@ export default function ConfigManagement() {
   const common = editable ? { section: editable, values: draft.drafts[editable], disabled: !canMutate || draft.pending, errors: draft.errors[editable] || {}, onField: (key: Parameters<typeof draft.setField>[1], value: unknown) => draft.setField(editable, key, value) } : null
   const scopedConfirmation = confirmation?.owner === owner ? confirmation : null
 
-  return <div className="config-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+  return <div className="config-page auna-page-fluid mx-auto w-full min-w-0 space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Configuración</h1>
-    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} companyName={draft.confirmed.company_name||company?.name} sections={SETTINGS_SECTIONS.filter(s=>s.id!=='nomina'||(hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll')))}/><div className="config-center-content space-y-5" role="region" aria-labelledby="config-section-title">
+    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} companyName={draft.confirmed.company_name||company?.name} sections={SETTINGS_SECTIONS.filter(s=>(s.id!=='hardware'||hasPermission('hardware.view'))&&(s.id!=='nomina'||(hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll'))))}/><div className="config-center-content space-y-5" role="region" aria-labelledby="config-section-title">
       <h2 id="config-section-title" className="sr-only">{selected.label}</h2>
       <div className="config-context-line"><p>Se aplica a <strong>{draft.confirmed.company_name || company?.name || 'la empresa activa'}</strong></p>{draft.hasChanges && <span role="status">Hay cambios pendientes</span>}</div>
       {notice && <p role="status" className="config-note">{notice}</p>}
       {draft.status === 'loading' ? <LoadingState variant="page" message="Cargando configuración…" /> : draft.status === 'error' ? <div role="alert" className="config-panel p-5 space-y-3"><p>No se pudo cargar la configuración. No se guardó ningún cambio.</p><p className="text-sm text-muted-foreground">{draft.loadError}</p><Button variant="outline" onClick={() => void draft.reload()}>Reintentar</Button></div> : draft.status === 'unavailable' ? <div className="config-panel p-5 space-y-3"><p>Verifica tu empresa, sucursal y sesión para abrir la configuración.</p><Button variant="outline" onClick={() => window.location.reload()}>Recargar página</Button></div> : <>
-        {(!context.canManage || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
+        {(!(active==='hardware'?hasPermission('hardware.manage'):context.canManage) || context.consolidated) && <p className="config-note">{context.consolidated ? 'Vista consolidada de consulta. Selecciona una sucursal para guardar cambios.' : 'Acceso de consulta. Necesitas permiso para gestionar estos ajustes.'}</p>}
+        {visited.has('hardware') && <div hidden={active!=='hardware'} key={`hardware-${contextKey}`}><Suspense fallback={<LoadingState message="Cargando equipos…"/>}><HardwareSettingsSection active={active==='hardware'} disabled={context.consolidated||draft.pending||draft.status!=='ready'} canStartOperation={()=>context.ready&&context.canRead&&!context.consolidated&&draft.status==='ready'&&!draft.getActivity().pending} onActivityChange={hardwareActivity}/></Suspense></div>}
         {editable && common && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions[active]}</CardDescription></CardHeader><CardContent className="space-y-5">
           <SettingsErrorSummary errors={common.errors} error={draft.error} />
           {draft.error&&context.canManage&&<Button variant="outline" disabled={draft.pending} onClick={()=>setConfirmation({type:'reload',section:editable,owner})}>Revisar valores actuales de esta sección</Button>}

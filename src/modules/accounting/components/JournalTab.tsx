@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -9,7 +11,7 @@
  */
 
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Pagination } from '@/components/shared/Pagination'
@@ -46,7 +48,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   const { timezone } = useSystemSettings()
   const [items, setItems] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('contabilidad/diario')
   const [totalPages, setTotalPages] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
   const [from, setFrom] = useState('')
@@ -62,24 +64,29 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
   const [exportOpen, setExportOpen] = useState(false)
   const [loadError, setLoadError] = useState(false)
 
+  const requestVersion = useRef(0)
+  useEffect(() => () => { requestVersion.current += 1 }, [])
   const load = useCallback(async (p: number) => {
+    const version = ++requestVersion.current
     setLoading(true)
     setLoadError(false)
     try {
-      const res = await getJournal({ from: from || undefined, to: to || undefined, source: source || undefined, branch_id: branchFilter || undefined, page: p, pageSize: 25 })
+      const res = await getJournal({ from: from || undefined, to: to || undefined, source: source || undefined, branch_id: branchFilter || undefined, page: p, pageSize })
+      if (version !== requestVersion.current) return
       setItems(res.items)
       setPage(res.page)
       setTotalPages(res.totalPages)
       setTotalItems(res.totalItems)
     } catch (e) {
+      if (version !== requestVersion.current) return
       setLoadError(true)
       toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo cargar el diario', variant: 'destructive' })
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
-  }, [from, to, source, branchFilter, toast])
+  }, [from, to, source, branchFilter, pageSize, toast])
 
-  useEffect(() => { void load(1) }, [load])
+  useEffect(() => { void load(page) }, [load, page])
 
   const handlePostPending = async () => {
     setPosting(true)
@@ -171,17 +178,17 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
           </>}
         </>}
         activeCount={Number(from !== '') + Number(to !== '') + Number(Boolean(source)) + Number(Boolean(branchFilter))}
-        onClear={() => { setFrom(''); setTo(''); setSource(''); setBranchFilter('') }}
+        onClear={() => { setFrom(''); setTo(''); setSource(''); setBranchFilter(''); setPage(1) }}
         appliedFilters={[
-          ...(from ? [{ label: `Desde: ${from}`, onRemove: () => setFrom('') }] : []),
-          ...(to ? [{ label: `Hasta: ${to}`, onRemove: () => setTo('') }] : []),
-          ...(source ? [{ label: `Origen: ${SOURCE_LABELS[source] || source}`, onRemove: () => setSource('') }] : []),
-          ...(branchFilter ? [{ label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`, onRemove: () => setBranchFilter('') }] : []),
+          ...(from ? [{ label: `Desde: ${from}`, onRemove: () => { setFrom(''); setPage(1) } }] : []),
+          ...(to ? [{ label: `Hasta: ${to}`, onRemove: () => { setTo(''); setPage(1) } }] : []),
+          ...(source ? [{ label: `Origen: ${SOURCE_LABELS[source] || source}`, onRemove: () => { setSource(''); setPage(1) } }] : []),
+          ...(branchFilter ? [{ label: `Sucursal: ${branchFilter === 'company' ? 'Solo empresa' : branches.find(b => b.id === branchFilter)?.name || 'Seleccionada'}`, onRemove: () => { setBranchFilter(''); setPage(1) } }] : []),
         ]}>
-        <div className="space-y-1"><Label>Desde</Label><Input type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
-        <div className="space-y-1"><Label>Hasta</Label><Input type="date" value={to} onChange={e => setTo(e.target.value)} /></div>
-        <div className="space-y-1"><Label>Origen</Label><Select value={source || 'all'} onValueChange={v => setSource(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
-        {branches.length > 1 && <div className="space-y-1"><Label>Sucursal</Label><Select value={branchFilter || 'all'} onValueChange={v => setBranchFilter(v === 'all' ? '' : v)}><SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="company">Solo empresa</SelectItem>{branches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div>}
+        <div className="space-y-1"><Label>Desde</Label><Input type="date" value={from} onChange={e => { setFrom(e.target.value); setPage(1) }} /></div>
+        <div className="space-y-1"><Label>Hasta</Label><Input type="date" value={to} onChange={e => { setTo(e.target.value); setPage(1) }} /></div>
+        <div className="space-y-1"><Label>Origen</Label><Select value={source || 'all'} onValueChange={v => { setSource(v === 'all' ? '' : v); setPage(1) }}><SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger><SelectContent><SelectItem value="all">Todos</SelectItem>{Object.entries(SOURCE_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+        {branches.length > 1 && <div className="space-y-1"><Label>Sucursal</Label><Select value={branchFilter || 'all'} onValueChange={v => { setBranchFilter(v === 'all' ? '' : v); setPage(1) }}><SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger><SelectContent><SelectItem value="all">Todas</SelectItem><SelectItem value="company">Solo empresa</SelectItem>{branches.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div>}
       </CompactFilterPanel>
       {posting && <LoadingIndicator message="Contabilizando operaciones pendientes…" />}
       {loading ? <LoadingState message="Cargando asientos…" columns={['Número', 'Fecha', 'Descripción', 'Sucursal', 'Origen', 'Total', 'Acciones']} /> : loadError ? <div role="alert" className="py-8 text-center"><p>No se pudo cargar el diario.</p><Button variant="outline" className="mt-3" onClick={() => void load(page)}>Reintentar</Button></div> : <>
@@ -189,7 +196,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
           <table className="auna-data-table">
             <thead><tr><th>Número</th><th>Fecha</th><th>Descripción</th><th>Sucursal</th><th>Origen</th><th className="text-right">Total</th><th className="text-right">Acciones</th></tr></thead>
             <tbody>
-              {!items.length && <tr><td colSpan={7} className="text-center text-muted-foreground">No hay asientos en el rango seleccionado.</td></tr>}
+              {!items.length && <tr><td colSpan={7} className="text-center text-muted-foreground"><CollectionEmptyState title="Cada operación contará su historia" description="Aquí podrás consultar los asientos registrados para este alcance." filtered={!!from || !!to || !!source || !!branchFilter} onReset={() => { setFrom(''); setTo(''); setSource(''); setBranchFilter(''); setPage(1) }} action={canCreate && <Button onClick={() => setIsNewOpen(true)}><Plus aria-hidden="true" />Nuevo asiento</Button>} /></td></tr>}
               {items.map(entry => {
                 const expanded = expandedId === entry.id
                 return <Fragment key={entry.id}>
@@ -214,7 +221,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
             </tbody>
           </table>
         </div>
-        <div className="auna-pagination-outside"><Pagination currentPage={page} totalPages={totalPages} onPageChange={p => void load(p)} totalItems={totalItems} count={items.length} pageSize={25} itemLabel="asientos" /></div>
+        <div className="auna-pagination-outside"><Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} count={items.length} pageSize={pageSize} onPageSizeChange={setPageSize} itemLabel="asientos" /></div>
       </>}
       <NewEntryDialog open={isNewOpen} onOpenChange={setIsNewOpen} accounts={accounts} onSaved={() => void load(1)} />
       <ExpenseDialog open={isExpenseOpen} onOpenChange={setIsExpenseOpen} accounts={accounts} onSaved={() => void load(1)} />

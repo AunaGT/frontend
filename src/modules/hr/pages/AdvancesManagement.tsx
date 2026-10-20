@@ -1,3 +1,6 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { DEFAULT_PAGE_SIZE } from '@/utils/pagination'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
@@ -45,7 +48,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<AdvancePayload>({ ...emptyForm, employee_id: employeeId ?? '' })
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState(`rrhh/anticipos/${employeeId ?? 'lista'}`, {defaultPageSize: employeeId ? 10 : DEFAULT_PAGE_SIZE})
   const [status, setStatus] = useState('all')
   const [employeePage, setEmployeePage] = useState(1)
   const [employeeSearch, setEmployeeSearch] = useState('')
@@ -54,7 +57,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
   useEffect(() => { const timer = setTimeout(() => { setEmployeeQuery(employeeSearch); setEmployeePage(1) }, 300); return () => clearTimeout(timer) }, [employeeSearch])
   const [cancelId, setCancelId] = useState<string | null>(null)
 
-  const { data, isLoading, isFetching, isError, refetch } = useQuery({ queryKey: ['hr-advances', employeeId, page, status, 'summary'], queryFn: () => fetchAdvances({ employee_id: employeeId, status: status === 'all' ? undefined : status, page, pageSize: 10, includeSummary: true }) })
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({ queryKey: ['hr-advances', employeeId, page, pageSize, status, 'summary'], queryFn: () => fetchAdvances({ employee_id: employeeId, status: status === 'all' ? undefined : status, page, pageSize, includeSummary: true }) })
   const { data: employees, isLoading: employeesLoading, isError: employeesError } = useQuery({
     queryKey: ['hr-employees', 'advance-picker', employeePage, employeeQuery],
     queryFn: () => fetchEmployeeDirectory('advance', { q: employeeQuery || undefined, page: employeePage, pageSize: 10 }),
@@ -132,7 +135,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
               ))}
               {(data?.items ?? []).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Sin anticipos</TableCell>
+                  <TableCell colSpan={7} className="py-8 text-center text-muted-foreground"><CollectionEmptyState compact={Boolean(employeeId)} title="Los anticipos tendrán su espacio" description="Aquí podrás consultar los anticipos registrados y su estado." filtered={status !== 'all'} onReset={() => { setStatus('all'); setPage(1) }} action={canManage && <Button onClick={() => setDialogOpen(true)}>Nuevo anticipo</Button>} /></TableCell>
                 </TableRow>
               )}
               </>}
@@ -158,7 +161,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
               <Input aria-label="Buscar empleado" placeholder="Buscar empleado por nombre o código" value={employeeSearch} onChange={e => setEmployeeSearch(e.target.value)} />
               {employeesLoading && <LoadingIndicator message="Buscando empleados…" />}
               {employeesError && <p role="alert" className="text-sm text-destructive">No se pudo cargar el equipo. Necesitas el permiso «Ver empleados» para seleccionar un destinatario.</p>}
-              {employees && !employees.items.length && <p className="text-sm text-muted-foreground">No se encontraron empleados activos.</p>}
+              {employees && !employees.items.length && <CollectionEmptyState compact title="No hay empleados disponibles" description="Este ámbito no tiene empleados activos para seleccionar." filtered={Boolean(employeeSearch.trim())} onReset={() => { setEmployeeSearch(''); setEmployeeQuery(''); setEmployeePage(1) }} />}
               <Select value={form.employee_id} onValueChange={(v) => { setForm({ ...form, employee_id: v }); const selected = employees?.items.find(e => e.id === v); if (selected) setEmployeeLabel(`${selected.first_name} ${selected.last_name}`) }}>
                 <SelectTrigger><SelectValue placeholder="Selecciona">{employeeLabel || undefined}</SelectValue></SelectTrigger>
                 <SelectContent>
@@ -183,7 +186,7 @@ export const AdvancesManagement = ({ employeeId, employeeName }: { employeeId?: 
         </DialogContent>
       </Dialog>
     </Card>
-<div className="auna-pagination-outside">{data && <Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} count={data.items.length} pageSize={10} onPageChange={setPage} loading={isLoading} itemLabel="anticipos" />}</div></>
+<div className="auna-pagination-outside">{data && <Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} count={data.items.length} pageSize={pageSize} onPageSizeChange={setPageSize} onPageChange={setPage} loading={isLoading} itemLabel="anticipos" />}</div></>
   )
 }
 

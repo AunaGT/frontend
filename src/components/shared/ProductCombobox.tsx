@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from './CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  */
@@ -12,7 +13,6 @@ import {
 } from '@/components/ui/popover'
 import {
   Command,
-  CommandEmpty,
   CommandGroup,
   CommandInput,
   CommandItem,
@@ -50,7 +50,7 @@ export const ProductCombobox = ({ value, onChange, placeholder, label, icon,comm
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const { locale, currencyCode,inventoryServicesEnabled } = useSystemSettings()
-  const { data: products = [], isLoading } = useProducts(commercial && inventoryServicesEnabled ? 'all' : 'goods')
+  const { data: products = [], isLoading, isError, refetch } = useProducts(commercial && inventoryServicesEnabled ? 'all' : 'goods')
 
   const filteredProducts = useMemo(() => {
     if (!search) return products.slice(0, 50)
@@ -102,8 +102,10 @@ export const ProductCombobox = ({ value, onChange, placeholder, label, icon,comm
             <CommandList>
               {isLoading ? (
                 <LoadingState size="sm" message="Buscando productos…" />
+              ) : isError ? (
+                <div role="alert" className="p-3 text-sm">No se pudieron cargar los productos.<Button type="button" variant="ghost" onClick={() => void refetch()}>Reintentar</Button></div>
               ) : filteredProducts.length === 0 ? (
-                <CommandEmpty>No se encontraron productos</CommandEmpty>
+                <CollectionEmptyState compact title="Tu catálogo tendrá su lugar aquí" description="Los artículos disponibles aparecerán aquí para que puedas seleccionarlos." filtered={!!search.trim()} onReset={() => setSearch('')} />
               ) : (
                 <CommandGroup>
                   {filteredProducts.map((product) => (

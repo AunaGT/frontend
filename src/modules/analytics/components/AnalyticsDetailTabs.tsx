@@ -1,3 +1,4 @@
+import {formatUnitDecimal} from '@/modules/inventory/units/public'
 import { useState, type ReactNode } from 'react'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useQuery } from '@tanstack/react-query'
@@ -49,6 +50,7 @@ type Props = {
   formatCurrency: (value: number) => string
   formatCompactCurrency: (value: number) => string
   formatNumber: (value: number) => string
+  locale?: string
   children: ReactNode
 }
 
@@ -62,6 +64,7 @@ export function AnalyticsDetailTabs({
   formatCurrency,
   formatCompactCurrency,
   formatNumber,
+  locale='es-GT',
   children,
 }: Props) {
   const navigate = useNavigate()
@@ -122,7 +125,7 @@ export function AnalyticsDetailTabs({
         <MetricStrip label="Resumen de ventas" loading={isLoading} items={[
           { label: 'Ventas netas', value: formatCurrency(data?.totals.totalSales ?? 0), hint: `Devoluciones ${formatCurrency(data?.totals.totalReturns ?? 0)}` },
           { label: 'Utilidad', value: formatCurrency(data?.totals.totalProfit ?? 0), hint: `Margen ${formatPercent(margin)}` },
-          { label: 'Unidades vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos` },
+          { label: 'Partidas vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos` },
           { label: 'Costo de ventas', value: formatCurrency(data?.totals.totalCost ?? 0) },
         ]} />
         <ChartCard
@@ -175,7 +178,7 @@ export function AnalyticsDetailTabs({
               <RankedBars
                 label="Productos más vendidos"
                 format={formatCurrency}
-                rows={(data?.topProducts ?? []).map((item) => ({ label: item.name, value: item.revenue, detail: `${item.category} · ${formatNumber(item.ventas)} uds.` }))}
+                rows={(data?.topProducts ?? []).map((item) => ({ label: item.name, value: item.revenue, detail: `${item.category} · ${formatUnitDecimal(String(item.ventas),locale)} ${item.unit??'unidades'}` }))}
               />
             ))}
           </ChartCard>
@@ -229,7 +232,7 @@ export function AnalyticsDetailTabs({
           {chartOrLoading(isLoading, (
             <ExpandableTable
               label="Valor por categoría"
-              columns={[{ label: 'Categoría' }, { label: 'Unidades', numeric: true }, { label: 'Valor a costo', numeric: true }, { label: 'Del total', numeric: true }]}
+              columns={[{ label: 'Categoría' }, { label: 'Productos', numeric: true }, { label: 'Valor a costo', numeric: true }, { label: 'Del total', numeric: true }]}
               rows={stockByCategory.map((item) => ({
                 key: item.category,
                 cells: [
@@ -325,7 +328,7 @@ export function AnalyticsDetailTabs({
                         detail: `${customer.facturas} facturas${customer.vencido > 0 ? ` · ${formatCurrency(customer.vencido)} vencido` : ''}`,
                       }))}
                     />
-                  ) : <Empty>Sin saldos pendientes.</Empty>}
+                  ) : <Empty>Esta consulta no tiene saldos para mostrar. Los movimientos de cartera aparecerán aquí cuando correspondan.</Empty>}
                 </ChartCard>
               </section>
             </>

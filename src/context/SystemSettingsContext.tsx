@@ -39,6 +39,7 @@ export interface SystemSettingsState {
   salesShowFiscalFields: boolean
   salesShowChannels: boolean
   inventoryServicesEnabled: boolean
+  inventoryUnitsEnabled: boolean
   loading: boolean
   error: boolean
   /** Recarga la configuración pública desde el servidor (p. ej. tras guardar en Configuración). */
@@ -61,6 +62,7 @@ const defaultState: Omit<SystemSettingsState, 'refetch'> = {
   salesShowFiscalFields: true,
   salesShowChannels: true,
   inventoryServicesEnabled: false,
+  inventoryUnitsEnabled: false,
   loading: true,
   error: false
 }
@@ -106,6 +108,7 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           salesShowFiscalFields: String(d?.sales_show_fiscal_fields ?? 'true').toLowerCase() === 'true',
           salesShowChannels: String(d?.sales_show_channels ?? 'true').toLowerCase() === 'true',
           inventoryServicesEnabled: String(d?.inventory_services_enabled ?? 'false').toLowerCase() === 'true',
+          inventoryUnitsEnabled: String(d?.inventory_units_enabled ?? 'false').toLowerCase() === 'true',
           loading: false,
           error: false
         })
@@ -130,6 +133,7 @@ export function SystemSettingsProvider({ children }: { children: React.ReactNode
           salesShowFiscalFields: true,
           salesShowChannels: true,
           inventoryServicesEnabled: false,
+          inventoryUnitsEnabled: false,
           loading: false,
           error: true
         }))

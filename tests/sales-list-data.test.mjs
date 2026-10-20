@@ -174,7 +174,7 @@ test('one paginated list and one aggregate summary replace split lists and 500-r
   const { calls, output } = hookProbe()
   assert.equal(calls.length, 2)
   assert.equal(calls[0].status, undefined)
-  assert.equal(calls[0].pageSize, 10)
+  assert.equal(calls[0].pageSize, 50)
   assert.deepEqual(calls[1], { status: 'Completada', period: 'today', page: 1, pageSize: 1, includeSummary: true })
   assert.equal(output.sales.length, 1)
   assert.equal(output.sales[0].adjustedTotal, 0)

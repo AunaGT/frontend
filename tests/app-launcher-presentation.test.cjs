@@ -52,7 +52,7 @@ test('search trims whitespace and matches the real module description; clearing 
   assert.deepEqual(result.changes, [''])
   assert.deepEqual(result.closes, [])
   const empty = renderLauncher({ search: 'inexistente' })
-  assert.match(empty.html, /No encontramos módulos/)
+  assert.match(empty.html, /Busquemos por otro lado/)
   assert.doesNotMatch(empty.html, /aria-label="Abrir /)
 })
 
@@ -82,7 +82,7 @@ test('permission and activation checks apply before listing modules or exposing 
   assert.match(restricted.html, /Abrir Inventario/)
   assert.doesNotMatch(restricted.html, /Abrir Ventas|Abrir Alertas|150 alertas activas/)
   assert.doesNotMatch(renderLauncher({ enabled: new Set(['sales']) }).html, /Abrir Inventario/)
-  assert.match(renderLauncher({ admin: false }).html, /No hay módulos disponibles/)
+  assert.match(renderLauncher({ admin: false }).html, /Tu espacio de trabajo está por abrirse/)
 })
 
 test('module loading and error states never expose the unready or cached catalogue and can retry', () => {

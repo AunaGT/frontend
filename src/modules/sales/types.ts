@@ -16,6 +16,8 @@ import { SaleStatus, PaymentMethod } from '@/types'
 
 export interface CartProduct extends Product {
     qty: string
+    lineKey?: string
+    unitSelection?: import('@/modules/inventory/units/public').UnitSelection
 }
 
 export interface NegativeStockProduct {
@@ -31,14 +33,16 @@ export interface NegativeStockProduct {
 export interface AvailabilityDialogState {
     open: boolean
     product: Product | null
-    requestedQty: number
-    availableStock: number
+    requestedQty: number|string
+    availableStock: number|string
+    requestedBaseQty?:string
+    unitLabel?:string
 }
 
 export interface AdminAuthDialogState {
     open: boolean
     product: Product | null
-    requestedQty: number
+    requestedQty: number|string
 }
 
 export interface NegativeStockDialogState {

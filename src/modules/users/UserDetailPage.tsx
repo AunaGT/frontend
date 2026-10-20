@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * Licensed under Proprietary License. For licensing: GitHub @dpatzan2
@@ -72,11 +74,11 @@ export default function UserDetailPage() {
   const [searchParams] = useSearchParams()
   const { toast } = useToast()
   const { company } = useTenant()
-  const [activityPage, setActivityPage] = useState(1)
-  const [permissionPage, setPermissionPage] = useState(1)
+  const {page:activityPage,setPage:setActivityPage,pageSize:activityPageSize,setPageSize:setActivityPageSize}=usePersistedListUiState('usuarios/detalle/actividad', {defaultPageSize:10})
+  const {page:permissionPage,setPage:setPermissionPage,pageSize:permissionPageSize,setPageSize:setPermissionPageSize}=usePersistedListUiState('usuarios/detalle/permisos', {defaultPageSize:10})
   const activity = useQuery({
-    queryKey: ['user-activity', company?.id, id, activityPage],
-    queryFn: () => getUserActivity(id!, { page: activityPage, pageSize: 10 }),
+    queryKey: ['user-activity', company?.id, id, activityPage, activityPageSize],
+    queryFn: () => getUserActivity(id!, { page: activityPage, pageSize: activityPageSize }),
     enabled: !!id,
   })
   const { user: currentUser } = useAuth()
@@ -523,7 +525,7 @@ export default function UserDetailPage() {
                   ) : (
                     <tr>
                       <td colSpan={6} className="text-center py-8 users-muted text-xs">
-                        Sin roles asignados
+                        <CollectionEmptyState compact title="Un rol para cada responsabilidad" description="Este usuario aún no tiene un rol asignado." action={canEdit && <Button variant="outline" onClick={() => setIsEditing(true)}>Asignar rol</Button>} />
                       </td>
                     </tr>
                   )}
@@ -569,7 +571,7 @@ export default function UserDetailPage() {
                       </tr>
                     ))
                   ) : (
-                    <tr><td colSpan={4} className="users-muted p-4">Sin empresas visibles en este contexto.</td></tr>
+                    <tr><td colSpan={4} className="users-muted p-4"><CollectionEmptyState compact title="Sus empresas aparecerán aquí" description="No hay empresas visibles para este usuario en el contexto actual." action={canEdit && <Button variant="outline" onClick={() => setActiveTab('companies')}>Asignar empresa</Button>} /></td></tr>
                   )}
                 </tbody>
               </table>
@@ -618,7 +620,7 @@ export default function UserDetailPage() {
                         )
                       })
                     ) : (
-                      <tr><td colSpan={3} className="users-muted p-4">Sin permisos coincidentes.</td></tr>
+                      <tr><td colSpan={3} className="users-muted p-4"><CollectionEmptyState compact title="Los permisos tendrán su lugar" description="No hay permisos disponibles para este usuario en el contexto actual." filtered={Boolean(permissionSearch.trim() || permissionLevel !== 'all')} onReset={() => { setPermissionSearch(''); setPermissionLevel('all') }} /></td></tr>
                     )}
                   </tbody>
                 </table>
@@ -646,7 +648,7 @@ export default function UserDetailPage() {
                 </thead>
                 <tbody>
   {(activity.data?.items || []).slice(0, 5).map(e => <tr key={e.id}><td>{dateLabel(e.created_at)}</td><td>{e.action}</td><td>{e.description || '—'}</td></tr>)}
-  {activity.isLoading && <TableLoadingRows columns={3} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={3} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
+  {activity.isLoading && <TableLoadingRows columns={3} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={3} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : <CollectionEmptyState compact title="Su actividad se verá aquí" description="Los próximos eventos registrados aparecerán en este historial." />}</td></tr>}
 </tbody>
               </table>
             </AunaPanel>
@@ -733,7 +735,8 @@ export default function UserDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allPermissions.slice((permissionPage - 1) * 10, permissionPage * 10).map((p) => {
+                    {!allPermissions.length && <tr><td colSpan={4}><CollectionEmptyState compact title="Este rol espera sus permisos" description="Todavía no hay permisos efectivos para mostrar en esta consulta. Revisa la configuración del rol si necesitas darle acceso." /></td></tr>}
+                    {allPermissions.slice((permissionPage - 1) * permissionPageSize, permissionPage * permissionPageSize).map((p) => {
                       const mod = formatPermissionGroupLabel(p.code.split('.')[0])
                       const level = isReadPermission(p.code) ? 'Lectura' : 'Escritura'
                       return (
@@ -751,10 +754,10 @@ export default function UserDetailPage() {
 
             </div>
           ) : (
-            <p className="users-muted text-xs text-center py-8">Este usuario no tiene un rol asignado.</p>
+            <CollectionEmptyState compact title="Un rol para cada responsabilidad" description="Este usuario aún no tiene un rol asignado." />
           )}
         </AunaPanel>
-{user.role ? <div className="auna-pagination-outside"><PageFooter page={permissionPage} totalPages={Math.max(1, Math.ceil(allPermissions.length / 10))} total={allPermissions.length} pageSize={10} onChange={setPermissionPage} /></div>: null}</>
+{user.role ? <div className="auna-pagination-outside"><PageFooter page={permissionPage} totalPages={Math.max(1, Math.ceil(allPermissions.length / permissionPageSize))} total={allPermissions.length} pageSize={permissionPageSize} onChange={setPermissionPage} onPageSizeChange={setPermissionPageSize} /></div>: null}</>
       )}
 
       {/* ─── PESTAÑA EMPRESAS ─── */}
@@ -783,13 +786,13 @@ export default function UserDetailPage() {
               </thead>
               <tbody>
   {(activity.data?.items || []).map(e => <tr key={e.id}><td>{dateLabel(e.created_at)}</td><td>{e.action}</td><td>{e.actor_name || 'No registrado'}</td><td>{company?.name || 'Empresa activa'}</td><td>{e.description || '—'}</td></tr>)}
-  {activity.isLoading && <TableLoadingRows columns={5} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={5} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : 'No hay eventos registrados.'}</td></tr>}
+  {activity.isLoading && <TableLoadingRows columns={5} message="Cargando actividad…" />}{!activity.isLoading && !activity.data?.items.length && <tr><td colSpan={5} className="users-muted p-5">{activity.error ? 'No se pudo cargar la actividad.' : <CollectionEmptyState compact title="Su actividad se verá aquí" description="Los próximos eventos registrados aparecerán en este historial." />}</td></tr>}
 </tbody>
             </table>
           </div>
 
         </AunaPanel>
-<div className="auna-pagination-outside">{activity.data && <PageFooter page={activityPage} totalPages={activity.data.totalPages} total={activity.data.totalItems} pageSize={10} onChange={setActivityPage}/>}</div></>
+<div className="auna-pagination-outside">{activity.data && <PageFooter page={activityPage} totalPages={activity.data.totalPages} total={activity.data.totalItems} pageSize={activityPageSize} onChange={setActivityPage} onPageSizeChange={setActivityPageSize}/>}</div></>
       )}
 
       {/* ─── PESTAÑA SEGURIDAD ─── */}

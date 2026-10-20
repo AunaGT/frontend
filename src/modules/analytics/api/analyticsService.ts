@@ -37,7 +37,7 @@ export type AnalyticsResponse = {
     devoluciones?: number;
     ventasNetas?: number;
   }[];
-  topProducts: { id: string; name: string; category: string; ventas: number; revenue: number }[];
+  topProducts: { id: string; name: string; category: string; ventas: string|number; unit?:string; revenue: number }[];
   categoryPerformance: { category: string; revenue: number; cost: number; profit: number; margin: number; percentage: number }[];
   paymentMethods: { method: string; total: number; count: number }[];
   channels: { channel: string; label: string; total: number; count: number }[];

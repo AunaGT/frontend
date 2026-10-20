@@ -13,13 +13,13 @@ const statement = {
   cobros: [{ id: 'qa-payment', reference: 'REC-QA', paid_at: '2026-09-02T12:00:00Z', amount: 25, notes: 'Abono de prueba', kind: 'PAYMENT', payment_method: { id: 1, name: 'Efectivo' }, registered_by: { id: 'qa-user', name: 'Responsable' }, aplicado: 25, no_aplicado: 0, aplicaciones: [{ sale_id: 'qa-sale', reference: 'FAC-QA', amount: 25 }] }],
 }
 
-function renderStatement({ tab = 'MOVEMENTS', allowed = true, consolidated = false, loading = false, error = false, partial = false, data = statement } = {}) {
+function renderStatement({ tab = 'MOVEMENTS', allowed = true, consolidated = false, loading = false, error = false, partial = false, data = statement, filters } = {}) {
   let stateIndex = 0
   const nodes = [], changes = [], navigations = [], requests = []
   const Page = loadReportModule('../receivables/pages/CustomerStatementPage.tsx', {
     react: { ...React, useEffect() {}, useState: initial => {
       const i = stateIndex++
-      const [value, setValue] = React.useState(i === 12 ? tab : initial)
+      const [value, setValue] = React.useState(i === 12 ? tab : i === 20 && filters ? filters : initial)
       return [value, next => { changes.push({ index: i, value: typeof next === 'function' ? next(value) : next }); setValue(next) }]
     } },
     'react-router-dom': { useParams: () => ({ id: 'qa-customer' }), useNavigate: () => target => navigations.push(target), useSearchParams: () => [new URLSearchParams(), () => {}] },
@@ -50,6 +50,15 @@ test('statement puts metrics before filters and keeps the toolbar outside custom
   assert.ok(html.indexOf('compact-filter-toolbar') < html.indexOf('auna-surface'), 'Toolbar must not be inside the customer panel')
   assert.match(html, /max-w-\[1560px\]/)
   assertPaginationOutside(html)
+})
+
+test('empty statement filters can be cleared without suggesting a new financial record', () => {
+  const { html, nodes, changes } = renderStatement({ filters: { from: '2040-01-01', to: '', kind: 'ALL', state: 'ALL' } })
+  assert.match(html, /Busquemos por otro lado/)
+  const empty = nodes.find(n => n.props.title === 'Cada movimiento quedará a la vista')
+  empty.props.onReset()
+  assert.ok(changes.some(c => c.index === 20 && c.value.from === '' && c.value.kind === 'ALL'))
+  assert.ok(!empty.props.action)
 })
 
 test('statement tabs, export and page size stay outside the table frame', () => {
@@ -95,7 +104,7 @@ test('partial history remains explicit and does not invent running balances', as
 test('moved export and tabs preserve their callbacks and reset pagination', () => {
   const { nodes, changes } = renderStatement()
   nodes.find(n => n.props?.children?.includes?.('Exportar')).props.onClick()
-  assert.deepEqual(changes.at(-1), { index: 20, value: true })
+  assert.deepEqual(changes.at(-1), { index: 21, value: true })
   nodes.find(n => n.props?.ariaLabel === 'Estado de cuenta').props.onValueChange('DUE')
   assert.deepEqual(changes.slice(-2), [{ index: 12, value: 'DUE' }, { index: 13, value: 1 }])
 })

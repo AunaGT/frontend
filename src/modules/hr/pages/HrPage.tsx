@@ -32,7 +32,7 @@ export const HrPage = () => {
   const navigate = useNavigate()
   return (
   <div className="hr-record-page">
-  <div className="hr-record-container space-y-5">
+  <div className="hr-record-container auna-page-fluid space-y-5">
     <h1 className="sr-only">{tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos'}</h1>
     <Tabs value={tab} onValueChange={setTab}>
       <div className="overflow-x-auto"><ModuleTabsList>

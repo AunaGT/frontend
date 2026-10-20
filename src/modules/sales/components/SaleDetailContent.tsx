@@ -5,11 +5,13 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/StatusBadge'
 import { ContactImage } from '@/components/shared/ContactImage'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useModules } from '@/context/useModules'
 import type { Sale, SaleStatus } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils'
 import { formatQuantity, previewLineTotal } from '@/lib/commercialQuantity'
+import {formatUnitDecimal,unitLineTotal} from '@/modules/inventory/units/public'
 import './saleDetail.css'
 import {saleCommercialState,salePaymentLabel,fiscalLabel} from '../commercialPresentation'
 
@@ -72,14 +74,14 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
                     {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" width={44} height={44} className="h-11 w-11 shrink-0 rounded-lg border border-border bg-background object-contain" /> : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Package className="h-5 w-5" aria-hidden /></span>}
                     <div><p className="font-medium">{product.name}</p>{product.barcode && <p className="text-xs text-muted-foreground">{product.barcode}</p>}</div>
                   </div></TableCell>
-                  <TableCell className="text-right tabular-nums">{formatQuantity(String(product.qty), locale)}{product.unitLabel && <span className="ml-1 text-xs text-muted-foreground">{product.unitLabel}</span>}</TableCell>
-                  <TableCell className="text-right tabular-nums">{fmt(product.price)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{product.lineTotal == null ? '—' : fmt(Math.max(0, Number(previewLineTotal(String(product.qty), String(product.price))) - product.lineTotal))}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">{fmt(product.lineTotal ?? Number(previewLineTotal(String(product.qty), String(product.price))))}</TableCell>
+                  <TableCell className="text-right tabular-nums">{product.unitMetadataVersion===2?formatUnitDecimal(String(product.qty),locale):formatQuantity(String(product.qty), locale)}{product.unitLabel && <span className="ml-1 text-xs text-muted-foreground">{product.unitLabel}</span>}</TableCell>
+                  <TableCell className="text-right tabular-nums">{product.unitMetadataVersion===2?`${currencyCode??'GTQ'} ${formatUnitDecimal(product.priceExact!,locale)}`:fmt(product.price)}</TableCell>
+                  <TableCell className="text-right tabular-nums">{product.lineTotal == null ? '—' : fmt(Math.max(0, Number(product.unitMetadataVersion===2?unitLineTotal(String(product.qty),product.priceExact!):previewLineTotal(String(product.qty), String(product.price))) - product.lineTotal))}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">{fmt(product.unitMetadataVersion===2?Number(product.lineTotalExact??unitLineTotal(String(product.qty),product.priceExact!)):product.lineTotal ?? Number(previewLineTotal(String(product.qty), String(product.price))))}</TableCell>
                 </TableRow>
               ))}</TableBody>
             </Table>
-            {!sale.products.length && <p className="p-6 text-center text-sm text-muted-foreground">Esta venta no tiene productos disponibles para mostrar.</p>}
+            {!sale.products.length && <CollectionEmptyState compact title="Las partidas cuentan la historia" description="Esta venta no tiene productos disponibles para mostrar." />}
           </div>
           <div className="sale-detail-financial-footer">
             <p className="text-xs text-muted-foreground">{sale.hasReturns ? 'El total neto descuenta las devoluciones registradas.' : 'Importes registrados al realizar la venta.'}{hasDiscount && sale.products.some(product => product.lineTotal == null) ? ' El descuento de esta venta histórica está registrado a nivel del documento.' : ''}</p>

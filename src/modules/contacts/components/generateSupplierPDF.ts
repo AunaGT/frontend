@@ -38,7 +38,7 @@ export interface SupplierPDFMerchandiseEntry {
   date: string
   registeredBy: { name: string }
   itemsCount: number
-  totalValue: number
+  totalValue: number|string
 }
 
 const defaultOptions: SupplierPDFOptions = {

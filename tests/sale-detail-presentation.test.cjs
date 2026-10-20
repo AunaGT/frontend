@@ -37,6 +37,8 @@ function render(name, { record = sale, permissions = true, states = [record, fal
       if (dependency === '@/context/useTenant') return {useTenant:()=>({company:{id:'qa-company'},branch:{id:'qa-branch'},isConsolidated:false})}
       if (dependency === '@/components/layout/PageNavigation') return {usePageTrail(){}}
       if (dependency === '@/hooks/useAuthPermissions') return { useAuthPermissions: () => ({ hasPermission: () => permissions }) }
+      if (dependency === '@/context/useAuth') return {useAuth:()=>({user:{id:'U'}})}
+      if (dependency === '@/services/api') return {getAuthToken:()=> 'test-session'}
       if (dependency === '@/context/useModules') return { useModules: () => ({ isEnabled: () => true }) }
       if (dependency === '@/hooks/useSystemSettings') return { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ', companyName: 'Local QA', companyLogoUrl: '/logo.png' }) }
       if (dependency === '@/services/saleService') return { fetchSaleById: async () => { if (!remoteRecord) throw Error('Unexpected request'); return remoteRecord } }

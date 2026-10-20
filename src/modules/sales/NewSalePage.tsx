@@ -21,7 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Pagination } from '@/components/shared/Pagination'
 import './pos.css'
 import {stepQuantity,previewPartialLineTotal} from '@/lib/commercialQuantity'
@@ -66,27 +66,30 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useExperienceProfile } from '@/hooks/useExperienceProfile'
 import { EXPERIENCE_PROFILE_LABELS } from '@/config/experienceProfiles'
 import { checkCustomerCredit } from '@/modules/receivables'
-import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { formatMoney } from '@/utils'
-import { createSale } from '@/services/saleService'
+import {useCheckoutFlow} from './checkout/useCheckoutFlow'
+import {CheckoutRecoveryNotice} from './checkout/CheckoutRecoveryNotice'
+import {downloadSavedSaleTicket} from './documents/saleTicketRecovery'
+import {usePrintDestination,PrintDestination,DrawerSimulationAction} from '@/modules/config/hardware/public'
 import {
-  convertOrderToSale,
   fetchOrderById,
   pendingOrderLineQty,
   type Order,
 } from '@/services/orderService'
-import { postPricingPreview, fetchPosAvailability, type ProductAvailability } from '@/services/productService'
+import { postPricingPreview, fetchPosAvailability,fetchProductById,adaptApiProduct, type ProductAvailability } from '@/services/productService'
+import {UnitLineFields} from '@/components/shared/UnitLineFields'
+import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
+import {selectProductUnit,selectedBaseQuantity,selectedUnitPayload,selectedQuantity,exactProductValues,compareUnitQuantities,addUnitQuantities,stepUnitQuantity,formatUnitDecimal,formatUnitMoney,previewUnitLine,isUnitDocumentLine,frozenDocumentSelection,remainingDocumentQuantity,documentNetAmounts,unitCartKey,type UnitSelection} from '@/modules/inventory/units/public'
+import {lookupScannedUnitProduct} from '@/services/scannerService'
 import {
   saveNewSaleDraft,
   loadNewSaleDraft,
-  clearNewSaleDraft,
+  consumeNewSaleDraft,
   hasNewSaleDraft,
   type NewSaleDraft,
 } from '@/services/saleDraftStorage'
 import { useAuth } from '@/context/useAuth'
 import { useModules } from '@/context/useModules'
-import { getCompanyNamePublic } from '@/services/settingsService'
-import { generateSaleTicket } from './documents/generateSaleTicket'
 import type { Product } from '@/types/product'
 
 import { useCart, useSalesData } from './hooks'
@@ -234,7 +237,7 @@ const CategoryBrowseCard = ({
 )
 
 export default function NewSalePage() {
-  const {company,branch}=useTenant()
+  const {company,branch,registerTenantExitGuard}=useTenant()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const { toast } = useToast()
@@ -245,6 +248,11 @@ export default function NewSalePage() {
   const canLoadOrders = isEnabled('orders') && hasPermission('orders.view')
   const promotionsEnabled = isEnabled('promotions')
   const userId = user?.id ?? ''
+  const checkoutScope=useMemo(()=>({companyId:company?.id??'',branchId:branch?.id??'',userId}),[company?.id,branch?.id,userId])
+  const scopeKey=JSON.stringify(checkoutScope)
+  const currentScope=useRef(scopeKey);currentScope.current=scopeKey
+  const unitOwner=useMemo(()=>({active:true,controller:new AbortController(),key:scopeKey}),[scopeKey])
+  useEffect(()=>{unitOwner.active=true;return()=>{unitOwner.active=false;unitOwner.controller.abort()}},[unitOwner])
   const {
     locale,
     timezone,
@@ -256,6 +264,7 @@ export default function NewSalePage() {
     salesAllowCredit,
     salesShowFiscalFields,
     salesShowChannels,
+    inventoryUnitsEnabled,
   } = useSystemSettings()
   const { profile, isCompact, showAdvancedByDefault } = useExperienceProfile()
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
@@ -266,7 +275,8 @@ export default function NewSalePage() {
   // Solo lo que maneja esta sucursal: no se puede vender lo que no está aquí.
   const {inventoryServicesEnabled}=useSystemSettings()
   const productsQuery = useAllProducts({ forSaleOnly: true, inBranchOnly: true,catalogType:inventoryServicesEnabled ? 'all' : 'goods' })
-  const availableProducts = useMemo(() => productsQuery.data ?? [], [productsQuery.data])
+  const [scannedProducts,setScannedProducts]=useState<Product[]>([])
+  const availableProducts = useMemo(() => [...new Map([...(productsQuery.data??[]),...scannedProducts].map(p=>[p.id,p])).values()], [productsQuery.data,scannedProducts])
   const categoriesQuery = useCategories()
 
   // Ubicación desde la que despacha este punto de venta (si la sucursal la marcó).
@@ -291,6 +301,7 @@ export default function NewSalePage() {
   const [pickedCustomerId, setPickedCustomerId] = useState<string>('__none__')
   const [salesChannel, setSalesChannel] = useState<'POS' | 'WHOLESALE' | 'ONLINE'>('POS')
   const [unitPricesById, setUnitPricesById] = useState<Record<string, number>>({})
+  const [unitPriceTier,setUnitPriceTier]=useState('LIST')
   const [availabilityById, setAvailabilityById] = useState<Record<string, ProductAvailability>>({})
   const [isFinalConsumer, setIsFinalConsumer] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null)
@@ -301,13 +312,14 @@ export default function NewSalePage() {
   const [promoCodesToRestore, setPromoCodesToRestore] = useState<string[] | null>(null)
   /** Fuerza recomputar si hay borrador en localStorage (React no observa el storage). */
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
+  const restoredDraftId=useRef<string|undefined>()
   const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
   const visiblePaymentMethods = useMemo(
     () => paymentMethods.filter((method) => salesAllowCredit || !method.is_credit),
     [paymentMethods, salesAllowCredit]
   )
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
-  type ElsewhereState = { product: Product; atPos: number; rows: { label: string; stock: number }[] }
+  type ElsewhereState = { product: Product;selection?:{presentationId?:string|null;priceContext?:string}; atPos: number|string; rows: { label: string; stock: number|string }[] }
   const [elsewhere, setElsewhere] = useState<ElsewhereState | null>(null)
   // El AlertDialog sigue montado durante la animación de cierre, cuando `elsewhere`
   // ya es null: leerlo directo pintaba "Solo quedan undefined en el mostrador".
@@ -317,9 +329,6 @@ export default function NewSalePage() {
   const [loadOrderRef, setLoadOrderRef] = useState('')
   const [loadOrderOpen, setLoadOrderOpen] = useState(false)
   const orderLineIdByProductRef = useRef<Map<string, string>>(new Map())
-  // Clave del intento de cobro. Sobrevive a un error para que reintentar sea el
-  // mismo intento y no una segunda venta; se renueva al terminar uno.
-  const intentoDeCobroRef = useRef<string>(crypto.randomUUID())
   const pedidoLoadedRef = useRef<string | null>(null)
 
   useEffect(() => {
@@ -357,17 +366,21 @@ export default function NewSalePage() {
     const byId=new Map(availableProducts.map(product=>[product.id,product]))
     for (const line of loadedOrder.lines) {
       const current=byId.get(line.product_id)
-      if (!current && line.item_kind!=='SERVICE') continue
+      if (!current && line.item_kind!=='SERVICE'&&!isUnitDocumentLine(line)) continue
       const product=current ?? {id:line.product_id,name:line.item_name || 'Servicio',category:'',brand:'',size:'',stock:0,minStock:0,price:Number(line.unit_price),cost:0,supplier:'',barcode:line.product?.barcode || '',description:'',status:'Disponible'}
       byId.set(line.product_id,{...product,name:line.item_name ?? product.name,kind:line.item_kind ?? product.kind,serviceUnitLabel:line.unit_label ?? product.serviceUnitLabel,quantityDecimals:line.quantity_decimals ?? product.quantityDecimals})
     }
     return [...byId.values()]
   },[availableProducts,loadedOrder])
-  const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty })
+  const getAvailableQtyExact=useCallback((p:Product)=>String(availabilityById[p.id]?.available??exactProductValues(p).stock),[availabilityById])
+  const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty,getAvailableQtyExact,priceContext:unitPriceTier,isCurrent:()=>unitOwner.active&&currentScope.current===unitOwner.key })
+  const draftGuard=useDraftGuard(cart.cartItems.length>0,registerTenantExitGuard,scopeKey)
+  const oldCartScope=useRef(scopeKey)
+  useEffect(()=>{if(oldCartScope.current!==scopeKey){oldCartScope.current=scopeKey;unitPrepareOwner.current=null;setUnitPreparing(false);cart.clearCart();setScannedProducts([]);setLoadedOrder(null);setUnitPricesById({});setAvailabilityById({})}},[scopeKey])
   const hydrateOrderCartRef=useRef(cart.hydrateFromLines)
   hydrateOrderCartRef.current=cart.hydrateFromLines
   useEffect(()=>{
-    if (loadedOrder) hydrateOrderCartRef.current(loadedOrder.lines.filter(line=>pendingOrderLineQty(line)>0).map(line=>({productId:line.product_id,qty:String(pendingOrderLineQty(line))})),[])
+    if (loadedOrder){const amounts=documentNetAmounts(loadedOrder);hydrateOrderCartRef.current(loadedOrder.lines.flatMap((line,index)=>{const advanced=isUnitDocumentLine(line),qty=advanced?remainingDocumentQuantity(line):String(pendingOrderLineQty(line));if(compareUnitQuantities(qty,'0')<=0)return[];const selection=advanced?frozenDocumentSelection({...line,line_total:amounts[index]},'BASE'):undefined;return[{productId:line.product_id,qty,unitSelection:selection,lineKey:unitCartKey(line.product_id,selection)}]}),[])}
   },[loadedOrder])
 
   /**
@@ -379,7 +392,7 @@ export default function NewSalePage() {
   /** Hay un aviso de "está en otro almacén" esperando que el cajero decida. */
   const decisionPendienteRef = useRef(false)
 
-  const addProduct = async (product: Product) => {
+  const addProduct = async (product: Product,selection?:{presentationId?:string|null;priceContext?:string}) => {
     if (product.kind==='SERVICE') {cart.addToCart(product);return}
     if (posSinConfigurar) {
       toast({
@@ -390,7 +403,7 @@ export default function NewSalePage() {
       })
       return
     }
-    if (!posLocationId) { cart.addToCart(product); return }
+    if (!posLocationId) { cart.addToCart(product,selection); return }
     // Un clic a la vez por producto: la consulta de abajo tarda, y sin esto dos
     // clics seguidos leen el mismo carrito viejo, no ven que el mostrador ya se
     // agotó y se saltan el aviso.
@@ -399,16 +412,18 @@ export default function NewSalePage() {
     let esperaDecision = false
     try {
       const rows = await queryClient.fetchQuery({
-        queryKey: ['stock-by-location', product.id],
-        queryFn: () => fetchStockByLocation(product.id),
+        queryKey: ['stock-by-location',checkoutScope.companyId,checkoutScope.branchId, product.id],
+        queryFn: () => fetchStockByLocation(product.id,{signal:unitOwner.controller.signal,headers:{'X-Company-Id':checkoutScope.companyId,'X-Branch-Id':checkoutScope.branchId}}),
         staleTime: 30_000,
       })
-      const enCarrito = Number(cart.cartItems.find((i) => i.id === product.id)?.qty || 0)
+      if(currentScope.current!==unitOwner.key||!unitOwner.active)return
+      const chosen=product.unitConfiguration?selectProductUnit(product,selection?.presentationId,selection?.priceContext??unitPriceTier):undefined
+      const required=chosen?addUnitQuantities(cart.baseQuantities[product.id]??'0',selectedBaseQuantity('1',chosen)):String(Number(cart.cartItems.find((i)=>i.id===product.id)?.qty||0)+1)
       const atPos = rows.find((r) => r.location.id === posLocationId)?.stock ?? 0
       const otras = rows
-        .filter((r) => r.location.id !== posLocationId && r.stock > 0)
+        .filter((r) => r.location.id !== posLocationId && compareUnitQuantities(String(r.stock),'0')>0)
         .map((r) => ({ label: `${r.location.warehouse.name} · ${r.location.code}`, stock: r.stock }))
-      if (enCarrito + 1 > atPos && otras.length > 0) {
+      if (compareUnitQuantities(required,String(atPos))>0 && otras.length > 0) {
         // Un solo aviso a la vez. Con dos productos en vuelo, el segundo abría su
         // aviso justo después de que el cajero resolvía el primero, y parecía que
         // el mismo diálogo reaparecía. Ese clic se descarta: el cajero lo repite.
@@ -418,7 +433,7 @@ export default function NewSalePage() {
         // aviso que el cajero ya había resuelto.
         decisionPendienteRef.current = true
         esperaDecision = true
-        setElsewhere({ product, atPos, rows: otras })
+        setElsewhere({ product,selection, atPos, rows: otras })
         return
       }
     } catch {
@@ -426,7 +441,7 @@ export default function NewSalePage() {
     } finally {
       if (!esperaDecision) addingRef.current.delete(product.id)
     }
-    cart.addToCart(product)
+    if(currentScope.current===unitOwner.key&&unitOwner.active)cart.addToCart(product,selection)
   }
 
   /**
@@ -446,8 +461,9 @@ export default function NewSalePage() {
     () =>
       cart.cartItems.map((item) => ({
         product_id: item.id,
-        price: Number(item.price),
+        price: item.unitSelection?.unitPrice??item.price,
         qty: item.qty,
+        ...selectedUnitPayload(item.unitSelection),
         kind:item.kind,
       })),
     [cart.cartItems]
@@ -463,7 +479,7 @@ export default function NewSalePage() {
     currencyCode,
   })
 
-  const pricingContext=JSON.stringify([availableProducts.map(product=>[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
+  const pricingContext=JSON.stringify([availableProducts.map(product=>product.unitConfiguration?[product.id,exactProductValues(product),product.unitConfiguration]:[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
   const pricingReadyRef=useRef<string|null>(null)
   useEffect(() => {
     let cancelled = false
@@ -480,8 +496,8 @@ export default function NewSalePage() {
           product_ids: ids,
           sales_channel: salesChannel,
           customer_contact_id: customerContactIdForPricing ?? null,
-        })
-        if (!cancelled) {pricingReadyRef.current=ids.every(id=>Object.prototype.hasOwnProperty.call(r.unit_prices ?? {},id)) ? pricingContext : null;setUnitPricesById(r.unit_prices ?? {})}
+        },{signal:unitOwner.controller.signal,headers:{'X-Company-Id':company?.id??'','X-Branch-Id':branch?.id??''}})
+        if (!cancelled) {pricingReadyRef.current=ids.every(id=>Object.prototype.hasOwnProperty.call(r.unit_prices ?? {},id)) ? pricingContext : null;setUnitPriceTier(r.price_tier_used);setUnitPricesById(r.unit_prices ?? {})}
       } catch {
         if (!cancelled) setUnitPricesById({})
       }
@@ -489,11 +505,11 @@ export default function NewSalePage() {
     return () => {
       cancelled = true
     }
-  }, [availableProducts, salesChannel, customerContactIdForPricing,pricingContext])
+  }, [availableProducts, salesChannel, customerContactIdForPricing,pricingContext,unitOwner])
 
   useEffect(() => {
     repriceCartRef.current()
-  }, [unitPricesById])
+  }, [unitPricesById,unitPriceTier])
 
   const filteredProducts = useMemo(
     () =>
@@ -569,7 +585,7 @@ export default function NewSalePage() {
     }
     void (async () => {
       try {
-        const { availability } = await fetchPosAvailability(ids)
+        const { availability } = await fetchPosAvailability(ids,{signal:unitOwner.controller.signal,headers:{'X-Company-Id':company?.id??'','X-Branch-Id':branch?.id??''}})
         if (!cancelled) setAvailabilityById(availability)
       } catch {
         if (!cancelled) setAvailabilityById({})
@@ -578,9 +594,10 @@ export default function NewSalePage() {
     return () => {
       cancelled = true
     }
-  }, [pageProducts, cart.cartItems])
+  }, [pageProducts, cart.cartItems,unitOwner])
 
   const displayLineTotals=loadedOrder ? Object.fromEntries(cart.cartItems.map(item=>{
+    if(item.unitSelection?.sourceLineId)return[item.lineKey??item.id,cart.lineTotals[item.lineKey??item.id]]
     const original=loadedOrder.lines.find(line=>line.product_id===item.id)
     try {return [item.id,original ? previewPartialLineTotal(String(original.qty),String(original.line_total),item.qty,String(original.qty_fulfilled || 0)) : null]} catch {return [item.id,null]}
   })) : cart.lineTotals
@@ -792,11 +809,12 @@ export default function NewSalePage() {
 
   const [hasStoredDraft, setHasStoredDraft] = useState(false)
   useEffect(() => {
-    setHasStoredDraft(userId ? hasNewSaleDraft(userId) : false)
-  }, [userId, storedDraftRevision])
+    setHasStoredDraft(userId ? hasNewSaleDraft(userId,checkoutScope) : false)
+  }, [userId, checkoutScope, storedDraftRevision])
 
   const applyDraftToForm = useCallback(
     (draft: NewSaleDraft) => {
+      restoredDraftId.current=draft.draftId??draft.savedAt
       promotions.clearPromotions()
       setCustomer(draft.customer ?? '')
       setCustomerNit(draft.customerNit ?? '')
@@ -829,10 +847,11 @@ export default function NewSalePage() {
 
       const lines = draft.lines ?? []
       if (lines.length > 0) {
-        const { missingProductIds, qtyAdjustedIds } = cart.hydrateFromLines(
-          lines.map((l) => ({ productId: l.productId, qty: l.qty })),
+        const { missingProductIds, qtyAdjustedIds,unitReviewIds } = cart.hydrateFromLines(
+          lines,
           draft.adminAuthorizedProductIds ?? []
         )
+        if(unitReviewIds.length)toast({title:'Revisa las unidades del borrador',description:'Confirma la presentación guardada antes de cobrar.',variant:'destructive'})
         const promos = (draft.promotionCodes ?? []).filter((c) => String(c).trim().length > 0)
         if (promos.length) setPromoCodesToRestore(promos)
 
@@ -908,7 +927,7 @@ export default function NewSalePage() {
       toast({ title: 'Inicia sesión', variant: 'destructive' })
       return
     }
-    const draft = loadNewSaleDraft(userId)
+    const draft = loadNewSaleDraft(userId,checkoutScope)
     if (!draft) {
       toast({
         title: 'No hay venta guardada',
@@ -918,7 +937,7 @@ export default function NewSalePage() {
       return
     }
     recoverDraftIfReady(draft)
-  }, [userId, recoverDraftIfReady, toast])
+  }, [userId, checkoutScope, recoverDraftIfReady, toast])
 
   const recuperarQueryHandledRef = useRef(false)
   const applyDraftRef = useRef(applyDraftToForm)
@@ -932,7 +951,7 @@ export default function NewSalePage() {
     if (!userId) return
     if (recuperarQueryHandledRef.current) return
 
-    const draft = loadNewSaleDraft(userId)
+    const draft = loadNewSaleDraft(userId,checkoutScope)
     if (!draft) {
       toast({
         title: 'No hay venta guardada',
@@ -954,6 +973,7 @@ export default function NewSalePage() {
   }, [
     searchParams,
     userId,
+    checkoutScope,
     productsQuery.isSuccess,
     availableProducts.length,
     paymentMethods.length,
@@ -984,6 +1004,7 @@ export default function NewSalePage() {
   }, [promoCodesToRestore, cart.cartItems.length, promotionsEnabled])
 
   const handleSaveForLater = () => {
+    if(loadedOrder){toast({title:'Pedido conservado',description:'Este pedido ya está guardado. Puedes volver a cargarlo por su referencia para completar el cobro.'});return}
     if (!userId) {
       toast({
         title: 'No se puede guardar',
@@ -1013,11 +1034,12 @@ export default function NewSalePage() {
       creditDueDate,
       initialCreditPayment,
       initialCreditMethod,
-      lines: cart.cartItems.map((item) => ({ productId: item.id, qty: item.qty })),
+      lines: cart.cartItems.map((item) => ({ productId: item.id, qty: item.qty,unitSelection:item.unitSelection,lineKey:item.lineKey })),
       adminAuthorizedProductIds: [...cart.adminAuthorizedProducts],
       promotionCodes: promotions.promotionCodes,
       productPageSize,
-    })
+    },checkoutScope)
+    restoredDraftId.current=undefined
     cart.clearCart()
     promotions.clearPromotions()
     setCustomer('Consumidor final')
@@ -1055,11 +1077,11 @@ export default function NewSalePage() {
         return
       }
       const prices: Record<string, number> = {}
-      const lines: { productId: string; qty: number }[] = []
+      const lines: { productId: string; qty: number|string }[] = []
       const map = new Map<string, string>()
       for (const line of order.lines) {
-        const pending = pendingOrderLineQty(line)
-        if (pending <= 0) continue
+        const pending = isUnitDocumentLine(line)?remainingDocumentQuantity(line):String(pendingOrderLineQty(line))
+        if (compareUnitQuantities(pending,'0')<=0) continue
         lines.push({ productId: line.product_id, qty: pending })
         prices[line.product_id] = Number(line.unit_price)
         map.set(line.product_id, line.id)
@@ -1130,7 +1152,39 @@ export default function NewSalePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- descarta un pedido si desaparece su capacidad
   }, [canLoadOrders, loadedOrder])
 
+  const printDestination=usePrintDestination(checkoutScope,'RECEIPT',selectedRegisterId||undefined)
+  const [printNotice,setPrintNotice]=useState('')
+  const [lastCheckout,setLastCheckout]=useState<{saleId:string;scopeKey:string;ticketFailed:boolean;ticketPending:boolean}|null>(null)
+  const ticketFor=async(saleId:string)=>{
+    const owner=checkout.isCurrent
+    setLastCheckout({saleId,scopeKey,ticketFailed:false,ticketPending:true})
+    try{await downloadSavedSaleTicket(saleId,{companyName,logoUrl:companyLogoUrl||undefined,locale,currencyCode},owner,{headers:{'X-Company-Id':checkoutScope.companyId,'X-Branch-Id':checkoutScope.branchId}},{scope:checkoutScope,options:printDestination.options,notice:message=>{if(owner())setPrintNotice(message)}})}
+    catch(error){if(owner()&&(error as Error).name!=='AbortError'){setLastCheckout(current=>current?.saleId===saleId?{...current,ticketFailed:true}:current);toast({title:'Venta registrada; ticket pendiente',description:'Descarga el ticket nuevamente o abre el detalle de la venta.'})}}
+    finally{if(owner())setLastCheckout(current=>current?.saleId===saleId?{...current,ticketPending:false}:current)}
+  }
+  const [unitPreparing,setUnitPreparing]=useState(false)
+  const unitPrepareOwner=useRef<object|null>(null)
+  const checkout=useCheckoutFlow(checkoutScope,canCreate,(attempt,ownsCart)=>{
+    if(attempt.draftId&&consumeNewSaleDraft(userId,checkoutScope,attempt.draftId))setStoredDraftRevision(r=>r+1)
+    if(ownsCart){
+      restoredDraftId.current=undefined
+      cart.clearCart();promotions.clearPromotions()
+      if(loadedOrder)clearLoadedOrder()
+      setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setSalesChannel('POS');setIsFinalConsumer(true);setAmountReceived('');setProductSearch('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('')
+    }
+    toast({title:isCreditSale?'Venta a crédito registrada':'Venta registrada correctamente'})
+    void Promise.resolve().then(()=>{salesData.refreshSales();return Promise.all([queryClient.invalidateQueries({queryKey:PRODUCTS_QUERY_KEY}),queryClient.invalidateQueries({queryKey:['receivables']}),queryClient.invalidateQueries({queryKey:['credit-check']})])}).catch(()=>{ /* The saved sale does not depend on refreshing the catalog. */ })
+    void ticketFor(attempt.saleId!)
+  },JSON.stringify(user?.permissions??[]),restoredDraftId.current)
+  useEffect(()=>setIsProcessing(unitPreparing||checkout.pending||!!checkout.attempt||checkout.blocked),[unitPreparing,checkout.pending,checkout.attempt,checkout.blocked])
+  const reviewContextValue=JSON.stringify([scopeKey,cart.cartItems.map(item=>[item.id,item.qty,item.unitSelection]),unitPriceTier,customer,customerNit,isFinalConsumer,pickedCustomerId,salesChannel,paymentMethod?.id,amountReceived,initialCreditPayment,initialCreditMethod,creditDueDate,creditOverride,promotions.promotionCodes])
+  const reviewContext=useRef('');reviewContext.current=reviewContextValue
+  const visibleCheckout=lastCheckout?.scopeKey===scopeKey?lastCheckout:null
+  const checkoutNotice=<CheckoutRecoveryNotice attempt={checkout.attempt} pending={checkout.pending} error={checkout.error} lastSaleId={visibleCheckout?.saleId??checkout.attempt?.saleId} ticketFailed={visibleCheckout?.ticketFailed} ticketPending={visibleCheckout?.ticketPending} onCheck={()=>void checkout.reconcile()} onTicket={()=>void ticketFor(visibleCheckout?.saleId??checkout.attempt!.saleId!)} onDetail={()=>navigate(`/ventas/${visibleCheckout?.saleId??checkout.attempt?.saleId}/factura`)}/>
+
   const handleSubmit = async () => {
+    if(unitPrepareOwner.current||isProcessing||checkout.attempt)return
+    if(reviewContext.current!==reviewContextValue)return
     if (cart.hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Cada partida debe tener una cantidad válida para su unidad de cobro.',variant:'destructive'});return}
     if (pricingReadyRef.current!==pricingContext && !loadedOrder) {toast({title:'Precios pendientes',description:'Espera a que se actualicen los precios antes de cobrar.',variant:'destructive'});return}
     if (!canCreate) {
@@ -1210,14 +1264,14 @@ export default function NewSalePage() {
       cash_register_id: cashRegisterMeta?.id ?? selectedRegisterId ?? undefined,
       items: cart.cartItems.map((item: CartProduct) => ({
         product_id: item.id,
-        price: item.price,
+        price: item.unitSelection?.unitPrice??item.price,
         qty: item.qty,
+        ...selectedUnitPayload(item.unitSelection),
       })),
       amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
       change: isCash ? changeAmount : undefined,
       admin_authorized_products: Array.from(cart.adminAuthorizedProducts),
       promotion_codes: promotionsEnabled ? promotions.promotionCodes : [],
-      idempotency_key: intentoDeCobroRef.current,
       ...(isCreditSale
         ? {
             due_date: creditDueDate || undefined,
@@ -1226,101 +1280,29 @@ export default function NewSalePage() {
           }
         : {}),
     }
-    setIsProcessing(true)
-    try {
-      if (loadedOrder) {
-        const lines = cart.cartItems
-          .map((item) => ({
-            line_id: orderLineIdByProductRef.current.get(item.id) ?? '',
-            qty: item.qty,
-          }))
-          .filter((x) => x.line_id && Number(x.qty) > 0)
-        const [{ company_name: companyNameFromApi }, result] = await Promise.all([
-          getCompanyNamePublic().catch(() => ({ company_name: '' })),
-          convertOrderToSale(loadedOrder.id, {
-            due_date: isCreditSale ? creditDueDate : undefined,
-            initial_payment: isCreditSale && Number(initialCreditPayment) > 0 ? { amount: Number(initialCreditPayment), payment_method_id: Number(initialCreditMethod) } : undefined,
-            payment_method_id: paymentMethod.id,
-            amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
-            change: isCash ? changeAmount : undefined,
-            lines,
-            cash_register_id: cashRegisterMeta?.id ?? selectedRegisterId ?? undefined,
-          }),
-        ])
-        const created = result.sale as { id?: string; reference?: string }
-        const saleId = created?.id
-        if (saleId && created) {
-          const nameForTicket = (companyNameFromApi && String(companyNameFromApi).trim()) || companyName
-          const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
-          generateSaleTicket(created as Parameters<typeof generateSaleTicket>[0], {
-            companyName: nameForTicket,
-            logoDataUrl,
-            locale,
-            currencyCode,
-          })
-        }
-        toast({ title: 'Venta desde pedido registrada' })
-        salesData.refreshSales()
-        await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
-        clearLoadedOrder()
-        setCustomer('Consumidor final')
-        setCustomerNit('')
-        setPickedCustomerId('__none__')
-        setIsFinalConsumer(true)
-        setAmountReceived('')
-        if (saleId) navigate(`/ventas/${saleId}/factura`)
-        return
-      }
-
-      // POST devuelve la venta completa; getCompanyNamePublic en paralelo (antes era secuencial + GET extra)
-      const [{ company_name: companyNameFromApi }, created] = await Promise.all([
-        getCompanyNamePublic().catch(() => ({ company_name: '' })),
-        createSale(payload),
-      ])
-      const saleId = created?.id
-      if (saleId) {
-        const nameForTicket = (companyNameFromApi && String(companyNameFromApi).trim()) || companyName
-        const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
-        generateSaleTicket(created, {
-          companyName: nameForTicket,
-          logoDataUrl,
-          locale,
-          currencyCode,
-        })
-      }
-      intentoDeCobroRef.current = crypto.randomUUID()
-      toast({ title: isCreditSale ? 'Venta a crédito registrada' : 'Venta registrada correctamente', description: isCreditSale ? `Abono: ${fmt(Number(initialCreditPayment || 0))} · Saldo en Cartera: ${fmt(displayTotal - Number(initialCreditPayment || 0))}` : undefined })
-      void queryClient.invalidateQueries({ queryKey: ['receivables'] })
-      void queryClient.invalidateQueries({ queryKey: ['credit-check'] })
-      salesData.refreshSales()
-      await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY })
-      if (userId) {
-        clearNewSaleDraft(userId)
-        setStoredDraftRevision((r) => r + 1)
-      }
-      cart.clearCart()
-      promotions.clearPromotions()
-      setCustomer('Consumidor final')
-      setCustomerNit('')
-      setPickedCustomerId('__none__')
-      setSalesChannel('POS')
-      setIsFinalConsumer(true)
-      setAmountReceived('')
-      setProductSearch('')
-      setInitialCreditPayment('')
-      setInitialCreditMethod('')
-      setCreditDueDate('')
-      requestAnimationFrame(() => productSearchRef.current?.focus())
-    } catch (e) {
-      toast({
-        title: 'Error al registrar la venta',
-        description: (e as Error)?.message,
-        variant: 'destructive',
-      })
-    } finally {
-      setIsProcessing(false)
+    if(loadedOrder){
+      const lines=cart.cartItems.map(item=>({line_id:item.unitSelection?.sourceLineId??orderLineIdByProductRef.current.get(item.id)??'',qty:item.qty,...(item.unitSelection?.sourceBasis==='BASE'?{presentation_id:null}:{})})).filter(x=>x.line_id&&compareUnitQuantities(x.qty,'0')>0)
+      await checkout.submit('ORDER',{
+        due_date:isCreditSale?creditDueDate:undefined,
+        initial_payment:isCreditSale&&Number(initialCreditPayment)>0?{amount:Number(initialCreditPayment),payment_method_id:Number(initialCreditMethod)}:undefined,
+        payment_method_id:paymentMethod.id,amount_received:payload.amount_received,change:payload.change,lines,cash_register_id:payload.cash_register_id,
+      },loadedOrder.id)
+    }else {
+      const prepare={};unitPrepareOwner.current=prepare;setUnitPreparing(true);const reviewed=reviewContext.current
+      try{const preparations=[]
+        for(const item of cart.cartItems)if(item.unitSelection)preparations.push({item,preview:await previewUnitLine(checkoutScope,item.id,{qty:selectedQuantity(item.qty,item.unitSelection),...selectedUnitPayload(item.unitSelection),unit_revision:item.unitSelection.revision,price_tier:unitPriceTier as 'LIST'|'WHOLESALE'|'PROMOTION'},unitOwner.controller.signal)})
+        if(reviewed!==reviewContext.current)throw Error('La venta cambió durante la revisión. Revisa el importe y vuelve a cobrar.')
+        if(currentScope.current!==unitOwner.key||!unitOwner.active)return
+        let changed=false
+        for(const {item,preview}of preparations)if(cart.reconcileUnitPreparation(item.lineKey??item.id,preview))changed=true
+        if(changed)throw Error('Se actualizaron cantidades o precios autorizados. Revisa el carrito y vuelve a cobrar.')
+        if(currentScope.current===unitOwner.key&&unitOwner.active)await checkout.submit('SALE',payload)
+      }catch(error){if(currentScope.current===unitOwner.key&&unitOwner.active)toast({title:'Revisa la unidad seleccionada',description:(error as Error).message,variant:'destructive'})}
+      finally{if(unitPrepareOwner.current===prepare){unitPrepareOwner.current=null;if(currentScope.current===unitOwner.key&&unitOwner.active)setUnitPreparing(false)}}
     }
   }
+
+  if(checkout.attempt&&(!selectedRegisterId||!cashSessionOpen))return <div className="p-4 sm:p-8">{checkoutNotice}</div>
 
   if (!selectedRegisterId) {
     return (
@@ -1409,7 +1391,8 @@ export default function NewSalePage() {
   }
 
   return (
-    <div className="pos-page">
+    <div className="pos-page auna-page-fluid">
+      {draftGuard.dialog}
       <div className="auna-page-toolbar pos-toolbar">
         <div className="flex items-start gap-3 min-w-0">
           <Button variant="outline" size="sm" aria-label="Volver a ventas" className="shrink-0" onClick={() => navigate('/ventas')}>
@@ -1492,6 +1475,10 @@ export default function NewSalePage() {
         )}
       </div>
 
+      {checkoutNotice}
+      {visibleCheckout&&<DrawerSimulationAction key={visibleCheckout.saleId} source={{sourceType:'SALE',sourceId:visibleCheckout.saleId}} workstationId={printDestination.route?.workstationId}/>}
+      {printNotice&&<p role="status" className="text-xs text-muted-foreground">{printNotice}</p>}
+      <PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange}/>
       {loadedOrder && (
         <Alert className="mb-6">
           <Package className="h-4 w-4" />
@@ -1530,7 +1517,7 @@ export default function NewSalePage() {
         </Alert>
       )}
 
-      <div className="pos-workspace">
+      <fieldset className="pos-workspace min-w-0" disabled={checkout.pending||!!checkout.attempt||checkout.blocked}>
         {/* Columna izquierda: información de la venta */}
         <div className="pos-sale-column">
           <section className="auna-surface rounded-xl border pos-context" aria-labelledby="pos-context-title">
@@ -1809,7 +1796,7 @@ export default function NewSalePage() {
               <h2 className="text-base font-semibold">Productos en la venta ({cart.cartItems.length})</h2>
             </header>
             {cart.cartItems.length === 0 ? (
-              <EmptyState icon={Package} title="Agrega productos a la venta" description="Busca un producto en el catálogo o introduce su código de barras." />
+              <CollectionEmptyState compact title="La venta empieza con un producto" description="Busca un producto en el catálogo o introduce su código de barras." />
             ) : (
               <div className="pos-cart-scroll">
                 <Table>
@@ -1824,7 +1811,7 @@ export default function NewSalePage() {
                   </TableHeader>
                   <TableBody>
                     {cart.cartItems.map(item => (
-                      <TableRow key={item.id}>
+                      <TableRow key={item.lineKey??item.id}>
                         <TableCell>
                           <div className="flex min-w-40 items-center gap-3">
                             {item.imageUrl ? (
@@ -1833,13 +1820,14 @@ export default function NewSalePage() {
                             <div>
                               <p className="font-medium">{item.name}</p>
                               <p className="text-xs text-muted-foreground">{item.barcode || 'Sin código de barras'}</p>
+                              {item.unitSelection&&<UnitLineFields product={item} selection={item.unitSelection} quantity={item.qty} disabled={isProcessing||!!loadedOrder} onSelect={id=>cart.selectCartUnit(item.lineKey??item.id,id)} onAcceptRounding={accepted=>cart.acceptCartRounding(item.lineKey??item.id,accepted)}/>}
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right tabular-nums">{fmt(item.price)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{item.unitSelection?`${currencyCode} ${formatUnitDecimal(item.unitSelection.unitPrice,locale)} / ${item.unitSelection.snapshot.presentation?.label??item.unitSelection.snapshot.baseUnit.label}`:fmt(item.price)}</TableCell>
                         <TableCell>
                           <div className="flex items-center justify-center gap-1">
-                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,-1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,-1):stepQuantity(item.qty,-1))} disabled={isProcessing || cart.hasInvalidQuantities}>
                               <Minus className="h-4 w-4" aria-hidden="true" />
                             </Button>
                             <Input
@@ -1850,18 +1838,18 @@ export default function NewSalePage() {
                               aria-label={`Cantidad de ${item.name}`}
                               value={item.qty}
                               disabled={isProcessing}
-                              aria-invalid={displayLineTotals[item.id]===null}
-                              onChange={event => cart.updateQuantity(item.id,event.target.value)}
+                              aria-invalid={displayLineTotals[item.lineKey??item.id]===null}
+                              onChange={event => cart.updateQuantity(item.lineKey??item.id,event.target.value)}
                             />
-                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.id, stepQuantity(item.qty,1))} disabled={isProcessing || cart.hasInvalidQuantities}>
+                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,1):stepQuantity(item.qty,1))} disabled={isProcessing || cart.hasInvalidQuantities}>
                               <Plus className="h-4 w-4" aria-hidden="true" />
                             </Button>
                           </div>
                           {item.kind==='SERVICE' && <p className="mt-1 text-center text-xs text-muted-foreground">{item.serviceUnitLabel}</p>}
                         </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{displayLineTotals[item.id]!==null ? fmt(Number(displayLineTotals[item.id])) : '—'}</TableCell>
+                        <TableCell className="text-right font-semibold tabular-nums">{displayLineTotals[item.lineKey??item.id]!==null ? fmt(Number(displayLineTotals[item.lineKey??item.id])) : '—'}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Quitar ${item.name}`} onClick={() => cart.removeFromCart(item.id)} disabled={isProcessing}>
+                          <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Quitar ${item.name}`} onClick={() => cart.removeFromCart(item.lineKey??item.id)} disabled={isProcessing}>
                             <Trash2 className="h-4 w-4" aria-hidden="true" />
                           </Button>
                         </TableCell>
@@ -1974,6 +1962,7 @@ export default function NewSalePage() {
                       if (event.key !== 'Enter') return
                       const term = productSearch.trim().toLowerCase()
                       if (!term) return
+                      if(inventoryUnitsEnabled){event.preventDefault();void(async()=>{try{const result=await lookupScannedUnitProduct({...checkoutScope,canViewProducts:hasPermission('products.view'),inventoryEnabled:isEnabled('inventory')},productSearch.trim(),{signal:unitOwner.controller.signal});if(currentScope.current!==unitOwner.key||!unitOwner.active)return;const product=adaptApiProduct(result.product);setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product]);await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier});if(currentScope.current===unitOwner.key)setProductSearch('')}catch(error){if(currentScope.current===unitOwner.key&&unitOwner.active)toast({title:'No se pudo leer el producto',description:(error as Error).message,variant:'destructive'})}})();return}
                       const exact = availableProducts.find(
                         (product) => (product.barcode ?? '').trim().toLowerCase() === term
                       )
@@ -2076,9 +2065,7 @@ export default function NewSalePage() {
                 <div role="alert" className="py-8 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => void productsQuery.refetch()}>Reintentar</Button></div>
               ) : showCategoryPicker ? (
                 categorySummaries.length === 0 ? (
-                  <div className="py-12 text-center text-muted-foreground">
-                    No hay categorías con productos que coincidan
-                  </div>
+                  <CollectionEmptyState compact title="El catálogo espera sus productos" description="Los productos disponibles para esta venta aparecerán aquí, organizados por categoría." filtered={isProductSearchActive} onReset={() => {setProductSearch('');setSelectedCategoryName(null);setProductPage(1)}} />
                 ) : (
                   <div className="pos-category-list">
                     {categorySummaries.map((cat) => (
@@ -2097,9 +2084,7 @@ export default function NewSalePage() {
                   </div>
                 )
               ) : browseProducts.length === 0 ? (
-                <div className="py-12 text-center text-muted-foreground">
-                  No hay productos que coincidan
-                </div>
+                <CollectionEmptyState compact title="El catálogo espera sus productos" description="Los productos disponibles para esta venta aparecerán aquí." filtered={isProductSearchActive || Boolean(selectedCategoryName)} onReset={() => {setProductSearch('');setSelectedCategoryName(null);setProductPage(1)}} />
               ) : (
                 <>
                   {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
@@ -2131,7 +2116,7 @@ export default function NewSalePage() {
             <Pagination currentPage={safePage} totalPages={totalPages} totalItems={browseProducts.length} pageSize={pageSize} count={pageProducts.length} itemLabel="productos" onPageChange={setProductPage} loading={productsQuery.isFetching} />
           </div>}
         </div>
-      </div>
+      </fieldset>
 
       <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && cerrarElsewhere()}>
         <AlertDialogContent variant="auna">
@@ -2141,7 +2126,7 @@ export default function NewSalePage() {
                   productos distintos se ven idénticos. */}
               {elsewhereView == null
                 ? ''
-                : elsewhereView.atPos === 0
+                : compareUnitQuantities(String(elsewhereView.atPos),'0')===0
                   ? `No queda ${elsewhereView.product.name} en el mostrador`
                   : `Solo quedan ${elsewhereView.atPos} de ${elsewhereView.product.name} en el mostrador`}
             </AlertDialogTitle>
@@ -2167,7 +2152,7 @@ export default function NewSalePage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (elsewhere) cart.addToCart(elsewhere.product)
+                                if (elsewhere) cart.addToCart(elsewhere.product,elsewhere.selection)
                 cerrarElsewhere()
               }}
             >

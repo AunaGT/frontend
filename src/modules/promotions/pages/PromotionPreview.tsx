@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import {useNavigate} from 'react-router-dom'
 import { Package, Percent, Pencil } from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import {CouponPreview} from '../coupons/CouponPreview'
 import { fetchAllProducts } from '@/services/productService'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -24,7 +25,7 @@ export function PromotionPreview({designPath,...props}:CouponModelProps&{designP
     <p className="mt-2 text-xs text-muted-foreground">{code.code==='CÓDIGO-EJEMPLO'?'Código de ejemplo. Al exportar se usan los códigos reales.':'El PDF utiliza este diseño con cada código seleccionado.'}</p>
     <div className="mt-5">
       <h3 className="mb-3 text-sm font-semibold">Productos seleccionados {products.length > 0 ? `(${products.length})` : ''}</h3>
-      {products.length === 0 ? <p className="rounded-xl border border-dashed p-5 text-sm text-muted-foreground">Si la promoción aplica a productos específicos, aparecerán aquí.</p> : <div className="space-y-2">{products.slice(0, 5).map((item) => {
+      {products.length === 0 ? <CollectionEmptyState compact title="Aquí verás los productos elegidos" description="Si la promoción aplica a productos específicos, aparecerán aquí." /> : <div className="space-y-2">{products.slice(0, 5).map((item) => {
         const product = productMap.get(item.id)
         const price = product?.price
         const finalPrice = (typeName === 'PERCENTAGE' || typeName === 'MIN_QTY_DISCOUNT') && price && Number(percentage) > 0 ? price * (1 - Number(percentage) / 100) : null

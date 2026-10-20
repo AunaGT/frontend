@@ -1,0 +1,14 @@
+export type DecimalString=string
+export type UnitScope={companyId:string;branchId:string}
+export type MeasureUnit={id:string;company_id:string;code:string;family:string;name:string;label:string;factor:DecimalString;quantity_decimals:number;active:boolean;is_standard?:boolean}
+export type PresentationPrices={LIST?:DecimalString|null;WHOLESALE?:DecimalString|null;PROMOTION?:DecimalString|null}
+export type Presentation={id:string;company_id:string;product_id:string;name:string;label:string;version:number;factor:DecimalString;quantity_decimals:number;purchase_enabled:boolean;sale_enabled:boolean;active:boolean;measure_unit_id?:string|null;prices:PresentationPrices;barcode?:string|null;promotion_valid_until?:string|null}
+export type PresentationInput={name:string;label:string;quantity_decimals:number;factor?:DecimalString;measure_unit_id?:string|null;purchase_enabled:boolean;sale_enabled:boolean;active?:boolean;prices?:PresentationPrices;barcode?:string|null;promotion_valid_until?:string|null}
+export type UnitConfiguration={base_unit_id:string;base_unit:MeasureUnit|null;quantity_decimals:number;unit_revision:number;presentations:Presentation[];default_purchase_presentation_id:string|null;default_sale_presentation_id:string|null;base_unit_locked?:boolean}
+export type UnitValues={stock:DecimalString;minStock:DecimalString;price:DecimalString;priceWholesale:DecimalString|null;pricePromotion:DecimalString|null;cost:DecimalString}
+export type PresentationDraft={key:string;id?:string;version?:number;name:string;label:string;factor:string;quantityDecimals:string;purchaseEnabled:boolean;saleEnabled:boolean;price:string;wholesale:string;promotion:string;promotionUntil:string;barcode:string;measureUnitId:string|null}
+export type ProductUnitsDraft={baseUnitId:string;quantityDecimals:string;presentations:PresentationDraft[];defaultPurchaseKey:string|null;defaultSaleKey:string|null}
+export type InitialUnitsConfiguration={base_unit_id:string;quantity_decimals:number;presentations:(PresentationInput&{client_key:string})[];default_purchase_key:string|null;default_sale_key:string|null}
+export type UnitPreview={qty:string;base_qty:string;unit_metadata_version:1|2;unit_revision?:number;unit_price?:string;line_total?:string;unit_snapshot:UnitSnapshot|LegacyUnitSnapshot}
+export type LegacyUnitSnapshot={version:1;factor:'1';unit_label:string}
+export type UnitSnapshot={version:2;baseUnit:{id:string;code:string;name:string;label:string;decimals:number};presentation:{id:string;version:number;name:string;label:string;decimals:number}|null;factor:string;roundingDelta:string}

@@ -17,6 +17,7 @@ import type { Sale, SaleDte } from '@/services/saleService'
 import { formatMoney, formatDateTime } from '@/utils/formatters'
 import { addJsPdfLogoCentered } from '@/utils/pdfBranding'
 import {internalSaleDocumentTitle} from '../commercialPresentation'
+import {formatUnitDecimal,formatUnitMoney,unitLineTotal} from '@/modules/inventory/units/public'
 
 const WIDTH_MM = 80
 const MARGIN_MM = 4
@@ -94,6 +95,7 @@ function computeTicketHeightMm(sale: Sale, options: SaleTicketOptions): number {
   if (dte) h += LINE_HEIGHT + (dte.authorization ? LINE_HEIGHT : 0) + (dte.series || dte.number ? LINE_HEIGHT : 0) + (dte.emission_date ? LINE_HEIGHT : 0) + 1
   h += LINE_HEIGHT + LINE_HEIGHT + (hasCustomerNit ? LINE_HEIGHT : 0) + 1 + LINE_HEIGHT + LINE_HEIGHT + LINE_HEIGHT // cliente, dashed, cols
   h += items.length * ITEM_ROW_MM
+  h += items.filter(item=>item.unit_metadata_version===2).length*LINE_HEIGHT*3
   h += LINE_HEIGHT + LINE_HEIGHT + (discount > 0 ? LINE_HEIGHT : 0) + LINE_HEIGHT + LINE_HEIGHT + 1 + LINE_HEIGHT // totales
   h += LINE_HEIGHT + LINE_HEIGHT + (hasPaymentDetails ? LINE_HEIGHT : 0) + (hasChange ? LINE_HEIGHT : 0) + 1 + LINE_HEIGHT // pago
   if (hasCajero) h += LINE_HEIGHT + 1
@@ -103,7 +105,7 @@ function computeTicketHeightMm(sale: Sale, options: SaleTicketOptions): number {
   return Math.ceil(h)
 }
 
-export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}): void {
+function saleTicketDocument(sale: Sale, options: SaleTicketOptions = {}): { doc: jsPDF; filename: string } {
   const { companyName, companyNit, logoDataUrl, locale = 'es-GT', currencyCode = 'GTQ' } = options
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
   const heightMm = computeTicketHeightMm(sale, options)
@@ -210,6 +212,16 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   const items = sale.sale_items ?? []
   for (const item of items) {
     const name = `${item.item_name ?? item.product?.name ?? 'Producto'}${item.unit_label ? ` (${item.unit_label})` : ''}`
+    if(item.unit_metadata_version===2){
+      if(item.net_total==null||item.unit_snapshot?.version!==2)throw Error('El documento necesita revisar su importe y unidad históricos')
+      doc.text(truncateDescToWidth(doc,name,WIDTH_MM-MARGIN_MM*2-18),X_LEFT,y)
+      doc.text(formatUnitMoney(String(item.net_total),locale,currencyCode),X_IMPORTE_END,y,{align:'right'})
+      y+=LINE_HEIGHT
+      const rate=`${formatUnitDecimal(String(item.qty),locale)} ${item.unit_label??''} x ${currencyCode} ${formatUnitDecimal(String(item.price),locale)}`
+      const detail=doc.splitTextToSize(rate,WIDTH_MM-MARGIN_MM*2) as string[]
+      doc.text(detail,X_LEFT,y);y+=detail.length*LINE_HEIGHT+0.5
+      continue
+    }
     const qty = Number(item.qty) || 0
     const price = Number(item.price) || 0
     const lineTotal = qty * price
@@ -225,7 +237,7 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
   y += LINE_HEIGHT
 
   // ----- Totales -----
-  const subtotal = sale.subtotal ?? items.reduce((acc, i) => acc + Number(i.qty) * Number(i.price), 0)
+  const subtotal = sale.subtotal ?? (items.some(item=>item.unit_metadata_version===2)?Number(items.reduce((acc,item)=>acc+BigInt(unitLineTotal(String(item.qty),String(item.price)).replace('.','')),0n))/100:items.reduce((acc, i) => acc + Number(i.qty) * Number(i.price), 0))
   const discount = Number(sale.discount_total) || 0
   doc.text('Subtotal:', X_LEFT, y)
   doc.text(fmt(subtotal), X_IMPORTE_END, y, { align: 'right' })
@@ -291,5 +303,15 @@ export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}):
 
   const fileRef = sale.reference ?? sale.id.slice(0, 8)
   const filename = dte?.number ? `Ticket-Venta-${dte.series ?? ''}-${dte.number}.pdf` : `Ticket-Venta-${fileRef}.pdf`
+  return {doc,filename}
+}
+
+export function buildSaleTicketPdf(sale: Sale, options: SaleTicketOptions = {}): { blob: Blob; filename: string } {
+  const {doc,filename}=saleTicketDocument(sale,options)
+  return {blob:doc.output('blob'),filename}
+}
+
+export function generateSaleTicket(sale: Sale, options: SaleTicketOptions = {}): void {
+  const {doc,filename}=saleTicketDocument(sale,options)
   doc.save(filename)
 }

@@ -18,7 +18,9 @@
  * - Real-time validation feedback
  */
 import { LoadingIndicator } from '@/components/shared/LoadingState'
-import { useState, useEffect, useMemo } from 'react'
+import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
+import {formatUnitDecimal} from '@/modules/inventory/units/public'
+import { useState, useEffect, useMemo,useRef } from 'react'
 import { ApiError, apiFetch, getApiBaseUrl, getAuthToken } from '@/services/api'
 import { useQuery } from '@tanstack/react-query'
 import { useTenant } from '@/context/useTenant'
@@ -72,7 +74,10 @@ const SYSTEM_FIELDS = [
     { id: 'supplier', label: 'Proveedor (solo bienes)', required: false, type: 'relation' },
     { id: 'kind', label: 'Tipo (STANDARD / KIT / SERVICE)', required: false, type: 'string' },
     { id: 'service_unit_label', label: 'Unidad de cobro (servicios)', required: false, type: 'string' },
-    { id: 'quantity_decimals', label: 'Decimales (servicios)', required: false, type: 'number' },
+    { id:'base_unit_code',label:'Código de unidad base',required:false,type:'string' },
+    { id:'presentation_code',label:'Código de presentación registrada',required:false,type:'string' },
+    { id:'presentation_content',label:'Contenido de presentación (verificación)',required:false,type:'string' },
+    { id: 'quantity_decimals', label:'Decimales: bienes 0–6, servicios 0–4', required: false, type: 'number' },
     { id: 'price', label: 'Precio', required: true, type: 'number' },
     { id: 'cost', label: 'Costo', required: false, type: 'number' },
     { id: 'stock', label: 'Stock', required: false, type: 'number' },
@@ -127,6 +132,7 @@ export default function ImportPage() {
     const [isTesting, setIsTesting] = useState(false)
     const [hasTestedOnce, setHasTestedOnce] = useState(false)
     const [validationErrors, setValidationErrors] = useState<ValidationError[]>([])
+    const [unitPreviews,setUnitPreviews]=useState<Array<{rowIndex:number;data:{stock?:string|number;min_stock?:string|number};unitPreview:{baseStock:string;baseMinimum:string;unitLabel:string;presentationLabel:string;priceCostPolicy:string}}>>([])
     const [validRowCount, setValidRowCount] = useState(0)
     const [totalRowCount, setTotalRowCount] = useState(0)
 
@@ -136,7 +142,12 @@ export default function ImportPage() {
 
     // El catálogo es de la empresa, pero las existencias del archivo caen en la
     // sucursal activa: hay que decir en cuál, y dejar elegir el anaquel.
-    const { branch } = useTenant()
+    const {branch,company,registerTenantExitGuard}=useTenant()
+    const scopeKey=JSON.stringify([company?.id,branch?.id]),live=useRef(scopeKey);live.current=scopeKey
+    const owner=useMemo(()=>({key:scopeKey,active:true,fileRead:0,controller:new AbortController()}),[scopeKey])
+    const guard=useDraftGuard(!!file&&step!=='success',registerTenantExitGuard,scopeKey)
+    const previousScope=useRef(scopeKey)
+    useEffect(()=>{owner.active=true;if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setFile(null);setWorkbook(null);setColumnMappings([]);setValidationErrors([]);setUnitPreviews([]);setHasTestedOnce(false);setStep('mapping');setIsTesting(false);setImportLocation('default')}return()=>{owner.active=false;owner.controller.abort();importStream.cancel()}},[scopeKey,owner])
     const { data: warehouses = [] } = useQuery({
         queryKey: ['warehouses', branch?.id],
         queryFn: () => fetchWarehouses(),
@@ -184,6 +195,9 @@ export default function ImportPage() {
             else if (lowerCol.includes('proveedor') || lowerCol.includes('supplier')) autoField = 'supplier'
             else if (['tipo','kind'].includes(lowerCol)) autoField = 'kind'
             else if (['unidad_cobro','service_unit_label'].includes(lowerCol)) autoField = 'service_unit_label'
+            else if (['unidad_base','base_unit_code'].includes(lowerCol)) autoField='base_unit_code'
+            else if (['codigo_presentacion','presentation_code'].includes(lowerCol)) autoField='presentation_code'
+            else if (['contenido_presentacion','presentation_content'].includes(lowerCol)) autoField='presentation_content'
             else if (['decimales','quantity_decimals'].includes(lowerCol)) autoField = 'quantity_decimals'
             else if (lowerCol.includes('precio') || lowerCol === 'price') autoField = 'price'
             else if (lowerCol.includes('costo') || lowerCol === 'cost') autoField = 'cost'
@@ -227,11 +241,15 @@ export default function ImportPage() {
     const handleFileChange = async (input: File | React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = input instanceof File ? input : input.target.files?.[0]
         if (!selectedFile) return
+        const generation=++owner.fileRead
+        const current=()=>owner.active&&live.current===owner.key&&owner.fileRead===generation
+        if(!current())return
         const problem = validateImportFile(selectedFile)
         if (problem) { toast({ variant: 'destructive', title: 'Archivo no válido', description: problem }); return problem }
 
         try {
             const buffer = await selectedFile.arrayBuffer()
+            if(!current())return
             const wb = XLSX.read(buffer, { type: 'array', codepage: /\.csv$/i.test(selectedFile.name) ? 65001 : undefined })
             if (!wb.SheetNames.length) throw new Error('El archivo no contiene hojas')
             setWorkbook(wb)
@@ -248,6 +266,7 @@ export default function ImportPage() {
             setSkipRowIndexes([])
             setResolutionHints([])
         } catch (err) {
+            if(!current())return
             const message = err instanceof Error ? err.message : 'No se pudo leer el archivo'
             toast({
                 variant: 'destructive',
@@ -282,7 +301,7 @@ export default function ImportPage() {
         skipRowIndexes?: number[]
         allowSimilarRowIndexes?: number[]
     }) => {
-        if (!workbook || !selectedSheet) return
+        if (!workbook || !selectedSheet||!company||!branch||!owner.active||live.current!==owner.key) return
 
         const cats = overrides?.createCategories ?? createCategories
         const sups = overrides?.createSuppliers ?? createSuppliers
@@ -312,9 +331,10 @@ export default function ImportPage() {
 
             const token = getAuthToken()
             const response = await fetch(`${getApiBaseUrl()}/products/validate-import-mapped`, {
-                method: 'POST',
+                method: 'POST',signal:owner.controller.signal,
                 headers: {
                     Authorization: `Bearer ${token}`,
+                    'X-Company-Id':company.id,'X-Branch-Id':branch.id,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -341,11 +361,14 @@ export default function ImportPage() {
             }
 
             const result = (await response.json()) as {
+                validRows?:typeof unitPreviews
                 invalidRows?: Array<{ rowIndex: number; errors: string[] }>
                 totals?: { valid: number; invalid?: number; skipped?: number; total?: number }
                 resolutionHints?: ResolutionHint[]
             }
 
+            if(!owner.active||live.current!==owner.key)return
+            setUnitPreviews((result.validRows??[]).filter(row=>row.unitPreview))
             const hints: ResolutionHint[] = Array.isArray(result.resolutionHints)
                 ? result.resolutionHints
                 : []
@@ -392,6 +415,7 @@ export default function ImportPage() {
             setHasTestedOnce(true)
             setStep('mapping')
         } catch (err) {
+            if(!owner.active||live.current!==owner.key)return
             const msg = err instanceof Error ? err.message : 'Error al validar productos'
             toast({ title: 'Error de validación', description: msg, variant: 'destructive' })
             setValidationErrors([{ rowIndex: -1, errors: [msg], fieldErrors: { _general: [msg] } }])
@@ -400,7 +424,7 @@ export default function ImportPage() {
             setResolutionHints([])
             setStep('mapping')
         } finally {
-            setIsTesting(false)
+            if(owner.active&&live.current===owner.key)setIsTesting(false)
         }
     }
 
@@ -462,7 +486,7 @@ export default function ImportPage() {
     }
 
     const handleImport = async () => {
-        if (!workbook || !selectedSheet) return
+        if (!workbook || !selectedSheet||!company||!branch||!owner.active||live.current!==owner.key) return
         setStep('importing')
         setErrorMessage('')
         try {
@@ -478,8 +502,9 @@ export default function ImportPage() {
                             skipRowIndexes: [...new Set([...skipRowIndexes, ...decisions.options.skipRowIndexes])],
                             allowSimilarRowIndexes: decisions.options.allowSimilarRowIndexes,
                         },
-                }
+                },{headers:{'X-Company-Id':company.id,'X-Branch-Id':branch.id}}
             )
+            if(!owner.active||live.current!==owner.key)return
             setImportResult(result)
             setStep('success')
 
@@ -488,6 +513,7 @@ export default function ImportPage() {
                 description: result.message ?? `Se importaron ${result.created} productos`,
             })
         } catch (err) {
+            if(!owner.active||live.current!==owner.key)return
             const rowErrors = readImportErrors(err instanceof ApiError ? err.data : err)
             if (rowErrors.length) {
                 setValidationErrors(rowErrors.map(row => ({ ...row, fieldErrors: {} })))
@@ -594,7 +620,7 @@ export default function ImportPage() {
         return SYSTEM_FIELDS.filter(f => !usedFields.includes(f.id))
     }
 
-    return <ImportWorkbench
+    return <>{guard.dialog}<ImportWorkbench
         title="Importar inventario" description="Carga y valida productos antes de agregarlos al catálogo y a la sucursal activa."
         back="/inventario" backLabel="Inventario" templatePath="/products/import-template" templateName="plantilla_productos.xlsx"
         file={file} onFile={selected => handleFileChange(selected)} sheetNames={sheetNames} selectedSheet={selectedSheet}
@@ -608,10 +634,10 @@ export default function ImportPage() {
         onValidate={handleTest} onImport={() => void handleImport()} busy={isTesting || step === 'validating' || step === 'importing'}
         progress={importStream.progress} onCancel={importStream.cancel}
         result={step === 'success' ? importResult : null} errorMessage={step === 'error' ? errorMessage : undefined}
-        options={<div className="auna-import-options"><p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select className="auna-control auna-control-select" value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
+        options={<div className="auna-import-options"><p>Stock y mínimo usan la misma unidad elegida. Declara el código de unidad base y, si corresponde, el código de una presentación ya registrada. El contenido solo verifica su equivalencia; no crea presentaciones.</p><p>Productos nuevos: precio y costo por unidad base. Productos existentes: precio y costo sin cambios; el archivo fija la existencia inicial de esta sucursal. Sin código de unidad se conserva la regla de unidad indivisible.</p>{hasTestedOnce&&!!unitPreviews.length&&<ul className="space-y-1 text-xs">{unitPreviews.slice(0,10).map(row=><li key={row.rowIndex}>Fila {row.rowIndex}: {formatUnitDecimal(String(row.data.stock??'0'))} {row.unitPreview.presentationLabel} = {row.unitPreview.baseStock} {row.unitPreview.unitLabel}; mínimo {row.unitPreview.baseMinimum} {row.unitPreview.unitLabel}. {row.unitPreview.priceCostPolicy}</li>)}</ul>}<p>Las existencias se cargarán en {branch?.name || 'la sucursal activa'}.</p>{importLocations.length > 1 && <label className="auna-import-field">Ubicación<select className="auna-control auna-control-select" value={importLocation} onChange={event => setImportLocation(event.target.value)}><option value="default">Ubicación de recepción por defecto</option>{importLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.code}</option>)}</select></label>}</div>}
         rowResolutionActions={row => resolutionHints.filter(hint => hint.rowIndexes.includes(row)).map(hint => <div key={`${hint.kind}:${hint.value}`} className="mt-2 text-foreground"><Button type="button" size="sm" variant="outline" disabled={isTesting} onClick={() => approveCreateCatalogValue(hint)}>Crear valor: {hint.value}</Button></div>)}
         resolutionActions={resolutionHints.length > 0 && <div className="auna-import-resolutions"><strong>Valores no encontrados en datos maestros</strong>{resolutionHints.map(hint => <div key={`${hint.kind}:${hint.value}`}><span>{hint.value} · filas {hint.rowIndexes.join(', ')}</span><Button type="button" variant="outline" size="sm" onClick={() => approveCreateCatalogValue(hint)} disabled={isTesting}>Crear valor</Button><Button type="button" variant="outline" size="sm" onClick={() => omitRowsForHint(hint)} disabled={isTesting}>Omitir filas</Button></div>)}</div>}
-    />
+    /></>
 
     if (!workbook) return <ImportFileStep title="Importar inventario" description="Carga y valida productos antes de agregarlos al catálogo y a la sucursal activa." templatePath="/products/import-template" templateName="plantilla_productos.xlsx" backLabel="Inventario" onBack={() => navigate('/inventario')} onFile={file => void handleFileChange(file)} />
 

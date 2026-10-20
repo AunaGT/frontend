@@ -3,11 +3,11 @@ const { renderToStaticMarkup } = require('react-dom/server')
 const { loadReportModule, renderReportsPage } = require('./helpers/loadReportModule.cjs')
 const { fixture } = require('./fixtures/reportFixtures.cjs')
 const { assertPaginationOutside } = require('./pagination-assertions.cjs')
-test('data preview uses compact metrics above real tables, 25 rows and exterior pagination', () => {
+test('data preview uses compact metrics above real tables, 10 rows and exterior pagination', () => {
   const { ReportDataPreview } = loadReportModule('components/ReportDataPreview.tsx'), html = renderToStaticMarkup(React.createElement(ReportDataPreview, { report: fixture() }))
   assert.ok(html.indexOf('metric-strip') < html.indexOf('<table'))
-  assert.ok(html.includes('QA-0025')); assert.ok(!html.includes('QA-0026'))
-  assert.ok(html.includes('Mostrando 1 a 25 de 26')); assertPaginationOutside(html)
+  assert.ok(html.includes('QA-0010')); assert.ok(!html.includes('QA-0011'))
+  assert.ok(html.includes('Mostrando 1 a 10 de 26')); assertPaginationOutside(html)
 })
 test('catalog fails closed while modules load or error, and hides unavailable report routes', () => {
   assert.ok(renderReportsPage({ modules: null }).html.includes('Cargando reportes'))

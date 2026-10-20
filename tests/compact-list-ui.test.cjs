@@ -286,7 +286,7 @@ test('all four master-data tabs and companies use flat summaries outside result 
     const render = tab => renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, null, React.createElement(CatalogPanelPage, {kind:tab})))
     for (const tab of ['categories', 'payment-terms', 'payment-methods', 'cash-registers']) {
       const html = render(tab)
-      assert.match(html, /^<div class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)
+      assert.match(html, /^<div class="[^"]*auna-page-fluid\b/)
       assert.match(html, /class="metric-strip/)
       assert.ok(html.indexOf('metric-strip') < html.indexOf('auna-data-table-shell'))
       assert.ok(html.indexOf('compact-filter-toolbar') < html.indexOf('auna-data-table-shell'), `${tab}: filters and actions must precede, not be inside, the result surface`)
@@ -344,13 +344,14 @@ function load(file) {
   const nativeRequire = mod.require.bind(mod)
   mod.require = name => {
     if (overrides.has(name)) return overrides.get(name)
+    if(name==='@/services/api'||name==='./api')return {apiFetch(){throw Error('Remote calls disabled in presentation tests')}}
     if (name.endsWith('.css')) return {}
     const local = name.startsWith('@/') ? path.join(__dirname, '../src', name.slice(2)) : name.startsWith('.') ? path.resolve(path.dirname(file), name) : null
     if (!local) return nativeRequire(name)
     const resolved = ['', '.tsx', '.ts', '.js', '/index.tsx', '/index.ts', '/index.js'].map(ext => local + ext).find(p => fs.existsSync(p) && fs.statSync(p).isFile())
     return load(resolved)
   }
-  const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, reportDiagnostics: true, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } })
+  const compiled = ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, reportDiagnostics: true, compilerOptions: { target:ts.ScriptTarget.ES2020,jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } })
   assert.equal(compiled.diagnostics.filter(d => d.category === ts.DiagnosticCategory.Error).length, 0, `Syntax error in ${file}`)
   mod._compile(compiled.outputText, file)
   return mod.exports
@@ -449,15 +450,15 @@ test('stock operation forms preserve quantity signs and discard drafts when orig
     const { StockOperationDialog } = load(file)
     const render = task => { index = 0; return StockOperationDialog({ task, branchId: 'b1', locations: [{ id: 'l1', label: 'Origen' }, { id: 'l2', label: 'Destino' }], onClose: () => {} }) }
     for (const [task, kind, qty] of [['move', 'LOSS', 2], ['adjust', 'LOSS', -2], ['adjust', 'SURPLUS', 2]]) {
-      states = ['l1', 'l2', kind, ' motivo ', [{ product_id: 'p1', name: 'Botella', qty: 2, stock: 7 }], '']
+      states = ['l1', 'l2', kind, ' motivo ', [{ product_id: 'p1', name: 'Botella', qty: '2', stock: '7',decimals:0,label:'unidades' }], '']
       request = undefined; job = undefined
       const form = render(task)
       form.props.onSubmit()
       await job
-      assert.deepEqual(request, task === 'move' ? ['move', { from_location_id: 'l1', to_location_id: 'l2', lines: [{ product_id: 'p1', qty }], notes: 'motivo' }] : ['adjust', { location_id: 'l1', lines: [{ product_id: 'p1', qty }], notes: 'motivo' }])
+      assert.deepEqual(request, task === 'move' ? ['move', { from_location_id: 'l1', to_location_id: 'l2', lines: [{ product_id: 'p1', qty:String(qty) }], notes: 'motivo' }] : ['adjust', { location_id: 'l1', lines: [{ product_id: 'p1', qty:String(qty) }], notes: 'motivo' }])
     }
     for (const [qty, stock, note] of [[0, 7, 'motivo'], [1.5, 7, 'motivo'], [8, 7, 'motivo'], [2, 7, ' ']]) {
-      states = ['l1', '', 'LOSS', note, [{ product_id: 'p1', name: 'Botella', qty, stock }], '']
+      states = ['l1', '', 'LOSS', note, [{ product_id: 'p1', name: 'Botella', qty:String(qty), stock:String(stock),decimals:0,label:'unidades' }], '']
       request = undefined; job = undefined
       render('adjust').props.onSubmit()
       assert.equal(job, undefined)
@@ -624,7 +625,7 @@ test('cash history keeps page size visible but no advanced filter row for seller
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'cashclosure.view' }) })
   const { default: CashClosure } = load(path.join(__dirname, '../src/modules/cash-closure/CashClosureManagement.tsx'))
   const html = renderToStaticMarkup(React.createElement(CashClosure))
-  assert.match(html, /^<div class="[^"]*mx-auto[^"]*max-w-\[1560px\]/)
+  assert.match(html, /^<div class="[^"]*auna-page-fluid\b/)
   assert.match(html, /aria-label="Filtros de cierres"/)
   assert.equal((html.match(/role="combobox"/g) || []).length, 1)
   assert.doesNotMatch(html, /type="date"/)
@@ -715,15 +716,15 @@ test('product lot details reuse closed filters and pagination without exposing u
   productLotsQuery = { data: { lots, reconciliation: { physical: 100, lotted: 96, unlotted: 4, tracks_expiry: true, balanced: false } }, isLoading: false, isFetching: false, isError: false, refetch: () => {} }
   overrides.set('@tanstack/react-query', { useQuery: () => productLotsQuery, useQueryClient: () => ({ invalidateQueries: () => {} }) })
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => canManageProductLots && permission === 'products.register_incoming' }) })
-  overrides.set('@/hooks/usePersistedListUiState', { usePersistedListUiState: (_key, options) => ({ page: productLotsPage, pageSize: options.defaultPageSize, setPage: () => {} }) })
+  overrides.set('@/hooks/usePersistedListUiState', { usePersistedListUiState: () => ({ page: productLotsPage, pageSize: 10, setPage: () => {}, setPageSize: () => {} }) })
   const { ProductLotsSection } = load(path.join(__dirname, '../src/modules/inventory/products/ProductLotsSection.tsx'))
   const renderDetails = () => renderToStaticMarkup(React.createElement(ProductLotsSection, { productId: 'product', tracksExpiry: true }))
   const html = renderDetails()
   assert.match(html, /aria-label="Buscar lotes del producto"/)
   assert.match(html, /aria-label="Filtros de lotes del producto"/)
-  assert.match(html, /Mostrando 1 a 5 de 12 lotes/)
+  assert.match(html, /Mostrando 1 a 10 de 12 lotes/)
   assertPaginationOutside(html)
-  assert.doesNotMatch(html, /DETALLE-5</)
+  assert.doesNotMatch(html, /DETALLE-10</)
   assert.match(html, /Sin caducidad/)
   assert.doesNotMatch(html, /aria-label="Editar lote/)
   assert.doesNotMatch(html, /scripts\/backfill-lots/)
@@ -757,18 +758,18 @@ test('a product lot expiring today is not marked expired before the business day
   assert.doesNotMatch(nextDay, /Vence hoy/)
 })
 
-test('product locations show five rows without hiding the remaining records', () => {
-  const rows = Array.from({ length: 7 }, (_, i) => ({ product_id: 'product', stock: 10, min_stock: 2, location: { id: `location-${i}`, code: `ANAQUEL-${i}`, pickable: true, warehouse: { id: 'warehouse', name: 'Bodega' } } }))
+test('product locations show ten rows without hiding the remaining records', () => {
+  const rows = Array.from({ length: 12 }, (_, i) => ({ product_id: 'product', stock: 10, min_stock: 2, location: { id: `location-${i}`, code: `ANAQUEL-${i}`, pickable: true, warehouse: { id: 'warehouse', name: 'Bodega' } } }))
   overrides.set('@tanstack/react-query', { useQuery: () => ({ data: rows, isLoading: false, isFetching: false, isError: false }), useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) })
   overrides.set('@/services/stockMoveService', {})
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => false }) })
   const { ProductLocationsSection } = load(path.join(__dirname, '../src/modules/inventory/products/ProductLocationsSection.tsx'))
   const html = renderToStaticMarkup(React.createElement(ProductLocationsSection, { productId: 'product' }))
   assert.match(html, /auna-data-table-shell auna-table-embedded overflow-x-auto/)
-  assert.match(html, /Mostrando 1 a 5 de 7 ubicaciones/)
+  assert.match(html, /Mostrando 1 a 10 de 12 ubicaciones/)
   assertPaginationOutside(html)
-  assert.match(html, /ANAQUEL-4</)
-  assert.doesNotMatch(html, /ANAQUEL-5</)
+  assert.match(html, /ANAQUEL-9</)
+  assert.doesNotMatch(html, /ANAQUEL-10</)
   assert.match(html, /aria-label="Página siguiente"/)
 })
 
@@ -802,11 +803,13 @@ test('product details separate tasks into tabs and keep the initial view free of
   overrides.set('@/hooks/useCategories', { useCategories: () => ({ data: [] }) })
   overrides.set('@/hooks/useUpdateProduct', { __esModule: true, default: () => ({ mutateAsync: () => {}, isPending: false }) })
   overrides.set('@/hooks/useDeleteProduct', { useDeleteProduct: () => ({ mutateAsync: () => {}, isPending: false }), useRemoveProductFromBranch: () => ({ mutateAsync: () => {}, isPending: false }) })
-  overrides.set('@/context/useTenant', { useTenant: () => ({ branch: { id: 'branch', name: 'Sucursal UX' }, branches: [{ id: 'branch' }, { id: 'other' }] }) })
+  overrides.set('@/context/useTenant', { useTenant: () => ({ company:{id:'qa-company'}, branch: { id: 'branch', name: 'Sucursal UX' }, branches: [{ id: 'branch' }, { id: 'other' }] }) })
   overrides.set('./api', overrides.get('@/services/api'))
   // The page and shared UI are real; only remote data and initial hook state are supplied.
   productLotsQuery = { data: { lots: [{ id: 'lot', lot_code: 'LOTE-UX', expiry_date: '2030-01-01', qty_received: 10, qty_remaining: 10, received_at: '2026-10-01', location: null }], reconciliation: null }, isLoading: false, isFetching: false, isError: false }
   productLotsPage = 1
+  const previousQueries=overrides.get('@tanstack/react-query')
+  overrides.set('@tanstack/react-query',{...previousQueries,useQuery:options=>options.queryKey[0]==='kit-assemblies'?{data:{items:[],totalPages:1},isLoading:false}:previousQueries.useQuery(options)})
   const { default: Page } = load(path.join(__dirname, '../src/modules/inventory/products/ProductDetailPage.tsx'))
   const renderPage = () => { stateIndex = 0; return renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter, { initialEntries: ['/inventario/product'] }, React.createElement(Page))) }
   const activePanel = html => {

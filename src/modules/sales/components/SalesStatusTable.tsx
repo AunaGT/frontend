@@ -8,6 +8,8 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 import { Button } from '@/components/ui/button'
+import type { ReactNode } from 'react'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Eye, FileText, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
@@ -29,6 +31,9 @@ interface SalesStatusTableProps {
     isFetching?: boolean
     error?: string | null
     emptyMessage?: string | null
+    action?: ReactNode
+    filtered?: boolean
+    onReset?: () => void
     onRetry?: () => void
     updatingSaleIds: Set<string>
     onPageChange: (page: number) => void
@@ -48,7 +53,7 @@ const getStatusBadge = (status: SaleStatus) => <Badge
 >{({ draft:'Borrador',completed: 'Confirmada', cancelled: 'Cancelada', paid: 'Revisar estado', pending: 'Revisar estado',legacy:'Revisar estado' })[status]}</Badge>
 
 export const SalesStatusTable = ({
-    statusKey, viewMode = 'table', sales, pageSize = 10, pageInfo, isLoading, isFetching, error, emptyMessage, onRetry,
+    statusKey, viewMode = 'table', sales, pageSize = 10, pageInfo, isLoading, isFetching, error, emptyMessage, action, filtered = false, onReset, onRetry,
     updatingSaleIds, onPageChange, canChangeStatus, onStatusChange,
     onViewSale, onViewInvoice, canViewDetail, canViewInvoice, locale, currencyCode
 }: SalesStatusTableProps) => {
@@ -113,7 +118,7 @@ export const SalesStatusTable = ({
             </table>
         </div>}
         {(initialLoading || sales.length > 0) && cards}
-        {!initialLoading && !error && sales.length === 0 && <div className="px-4 py-12 text-center text-sm text-muted-foreground">{emptyMessage || `No hay ventas${statusKey ? ` ${STATUS_LABELS[statusKey].toLowerCase()}` : ''} para los filtros seleccionados.`}</div>}
+        {!initialLoading && !error && sales.length === 0 && <CollectionEmptyState title="Tu próxima venta empieza aquí" description={emptyMessage || 'Cuando registres ventas, podrás consultar aquí sus productos, pagos y comprobantes.'} action={action} filtered={filtered} onReset={onReset} />}
         {pageInfo.totalPages != null ? <Pagination currentPage={pageInfo.page} totalPages={Math.max(1, pageInfo.totalPages)} totalItems={pageInfo.totalItems ?? undefined} pageSize={pageSize} count={sales.length} itemLabel="ventas" loading={busy} onPageChange={onPageChange} /> : <footer className="auna-data-table-pagination">
             <span className="text-sm text-muted-foreground">Página {pageInfo.page}</span>
             <nav className="flex items-center gap-2" aria-label="Paginación de ventas">

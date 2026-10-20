@@ -1,3 +1,4 @@
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   TableCell,
 } from "@/components/ui/table";
 import { MetricStrip } from "@/components/shared/MetricStrip";
+import { CollectionEmptyState } from "@/components/shared/CollectionEmptyState";
 import { Pagination } from "@/components/shared/Pagination";
 import { useAuthPermissions } from "@/hooks/useAuthPermissions";
 import { useTenant } from "@/context/useTenant";
@@ -37,7 +39,7 @@ export function MerchandisePaymentsPanel({
     invalidate = useInvalidatePayables(),
     access = useCarteraAccess(),
     patch = usePatchIncomingMerchandisePayment(),
-    [page, setPage] = useState(1),
+    {page,setPage,pageSize,setPageSize} = usePersistedListUiState('mercancia/detalle/abonos', {defaultPageSize:10}),
     [due, setDue] = useState(record.due_date?.slice(0, 10) || ""),
     [term, setTerm] = useState(
       record.payment_term ? String(record.payment_term.id) : "",
@@ -56,11 +58,11 @@ export function MerchandisePaymentsPanel({
       !isConsolidated &&
       record.source !== "INITIAL",
     entries = record.payment_entries || [],
-    money = (v: number) =>
+    money = (v: number|string) =>
       new Intl.NumberFormat(settings.locale || "es-GT", {
         style: "currency",
         currency: settings.currencyCode || "GTQ",
-      }).format(v),
+      }).format(Number(v)),
     date = (v: string) =>
       new Date(v).toLocaleString(settings.locale || "es-GT", {
         timeZone: settings.timezone,
@@ -186,7 +188,7 @@ export function MerchandisePaymentsPanel({
               <Label htmlFor="merch-term">Término de pago</Label>
               <select
                 id="merch-term"
-                className="mt-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="auna-control auna-control-select mt-2"
                 value={term}
                 onChange={(e) => setTerm(e.target.value)}
                 disabled={!writable || pending}
@@ -329,7 +331,7 @@ export function MerchandisePaymentsPanel({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.slice((page - 1) * 10, page * 10).map((r) => (
+              {entries.slice((page - 1) * pageSize, page * pageSize).map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{date(r.paid_at)}</TableCell>
                   <TableCell>{money(r.amount)}</TableCell>
@@ -378,7 +380,7 @@ export function MerchandisePaymentsPanel({
                     colSpan={6}
                     className="text-center text-muted-foreground"
                   >
-                    No hay abonos documentados.
+                    <CollectionEmptyState compact title="La bitácora de abonos sigue en blanco" description="No hay abonos documentados para esta entrada. Aquí aparecerán los pagos registrados y su comprobante; el saldo se consulta en el resumen superior." />
                   </TableCell>
                 </TableRow>
               )}
@@ -388,10 +390,11 @@ export function MerchandisePaymentsPanel({
         <div className="auna-pagination-outside">
           <Pagination
             currentPage={page}
-            totalPages={Math.max(1, Math.ceil(entries.length / 10))}
+            totalPages={Math.max(1, Math.ceil(entries.length / pageSize))}
             totalItems={entries.length}
             count={entries.slice((page - 1) * 10, page * 10).length}
-            pageSize={10}
+            pageSize={pageSize}
+            onPageSizeChange={setPageSize}
             itemLabel="abonos"
             onPageChange={setPage}
           />

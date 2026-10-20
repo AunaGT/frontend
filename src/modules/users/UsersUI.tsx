@@ -9,7 +9,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { LoadingState } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import './users.css'
+import { PageSizeSelect } from '@/components/shared/PageSizeSelect'
 
 export function UsersPage({
   title,
@@ -19,6 +21,7 @@ export function UsersPage({
   back = '/usuarios',
   backLabel = 'Usuarios',
   compact = false,
+  fluid = false,
 }: {
   title: string
   description?: string
@@ -27,9 +30,10 @@ export function UsersPage({
   back?: string
   backLabel?: string
   compact?: boolean
+  fluid?: boolean
 }) {
   return (
-    <main className="users-page">
+    <main className={`users-page${fluid ? ' auna-page-fluid' : ''}`}>
       {back && !compact && (
         <Link className="users-muted text-sm inline-flex items-center gap-1 mb-2 hover:text-foreground transition-colors" to={back}>
           <span>←</span> {backLabel}
@@ -209,6 +213,7 @@ export function PageFooter({
   pageSize,
   onChange,
   busy = false,
+  onPageSizeChange,
 }: {
   page: number
   totalPages: number
@@ -216,6 +221,7 @@ export function PageFooter({
   pageSize: number
   onChange: (p: number) => void
   busy?: boolean
+  onPageSizeChange?: (size: number) => void
 }) {
   const pages = Array.from(new Set([1, page - 1, page, page + 1, totalPages]))
     .filter((n) => n >= 1 && n <= totalPages)
@@ -223,6 +229,7 @@ export function PageFooter({
 
   return (
     <footer className="users-footer auna-data-table-pagination">
+      {onPageSizeChange && <PageSizeSelect value={pageSize} onChange={size => { onPageSizeChange(size); onChange(1) }} disabled={busy} />}
       <span>
         Mostrando {total ? (page - 1) * pageSize + 1 : 0}–{Math.min(page * pageSize, total)} de {total}
       </span>
@@ -270,14 +277,25 @@ export function Feedback({
   error,
   empty,
   retry,
+  emptyTitle = 'Aquí empieza tu equipo',
+  emptyDescription = 'Todavía no hay registros para mostrar en esta sección.',
+  emptyAction,
+  filtered,
+  onReset,
 }: {
   loading?: boolean
   error?: unknown
   empty?: boolean
   retry?: () => void
+  emptyTitle?: string
+  emptyDescription?: string
+  emptyAction?: ReactNode
+  filtered?: boolean
+  onReset?: () => void
 }) {
   if (!loading && !error && !empty) return null
   if (loading) return <LoadingState variant="detail" message="Cargando información…" />
+  if (!error && empty) return <CollectionEmptyState title={emptyTitle} description={emptyDescription} action={emptyAction} filtered={filtered} onReset={onReset} />
   return (
     <div role={error ? 'alert' : 'status'} className="p-10 text-center users-muted text-sm">
       {loading ? (

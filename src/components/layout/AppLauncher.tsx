@@ -14,7 +14,7 @@ import { Search, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { AunaBrand } from '@/components/branding/AunaBrand'
 import { getVisibleModules, orderModuleCatalog, findModuleForPath, type AppModule, MODULE_DESCRIPTIONS } from '@/config/appModules'
@@ -88,8 +88,8 @@ export const AppLauncher = ({ open, onOpenChange, triggerRef }: AppLauncherProps
                         </div>
                     ) : <LoadingState message="Cargando módulos…" variant="cards" rows={8} className="p-0 [&>div.grid]:lg:grid-cols-3 [&>div.grid]:xl:grid-cols-4" />
                     : filteredModules.length === 0 ? (
-                        <div role="status"><EmptyState title={search.trim() ? 'No encontramos módulos' : 'No hay módulos disponibles'}
-                            description={search.trim() ? 'Prueba con otro término de búsqueda.' : 'Solicita al administrador que revise tus permisos y módulos habilitados.'} /></div>
+                        <CollectionEmptyState compact title="Tu espacio de trabajo está por abrirse"
+                            description="Solicita al administrador que revise tus permisos y módulos habilitados." filtered={!!search.trim()} onReset={() => setSearch('')} />
                     ) : (
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                             {filteredModules.map(module => <ModuleCatalogCard key={module.id} module={module}

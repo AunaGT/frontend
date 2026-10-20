@@ -16,14 +16,20 @@
   border-color: hsl(var(--auna-surface-border));
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
 }
+/* Opt-in operational pages: keep each page's gutters and its bounded editors. */
+.auna-page-fluid.auna-page-fluid {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
 /* Opt-in record lists only; form/detail panels and navigation cards are unchanged. */
 .auna-record-grid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
   gap: 12px;
 }
-.auna-record-grid > * { flex: 1 1 320px; min-width: min(100%, 320px); max-width: 100%; }
-.auna-record-grid > .col-span-full { flex-basis: 100%; }
+.auna-record-grid > * { width: 100%; min-width: 0; max-width: 420px; }
+.auna-record-grid > .col-span-full { grid-column: 1 / -1; max-width: none; }
 .auna-record-card {
   display: flex;
   align-items: flex-start;
@@ -91,6 +97,15 @@
 /* Navigation is a sibling of results, never part of their frame or scroller. */
 .auna-pagination-outside { min-width: 0; margin-top: 12px; }
 .auna-pagination-outside:empty { display: none; }
+.auna-page-fluid :is(.auna-pagination-outside, .auna-data-table-pagination, .users-footer),
+.auna-page-fluid .auna-surface-flat:has(> .auna-data-table-pagination:only-child) {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  background: hsl(var(--background));
+}
+.auna-page-fluid .auna-pagination-outside :is(.auna-data-table-pagination, .users-footer) { position: static; }
+.auna-page-fluid .auna-surface-flat:has(> .auna-data-table-pagination:only-child) > .auna-data-table-pagination { position: static; background: transparent; }
 .auna-pagination-outside.auna-pagination-outside :is(.auna-data-table-pagination, .users-footer, .alerts-table-footer, .auna-import-pagination) {
   border-top: 0;
   padding: 12px 0;

@@ -104,8 +104,9 @@ export type TransferStatus = "EN_TRANSITO" | "RECIBIDA" | "CANCELADA";
 export interface TransferLine {
   id: string;
   product_id: string;
-  qty_sent: number;
-  qty_received: number | null;
+  qty_sent: number|string;
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  qty_received: number|string|null;
   product?: { id: string; name: string; barcode?: string | null; image_url?: string | null };
 }
 
@@ -162,13 +163,13 @@ export const fetchTransfer = (id: string) =>
 
 export const createTransfer = (payload: {
   to_branch_id: string;
-  items: { product_id: string; qty: number }[];
+  items: { product_id: string; qty: number|string }[];
   notes?: string;
 }) => apiFetch<Transfer>("/api/transfers", { method: "POST", body: JSON.stringify(payload) });
 
 export const receiveTransfer = (
   id: string,
-  lines?: { line_id: string; qty_received: number }[],
+  lines?: { line_id: string; qty_received: number|string }[],
   /** Ubicación donde entra la mercancía; sin ella, la de recepción por defecto. */
   toLocationId?: string
 ) =>

@@ -8,7 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
@@ -30,9 +30,17 @@ import { SupplierPicker } from '@/components/shared/SupplierPicker'
 import '../merchandise.css'
 import { Pagination } from '@/components/shared/Pagination'
 import { LoadingIndicator } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import type { Product } from '@/types/product'
+import {useTenant} from '@/context/useTenant'
+import {useAuth} from '@/context/useAuth'
+import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
+import {UnitLineFields} from '@/components/shared/UnitLineFields'
+import {selectProductUnit,selectedQuantity,selectedBaseQuantity,selectedUnitPayload,exactProductValues,normalizeUnitDecimal,deriveUnitPrice,unitLineTotal,formatUnitMoney,previewUnitLine,type UnitSelection} from '@/modules/inventory/units/public'
 
 interface IncomingItem {
+  product?: Product
+  unitSelection?: UnitSelection
   product_id: string
   product_name: string
   image_url?: string
@@ -50,7 +58,14 @@ export const RegisterIncomingMerchandise = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const { currencyCode, locale } = useSystemSettings()
+  const { currencyCode, locale,inventoryUnitsEnabled } = useSystemSettings()
+  const {company,branch,registerTenantExitGuard}=useTenant()
+  const {user}=useAuth()
+  const scopeKey=JSON.stringify([company?.id,branch?.id,user?.id])
+  const currentScope=useRef(scopeKey);currentScope.current=scopeKey
+  const owner=useMemo(()=>({controller:new AbortController(),active:true,key:scopeKey}),[scopeKey])
+  const retry=useRef<{signature:string;key:string}|null>(null)
+  const pendingOwner=useRef<object|null>(null)
   const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode }).format(value)
   const [itemsPage, setItemsPage] = useState(1)
   const [supplierLabel, setSupplierLabel] = useState('Seleccionar proveedor…')
@@ -66,6 +81,13 @@ export const RegisterIncomingMerchandise = () => {
   const [paymentReference, setPaymentReference] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [locationId, setLocationId] = useState('default')
+  const draftGuard=useDraftGuard(items.length>0||!!notes,registerTenantExitGuard,scopeKey)
+  const previousScope=useRef(scopeKey)
+  useEffect(()=>{
+    owner.active=true
+    if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setItems([]);setSelectedSupplierId('');setNotes('');setIsSubmitting(false);retry.current=null;pendingOwner.current=null}
+    return()=>{owner.active=false;owner.controller.abort()}
+  },[owner,scopeKey])
 
   // Ubicaciones de la sucursal: dónde se guarda lo que llega.
   const { data: warehouses = [] } = useQuery({ queryKey: ['warehouses'], queryFn: () => fetchWarehouses() })
@@ -158,9 +180,13 @@ export const RegisterIncomingMerchandise = () => {
 
   const handleAddProduct = (product: Product) => {
     if (!selectedSupplierId || items.some(item => item.product_id === product.id)) return
+    const selection=inventoryUnitsEnabled?selectProductUnit(product,undefined,'LIST','PURCHASE'):undefined
+    let cost=String(product.cost??0)
+    if(selection){try{cost=normalizeUnitDecimal(deriveUnitPrice(normalizeUnitDecimal(exactProductValues(product).cost,{decimals:6}),selection.snapshot.factor),{decimals:6})}catch{cost=''}}
     setItems(previous => [...previous, {
+      product,unitSelection:selection,
       product_id: product.id, product_name: product.name, image_url: product.imageUrl,
-      barcode: product.barcode, quantity: '1', unit_cost: String(product.cost ?? 0),
+      barcode: product.barcode, quantity: '1', unit_cost: cost,
       tracks_expiry: product.tracksExpiry === true, lot_code: '', expiry_date: '',
     }])
     setItemsPage(Math.ceil((items.length + 1) / 8))
@@ -190,7 +216,7 @@ export const RegisterIncomingMerchandise = () => {
   }
 
   const handleSubmit = async () => {
-    if (isSubmitting || supplierDetailLoading || supplierDetailError) {
+    if (pendingOwner.current||isSubmitting || supplierDetailLoading || supplierDetailError) {
       toast({ title: 'Condiciones no disponibles', description: 'Espera a que carguen las condiciones del proveedor o presiona Reintentar.', variant: 'destructive' })
       return
     }
@@ -235,20 +261,18 @@ export const RegisterIncomingMerchandise = () => {
         })
         return
       }
-      const qty = Number(item.quantity)
-      if (!Number.isFinite(qty) || qty <= 0) {
+      try {if(item.unitSelection)selectedBaseQuantity(item.quantity,item.unitSelection);else normalizeUnitDecimal(item.quantity,{decimals:0,allowZero:false})}catch(error){
         toast({
           title: 'Cantidad inválida',
-          description: 'Todas las cantidades deben ser números positivos',
+          description: (error as Error).message,
           variant: 'destructive',
         })
         return
       }
-      const cost = Number(item.unit_cost)
-      if (!Number.isFinite(cost) || cost < 0) {
+      try{normalizeUnitDecimal(item.unit_cost,{decimals:6,max:'9999999999.99'})}catch(error){
         toast({
           title: 'Costo inválido',
-          description: 'Todos los costos deben ser números >= 0',
+          description: (error as Error).message,
           variant: 'destructive',
         })
         return
@@ -264,7 +288,13 @@ export const RegisterIncomingMerchandise = () => {
     }
 
     setIsSubmitting(true)
+    pendingOwner.current=owner
+    const scope={companyId:company?.id??'',branchId:branch?.id??''}
+    const isCurrent=()=>owner.active&&currentScope.current===owner.key
     try {
+      if(inventoryUnitsEnabled&&(!scope.companyId||!scope.branchId||scope.branchId==='all'))throw Error('Selecciona empresa y sucursal para registrar la entrada')
+      for(const item of items)if(item.unitSelection)await previewUnitLine(scope,item.product_id,{qty:selectedQuantity(item.quantity,item.unitSelection),...selectedUnitPayload(item.unitSelection),unit_revision:item.unitSelection.revision,operation:'PURCHASE'},owner.controller.signal)
+      if(!isCurrent())return
       const paidAtIso =
         paymentStatus === 'PAID' && paidAtLocal
           ? new Date(paidAtLocal).toISOString()
@@ -274,8 +304,9 @@ export const RegisterIncomingMerchandise = () => {
         supplier_id: selectedSupplierId,
         items: items.map(item => ({
           product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_cost: Number(item.unit_cost),
+          quantity: inventoryUnitsEnabled?normalizeUnitDecimal(item.quantity,{decimals:item.unitSelection?(item.unitSelection.snapshot.presentation?.decimals??item.unitSelection.snapshot.baseUnit.decimals):0,allowZero:false}):Number(item.quantity),
+          unit_cost: inventoryUnitsEnabled?normalizeUnitDecimal(item.unit_cost,{decimals:6,max:'9999999999.99'}):Number(item.unit_cost),
+          ...selectedUnitPayload(item.unitSelection),
           lot_code: item.lot_code.trim() || undefined,
           expiry_date: item.expiry_date || undefined,
         })),
@@ -292,11 +323,16 @@ export const RegisterIncomingMerchandise = () => {
         payload.paid_at = paidAtIso
         payload.payment_method_id = Number(paymentMethodId)
       }
+      if(inventoryUnitsEnabled){const signature=JSON.stringify([scopeKey,payload]);if(retry.current?.signature!==signature)retry.current={signature,key:crypto.randomUUID()};payload.request_key=retry.current.key}
 
       await apiFetch('/api/products/register-incoming', {
         method: 'POST',
+        signal:owner.controller.signal,
+        headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId},
         body: JSON.stringify(payload),
       })
+      if(!isCurrent())return
+      retry.current=null
 
       toast({
         title: 'Ingreso registrado',
@@ -323,8 +359,9 @@ export const RegisterIncomingMerchandise = () => {
         queryClient.invalidateQueries({ queryKey: ['suppliers'] }),
         queryClient.invalidateQueries({ queryKey: ['document-product-picker'] }),
       ])
-      navigate('/mercancia')
+      draftGuard.proceed(()=>navigate('/mercancia'))
     } catch (err: unknown) {
+      if(!isCurrent())return
       const message = (err as { message?: string })?.message || 'No se pudo registrar el ingreso'
       toast({
         title: 'Error',
@@ -332,15 +369,18 @@ export const RegisterIncomingMerchandise = () => {
         variant: 'destructive',
       })
     } finally {
-      setIsSubmitting(false)
+      if(pendingOwner.current===owner){pendingOwner.current=null;if(isCurrent())setIsSubmitting(false)}
     }
   }
 
-  const totalValue = useMemo(() => items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unit_cost) || 0), 0), [items])
+  const subtotal=(item:IncomingItem)=>{try{return unitLineTotal(item.quantity,normalizeUnitDecimal(item.unit_cost,{decimals:6,max:'9999999999.99'}))}catch{return null}}
+  const totalValue = items.reduce((sum,item)=>sum+BigInt((subtotal(item)??'0.00').replace('.','')),0n)
+  const totalExact=`${totalValue/100n}.${(totalValue%100n).toString().padStart(2,'0')}`
   const totalPages = Math.max(1, Math.ceil(items.length / 8))
   const visibleItems = items.slice((itemsPage - 1) * 8, itemsPage * 8)
 
   return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy">
+    {draftGuard.dialog}
     <div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 
       <h1 className="sr-only">Registrar entrada de mercadería</h1>
@@ -358,23 +398,23 @@ export const RegisterIncomingMerchandise = () => {
           <div className="space-y-2 sm:col-span-2 xl:col-span-4"><Label htmlFor="receipt-notes">Observaciones</Label><Textarea id="receipt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre la recepción…" /></div>
         </CardContent></Card>
         <><section className="auna-data-table-shell">
-          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md"><ProductPicker purchase supplierId={selectedSupplierId || undefined} excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} /></div></div>
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md"><ProductPicker companyId={company?.id} branchId={branch?.id} purchase supplierId={selectedSupplierId || undefined} excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} /></div></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[1000px]"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th>Acciones</th></tr></thead><tbody>
-            {!items.length && <tr><td colSpan={9} className="py-12 text-center text-muted-foreground"><Package className="mx-auto mb-3 h-8 w-8 opacity-50" />{selectedSupplierId ? 'Busca y agrega los productos recibidos.' : 'Selecciona un proveedor para agregar productos.'}</td></tr>}
+            {!items.length && <tr><td colSpan={9} className="py-12 text-center text-muted-foreground"><CollectionEmptyState compact title="La entrega está por tomar forma" description={selectedSupplierId ? 'Busca y agrega los productos recibidos para preparar esta entrada.' : 'Selecciona un proveedor para agregar los productos de esta entrega.'} /></td></tr>}
             {visibleItems.map((item, offset) => {
               const index = (itemsPage - 1) * 8 + offset
               return <tr key={item.product_id}><td>{index + 1}</td><td><div className="flex items-center gap-3">{item.image_url ? <img src={item.image_url} alt={item.product_name} className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<span className="max-w-56 font-medium">{item.product_name}</span></div></td><td>{item.barcode || '—'}</td>
                 <td><Input aria-label={`Lote de ${item.product_name}`} className="w-28" value={item.lot_code} onChange={e => handleLotFieldChange(index, 'lot_code', e.target.value)} placeholder="Opcional" /></td>
                 <td><Input type="date" aria-label={`Caducidad de ${item.product_name}`} required={item.tracks_expiry} className="w-40" value={item.expiry_date} onChange={e => handleLotFieldChange(index, 'expiry_date', e.target.value)} />{item.tracks_expiry && <small className="text-brand-orange">Requerida</small>}</td>
-                <td><Input type="number" min="0.01" step="any" aria-label={`Cantidad de ${item.product_name}`} className="w-24" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} /></td>
-                <td><Input type="number" min="0" step="0.01" aria-label={`Costo de ${item.product_name}`} className="w-28" value={item.unit_cost} onChange={e => handleCostChange(index, e.target.value)} /></td>
-                <td className="whitespace-nowrap font-medium">{money((Number(item.quantity) || 0) * (Number(item.unit_cost) || 0))}</td><td><Button type="button" variant="ghost" size="icon" aria-label={`Quitar ${item.product_name}`} onClick={() => handleRemoveProduct(index)}><Trash2 className="h-4 w-4" /></Button></td></tr>
+                <td><Input type="text" inputMode="decimal" aria-label={`Cantidad de ${item.product_name}`} className="w-24" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} />{item.unitSelection&&item.product&&<UnitLineFields product={item.product} selection={item.unitSelection} quantity={item.quantity} operation="PURCHASE" onSelect={id=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:selectProductUnit(item.product!,id,'LIST','PURCHASE')}:row))} onAcceptRounding={accepted=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:{...row.unitSelection!,acceptRounding:accepted}}:row))}/>}</td>
+                <td><Input type="text" inputMode="decimal" aria-label={`Costo de ${item.product_name}`} className="w-28" value={item.unit_cost} onChange={e => handleCostChange(index, e.target.value)} /><small>Por {item.unitSelection?.snapshot.presentation?.label??item.unitSelection?.snapshot.baseUnit.label??'unidad'}</small></td>
+                <td className="whitespace-nowrap font-medium">{subtotal(item)?formatUnitMoney(subtotal(item)!,locale,currencyCode):'—'}</td><td><Button type="button" variant="ghost" size="icon" aria-label={`Quitar ${item.product_name}`} onClick={() => handleRemoveProduct(index)}><Trash2 className="h-4 w-4" /></Button></td></tr>
             })}
           </tbody></table></div>
 
         </section>
 <div className="auna-pagination-outside"><Pagination currentPage={itemsPage} totalPages={totalPages} onPageChange={setItemsPage} totalItems={items.length} count={visibleItems.length} pageSize={8} itemLabel="productos" /></div></>
-        <Card className="auna-surface"><CardContent className="grid gap-4 p-5 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Productos</p><p className="text-xl font-semibold">{items.length}</p></div><div><p className="text-sm text-muted-foreground">Unidades totales</p><p className="text-xl font-semibold">{items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)}</p></div><div className="sm:text-right"><p className="text-sm text-muted-foreground">Total de la entrada</p><output className="auna-field-value-inline text-2xl font-bold text-brand-orange">{money(totalValue)}</output></div></CardContent></Card>
+        <Card className="auna-surface"><CardContent className="grid gap-4 p-5 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Productos</p><p className="text-xl font-semibold">{items.length}</p></div><div><p className="text-sm text-muted-foreground">Partidas de la entrada</p><p className="text-xl font-semibold">{items.length}</p></div><div className="sm:text-right"><p className="text-sm text-muted-foreground">Total de la entrada</p><output className="auna-field-value-inline text-2xl font-bold text-brand-orange">{formatUnitMoney(totalExact,locale,currencyCode)}</output></div></CardContent></Card>
         <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Al registrar se actualizarán el inventario, los costos y los lotes.</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate('/mercancia')}>Cancelar</Button><Button type="button" onClick={handleSubmit} disabled={isSubmitting || !items.length || !selectedSupplierId || supplierDetailLoading || supplierDetailError || (paymentTermsOptions.length > 0 && !paymentTermId)} className="bg-brand-orange text-white hover:bg-brand-orange/90">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}{isSubmitting ? 'Registrando…' : 'Registrar entrada'}</Button></div></div>
       </fieldset>
     </div>

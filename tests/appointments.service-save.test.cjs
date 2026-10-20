@@ -17,7 +17,8 @@ test('perfil inicializa por producto y tenant, refetch no pisa borrador ni preci
   product = 'two'; companyId = 'C'; loaded = null
   state = render(); assert.equal(state.dirty, false); assert.deepEqual(state.payload, {}); assert.equal(state.value.durationMinutes, 45)
 })
-test('guardar ProductDetailPage conserva Hora y tres decimales con duración cambiada',async()=>{
+test('guardar ProductDetailPage conserva Hora y tres decimales con duración cambiada',async t=>{
+  const oldWindow=global.window;global.window=new EventTarget();t.after(()=>{global.window=oldWindow})
   const h=hookHarness(),nodes=[],writes=[];let stateIndex=0
   const raw={id:'p',name:'Asesoría',kind:'SERVICE',service_unit_label:'Hora',quantity_decimals:3,price:100,category_id:'category',available_for_sale:true}
   const product={...raw,serviceUnitLabel:'Hora',quantityDecimals:3,category:'Servicios',price:100}

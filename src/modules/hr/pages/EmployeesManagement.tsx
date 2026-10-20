@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
@@ -61,11 +62,10 @@ export const EmployeesManagement = ({ actions }: { actions?: import('react').Rea
 
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('rrhh/empleados')
   const [status, setStatus] = useState('all')
   const [position, setPosition] = useState('')
   const [branch, setBranch] = useState('all')
-  const [pageSize, setPageSize] = useState(8)
   const [selected, setSelected] = useState<Employee | null>(null)
   useEffect(() => { const timer = setTimeout(() => { setQuery(search); setPage(1) }, 300); return () => clearTimeout(timer) }, [search])
 
@@ -149,7 +149,7 @@ export const EmployeesManagement = ({ actions }: { actions?: import('react').Rea
               {(data?.items ?? []).length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    Sin empleados registrados
+                    <CollectionEmptyState title="Tu equipo empieza aquí" description="Crea el primer expediente para reunir los datos laborales de tu equipo." filtered={Boolean(search.trim() || position || status !== 'all' || branch !== 'all')} onReset={() => { setSearch(''); setQuery(''); setStatus('all'); setPosition(''); setBranch('all'); setPage(1) }} action={hasPermission('hr.employees.create') && <Button onClick={() => navigate('/rrhh/empleados/nuevo')}>Nuevo empleado</Button>} />
                   </TableCell>
                 </TableRow>
               )}
@@ -159,7 +159,7 @@ export const EmployeesManagement = ({ actions }: { actions?: import('react').Rea
         )}
 
       </CardContent>
-<div className="auna-pagination-outside">{data && <><Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} pageSize={pageSize} count={data.items.length} onPageChange={setPage} loading={isLoading} itemLabel="empleados" /><div className="flex justify-end border-t p-3"><label className="flex items-center gap-2 text-sm">Filas por página<select className="auna-control auna-control-select hr-native-select !w-20 !mt-0" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{[8, 16, 32].map(size => <option key={size}>{size}</option>)}</select></label></div></>}</div></>
+<div className="auna-pagination-outside">{data && <><Pagination currentPage={data.page} totalPages={data.totalPages} totalItems={data.totalItems} pageSize={pageSize} count={data.items.length} onPageChange={setPage} loading={isLoading} itemLabel="empleados" /><div className="flex justify-end border-t p-3"><label className="flex items-center gap-2 text-sm">Filas por página<select className="auna-control auna-control-select hr-native-select !w-20 !mt-0" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1) }}>{TABLE_PAGE_SIZES.map(size => <option key={size}>{size}</option>)}</select></label></div></>}</div></>
     </Card>
     <ConfirmDialog appearance="auna" open={!!selected} onOpenChange={open => { if (!open && !terminate.isPending) setSelected(null) }} title="Dar de baja al empleado" description={`¿Dar de baja a ${selected?.first_name ?? ''} ${selected?.last_name ?? ''}? Se conservará su historial laboral y de nómina.`} confirmText="Dar de baja" variant="destructive" loading={terminate.isPending} onConfirm={() => { if (selected) terminate.mutate(selected.id) }} />
     </div>
@@ -167,3 +167,5 @@ export const EmployeesManagement = ({ actions }: { actions?: import('react').Rea
 }
 
 export default EmployeesManagement
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'

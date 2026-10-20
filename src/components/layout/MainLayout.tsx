@@ -27,7 +27,7 @@ export const MainLayout = () => {
         <ModuleProvider>
             <SystemSettingsProvider>
                 <DocumentBranding />
-                <PageNavigationProvider><div className='min-h-screen bg-brand-surface/70 dark:bg-brand-navy flex flex-col'>
+                <PageNavigationProvider><div className='auna-app-shell min-h-screen bg-brand-surface/70 dark:bg-brand-navy flex flex-col'>
                     <TopBar />
                     <main className='auna-app-content flex-1 overflow-auto bg-brand-surface/70 dark:bg-brand-navy'>
                         <Suspense fallback={<BrandLoading message="Cargando módulo…" />}>

@@ -25,11 +25,11 @@ export function drawLabelScene(doc:jsPDF,scene:LabelScene,left:number,top:number
     }
   }
 }
-export async function generateBarcodeLabelPdf(prepared:PreparedLabels,{signal,onProgress}:{signal?:AbortSignal;onProgress?:(progress:{donePages:number;totalPages:number})=>void}={}){
+export async function generateBarcodeLabelPdf(prepared:PreparedLabels,{signal,onProgress,separateGuide=false}:{signal?:AbortSignal;separateGuide?:boolean;onProgress?:(progress:{donePages:number;totalPages:number})=>void}={}){
   const ids=[...new Set<CouponFontId>(['NotoSans',...prepared.design.elements.flatMap(e=>e.kind==='field'||e.kind==='text'?[e.style.font]:[])])]
-  await ensureCouponFonts(ids);const measure=await createCouponMeasure(ids),plan=buildLabelPrintPlan(prepared,measure)
+  await ensureCouponFonts(ids);const measure=await createCouponMeasure(ids),plan=buildLabelPrintPlan(prepared,measure,separateGuide)
   const make=(w:number,h:number)=>{const doc=new jsPDF({unit:'mm',format:[w,h],orientation:w>h?'landscape':'portrait',compress:true});installCouponFonts(doc,ids);doc.setProperties({title:prepared.design.purpose==='shelf'?'Etiquetas de precio para estante':'Etiquetas de códigos de barras',author:prepared.companyName});return doc}
-  const labels=make(plan.grid.widthMm,plan.grid.heightMm),thermal=prepared.paper.format==='thermal',separate=thermal&&plan.guidePages.length?make(plan.guideWidth,plan.guideHeight):null
+  const labels=make(plan.grid.widthMm,plan.grid.heightMm),thermal=prepared.paper.format==='thermal',separate=(thermal||separateGuide)&&plan.guidePages.length?make(plan.guideWidth,plan.guideHeight):null
   const totalPages=plan.labelPages.length+plan.guidePages.length;let donePages=0
   const tick=async()=>{if(signal?.aborted)throw new DOMException('Impresión cancelada','AbortError');onProgress?.({donePages:++donePages,totalPages});await new Promise(resolve=>setTimeout(resolve,0));if(signal?.aborted)throw new DOMException('Impresión cancelada','AbortError')}
   const heading=(doc:jsPDF,title:string,x:number,y:number,size=9)=>{const style=textStyle(true,size);setCouponFont(doc,style);doc.setTextColor(20,33,50);doc.text(title,x,y)}

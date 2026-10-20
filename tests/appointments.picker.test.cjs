@@ -99,7 +99,7 @@ test('a page of pending services does not hide the catalog or block an enabled s
 test('an actually empty catalog explains the absence rather than claiming services are not enabled', () => {
   const p = picker([], { canConfigure: true })
   try {
-    assert.ok(p.nodes.some(n => n.type === 'p' && text(n.props.children).includes('No se encontraron servicios.')))
+    assert.ok(p.nodes.some(n => n.props?.title === 'El próximo servicio aparecerá aquí'))
     assert.ok(!p.nodes.some(n => n.props.to === '/agenda/configuracion'))
   } finally { p.unmount() }
 })

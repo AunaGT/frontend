@@ -21,7 +21,7 @@ function load(file) {
     if (!local) return nativeRequire(name)
     return load(['', '.tsx', '.ts', '.js', '/index.tsx', '/index.ts'].map(ext => local + ext).find(p => fs.existsSync(p) && fs.statSync(p).isFile()))
   }
-  mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8').replaceAll('import.meta.env', '({})'), {fileName: file, compilerOptions: {jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true}}).outputText, file)
+  mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8').replaceAll('import.meta.env', '({})'), {fileName: file, compilerOptions: {target:ts.ScriptTarget.ES2020,jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true}}).outputText, file)
   return mod.exports
 }
 
@@ -76,6 +76,19 @@ const bodyRows = (html, label) => {
   assert.ok(table, `${label} renders as a table`)
   return (table.match(/<tbody[\s\S]*<\/tbody>/)?.[0].match(/<tr/g) || []).length
 }
+
+test('primary analytics empty sales uses the approved art with honest period context', () => {
+  try {
+    setup()
+    overrides.set('@/modules/analytics/hooks/useAnalytics', { useAnalytics: () => ({ data: { ...data, totals: { ...data.totals, totalSales: 0 }, monthly: [] }, isLoading: false, isFetching: false, isError: false, refetch() {} }), useAnalyticsFirstSaleYear: () => ({ data: { firstSaleYear: 2025 } }) })
+    const Page = load(path.join(root, 'modules/analytics/pages/Analytics.tsx')).default
+    const html = renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Page)))
+    assert.match(html, /workspace-flat\.png/)
+    assert.match(html, /Tus resultados están por tomar forma/)
+    assert.match(html, new RegExp(String(new Date().getFullYear())))
+    assert.doesNotMatch(html, /Aún no hay ventas en este período/)
+  } finally { reset() }
+})
 
 test('rankings fold the tail into one "Otras" row and keep shares of the full total', () => {
   try {

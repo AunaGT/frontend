@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -13,7 +14,7 @@ import { Link,useSearchParams } from 'react-router-dom'
 import { ArrowLeft, PackageOpen, RotateCcw, Search } from 'lucide-react'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
-import { EmptyState } from '@/components/shared/EmptyState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { Pagination } from '@/components/shared/Pagination'
@@ -36,7 +37,7 @@ export default function DeletedProductsPage() {
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
   const canRestore = hasPermission('products.register_incoming', 'products.edit')
-  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventario/productos-eliminados', { defaultPageSize: 20 })
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventario/productos-eliminados', { defaultPageSize: 50 })
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [category, setCategory] = useState('all')
@@ -79,7 +80,7 @@ export default function DeletedProductsPage() {
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-[1560px] min-w-0 gap-5 px-4 py-6 sm:px-8">
+    <div className="auna-page-fluid mx-auto grid w-full min-w-0 gap-5 px-4 py-6 sm:px-8">
       <h1 className="sr-only">Productos eliminados</h1>
       {!isError && <MetricStrip loading={isLoading} label="Resumen de productos eliminados consultados" items={[
         { label: 'Productos eliminados', value: data?.totalItems ?? '—' },
@@ -102,7 +103,7 @@ export default function DeletedProductsPage() {
         <div className="space-y-1"><Label htmlFor="deleted-page-size">Filas por página</Label>
           <Select value={String(effectivePageSize)} onValueChange={value => { setPageSize(Number(value)); setPage(1) }}>
             <SelectTrigger id="deleted-page-size"><SelectValue /></SelectTrigger>
-            <SelectContent>{[10, 20, 50, 100].map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
+            <SelectContent>{TABLE_PAGE_SIZES.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </CompactFilterPanel>
@@ -110,7 +111,7 @@ export default function DeletedProductsPage() {
       <section className="auna-data-table-shell min-w-0" aria-label="Productos eliminados" aria-busy={isFetching}>
         {isFetching && !isLoading && !isError && <LoadingIndicator message="Actualizando productos eliminados…" className="px-4 py-2" />}
         {isLoading ? <LoadingState columns={['Producto', 'Categoría', 'Existencia', 'Proveedor', 'Eliminado el', 'Acciones']} message="Cargando productos eliminados…" /> : isError ? <div role="alert" className="p-8 text-center"><p>No se pudieron cargar los productos eliminados.</p><Button variant="outline" className="mt-3" onClick={() => void refetch()}>Reintentar</Button></div>
-          : !products.length ? <EmptyState icon={PackageOpen} title={appliedFilters.length ? 'No hay coincidencias' : 'No hay productos eliminados'} description={appliedFilters.length ? 'Prueba otra búsqueda o limpia los filtros.' : 'Los productos que elimines aparecerán aquí para poder restaurarlos.'} action={appliedFilters.length ? <Button variant="outline" onClick={clearFilters}>Limpiar filtros</Button> : undefined} />
+          : !products.length ? <CollectionEmptyState title="El archivo sigue en blanco" description="No hay productos eliminados. Los artículos que elimines aparecerán aquí para poder restaurarlos." filtered={appliedFilters.length > 0 || Boolean(search.trim())} onReset={clearFilters} />
           : <div className="overflow-x-auto"><Table><TableHeader><TableRow>
             <TableHead>Producto</TableHead><TableHead>Categoría</TableHead><TableHead className="text-right">Existencia</TableHead><TableHead>Proveedor</TableHead><TableHead>Eliminado el</TableHead>{canRestore && <TableHead className="text-right">Acciones</TableHead>}
           </TableRow></TableHeader><TableBody>{products.map(product => <TableRow key={product.id}>

@@ -23,12 +23,7 @@ test('record layouts keep media optional and horizontal at both widths', () => {
   assert.equal(declarations('.auna-record-media')['align-self'], 'stretch')
   assert.equal(declarations('.auna-record-media > img').height, '100%')
   assert.equal(declarations('.auna-record-media > img')['object-fit'], 'contain')
-  assert.equal(declarations('.auna-record-grid').display, 'flex')
-  assert.equal(declarations('.auna-record-grid')['flex-wrap'], 'wrap')
-  assert.equal(declarations('.auna-record-grid').gap, '12px')
-  assert.equal(declarations('.auna-record-grid > *').flex, '1 1 320px')
-  assert.equal(declarations('.auna-record-grid > *')['min-width'], 'min(100%, 320px)')
-  assert.equal(declarations('.auna-record-grid > .col-span-full')['flex-basis'], '100%')
+  // Actual column widths and final-row behavior are exercised by visual/fluid-layout.electron.cjs.
 })
 
 test('side labels wrap rather than overflowing compact cards and keyboard focus remains visible', () => {

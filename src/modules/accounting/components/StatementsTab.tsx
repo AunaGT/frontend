@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -42,7 +43,7 @@ const RowList = ({ rows }: { rows: StatementRow[] }) => (
         <span>{fmtQ(r.amount)}</span>
       </div>
     ))}
-    {rows.length === 0 && <p className="text-sm text-muted-foreground py-1">Sin movimientos</p>}
+    {rows.length === 0 && <CollectionEmptyState compact title="Aquí se reflejarán los movimientos" description="Esta sección todavía no tiene movimientos para el alcance consultado." />}
   </>
 )
 

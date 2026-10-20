@@ -2,11 +2,11 @@ const test = require('node:test'), assert = require('node:assert/strict'), React
 const { renderConfig } = require('./helpers/configViewHarness.cjs')
 const { hookHarness } = require('./helpers/reportHookHarness.cjs'), { loadReportModule } = require('./helpers/loadReportModule.cjs')
 const { deferred, flush } = require('./helpers/configHarness.cjs')
-test('deep linked section exposes only its controls in bounded grouped navigation', () => {
+test('deep linked section exposes only its controls in the adaptive settings workspace', () => {
   const { html } = renderConfig()
   assert.match(html, /aria-label="Secciones de configuración"/); assert.match(html, /Se aplica a/)
   assert.match(html, /id="order_validity_days"/); assert.doesNotMatch(html, /id="company_nit"/); assert.doesNotMatch(html, /role="tablist"/)
-  assert.match(html, /max-w-\[1560px\]/)
+  assert.match(html, /^<div class="[^"]*auna-page-fluid\b/)
 })
 test('each existing field group has an addressable section without unrelated inputs', () => {
   for (const [section, field] of [['empresa', 'company_name'], ['regional', 'currency_code'], ['fiscal', 'company_nit'], ['inventario', 'inventory_services_enabled'], ['ventas', 'sales_allow_credit'], ['cotizaciones', 'quote_validity_days'], ['pedidos', 'order_validity_days'], ['caja', 'cash_closure_max_diff_pct']]) assert.match(renderConfig({ section }).html, new RegExp(`id="${field}"`))

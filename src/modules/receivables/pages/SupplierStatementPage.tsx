@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { useEffect, useState } from "react";
 import { usePageTrail } from "@/components/layout/PageNavigation";
 import { useNavigate, useParams } from "react-router-dom";
@@ -20,6 +22,7 @@ import { togglePayableSelection } from "../payableSelection";
 import type { PayableEntry } from "../api/payablesTypes";
 import { PayablesExportButton } from "../components/PayablesExportButton";
 export default function SupplierStatementPage() {
+  const { pageSize, setPageSize } = usePersistedListUiState('cartera/proveedor/estado', {defaultPageSize:10})
   const { id = "" } = useParams(),
     access = useCarteraAccess(),
     navigate = useNavigate(),
@@ -35,7 +38,7 @@ export default function SupplierStatementPage() {
       entryPage,
       paymentPage,
       auditPage,
-      pageSize: 10,
+      pageSize,
     }),
     data = query.data,
     writable =
@@ -301,7 +304,7 @@ export default function SupplierStatementPage() {
                     colSpan={7}
                     className="text-center text-muted-foreground"
                   >
-                    Sin registros.
+                    <CollectionEmptyState compact title="El historial está listo para empezar" description="Aquí aparecerán los registros del proveedor que correspondan a esta sección y período." />
                   </TableCell>
                 </TableRow>
               )}
@@ -315,6 +318,7 @@ export default function SupplierStatementPage() {
           totalPages={page.totalPages}
           totalItems={page.totalItems}
           pageSize={page.pageSize}
+          onPageSizeChange={size => { setPageSize(size); setEntryPage(1); setPaymentPage(1); setAuditPage(1) }}
           count={page.items.length}
           onPageChange={setPage}
           loading={query.isFetching}

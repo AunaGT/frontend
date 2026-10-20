@@ -1,3 +1,6 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 import { useCarteraField } from "../carteraViewState";
 import { useState } from "react";
 import { usePageTrail } from "@/components/layout/PageNavigation";
@@ -38,8 +41,7 @@ export default function PayablesManagement() {
   const navigate = useNavigate(),
     { money, date } = usePayableFormat(),
     [tab, setTab] = useCarteraField("pagar", "tab", "OPEN"),
-    [page, setPage] = useCarteraField("pagar", "page", 1),
-    [pageSize, setPageSize] = useCarteraField("pagar", "pageSize", 10),
+    { page, setPage, pageSize, setPageSize } = usePersistedListUiState('cartera/pagar'),
     [search, setSearch] = useCarteraField("pagar", "search", ""),
     [supplierId, setSupplierId] = useCarteraField("pagar", "supplierId", ""),
     [dateFrom, setFrom] = useCarteraField("pagar", "dateFrom", ""),
@@ -110,7 +112,7 @@ export default function PayablesManagement() {
       </p>
     );
   return (
-    <div className="mx-auto max-w-[1560px] space-y-5 px-4 py-6 sm:px-6">
+    <div className="auna-page-fluid mx-auto space-y-5 px-4 py-6 sm:px-6">
       <header>
       </header>
       <PayableMetrics
@@ -186,7 +188,7 @@ export default function PayablesManagement() {
         <label className="space-y-2 text-sm font-medium">
           Proveedor
           <select
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3"
+            className="auna-control auna-control-select"
             value={supplierId}
             onChange={(e) => setSupplierId(e.target.value)}
           >
@@ -281,6 +283,8 @@ export default function PayablesManagement() {
         ) : view === "entries" ? (
           <PayableEntries
             rows={data.entries.data?.items || []}
+            filtered={Object.values(filter).some(Boolean)}
+            onReset={() => { setSearch(""); setSupplierId(""); setFrom(""); setTo(""); setDueFrom(""); setDueTo(""); setFilter({}); setPage(1); }}
             selected={selected}
             onSelect={writable ? choose : undefined}
           />
@@ -372,7 +376,7 @@ export default function PayablesManagement() {
                     colSpan={9}
                     className="text-center text-muted-foreground"
                   >
-                    No hay registros para estos filtros.
+                    <CollectionEmptyState title="Las cuentas del negocio, en un solo lugar" description="Aquí aparecerán las compras a proveedores que correspondan a esta consulta." filtered={Object.values(filter).some(Boolean)} onReset={() => { setSearch(""); setSupplierId(""); setFrom(""); setTo(""); setDueFrom(""); setDueTo(""); setFilter({}); setPage(1); }} />
                   </TableCell>
                 </TableRow>
               )}
@@ -395,14 +399,14 @@ export default function PayablesManagement() {
         <Label htmlFor="payables-size">Filas por página</Label>
         <select
           id="payables-size"
-          className="h-10 rounded-md border border-input bg-background px-3"
+          className="auna-control auna-control-select w-auto"
           value={pageSize}
           onChange={(e) => {
             setPageSize(Number(e.target.value));
             setPage(1);
           }}
         >
-          {[10, 25, 50, 100].map((n) => (
+          {TABLE_PAGE_SIZES.map((n) => (
             <option key={n}>{n}</option>
           ))}
         </select>

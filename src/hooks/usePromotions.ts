@@ -128,6 +128,7 @@ export function usePromotions({
                 product_id: item.product_id,
                 price: item.price,
                 qty: item.qty,
+                ...(item.unit_revision!==undefined?{presentation_id:item.presentation_id,unit_revision:item.unit_revision,accept_rounding:item.accept_rounding}:{}),
                 category_id: item.category_id
             }))
 

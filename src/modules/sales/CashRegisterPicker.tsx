@@ -23,6 +23,7 @@ import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState
 import { useAuth } from '@/context/useAuth'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { formatMoney } from '@/utils/formatters'
 import { listCashRegisters, type CashRegisterDto } from '@/services/cashSessionsService'
 import './pos.css'
@@ -108,14 +109,7 @@ export function CashRegisterPicker({ onSelect, onBack }: CashRegisterPickerProps
           </div>
         </div>
       ) : visible.length === 0 ? (
-        <div className="space-y-4 py-8 text-center text-muted-foreground">
-          <p>
-            {sorted.length === 0
-              ? 'No hay cajas activas configuradas.'
-              : 'No tienes una caja asignada y no hay una caja predeterminada activa. Contacta a un administrador.'}
-          </p>
-          <Button variant="outline" onClick={onBack}>Volver a ventas</Button>
-        </div>
+        <CollectionEmptyState title="Tu punto de venta espera una caja" description={sorted.length === 0 ? 'No hay cajas activas configuradas. Consulta con un administrador para preparar una caja.' : 'No tienes una caja asignada y no hay una caja predeterminada activa. Contacta a un administrador.'} action={<Button variant="outline" onClick={onBack}>Volver a ventas</Button>} />
       ) : (
         <>
           <div className="pos-register-list">

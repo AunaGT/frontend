@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
@@ -24,6 +25,7 @@ import { Download, Plus, Eye, Package, LayoutGrid, List, Search } from 'lucide-r
 import { useToast } from '@/hooks/use-toast'
 import { useIncomingMerchandise } from '../hooks/useIncomingMerchandise'
 import { MetricStrip } from '@/components/shared/MetricStrip'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { generateMerchandiseReport } from '../api/incomingMerchandiseService'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
@@ -53,7 +55,7 @@ const IncomingMerchandiseManagement = () => {
     setPageSize,
     viewMode,
     setViewMode,
-  } = usePersistedListUiState('mercancia/lista', { defaultPageSize: 10, defaultView: 'table' })
+  } = usePersistedListUiState('mercancia/lista', { defaultPageSize: 50, defaultView: 'table' })
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -65,7 +67,7 @@ const IncomingMerchandiseManagement = () => {
   const canRegister = hasPermission('products.register_incoming')
   const canDetails = hasPermission('merchandise.details')
   const canReports = hasPermission('merchandise.reports')
-  const cardPagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage })
+  const cardPagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage, storageKey: "mercancia/lista" })
   const pageSize = cardPagination.pageSize
 
   const { data: recordsData, isLoading, isFetching, isError, refetch } = useIncomingMerchandise({
@@ -145,11 +147,11 @@ const IncomingMerchandiseManagement = () => {
   }
 
   const loc = locale || 'es-GT'
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number|string) => {
     return new Intl.NumberFormat(loc, {
       style: 'currency',
       currency: currencyCode || 'GTQ',
-    }).format(value)
+    }).format(Number(value))
   }
 
   const formatDate = (dateString: string) => {
@@ -181,7 +183,7 @@ const IncomingMerchandiseManagement = () => {
     )
   }
 
-  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy"><div className="auna-page-fluid mx-auto w-full space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Entradas de mercadería</h1>
     <MetricStrip label="Resumen entradas consultadas" loading={isLoading} items={[
       { label: 'Entradas', value: isError ? '—' : recordsData?.summary?.total ?? '—' },
@@ -198,8 +200,8 @@ const IncomingMerchandiseManagement = () => {
       </CompactFilterPanel>
     <section ref={cardPagination.containerRef} className="auna-surface-flat" aria-busy={isFetching}>
       {isFetching && !isLoading && <LoadingIndicator message="Actualizando entradas…" className="px-4 py-2" />}
-      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><h2 className="font-semibold">Entradas ({totalItems})</h2><div className="flex items-center gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground">Por página<select className="auna-control auna-control-select auna-receipt-select !w-20" value={pageSize} onChange={e => { if (viewMode === 'cards') cardPagination.setCardPageSize(Number(e.target.value)); else setPageSize(Number(e.target.value)); setCurrentPage(1) }}>{(viewMode === 'cards' ? cardPagination.pageSizeOptions : Array.from(new Set([10, 18, 20, 27, 36, 50, pageSize])).sort((a,b)=>a-b)).map(size => <option key={size} value={size}>{size}</option>)}</select></label><ModuleTabBar items={[{ value: 'table', label: '', ariaLabel: 'Tabla', icon: List }, { value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de entradas" onValueChange={setViewMode} /></div></div>
-      {isLoading ? <LoadingState variant={viewMode === 'table' ? 'table' : 'cards'} columns={['Registro', 'Fecha', 'Proveedor', 'Productos', 'Condición de pago', 'Estado de pago', 'Total', 'Acciones']} message="Cargando entradas…" /> : isError ? <div role="alert" className="p-10 text-center"><p>No se pudieron cargar las entradas.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Reintentar</Button></div> : !records.length ? <div className="p-12 text-center text-muted-foreground"><Package className="mx-auto mb-3 h-9 w-9" /><p>No hay entradas que coincidan con los filtros.</p></div> : viewMode === 'table' ? <div className="auna-data-table-shell overflow-x-auto"><table className="w-full min-w-[900px]"><thead><tr><th>Registro</th><th>Fecha</th><th>Proveedor</th><th>Productos</th><th>Condición de pago</th><th>Estado de pago</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td className="font-medium">{record.id.slice(0,8).toUpperCase()}</td><td>{formatDate(record.date)}</td><td><strong className="font-medium">{record.supplier.name}</strong><small className="block text-muted-foreground">{record.supplier.contact}</small></td><td>{record.itemsCount} productos</td><td>{record.payment_term?.name || 'Sin término'}</td><td><PaymentStatusBadge status={record.payment_status} /></td><td className="whitespace-nowrap font-medium">{formatCurrency(record.totalValue)}</td><td>{canDetails && <Button variant="outline" size="icon" aria-label={`Ver entrada ${record.id.slice(0,8)}`} onClick={() => handleViewDetails(record.id)}><Eye className="h-4 w-4" /></Button>}</td></tr>)}</tbody></table></div> : <div className="auna-record-grid">{records.map(record => <Card key={record.id} className="auna-surface auna-record-interactive" {...recordCardNavigation(canDetails ? () => handleViewDetails(record.id) : undefined)}><CardContent className="auna-record-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3"><h2 className="font-semibold">Entradas ({totalItems})</h2><div className="flex items-center gap-2"><label className="flex items-center gap-2 text-xs text-muted-foreground">Por página<select className="auna-control auna-control-select auna-receipt-select !w-20" value={pageSize} onChange={e => { if (viewMode === 'cards') cardPagination.setCardPageSize(Number(e.target.value)); else setPageSize(Number(e.target.value)); setCurrentPage(1) }}>{(viewMode === 'cards' ? cardPagination.pageSizeOptions : TABLE_PAGE_SIZES).map(size => <option key={size} value={size}>{size}</option>)}</select></label><ModuleTabBar items={[{ value: 'table', label: '', ariaLabel: 'Tabla', icon: List }, { value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de entradas" onValueChange={setViewMode} /></div></div>
+      {isLoading ? <LoadingState variant={viewMode === 'table' ? 'table' : 'cards'} columns={['Registro', 'Fecha', 'Proveedor', 'Productos', 'Condición de pago', 'Estado de pago', 'Total', 'Acciones']} message="Cargando entradas…" /> : isError ? <div role="alert" className="p-10 text-center"><p>No se pudieron cargar las entradas.</p><Button variant="outline" className="mt-3" onClick={() => refetch()}>Reintentar</Button></div> : !records.length ? <CollectionEmptyState title="La próxima entrega tiene su lugar aquí" description="No hay entradas registradas en esta vista. Registra la mercancía recibida para consultar sus productos, costos y condiciones de pago." filtered={Boolean(searchTerm.trim() || search) || selectedSupplierId !== 'all' || paymentStatusFilter !== 'all' || Boolean(startDate || endDate)} onReset={() => { clearFilters(); setSearch('') }} action={canRegister ? <Button onClick={() => navigate('/inventario/registrar-ingreso')}><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Nueva entrada</Button> : undefined} /> : viewMode === 'table' ? <div className="auna-data-table-shell overflow-x-auto"><table className="w-full min-w-[900px]"><thead><tr><th>Registro</th><th>Fecha</th><th>Proveedor</th><th>Productos</th><th>Condición de pago</th><th>Estado de pago</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{records.map(record => <tr key={record.id}><td className="font-medium">{record.id.slice(0,8).toUpperCase()}</td><td>{formatDate(record.date)}</td><td><strong className="font-medium">{record.supplier.name}</strong><small className="block text-muted-foreground">{record.supplier.contact}</small></td><td>{record.itemsCount} productos</td><td>{record.payment_term?.name || 'Sin término'}</td><td><PaymentStatusBadge status={record.payment_status} /></td><td className="whitespace-nowrap font-medium">{formatCurrency(record.totalValue)}</td><td>{canDetails && <Button variant="outline" size="icon" aria-label={`Ver entrada ${record.id.slice(0,8)}`} onClick={() => handleViewDetails(record.id)}><Eye className="h-4 w-4" /></Button>}</td></tr>)}</tbody></table></div> : <div className="auna-record-grid">{records.map(record => <Card key={record.id} className="auna-surface auna-record-interactive" {...recordCardNavigation(canDetails ? () => handleViewDetails(record.id) : undefined)}><CardContent className="auna-record-card">
         <div className="auna-record-content space-y-1">
           <strong>{record.supplier.name}</strong>
           <div className="auna-record-meta text-muted-foreground"><span>{formatDate(record.date)}</span><span>{record.itemsCount} productos</span></div>

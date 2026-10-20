@@ -203,6 +203,6 @@ test('loading, failed or missing-token queries do not expose the document or res
 
 test('empty products and missing optional credit/subtotal data have truthful visible fallbacks', () => {
   const view = render({ data: { ...quote, lines: [], subtotal: null, credit_days: null, is_final_consumer: true } })
-  for (const text of ['No hay partidas registradas', 'Plazo según lo acordado', 'NIT: CF', '100.00']) assert.ok(view.html.includes(text), text)
+  for (const text of ['Esta propuesta espera sus partidas', 'Plazo según lo acordado', 'NIT: CF', '100.00']) assert.ok(view.html.includes(text), text)
   assert.ok(!view.html.includes('null días'))
 })

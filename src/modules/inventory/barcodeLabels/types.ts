@@ -11,8 +11,9 @@ export type LabelDesign={schemaVersion:1;widthMm:number;heightMm:number;barcodeT
 export type PaperSettings={format:'letter'|'a4'|'oficio'|'legal'|'custom'|'thermal';orientation:'portrait'|'landscape';widthMm:number;heightMm:number;margins:{top:number;right:number;bottom:number;left:number};gapX:number;gapY:number;includeGuide:boolean}
 export type BarcodeLabelLayout={revision:number;design:LabelDesign;defaultPaper:PaperSettings;capabilities?:{canAssign:boolean;canSaveLayout:boolean}}
 export type PrintScope={branchId:string;warehouseId?:string;locationId?:string;inBranch:boolean}
-export type PrintSelection={productId:string;copies:number;expectedBarcode:string|null;assignment:{mode:'keep'|'auto'|'manual';value?:string};priceTiers?:PriceTier[]}
+export type PrintSelection={productId:string;presentation_id?:string|null;unit_revision?:number;copies:number;expectedBarcode:string|null;assignment:{mode:'keep'|'auto'|'manual';value?:string};priceTiers?:PriceTier[]}
 export type PrepareLabelsInput={requestKey:string;scope:PrintScope;items:PrintSelection[];design:LabelDesign;paper:PaperSettings;confirmAssignments:boolean}
-export type LabelProduct={id:string;name:string;barcode:string;price:string;brand:string|null;size:string|null;copies:number;shelfPrices?:ShelfPrice[];warnings?:string[];promotionValidUntil?:string|null;priceWholesale?:string|null;pricePromotion?:string|null}
-export type LabelCandidate=Omit<LabelProduct,'copies'|'barcode'>&{barcode:string|null}
-export type PreparedLabels={id:string;companyId:string;actorId:string;companyName:string;currencyCode:string;locale:string;timezone:string;createdAt:string;scope:PrintScope;products:LabelProduct[];design:LabelDesign;paper:PaperSettings;assignedProductIds:string[]}
+export const labelSelectionKey=(product:{id:string;presentation_id?:string|null})=>product.presentation_id?product.id+':'+product.presentation_id:product.id
+export type LabelProduct={id:string;selectionId?:string;presentation_id?:string|null;unit_revision?:number;unit_label?:string;unit_snapshot?:unknown;name:string;barcode:string;price:string;brand:string|null;size:string|null;copies:number;shelfPrices?:ShelfPrice[];warnings?:string[];promotionValidUntil?:string|null;priceWholesale?:string|null;pricePromotion?:string|null}
+export type LabelCandidate=Omit<LabelProduct,'copies'|'barcode'>&{barcode:string|null;unitOptions?:LabelCandidate[]}
+export type PreparedLabels={id:string;snapshotVersion?:number;companyId:string;actorId:string;companyName:string;currencyCode:string;locale:string;timezone:string;createdAt:string;scope:PrintScope;products:LabelProduct[];design:LabelDesign;paper:PaperSettings;assignedProductIds:string[]}

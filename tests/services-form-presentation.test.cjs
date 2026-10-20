@@ -27,6 +27,8 @@ test('new service reuses inventory creation and sends only commercial fields',()
   const {EMPTY_PRODUCT_FORM}=loadReportModule('../inventory/products/types.ts')
   const form={...EMPTY_PRODUCT_FORM,productKind:'SERVICE',name:'Asesoría',category:'1',price:'100',serviceUnitLabel:'Hora',quantityDecimals:'2'}
   const Page=loadReportModule('../inventory/products/ProductCreatePage.tsx',{
+    '@/context/useTenant':{useTenant:()=>({registerTenantExitGuard:()=>()=>{}})},
+    '../units/useUnitCatalog':{useUnitCatalog:()=>({scope:{companyId:'A',branchId:'B'},canWrite:true,units:[]})},
     '@/modules/appointments/useServiceScheduleDraft':{useServiceScheduleDraft:()=>({allowed:false,ready:true,payload:{}})},
     '@/services/api':{getApiBaseUrl:()=>'/api',apiFetch(){throw Error('No real requests')}},
     './api':{getApiBaseUrl:()=>'/api',apiFetch(){throw Error('No real requests')}},

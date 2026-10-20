@@ -38,8 +38,9 @@ export const REASON_LABELS: Record<StockMovementReason, string> = {
 
 export interface StockMovement {
   id: string;
-  qty: number;
-  balance: number;
+  unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  qty: number|string;
+  balance: number|string;
   reason: StockMovementReason;
   ref_type: string | null;
   group_id: string | null;
@@ -93,7 +94,7 @@ export const fetchMovements = (filters: MovementFilters = {}) => {
 
 export interface MoveLine {
   product_id: string;
-  qty: number;
+  qty: number|string;
 }
 
 export const createStockMove = (payload: {
@@ -119,8 +120,8 @@ export const createAdjustment = (payload: {
   });
 
 export interface LocationStock {
-  stock: number;
-  min_stock: number;
+  stock: number|string;
+  min_stock: number|string;
   location: {
     id: string;
     code: string;
@@ -138,8 +139,9 @@ export interface LocationStock {
   };
 }
 
-export const fetchStockByLocation = (productId: string) =>
+export const fetchStockByLocation = (productId: string,options:RequestInit={}) =>
   apiFetch<LocationStock[]>(`/api/stock/by-location?product_id=${encodeURIComponent(productId)}`, {
+    ...options,
     method: "GET",
   });
 
@@ -147,7 +149,7 @@ export const fetchStockByLocation = (productId: string) =>
 export const setLocationMin = (payload: {
   product_id: string;
   location_id: string;
-  min_stock: number;
+  min_stock: number|string;
 }) =>
   apiFetch<LocationStock>("/api/stock/by-location/min", {
     method: "PUT",
@@ -155,6 +157,8 @@ export const setLocationMin = (payload: {
   });
 
 export interface ReplenishmentRow {
+  quantity_decimals?:number;
+  base_unit?:{code:string;label:string}|null;
   product_id: string;
   product_name: string;
   barcode: string | null;
@@ -162,14 +166,14 @@ export interface ReplenishmentRow {
   location_code: string;
   location_name: string | null;
   warehouse_name: string;
-  stock: number;
-  min_stock: number;
-  missing: number;
+  stock: number|string;
+  min_stock: number|string;
+  missing: number|string;
   from_location_id: string | null;
   from_location_code: string | null;
   from_warehouse_name: string | null;
-  from_stock: number | null;
-  suggested_qty: number;
+  from_stock: number|string|null;
+  suggested_qty: number|string;
 }
 
 export const fetchReplenishment = () =>

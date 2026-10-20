@@ -261,7 +261,7 @@ export default function SupplierPaymentReceiptPage({
             <Label htmlFor="supplier-cancel-reason">Motivo de anulación</Label>
             <textarea
               id="supplier-cancel-reason"
-              className="w-full rounded-md border border-input bg-background p-3"
+              className="auna-control auna-control-textarea"
               maxLength={500}
               value={reason}
               onChange={(e) => setReason(e.target.value)}

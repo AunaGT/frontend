@@ -47,11 +47,11 @@ function load(file) {
     const resolved = ['', '.tsx', '.ts', '.js', '/index.tsx', '/index.ts'].map(ext => local + ext).find(p => fs.existsSync(p) && fs.statSync(p).isFile())
     return load(resolved)
   }
-  mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, file)
+  mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { fileName: file, compilerOptions: { target:ts.ScriptTarget.ES2020,jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText, file)
   return mod.exports
 }
 
-test('replenishment summary counts the full filtered list before its eight-row page', () => {
+test('replenishment summary counts the full filtered list before its ten-row page', () => {
   replenishmentMode = true
   replenishmentRows = Array.from({ length: 11 }, (_, index) => ({ product_id: `p${index}`, product_name: `Product ${index}`, location_id: `l${index}`, location_code: `L${index}`, warehouse_name: 'Warehouse', missing: 2, stock: 0, min_stock: 2, from_location_id: index < 9 ? 'source' : null, suggested_qty: 2 }))
   state = { data: { items: [] } }
@@ -61,8 +61,8 @@ test('replenishment summary counts the full filtered list before its eight-row p
     const strip = html.slice(html.indexOf('aria-label="Resumen de reposición"')).split('</section>')[0]
     assert.match(strip, />11</)
     assert.match(strip, />9</)
-    assert.match(strip, />22</)
-    assert.equal((html.match(/<strong class="block font-medium">Product /g) || []).length, 8)
+    assert.match(strip, /Productos por reponer/)
+    assert.equal((html.match(/<strong class="block font-medium">Product /g) || []).length, 10)
     assert.ok(html.indexOf('aria-label="Resumen de reposición"') < html.indexOf('aria-label="Buscar reposiciones"'))
   } finally { replenishmentMode = false; replenishmentRows = [] }
 })

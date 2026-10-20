@@ -1,3 +1,8 @@
+import {normalizeUnitDecimal,compareUnitQuantities} from '@/lib/unitQuantity'
+import type {UnitSnapshot} from '@/modules/inventory/units/public'
+export function transferReceiptLines(lines:Array<{id:string;qty_sent:string|number;unit_snapshot?:UnitSnapshot|null}>,inputs:Record<string,string>){
+  return lines.map(line=>{const qty=normalizeUnitDecimal(inputs[line.id]??String(line.qty_sent),{decimals:line.unit_snapshot?.baseUnit.decimals??0});if(compareUnitQuantities(qty,String(line.qty_sent))>0)throw Error('La cantidad recibida supera la enviada');return {line_id:line.id,qty_received:qty}})
+}
 export type TransferView = 'table' | 'cards'
 
 export const initialTransferView = (viewportWidth: number): TransferView =>

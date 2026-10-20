@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -79,8 +80,7 @@ export default function AlertsManagement() {
   const [loadError, setLoadError] = useState(false)
   const [draft, setDraft] = useState<Filters>(EMPTY_FILTERS)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(10)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('alertas/lista')
   const [resolvingId, setResolvingId] = useState<string | null>(null)
   const [reassigningId, setReassigningId] = useState<string | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
@@ -193,7 +193,7 @@ export default function AlertsManagement() {
     setDraft(next); setFilters(next); setPage(1)
   }
 
-  return <main className="alerts-page mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
+  return <main className="alerts-page auna-page-fluid mx-auto w-full min-w-0 space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Centro de alertas</h1>
 
     <MetricStrip label="Resumen de alertas" items={([['critical','Críticas'],['high','Altas'],['medium','Medias'],['low','Bajas'],['resolved','Resueltas']] as const).map(([key,label]) => ({label,value:counts[key],alert:key === 'critical' && counts[key] > 0,active:key === 'resolved' ? filters.status === 'resolved' : filters.priority === key,onClick: () => key === 'resolved' ? (setDraft({...EMPTY_FILTERS,status:'resolved'}),setFilters({...EMPTY_FILTERS,status:'resolved'}),setPage(1)) : filterPriority(key)}))} />
@@ -211,7 +211,7 @@ export default function AlertsManagement() {
     <><section className="alerts-list-panel" aria-label="Listado de alertas">
       <div className="alerts-list-heading"><span>Mostrando {pageAlerts.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, visibleAlerts.length)} de {visibleAlerts.length} alertas{alerts.length >= 100 ? ' (entre las 100 más recientes)' : ''}</span><label>Ordenar por <select className="auna-control auna-control-select" value={draft.order} onChange={(event) => { const order = event.target.value as Filters['order']; setDraft({ ...draft, order }); setFilters({ ...filters, order }); setPage(1) }}><option value="newest">Fecha (más reciente)</option><option value="oldest">Fecha (más antigua)</option></select></label></div>
       {loading && alerts.length > 0 && <LoadingIndicator message="Actualizando alertas…" />}
-      {loadError ? <div className="alerts-empty"><AlertCircle className="h-5 w-5" /> No se pudieron cargar las alertas. <Button variant="outline" onClick={() => void loadAlerts()}>Reintentar</Button></div> : !loading && !pageAlerts.length ? <div className="alerts-empty"><Bell className="h-5 w-5" /> No hay alertas que coincidan con los filtros.</div> : <div className="alerts-table-wrap"><table className="alerts-table">
+      {loadError ? <div className="alerts-empty"><AlertCircle className="h-5 w-5" /> No se pudieron cargar las alertas. <Button variant="outline" onClick={() => void loadAlerts()}>Reintentar</Button></div> : !loading && !pageAlerts.length ? <CollectionEmptyState title="Aquí empieza el seguimiento" description="Las alertas del negocio aparecerán aquí para que puedas revisarlas y darles seguimiento." filtered={activeFilters > 0} onReset={clearFilters} /> : <div className="alerts-table-wrap"><table className="alerts-table">
         <thead><tr><th>ID</th><th>Título</th><th>Descripción</th><th>Tipo</th><th>Prioridad</th><th>Estado</th><th>Fecha</th><th>Asignado a</th><th>Acciones</th></tr></thead>
         <tbody>{loading && !alerts.length && <TableLoadingRows columns={9} message="Cargando alertas…" />}{pageAlerts.map((alert) => <tr key={alert.id}>
           <td data-label="ID" className="alerts-id" title={alert.id}>{alert.id.slice(0, 8).toUpperCase()}</td>
@@ -227,7 +227,7 @@ export default function AlertsManagement() {
       </table></div>}
 
     </section>
-<div className="auna-pagination-outside"><footer className="alerts-table-footer"><label>Mostrar <select className="auna-control auna-control-select" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}><option value="10">10</option><option value="20">20</option><option value="50">50</option></select> por página</label><nav className="alerts-pagination" aria-label="Paginación de alertas"><Button type="button" variant="outline" size="icon" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>{Array.from({ length: pageCount }, (_, index) => <Button type="button" variant="outline" size="sm" key={index} onClick={() => setPage(index + 1)} aria-label={`Página ${index + 1}`} aria-current={currentPage === index + 1 ? 'page' : undefined}>{index + 1}</Button>)}<Button type="button" variant="outline" size="icon" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount} aria-label="Página siguiente"><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button></nav></footer></div></>
+<div className="auna-pagination-outside"><footer className="alerts-table-footer"><label>Mostrar <select className="auna-control auna-control-select" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>{TABLE_PAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}</select> por página</label><nav className="alerts-pagination" aria-label="Paginación de alertas"><Button type="button" variant="outline" size="icon" onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} aria-label="Página anterior"><ChevronLeft className="h-4 w-4" aria-hidden="true" /></Button>{Array.from({ length: pageCount }, (_, index) => <Button type="button" variant="outline" size="sm" key={index} onClick={() => setPage(index + 1)} aria-label={`Página ${index + 1}`} aria-current={currentPage === index + 1 ? 'page' : undefined}>{index + 1}</Button>)}<Button type="button" variant="outline" size="icon" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount} aria-label="Página siguiente"><ChevronRight className="h-4 w-4" aria-hidden="true" /></Button></nav></footer></div></>
 
     <Dialog open={Boolean(detail)} onOpenChange={(open) => { if (!open) setDetailId(null) }}><DialogContent variant="auna" className="alerts-dialog"><DialogHeader><DialogTitle>{detail?.title}</DialogTitle><DialogDescription>Detalle de alerta {detail?.id.slice(0, 8).toUpperCase()}</DialogDescription></DialogHeader>{detail && <div className="alerts-detail-grid"><p><span>Descripción</span>{detail.message || 'Sin descripción'}</p><p><span>Producto</span>{detail.product || '—'}</p><p><span>Tipo</span>{detail.typeName}</p><p><span>Prioridad</span>{PRIORITY_LABELS[detail.priority]}</p><p><span>Estado</span>{STATUS_LABELS[detail.status]}</p><p><span>Fecha</span>{detail.timestamp}</p><p><span>Asignado a</span>{detail.assignedTo || 'Sin asignar'}</p>{detail.type !== 'expiry_soon' && <p><span>Stock actual / mínimo</span>{detail.currentStock} / {detail.minStock}</p>}</div>}<DialogFooter><Button variant="outline" onClick={() => setDetailId(null)}>Cerrar</Button>{canManage && detail && detail.status !== 'resolved' && <Button disabled={resolvingId === detail.id} onClick={() => void handleResolve(detail.id)}>Resolver alerta</Button>}</DialogFooter></DialogContent></Dialog>
 
@@ -238,3 +238,5 @@ export default function AlertsManagement() {
     </div><DialogFooter><Button variant="outline" onClick={() => setNewAlertOpen(false)} disabled={creatingAlert}>Cancelar</Button><Button onClick={() => void handleCreate()} disabled={creatingAlert || !newTypeId || !newPriorityId || !newTitle.trim() || !selectedProduct}>{creatingAlert && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Crear alerta</Button></DialogFooter></DialogContent></Dialog>
   </main>
 }
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'

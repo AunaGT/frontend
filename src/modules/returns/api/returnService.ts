@@ -13,14 +13,14 @@ import type { ProductKind } from '@/types/product'
 import type { ReturnPolicy, ReturnResolution } from '../policy'
 export type { ReturnPolicy, ReturnResolution } from '../policy'
 
-interface LineSnapshot { item_kind?: ProductKind;item_name?: string;unit_label?: string;quantity_decimals?: number }
+interface LineSnapshot { item_kind?: ProductKind;item_name?: string;unit_label?: string;quantity_decimals?: number;unit_metadata_version?:number;unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|import('@/modules/inventory/units/public').LegacyUnitSnapshot|null;base_qty?:string|null;base_unit_cost?:string|null }
 
 export interface ReturnStatus {
   id: number
   name: string
 }
 
-export interface ReturnItem {
+export interface ReturnItem extends LineSnapshot {
   id: number
   return_id: string
   sale_item_id: number
@@ -28,8 +28,10 @@ export interface ReturnItem {
   qty_returned: string | number
   refund_amount: number
   reason?: string | null
-  received_qty?: number | null
-  restock_qty?: number | null
+  received_qty?: number | string | null
+  restock_qty?: number | string | null
+  base_received_qty?: string | null
+  base_restock_qty?: string | null
   disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null
   stock_location_id?: string | null
   product?: {
@@ -133,6 +135,7 @@ export interface CreateReturnPayload {
     sale_item_id: number
     product_id: string
     qty_returned: string | number
+    presentation_id?: null
     reason?: string
   }[]
   // Solo para cambios (type === 'EXCHANGE'): productos que se lleva el cliente.
@@ -140,6 +143,9 @@ export interface CreateReturnPayload {
     product_id: string
     qty: string | number
     unit_price?: number
+    presentation_id?:string|null
+    unit_revision?:number
+    accept_rounding?:boolean
   }[]
 }
 
@@ -151,7 +157,7 @@ export interface ApproveReturnPayload {
 
 export interface CompleteReturnPayload {
   idempotency_key: string
-  lines: Array<{ return_item_id: number; received_qty?: number; disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null; stock_location_id?: string | null }>
+  lines: Array<{ return_item_id: number; received_qty?: number|string; disposition?: 'SELLABLE' | 'QUARANTINE' | 'SCRAP' | null; stock_location_id?: string | null }>
   settlement: { payment_method_id?: number; cash_register_session_id?: string; external_reference?: string; channel?: 'ORIGINAL' | 'CASH' | 'TRANSFER' | 'CUSTOMER_CREDIT' }
 }
 
@@ -168,6 +174,7 @@ export interface EligibleSaleItem extends LineSnapshot {
   price: number
   product_id: string
   available_to_return: string | number
+  available_base_to_return?:string
   estimated_unit_refund: number
   product: { id: string; name: string; barcode?: string | null; image_url?: string | null }
 }

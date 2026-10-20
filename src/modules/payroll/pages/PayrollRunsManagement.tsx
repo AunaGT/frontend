@@ -1,3 +1,6 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import { PageSizeSelect } from '@/components/shared/PageSizeSelect'
 import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
@@ -58,7 +61,7 @@ export const PayrollRunsManagement = () => {
   const [month, setMonth] = useState('')
   const [status, setStatus] = useState('')
   const [search, setSearch] = useState('')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('nomina/lista')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<PayrollRunPayload>({ type: 'ORDINARIA', pay_date: today() })
 
@@ -69,7 +72,7 @@ export const PayrollRunsManagement = () => {
 
   const runs = data?.items ?? []
   const visibleRuns = filterRuns(runs, { month, status, search })
-  const totalPages = Math.max(1, Math.ceil(visibleRuns.length / 10))
+  const totalPages = Math.max(1, Math.ceil(visibleRuns.length / pageSize))
   const currentPage = Math.min(page, totalPages)
   const latest = runs.find((run) => run.status !== 'ANULADA')
   const update = (setter: (value: string) => void) => (value: string) => { setter(value); setPage(1) }
@@ -86,7 +89,7 @@ export const PayrollRunsManagement = () => {
   })
 
   return (
-    <div className="mx-auto max-w-[1560px] space-y-5 p-4 sm:p-8">
+    <div className="auna-page-fluid mx-auto space-y-5 p-4 sm:p-8">
       <h1 className="sr-only">Corridas de nómina</h1>
 
       <MetricStrip loading={isLoading} label="Última corrida activa" items={[{label:'Empleados · última corrida',value:latest?._count?.payslips ?? 0},{label:'Total bruto',value:money(latest?.total_earnings ?? 0)},{label:'Deducciones',value:money(latest?.total_deductions ?? 0)},{label:'Total neto',value:money(latest?.total_net ?? 0)}]} />
@@ -120,7 +123,7 @@ export const PayrollRunsManagement = () => {
               </TableHeader>
               <TableBody>
                 {isLoading ? <TableLoadingRows columns={9} message="Cargando corridas…" /> : <>
-                {pageItems(visibleRuns, currentPage, 10).map((run) => (
+                {pageItems(visibleRuns, currentPage, pageSize).map((run) => (
                   <TableRow key={run.id}>
                     <TableCell className="whitespace-nowrap text-sm">{run.period_start.slice(0, 10)}<span className="block text-muted-foreground">a {run.period_end.slice(0, 10)}</span></TableCell>
                     <TableCell><span className="font-medium">{run.name}</span><span className="block text-xs text-muted-foreground">{run.code} · {PAYROLL_TYPE_LABELS[run.type]}</span></TableCell>
@@ -134,7 +137,7 @@ export const PayrollRunsManagement = () => {
                   </TableRow>
                 ))}
                 {visibleRuns.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground">No hay corridas para estos filtros.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="py-8 text-center text-muted-foreground"><CollectionEmptyState title="La próxima nómina empieza aquí" description={`No hay corridas registradas para ${year}. Crea una cuando estés listo para calcular la nómina.`} filtered={Boolean(search.trim() || month || status || year !== String(new Date().getFullYear()))} onReset={() => { setSearch(''); setMonth(''); setStatus(''); setYear(String(new Date().getFullYear())); setPage(1) }} action={canCreate && <Button onClick={() => setDialogOpen(true)}>Nueva corrida</Button>} /></TableCell></TableRow>
                 )}
                 </>}
               </TableBody>
@@ -144,7 +147,7 @@ export const PayrollRunsManagement = () => {
 
         </CardContent>
       </Card>
-<div className="auna-pagination-outside"><div className="auna-data-table-pagination"><span>Mostrando {visibleRuns.length ? (currentPage - 1) * 10 + 1 : 0}–{Math.min(currentPage * 10, visibleRuns.length)} de {visibleRuns.length} corridas</span><nav aria-label="Paginación de corridas"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div></div></>
+<div className="auna-pagination-outside"><div className="auna-data-table-pagination"><PageSizeSelect value={pageSize} onChange={size => { setPageSize(size); setPage(1) }} label="Corridas por página" /><span>Mostrando {visibleRuns.length ? (currentPage - 1) * pageSize + 1 : 0}–{Math.min(currentPage * pageSize, visibleRuns.length)} de {visibleRuns.length} corridas</span><nav aria-label="Paginación de corridas"><Button size="icon" variant="outline" aria-label="Página anterior" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}><ChevronLeft className="h-4 w-4" /></Button><span className="min-w-9 text-center">{currentPage} / {totalPages}</span><Button size="icon" variant="outline" aria-label="Página siguiente" disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}><ChevronRight className="h-4 w-4" /></Button></nav></div></div></>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent variant="auna" className="max-w-sm">

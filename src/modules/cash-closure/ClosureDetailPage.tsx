@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { LoadingState } from '@/components/shared/LoadingState'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { ArrowLeft, Download, ThumbsUp, ThumbsDown, ClipboardCheck, Scale, Clock, CreditCard, Banknote } from 'lucide-react'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { useAuth } from '@/context/useAuth'
@@ -263,7 +264,7 @@ export const ClosureDetailPage = () => {
             </tbody>
           </table>
         </div>
-        {!closure.payment_breakdowns?.length && <p className="text-sm text-muted-foreground">Sin desglose registrado.</p>}
+        {!closure.payment_breakdowns?.length && <CollectionEmptyState compact title="El desglose espera su registro" description="Este cierre no tiene un desglose por método de pago disponible para consultar." />}
       </Section>
 
       {/* Conteo de efectivo */}

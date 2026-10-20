@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { TableLoadingRows } from '@/components/shared/LoadingState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { MetricStrip } from '@/components/shared/MetricStrip'
@@ -26,7 +28,7 @@ export const ModulesSettings = ({ canManage, ...props }: { canManage: boolean } 
   const [filter, setFilter] = useState<Filter>('all')
   const [search, setSearch] = useState('')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('configuracion/modulos', {defaultPageSize:10})
   const scope = useRelatedSettingsEditor({ ...props, disabled: props.disabled || !canManage })
 
   const toggle = async (code: string, enabled: boolean) => {
@@ -63,9 +65,9 @@ export const ModulesSettings = ({ canManage, ...props }: { canManage: boolean } 
     const term = search.trim().toLocaleLowerCase('es')
     return (filter === 'all' || statusOf(module) === filter) && (!term || `${module.name} ${module.code} ${module.dependencies.join(' ')}`.toLocaleLowerCase('es').includes(term))
   }).sort((a, b) => (order === 'asc' ? 1 : -1) * a.name.localeCompare(b.name, 'es'))
-  const pageCount = Math.max(1, Math.ceil(filtered.length / 8))
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
   const currentPage = Math.min(page, pageCount)
-  const visible = filtered.slice((currentPage - 1) * 8, currentPage * 8)
+  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   return (
     <section className="config-modules" aria-label="Configuración de módulos">
@@ -95,10 +97,10 @@ export const ModulesSettings = ({ canManage, ...props }: { canManage: boolean } 
               <td className={`config-module-toggle config-module-toggle--${status}`}>{savingCode === module.code && scope.pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Switch checked={ownEnabled} disabled={!canManage || scope.disabled || module.protected || scope.pending} onCheckedChange={(checked) => toggle(module.code, checked)} aria-label={`${ownEnabled ? 'Desactivar' : 'Activar'} ${module.name}`} />}</td>
             </tr>
           })}
-          {!isLoading && !visible.length && <tr><td colSpan={5} className="config-empty">No hay módulos que coincidan con estos filtros.</td></tr>}
+          {!isLoading && !visible.length && <tr><td colSpan={5} className="config-empty"><CollectionEmptyState title="Tus módulos tendrán su espacio" description="No hay módulos disponibles en el catálogo de esta empresa." filtered={Boolean(search.trim() || filter !== 'all')} onReset={() => { setSearch(''); setFilter('all'); setPage(1) }} /></td></tr>}
         </tbody>
       </table></div></div>
-      <div className="auna-pagination-outside"><ButtonsPagination currentPage={currentPage} totalPages={pageCount} onPageChange={setPage} loading={isLoading} totalItems={filtered.length} pageSize={8} count={visible.length} itemLabel="módulos" /></div>
+      <div className="auna-pagination-outside"><ButtonsPagination currentPage={currentPage} totalPages={pageCount} onPageChange={setPage} loading={isLoading} totalItems={filtered.length} pageSize={pageSize} onPageSizeChange={setPageSize} count={visible.length} itemLabel="módulos" /></div>
       <div className="config-note"><Info className="h-5 w-5" /><span>Activar un módulo no concede permisos de usuario. Sus funciones se configuran dentro de cada módulo y los accesos se gestionan por separado.</span></div>
     </section>
   )

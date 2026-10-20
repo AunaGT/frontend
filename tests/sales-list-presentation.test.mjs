@@ -147,6 +147,7 @@ test('summary names the selected period truthfully and does not show misleading 
 })
 
 test('management uses the shared module heading, visible search and compact filters with one tabbed table', () => {
+  overrides['@/context/useTenant']={useTenant:()=>({company:{id:'A'},branch:{id:'B'}})}
   Object.assign(overrides, {
     './hooks': { useSalesData: () => ({
       filters: { searchTerm: '', statusFilter: 'all', paymentFilter: 'all', period: 'today', isGlobalSearch: false },

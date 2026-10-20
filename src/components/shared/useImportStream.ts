@@ -15,7 +15,7 @@ export function useImportStream() {
     setProgress(null)
   }
 
-  const start = async <T,>(url: string, body: unknown): Promise<T> => {
+  const start = async <T,>(url: string, body: unknown,options:{headers?:Record<string,string>}={}): Promise<T> => {
     if (request.current) throw new Error('Ya hay una importación en curso.')
     const controller = new AbortController()
     request.current = controller
@@ -23,6 +23,7 @@ export function useImportStream() {
     try {
       return await consumeImportStream(url, {
         body,
+        headers:options.headers,
         token: getAuthToken(),
         signal: controller.signal,
         onEvent: (event: ImportProgressEvent) => {

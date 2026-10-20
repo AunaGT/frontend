@@ -11,26 +11,30 @@
 /**
  * EmptyState - Reusable empty state component
  */
-import { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import './emptyState.css'
 
 interface EmptyStateProps {
   icon?: LucideIcon
   title: string
   description?: string
   action?: React.ReactNode
+  illustration?: boolean
+  size?: 'default' | 'compact'
 }
 
-export const EmptyState = ({ icon: Icon, title, description, action }: EmptyStateProps) => {
+export const EmptyState = ({ icon: Icon, title, description, action, illustration = false, size = 'default' }: EmptyStateProps) => {
   return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      {Icon && <Icon className="w-12 h-12 text-muted-foreground/50 mb-4" />}
-      <h3 className="text-lg font-medium text-foreground mb-1">{title}</h3>
+    <div className={`auna-empty-state${size === 'compact' ? ' auna-empty-state--compact' : ''}`} role={illustration ? 'status' : undefined}>
+      {illustration ? <img className="auna-empty-state-art" src="/illustrations/empty-states/workspace-flat.png" alt="" aria-hidden="true" width={size === 'compact' ? 96 : 180} height={size === 'compact' ? 64 : 120} decoding="async" />
+        : Icon && <Icon aria-hidden="true" className="w-12 h-12 text-muted-foreground/50 mb-4" />}
+      <h3 className="auna-empty-state-title">{title}</h3>
       {description && (
-        <p className="text-sm text-muted-foreground mb-4 max-w-sm">
+        <p className="auna-empty-state-description">
           {description}
         </p>
       )}
-      {action && <div className="mt-4">{action}</div>}
+      {action && <div className="auna-empty-state-action">{action}</div>}
     </div>
   )
 }

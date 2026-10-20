@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -32,7 +33,7 @@ export function AgendaPicker<T extends { id: string; name: string }>({ scope, ki
           </CommandItem>)}</CommandGroup>
           {query.isLoading && <LoadingIndicator message="Buscando…" />}
           {query.isError && <div role="alert" className="p-3 text-sm">No se pudieron cargar las opciones.<Button variant="ghost" onClick={() => void query.refetch()}>Reintentar</Button></div>}
-          {!query.isLoading && !query.isError && !rows.length && <p className="p-3 text-sm text-muted-foreground">{kind === 'services' ? 'No se encontraron servicios.' : 'No se encontraron clientes.'}{q && ' Prueba otro nombre.'}</p>}
+          {!query.isLoading && !query.isError && !rows.length && <CollectionEmptyState compact title={kind === 'services' ? 'El próximo servicio aparecerá aquí' : 'Tus clientes tendrán su lugar aquí'} description={kind === 'services' ? 'Revisa el catálogo y la disponibilidad de servicios para esta sucursal.' : 'Los contactos disponibles para esta selección aparecerán aquí.'} filtered={!!q.trim()} onReset={() => setQ('')} />}
         </CommandList>
       </Command>
       {!query.isError && needsConfiguration && <div className="space-y-2 border-t p-3 text-xs text-muted-foreground"><p>Para recibir citas, configura el servicio y habilítalo en esta sucursal.</p>{canConfigure && <Button asChild size="sm" variant="outline"><Link to="/agenda/configuracion">Configurar servicios</Link></Button>}</div>}

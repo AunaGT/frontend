@@ -7,7 +7,8 @@ test('section payload excludes every unrelated key and logo is never a name draf
   assert.deepEqual(m.sectionPayload('empresa', { company_name: 'Nueva', company_logo_url: 'https://no.invalid' }), { company_name: 'Nueva' })
   const keys = Object.values(m.SECTION_KEYS).flat()
   assert.equal(new Set(keys).size, keys.length)
-  assert.equal(m.SETTINGS_SECTIONS.length, 14)
+  for (const key of Object.keys(m.SECTION_KEYS)) assert.ok(m.SETTINGS_SECTIONS.some(section => section.id === key))
+  assert.equal(new Set(m.SETTINGS_SECTIONS.map(section => section.id)).size, m.SETTINGS_SECTIONS.length)
 })
 test('positive whole-day rules reject truncated, coercible or unsafe input', () => {
   const m = model()

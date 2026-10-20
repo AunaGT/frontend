@@ -9,6 +9,7 @@ import { LoadingIndicator, TableLoadingRows } from '@/components/shared/LoadingS
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Pagination } from '@/components/shared/Pagination'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
@@ -23,8 +24,7 @@ export default function InventoryCountListPage() {
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
-  const pageSize = 10
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventarios/lista')
   useEffect(() => {
     const timer = window.setTimeout(() => { setQ(search.trim()); setPage(1) }, 300)
     return () => window.clearTimeout(timer)
@@ -38,7 +38,7 @@ export default function InventoryCountListPage() {
   const pages = Math.max(1, Math.ceil(total / pageSize))
   const activeFilterCount = Number(Boolean(search.trim())) + Number(status !== 'all')
   useEffect(() => { if (query.data && page > pages) setPage(pages) }, [query.data, page, pages])
-  return <div className="inventory-count-page"><div className="inventory-count-content">
+  return <div className="inventory-count-page"><div className="inventory-count-content auna-page-fluid">
     <h1 className="sr-only">Sesiones de conteo</h1>
 <MetricStrip label="Resumen de conteos" loading={query.isLoading} items={[{ label: 'Sesiones', value: query.isError ? '—' : query.data?.summary?.total ?? '—' }, { label: 'En conteo', value: query.isError ? '—' : query.data?.summary?.IN_PROGRESS ?? '—' }, { label: 'Por aprobar', value: query.isError || !query.data?.summary ? '—' : query.data.summary.IN_REVIEW + query.data.summary.PENDING_SECOND_APPROVAL }, { label: 'Aprobadas', value: query.isError ? '—' : query.data?.summary?.APPROVED ?? '—' }]} />
 
@@ -59,11 +59,12 @@ export default function InventoryCountListPage() {
             <TableCell className="whitespace-nowrap">{new Date(s.created_at).toLocaleDateString(locale)}<p className="text-xs text-muted-foreground mt-1">{new Date(s.created_at).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</p></TableCell>
             <TableCell className="text-right"><Button asChild variant="outline" size="icon"><Link aria-label={`Ver conteo ${s.name || s.id.slice(0, 8)}`} to={`/inventario/inventariado/${s.id}`}><Eye className="h-4 w-4" /></Link></Button></TableCell>
           </TableRow>)}
-          {!query.isLoading && !sessions.length && <TableRow><TableCell colSpan={7} className="h-40 text-center text-muted-foreground">No hay sesiones para estos filtros.</TableCell></TableRow>}
+          {!query.isLoading && !sessions.length && <TableRow><TableCell colSpan={7}><CollectionEmptyState title="El próximo conteo empieza aquí" description="Crea una sesión para contrastar las existencias del sistema con lo que hay en tu sucursal." filtered={activeFilterCount > 0} onReset={() => { setSearch(''); setQ(''); setStatus('all'); setPage(1) }} action={hasPermission('inventory_count.create') ? <Button asChild><Link to="/inventario/inventariado/nuevo"><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Crear sesión</Link></Button> : undefined} /></TableCell></TableRow>}
         </TableBody></Table></div>
 
       </>}
     </section>
-{query.isError ? null : <div className="auna-pagination-outside">{!query.isLoading && <Pagination currentPage={page} totalPages={pages} onPageChange={setPage} totalItems={total} pageSize={pageSize} count={sessions.length} itemLabel="sesiones" loading={query.isFetching} />}</div>}</>
+{query.isError ? null : <div className="auna-pagination-outside">{!query.isLoading && <Pagination currentPage={page} totalPages={pages} onPageChange={setPage} totalItems={total} pageSize={pageSize} count={sessions.length} onPageSizeChange={setPageSize} itemLabel="sesiones" loading={query.isFetching} />}</div>}</>
   </div></div>
 }
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'

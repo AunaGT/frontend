@@ -5,6 +5,8 @@ test('new merchandise entry exposes only actual receipt methods for a paid purch
   const Page=loadReportModule('../merchandise/pages/RegisterIncomingMerchandise.tsx',{
     '@/services/api':{apiFetch:async()=>[]},
     './api':{apiFetch:async()=>[]},
+    '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'BA'}})},
+    '@/context/useAuth':{useAuth:()=>({user:{id:'actor'}})},
     '@/components/shared/ProductPicker':{ProductPicker:()=>null},
     '@/components/shared/SupplierPicker':{SupplierPicker:()=>null},
     '@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:()=>true})},

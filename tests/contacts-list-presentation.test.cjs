@@ -71,7 +71,7 @@ test('type, category and status filters go to the server, including inactive zer
 test('pagination stays outside table, shows counts and preserves responsive card sizes', () => {
   const result = render({ view: 'table' })
   const table = result.nodes.find(node => node.type === 'table')
-  assert.equal(result.uiOptions[0].defaultPageSize, 10)
+  assert.equal(result.uiOptions[0].defaultPageSize, 50)
   assert.ok(table)
   const pagination = result.nodes.find(node => node.type?.name === 'Pagination')
   assert.equal(pagination.props.totalItems, 1)

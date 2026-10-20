@@ -133,6 +133,7 @@ const SupplierCreatePage = contactsModule.pages.Create;
 const SupplierImportPage = contactsModule.pages.Import;
 const SupplierDetailPage = contactsModule.pages.Detail;
 const ProductManagement = inventoryModule.pages.Management;
+const UnitsPage=inventoryModule.pages.Units;
 const BarcodePrintPage = inventoryModule.pages.BarcodePrint;
 const ShelfPricePrintPage = inventoryModule.pages.ShelfPricePrint;
 const ProductCreatePage = inventoryModule.pages.Create;
@@ -286,6 +287,7 @@ const App = () => (
                 />
 
                 {/* Products & Inventory */}
+                <Route path={inventoryModule.paths.units} element={<PermissionRoute any={['products.view']}><UnitsPage /></PermissionRoute>} />
                 <Route
                   path={inventoryModule.paths.legacyList}
                   element={

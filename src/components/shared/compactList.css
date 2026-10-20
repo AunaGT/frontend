@@ -1,4 +1,6 @@
+.auna-page-fluid .auna-list-toolbar .compact-filter-toolbar{position:static;padding-block:0;background:transparent}
 .compact-filter-toolbar{min-width:0}
+.auna-page-fluid :is(.compact-filter-toolbar,.auna-list-toolbar){position:sticky;top:0;z-index:20;background:hsl(var(--background));padding-block:8px;scroll-margin-top:8px}
 .branches-page .metric-strip + .compact-filter-toolbar{margin-top:20px}
 .compact-filter-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-inline-start:auto;min-width:0}
 @media(max-width:639px){.compact-filter-actions{width:100%;margin-inline-start:0;justify-content:flex-end}}

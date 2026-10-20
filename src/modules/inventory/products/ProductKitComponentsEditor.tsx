@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ProductCombobox } from "@/components/shared/ProductCombobox";
+import { CollectionEmptyState } from "@/components/shared/CollectionEmptyState";
 import type { ProductBomComponentDraft } from "@/types/product";
 
 type Props = {
@@ -38,29 +39,27 @@ export function ProductKitComponentsEditor({ value, onChange, excludeProductId, 
         </Button>
       </div>
       {value.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          Agrega los productos del inventario que forman este combo (cantidad por unidad vendida).
-        </p>
+        <CollectionEmptyState compact title="A este combo le faltan sus piezas" description="Agrega los productos del inventario que forman este combo y define la cantidad por unidad vendida." action={!disabled ? <Button type="button" variant="outline" size="sm" onClick={addRow}><Plus className="mr-1 h-4 w-4" aria-hidden="true" />Agregar componente</Button> : undefined} />
       )}
       {value.map((row, index) => (
         <div key={index} className="grid sm:grid-cols-[1fr_120px_auto] gap-2 items-end border-t py-3">
           <ProductCombobox
             label="Producto"
             value={row.component_product_id || undefined}
-            onChange={(id) => updateRow(index, { component_product_id: id })}
+            onChange={(id,product) => updateRow(index, { component_product_id:id,component_name:product?.name,quantity_decimals:product?.kind==='KIT'?0:product?.unitConfiguration?.quantity_decimals??0,unit_label:product?.unitConfiguration?(product.unitConfiguration.base_unit?.label??'Unidad no disponible'):'unidades' })}
             placeholder="Buscar producto…"
           />
           <div className="space-y-1">
-            <Label htmlFor={`kit-qty-${index}`}>Cant.</Label>
+            <Label htmlFor={`kit-qty-${index}`}>Cantidad ({row.unit_label??'unidad base'})</Label>
             <Input
               id={`kit-qty-${index}`}
               type="number"
-              min={1}
-              step={1}
+              min="0.000001"
+              step="any"
               value={row.qty_per_unit}
               disabled={disabled}
               onChange={(e) =>
-                updateRow(index, { qty_per_unit: Math.max(1, Math.floor(Number(e.target.value) || 1)) })
+                updateRow(index, { qty_per_unit: e.target.value })
               }
             />
           </div>

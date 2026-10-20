@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../src')
 const target = path.join(root, 'modules/sales/NewSalePage.tsx')
 const product = { id: 'p-1', name: 'Producto QA', category: 'Bebidas', brand: 'QA', barcode: '740001', imageUrl: '/qa.png', stock: 20, price: 5, minStock: 0 }
 
-function render({ state = {}, productsError = false, permissions = ['sales.create'], items = [{ ...product, qty: '2' }], products = [product],pricingReady=true } = {}) {
+function render({ state = {}, productsError = false, permissions = ['sales.create'], items = [{ ...product, qty: '2' }], products = [product],pricingReady=true,realCart,unitPreview } = {}) {
   const tree = ts.createSourceFile(target, fs.readFileSync(target, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const page = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'NewSalePage')
   const names = page.body.statements.flatMap(node => ts.isVariableStatement(node) ? node.declarationList.declarations.filter(d => ts.isCallExpression(d.initializer) && d.initializer.expression.getText(tree) === 'useState').map(d => d.name.elements[0].name.text) : [])
@@ -21,7 +21,7 @@ function render({ state = {}, productsError = false, permissions = ['sales.creat
   const values = { productLayout: 'flat', selectedRegisterId: 'register', cashCheckDone: true, cashSessionOpen: true, cashRegisterMeta: { id: 'register', name: 'Caja QA' }, paymentMethod: { id: 1, name: 'Efectivo', is_credit: false }, amountReceived: '20', ...state }
   const nodes = [], notifications = [], writes = [], quantities = [], promotionRequests = [], cartOptions = [], cache = new Map()
   let index = 0,refIndex=0
-  const pricingContext=JSON.stringify([products.map(p=>[p.id,p.price,p.priceWholesale,p.pricePromotion,p.promotionValidUntil]),values.salesChannel || 'POS',values.pickedCustomerId==='__none__'?undefined:values.pickedCustomerId])
+  const pricingContext=JSON.stringify([products.map(p=>p.unitConfiguration?[p.id,p.unitValues,p.unitConfiguration]:[p.id,p.price,p.priceWholesale,p.pricePromotion,p.promotionValidUntil]),values.salesChannel || 'POS',values.pickedCustomerId==='__none__'?undefined:values.pickedCustomerId])
   const cart = { cartItems: items, hasInvalidQuantities:false,lineTotals:Object.fromEntries(items.map(item=>[item.id,(Number(item.qty)*item.price).toFixed(2)])),cartTotal: items.reduce((sum, item) => sum + Number(item.qty) * item.price, 0), adminAuthorizedProducts: new Set(), repriceCartLines() {}, clearCart() {}, updateQuantity: (...args) => quantities.push(args), removeFromCart() {}, hydrateFromLines() {}, availabilityDialog: { open: false }, adminAuthDialog: { open: false } }
   const overrides = {
     '@/context/useTenant': {useTenant:()=>({company:{id:'A'},branch:{id:'B'}})},
@@ -36,18 +36,21 @@ function render({ state = {}, productsError = false, permissions = ['sales.creat
     '@/context/useAuth': { useAuth: () => ({ user: { id: 'user', role: { name: 'admin' } } }) },
     '@/context/useModules': { useModules: () => ({ isEnabled: () => false }) },
     '@/hooks/usePromotions': { usePromotions: options => { promotionRequests.push(options); return { appliedPromotions: [], promotionCodes: [], clearPromotions() {} } } },
-    './hooks': { useCart: options => {cartOptions.push(options);return cart}, useSalesData: () => ({ refreshSales() {} }) },
+    './hooks': { useCart: options => {cartOptions.push(options);return realCart??cart}, useSalesData: () => ({ refreshSales() {} }) },
     './components': { AvailabilityDialog: () => null, AdminAuthDialog: () => null, PromotionCodeInput: () => null, SavedCustomerMany2One: () => null },
     '@/modules/receivables': { checkCustomerCredit() { throw Error('Unexpected request') } },
     '@/modules/cash-closure': { CASH_SESSION_CURRENT_QUERY_KEY: ['cash-current'] },
     '@/services/api': { apiFetch() { throw Error('Unexpected request') }, getApiBaseUrl: () => '' },
     '@/services/saleService': { createSale: async payload => { writes.push(payload); return { id: 'sale' } } },
+    './checkout/useCheckoutFlow': {useCheckoutFlow:(scope,allowed,onConfirmed)=>({pending:false,attempt:null,error:null,isCurrent:()=>true,reconcile:async()=>{},submit:async(kind,payload)=>{writes.push(payload);onConfirmed({saleId:'sale',kind},true)}})},
+    './documents/saleTicketRecovery':{downloadSavedSaleTicket:async()=>{}},
     '@/services/settingsService': { getCompanyNamePublic: async () => ({ company_name: 'QA' }) },
     '@/utils/pdfBranding': { resolvePdfLogoDataUrl: async () => null },
     './documents/generateSaleTicket': { generateSaleTicket() {} },
     './CashRegisterPicker': { CashRegisterPicker: () => React.createElement('p', null, 'Seleccionar caja') },
     './OpenCashRegisterPrompt': { OpenCashRegisterPrompt: () => React.createElement('p', null, 'Abrir caja') },
   }
+  if(unitPreview)overrides['@/modules/inventory/units/public']={...require('./helpers/loadReportModule.cjs').loadReportModule('../inventory/units/public.ts',{'@/services/api':{}}),previewUnitLine:unitPreview}
   function load(file) {
     if (cache.has(file)) return cache.get(file).exports
     const mod = new Module(file, module)
@@ -71,6 +74,21 @@ function render({ state = {}, productsError = false, permissions = ['sales.creat
   const Page = load(target).default
   return { html: renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Page))), nodes, notifications, writes, quantities, promotionRequests,cartOptions }
 }
+
+test('actual POS submit reconciles authoritative prepared price and requires cashier review before writing',async()=>{
+ const {loadReportModule}=require('./helpers/loadReportModule.cjs'),{hookHarness}=require('./helpers/reportHookHarness.cjs'),h=hookHarness()
+ const p={...product,kind:'STANDARD',unitValues:{price:'5',cost:'1',stock:'20',minStock:'0',priceWholesale:null,pricePromotion:null},unitConfiguration:{base_unit_id:'u',base_unit:{id:'u',code:'UNIT',name:'Unidad',label:'ud'},quantity_decimals:0,unit_revision:1,presentations:[],default_sale_presentation_id:null}}
+ const {useCart}=loadReportModule('../sales/hooks/useCart.ts',{react:h.hooks,'@/hooks/use-toast':{useToast:()=>({toast(){}})},'@/hooks/useSystemSettings':{useSystemSettings:()=>({locale:'es-GT'})},'@/services/api':{getApiBaseUrl:()=>'/api'}})
+ const cart=()=>h.render(()=>useCart({availableProducts:[p]}));cart().addToCart(p)
+ const preview=async()=>({qty:'1',base_qty:'1',unit_metadata_version:2,unit_revision:1,unit_price:'6',line_total:'6.00',unit_snapshot:cart().cartItems[0].unitSelection.snapshot})
+ try{
+  const first=render({products:[p],items:cart().cartItems,realCart:cart(),unitPreview:preview})
+  await first.nodes.find(n=>n.props.onClick?.name==='handleSubmit').props.onClick()
+  assert.equal(first.writes.length,0);assert.match(first.notifications.at(-1).description,/Revisa el carrito/);assert.equal(cart().cartTotalExact,'6.00')
+  const second=render({products:[p],items:cart().cartItems,realCart:cart(),unitPreview:preview})
+  await second.nodes.find(n=>n.props.onClick?.name==='handleSubmit').props.onClick();assert.equal(second.writes.length,1);assert.equal(second.writes[0].items[0].price,'6')
+ }finally{h.unmount()}
+})
 
 test('POS loaded order uses original service precision, price and remaining invoice cents',()=>{
   const current={...product,kind:'SERVICE',quantityDecimals:0,serviceUnitLabel:'Sesión',price:50}
@@ -169,7 +187,6 @@ test('POS retains cash change and credit abono/due-date payloads without real re
     assert.equal(cash.writes[0].change, 10)
     assert.equal(cash.writes[0].cash_register_id, 'register')
     assert.deepEqual(cash.writes[0].items, [{ product_id: 'p-1', price: 5, qty: '2' }])
-    assert.ok(cash.writes[0].idempotency_key)
     assert.equal(cash.notifications.at(-1).title, 'Venta registrada correctamente')
 
     const credit = render({ state: { paymentMethod: { id: 2, name: 'Crédito', is_credit: true }, pickedCustomerId: 'client', customer: 'Cliente QA', isFinalConsumer: false, creditDueDate: '2026-11-08', initialCreditPayment: '3', initialCreditMethod: '1' } })

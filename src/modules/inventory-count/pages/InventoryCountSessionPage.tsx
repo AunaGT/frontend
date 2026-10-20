@@ -1,3 +1,6 @@
+import {useTenant} from '@/context/useTenant'
+import {normalizeUnitDecimal,countBaseQuantity,fetchPresentations,compareUnitQuantities} from '@/modules/inventory/units/public'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -19,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CountStatusBadge } from "../components/CountStatusBadge";
 import { MetricStrip } from "@/components/shared/MetricStrip";
+import { CollectionEmptyState } from "@/components/shared/CollectionEmptyState";
 import { Pagination } from "@/components/shared/Pagination";
 import { ExportDialog } from "@/components/shared/ExportDialog";
 import { LoadingIndicator, LoadingState } from "@/components/shared/LoadingState";
@@ -87,7 +91,7 @@ export default function InventoryCountSessionPage() {
   // Se cuenta parado frente a un anaquel: se filtra por ubicación.
   const [locationId, setLocationId] = useState("all");
   const [page, setPage] = useState(0);
-  const pageSize = 10;
+  const {pageSize,setPageSize}=usePersistedListUiState('inventarios/sesion/lineas', {defaultPageSize:10});
   const [exportOpen, setExportOpen] = useState(false);
   const [exportPending, setExportPending] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -154,7 +158,7 @@ export default function InventoryCountSessionPage() {
   });
 
   const savePrimary = useCallback(
-    async (lineId: string, qty: number) => {
+    async (lineId: string, qty: number|string) => {
       await updateInventoryLine(sessionId, lineId, {
         qty_counted: qty,
       });
@@ -166,7 +170,7 @@ export default function InventoryCountSessionPage() {
   );
 
   const saveSecondary = useCallback(
-    async (lineId: string, qty: number) => {
+    async (lineId: string, qty: number|string) => {
       await updateInventoryLine(sessionId, lineId, {
         qty_counted_secondary: qty,
       });
@@ -365,9 +369,8 @@ export default function InventoryCountSessionPage() {
       </details>
       {isDraft && session._count?.lines === 0 && (
         <Card className="auna-surface">
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Aún no hay lista de productos. Pulsa «Armar lista y contar» para generarla según lo que elegiste al crear
-            el inventario.
+          <CardContent>
+            <CollectionEmptyState compact title="La lista de conteo está por tomar forma" description="Los productos se preparan según el alcance elegido al crear esta sesión." action={canStart ? <Button onClick={() => startMut.mutate()} disabled={startMut.isPending}>Armar lista y contar</Button> : undefined} />
           </CardContent>
         </Card>
       )}
@@ -441,9 +444,7 @@ export default function InventoryCountSessionPage() {
             {linesQuery.isLoading && <LoadingState columns={['Producto', 'Código', 'Ubicación', 'En sistema', 'Contado', ...(doubleCount ? ['Comprobación'] : []), 'Diferencia', 'Valor aprox.']} message="Cargando productos…" />}
             {linesQuery.isError && <div role="alert" className="p-6 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => linesQuery.refetch()}>Reintentar</Button></div>}
             {!linesQuery.isLoading && !linesQuery.isError && pendingOnly && lines.length === 0 && inProgress && (
-              <p className="text-sm text-emerald-700 dark:text-emerald-400 py-4 text-center">
-                No quedan filas sin guardar: el conteo completo ya está en el sistema.
-              </p>
+              <CollectionEmptyState compact title="Sin filas pendientes en esta consulta" description="Revisa el resto del conteo o ajusta los filtros para consultar otras líneas." filtered onReset={() => { setSearch(""); setDebouncedQ(""); setPendingOnly(false); setLocationId("all"); setPage(0); }} />
             )}
             {!linesQuery.isLoading && !linesQuery.isError && !(pendingOnly && lines.length === 0) && (
               <div className="auna-data-table-shell auna-table-embedded overflow-x-auto">
@@ -461,7 +462,7 @@ export default function InventoryCountSessionPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!lines.length && <TableRow><TableCell colSpan={doubleCount ? 9 : 8} className="h-28 text-center text-muted-foreground">No hay productos para estos filtros.</TableCell></TableRow>}
+                    {!lines.length && <TableRow><TableCell colSpan={doubleCount ? 8 : 7}><CollectionEmptyState compact title="Las líneas del conteo aparecerán aquí" description="Esta sesión no tiene productos para mostrar en la consulta actual." filtered={Boolean(search.trim() || debouncedQ) || locationId !== "all" || pendingOnly} onReset={() => { setSearch(""); setDebouncedQ(""); setPendingOnly(false); setLocationId("all"); setPage(0); }} /></TableCell></TableRow>}
                     {lines.map((row) => (
                       <LineRow
                         key={row.id}
@@ -480,7 +481,7 @@ export default function InventoryCountSessionPage() {
 
           </CardContent>
         </Card>
-<div className="auna-pagination-outside">{linesQuery.data && !linesQuery.isError && <Pagination currentPage={page + 1} totalPages={totalPages} onPageChange={value => setPage(value - 1)} totalItems={linesTotal} pageSize={pageSize} count={lines.length} itemLabel="líneas" loading={linesQuery.isFetching} />}</div></>
+<div className="auna-pagination-outside">{linesQuery.data && !linesQuery.isError && <Pagination currentPage={page + 1} totalPages={totalPages} onPageChange={value => setPage(value - 1)} totalItems={linesTotal} pageSize={pageSize} onPageSizeChange={size => { setPageSize(size); setPage(0) }} count={lines.length} itemLabel="líneas" loading={linesQuery.isFetching} />}</div></>
       )}
 
       <AlertDialog
@@ -622,7 +623,7 @@ export default function InventoryCountSessionPage() {
   );
 }
 
-function LineRow({
+export function LineRow({
   row,
   locked,
   doubleCount,
@@ -634,8 +635,8 @@ function LineRow({
   locked: boolean;
   doubleCount: boolean;
   fmt: (n: number) => string;
-  onSavePrimary: (qty: number) => Promise<void>;
-  onSaveSecondary: (qty: number) => Promise<void>;
+  onSavePrimary: (qty: number|string) => Promise<void>;
+  onSaveSecondary: (qty: number|string) => Promise<void>;
 }) {
   const [val, setVal] = useState<string>(
     row.qty_counted != null ? String(row.qty_counted) : ""
@@ -652,6 +653,14 @@ function LineRow({
   }, [row.qty_counted, row.id]);
   useEffect(() => { setVal2(row.qty_counted_secondary != null ? String(row.qty_counted_secondary) : "") }, [row.qty_counted_secondary, row.id]);
 
+  const {company,branch}=useTenant();
+  const [presentationId,setPresentationId]=useState('');
+  const [boxes,setBoxes]=useState('0');
+  const [boxes2,setBoxes2]=useState('0');
+  const presentations=useQuery({queryKey:['count-presentations',company?.id,branch?.id,row.product_id],queryFn:({signal})=>fetchPresentations({companyId:company!.id,branchId:branch!.id},row.product_id,signal),enabled:row.unit_snapshot?.version===2&&!!company&&!!branch&&!locked});
+  const presentation=row.unit_snapshot?.version===2?presentations.data?.items.find(p=>p.id===presentationId&&p.active):undefined;
+  const baseDecimals=row.unit_snapshot?.baseUnit.decimals??0;
+  const baseLabel=row.unit_snapshot?.baseUnit.label??'unidades';
   const diff = row.difference;
   const vd = row.valueDifference;
   const mismatch = row.countMismatch;
@@ -659,34 +668,34 @@ function LineRow({
   const commit = async (secondary = false) => {
     if (locked || savingRef.current) return;
     const raw = secondary ? val2 : val;
-    const n = raw.trim() === "" ? NaN : Number(raw);
-    if (!Number.isSafeInteger(n) || n < 0) {
-      if (raw.trim()) toast({ title: "Cantidad inválida", description: "Usa un número entero igual o mayor a cero.", variant: "destructive" });
-      return;
-    }
-    if (n === (secondary ? row.qty_counted_secondary : row.qty_counted)) return;
+    let n:string;
+    try{if(!raw.trim())return;n=presentation?countBaseQuantity(secondary?boxes2:boxes,presentation.factor,raw,baseDecimals)!:normalizeUnitDecimal(raw,{decimals:baseDecimals});if(n==null)throw Error('El conteo no produce una cantidad base exacta. Cuenta las unidades sueltas.')}
+    catch(error){toast({title:'Cantidad inválida',description:error instanceof Error?error.message:undefined,variant:'destructive'});return}
+    const previous=secondary?row.qty_counted_secondary:row.qty_counted;
+    if(previous!=null&&compareUnitQuantities(n,String(previous))===0)return;
     savingRef.current = true;
     setSaving(true);
-    try { await (secondary ? onSaveSecondary(n) : onSavePrimary(n)) }
+    try { await (secondary ? onSaveSecondary(n) : onSavePrimary(n));if(secondary){setBoxes2('0');setVal2(n)}else{setBoxes('0');setVal(n)} }
     catch (error) { toast({ title: "No se guardó el conteo", description: error instanceof Error ? error.message : "Reintenta guardar esta línea.", variant: "destructive" }) }
     finally { savingRef.current = false; setSaving(false) }
   };
 
   return (
     <TableRow className={mismatch ? "bg-amber-500/10" : undefined}>
-      <TableCell className="font-medium min-w-52" title={row.product.name}><div className="flex items-center gap-3">{row.product.image_url ? <img src={row.product.image_url} alt="" loading="lazy" className="h-10 w-10 rounded-lg border object-cover shrink-0" /> : <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0"><Package className="h-5 w-5 text-primary" /></span>}<span>{row.product.name}</span></div></TableCell>
+      <TableCell className="font-medium min-w-52" title={row.product.name}><div className="flex items-center gap-3">{row.product.image_url ? <img src={row.product.image_url} alt="" loading="lazy" className="h-10 w-10 rounded-lg border object-cover shrink-0" /> : <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0"><Package className="h-5 w-5 text-primary" /></span>}<span>{row.product.name}<small className="block text-muted-foreground">{baseLabel}</small></span></div>{row.unit_snapshot?.version===2&&!!presentations.data?.items.some(p=>p.active)&&!locked&&<select className="auna-control auna-control-select mt-1" aria-label={`Presentación para contar ${row.product.name}`} value={presentationId} onChange={e=>{setPresentationId(e.target.value);setBoxes('0');setBoxes2('0');setVal('0');setVal2('0')}}><option value="">Solo {baseLabel}</option>{presentations.data.items.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>}</TableCell>
       <TableCell className="text-xs text-muted-foreground">{row.product.barcode || "—"}</TableCell>
       <TableCell className="text-xs whitespace-nowrap">
         <span className="text-muted-foreground">{row.location.warehouse.name} · </span>
         <span className="font-mono">{row.location.code}</span>
       </TableCell>
-      <TableCell className="text-right tabular-nums">{row.stock_snapshot}</TableCell>
+      <TableCell className="text-right tabular-nums">{row.stock_snapshot} {baseLabel}</TableCell>
       <TableCell className="text-right">
+        {presentation&&<label className="text-xs text-muted-foreground">Cajas completas<Input aria-label={`Cajas completas de ${row.product.name}`} type="number" min="0" step="1" value={boxes} disabled={locked||saving} onChange={e=>setBoxes(e.target.value)}/></label>}
         <div className="flex justify-end gap-1">
           <Input
             type="number"
             min={0}
-            step={1}
+            step="any"
             aria-label={`Cantidad contada de ${row.product.name}`}
             className="w-20 text-right"
             disabled={locked || saving}
@@ -713,11 +722,12 @@ function LineRow({
         <TableCell
           className={`text-right ${row.qty_counted != null && row.qty_counted_secondary == null ? "bg-amber-500/15 ring-1 ring-amber-500/40 rounded-md" : ""}`}
         >
+          {presentation&&<label className="text-xs text-muted-foreground">Cajas completas (comprobación)<Input aria-label={`Cajas completas comprobadas de ${row.product.name}`} type="number" min="0" step="1" value={boxes2} disabled={locked||saving} onChange={e=>setBoxes2(e.target.value)}/></label>}
           <div className="flex justify-end gap-1">
             <Input
               type="number"
               min={0}
-              step={1}
+              step="any"
               aria-label={`Comprobación de ${row.product.name}`}
               className="w-20 text-right"
               disabled={locked || saving}
@@ -742,9 +752,9 @@ function LineRow({
         </TableCell>
       )}
       <TableCell
-        className={`text-right tabular-nums ${diff != null && diff < 0 ? "text-amber-700 dark:text-amber-400" : ""} ${diff != null && diff > 0 ? "text-emerald-700 dark:text-emerald-400" : ""}`}
+        className={`text-right tabular-nums ${diff != null && compareUnitQuantities(String(diff),'0')<0 ? "text-amber-700 dark:text-amber-400" : ""} ${diff != null && compareUnitQuantities(String(diff),'0')>0 ? "text-emerald-700 dark:text-emerald-400" : ""}`}
       >
-        {diff != null ? (diff > 0 ? `+${diff}` : diff) : "—"}
+        {diff != null ? (compareUnitQuantities(String(diff),'0')>0 ? `+${diff}` : diff) : "—"}
       </TableCell>
       <TableCell className="text-right text-sm tabular-nums">
         {vd != null ? fmt(Number(vd)) : "—"}

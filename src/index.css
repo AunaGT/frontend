@@ -151,6 +151,25 @@ Todos los colores DEBEN ser HSL.
   min-width: 0;
   min-height: calc(100dvh - 64px);
 }
+.auna-app-shell {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.auna-app-shell > .auna-topbar { flex-shrink: 0; }
+.auna-app-shell > .auna-app-content {
+  min-height: 0;
+  overflow: auto;
+  scroll-padding-block: 140px 100px;
+}
+@media print {
+  .auna-app-shell, .auna-app-shell > .auna-app-content {
+    height: auto;
+    overflow: visible;
+  }
+  .auna-app-shell .auna-page-fluid :is(.auna-list-toolbar, .compact-filter-toolbar, .auna-pagination-outside, .auna-data-table-pagination, .users-footer) { position: static; }
+  .auna-app-shell .auna-page-fluid .auna-surface-flat:has(> .auna-data-table-pagination:only-child) { position: static; }
+}
 
 /*
  * Lienzo compartido de las vistas ya migradas. Mantiene el mismo fondo del

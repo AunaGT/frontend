@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 /**
  * Detalle de producto organizado por tareas, con edición agrupada.
  */
@@ -7,7 +8,7 @@ import { ServiceScheduleFields } from '@/modules/appointments/components/Service
 import { useServiceScheduleDraft } from '@/modules/appointments/useServiceScheduleDraft'
 import { useDraftGuard } from '@/modules/appointments/components/DraftGuard'
 import { ProductCommercialHistory } from './ProductCommercialHistory'
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -47,11 +48,15 @@ import { ProductKitSection } from './ProductKitSection'
 import { ProductLotsSection } from './ProductLotsSection'
 import { ProductLocationsSection } from './ProductLocationsSection'
 import { ProductDetailSummary } from './ProductDetailSummary'
-import { MetricStrip } from '@/components/shared/MetricStrip'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import '@/components/shared/recordEditLayout.css'
+import {UnitSettingsFields} from '../units/UnitSettingsFields'
+import {useUnitCatalog} from '../units/useUnitCatalog'
+import {exactProductValues,unitsDraft,emptyUnitsDraft,productDecimalPayload,fetchPresentations,savePresentation,archivePresentation,formatUnitDecimal,formatUnitMoney,unitProductMetrics} from '../units/public'
+import {presentationDraft,presentationInput} from '../units/model'
+import type {ProductUnitsDraft,PresentationDraft} from '../units/types'
 
 type CategoryItem = { id: number | string; name: string }
 
@@ -78,11 +83,16 @@ export default function ProductDetailPage() {
   const hasEditPermission = hasPermission('products.edit')
   const canDelete = hasPermission('products.delete')
   const canViewCost = hasPermission('products.create')
-  const { locale, currencyCode, inventoryServicesEnabled } = useSystemSettings()
+  const { locale, currencyCode, inventoryServicesEnabled,inventoryUnitsEnabled } = useSystemSettings()
+  const unitCatalog=useUnitCatalog(inventoryUnitsEnabled)
+  const contextKey=JSON.stringify([id,unitCatalog.scope.companyId,unitCatalog.scope.branchId]),liveContext=useRef(contextKey),loadedContext=useRef(contextKey),skipScalarReset=useRef(false),unitsInFlight=useRef(false),imageOperation=useRef(0)
+  liveContext.current=contextKey
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
 
-  const { data: suppliersData } = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
-  const { data: categoriesData } = useCategories()
+  const suppliersQuery = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
+  const { data: suppliersData } = suppliersQuery
+  const categoriesQuery = useCategories()
+  const { data: categoriesData } = categoriesQuery
   const suppliers = useMemo(() => suppliersData?.items ?? [], [suppliersData])
   const categories = useMemo((): CategoryItem[] => {
     if (!categoriesData) return []
@@ -93,50 +103,65 @@ export default function ProductDetailPage() {
   const [rawProduct, setRawProduct] = useState<ApiProduct | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const updateMutation = useUpdateProduct()
-  const { mutateAsync: updateProductAsync, isPending: isSaving } = updateMutation
+  const { mutateAsync: updateProductAsync } = updateMutation
   const deleteMutation = useDeleteProduct()
   const { mutateAsync: deleteProductAsync, isPending: deleteIsLoading } = deleteMutation
 
-  const { branch, branches } = useTenant()
+  const { branch, branches,registerTenantExitGuard } = useTenant()
   const { mutateAsync: removeFromBranchAsync, isPending: removeBranchIsLoading } = useRemoveProductFromBranch()
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isBranchDialogOpen, setIsBranchDialogOpen] = useState(false)
 
   useEffect(() => {
+    const controller=new AbortController(),owner=contextKey
+    imageOperation.current++;setIsUploadingImage(false)
+    liveContext.current=owner
+    setRawProduct(null);setBaseLocked(null);setUnitsError('');setUnitsBusy(false);setEditUnits(emptyUnitsDraft())
     const load = async () => {
       if (!id) return
       setIsLoading(true)
       try {
-        const data = await fetchProductById(id)
+        const data = await fetchProductById(id,{signal:controller.signal,scope:unitCatalog.scope})
+        if(liveContext.current!==owner||controller.signal.aborted)return
+        loadedContext.current=owner
         setRawProduct(data)
+        if(inventoryUnitsEnabled){
+          const configuration=await fetchPresentations(unitCatalog.scope,id,controller.signal)
+          if(liveContext.current!==owner||controller.signal.aborted)return
+          setBaseLocked(configuration.base_unit_locked)
+        }
       } catch (e) {
+        if(liveContext.current!==owner||controller.signal.aborted)return
+        setUnitsError((e as Error).message)
         toast({
           title: 'Error',
           description: (e as Error)?.message ?? 'No se pudo cargar el producto',
           variant: 'destructive',
         })
       } finally {
-        setIsLoading(false)
+        if(liveContext.current===owner&&!controller.signal.aborted)setIsLoading(false)
       }
     }
     load()
-  }, [id, toast])
+    return()=>{imageOperation.current++;controller.abort();if(liveContext.current===owner)liveContext.current='disposed'}
+  }, [contextKey,inventoryUnitsEnabled])
 
   const reloadProduct = async () => {
     if (!id) return
-    const data = await fetchProductById(id)
-    setRawProduct(data)
+    const owner=contextKey
+    const data = await fetchProductById(id,{scope:unitCatalog.scope})
+    if(liveContext.current===owner)setRawProduct(data)
   }
 
   const product: Product | null = useMemo(
-    () => (rawProduct ? adaptApiProduct(rawProduct) : null),
-    [rawProduct]
+    () => (rawProduct&&loadedContext.current===contextKey ? adaptApiProduct(rawProduct) : null),
+    [rawProduct,contextKey]
   )
   const isService = product?.kind === 'SERVICE'
   const agenda = useServiceScheduleDraft(isService, id)
   const serviceReadOnly = isService && !inventoryServicesEnabled
-  const canEdit = hasEditPermission && !serviceReadOnly
+  const canEdit = hasEditPermission && !serviceReadOnly && unitCatalog.canWrite
 
   const [isEditing, setIsEditing] = useState(() => canEdit && searchParams.get('editar') === '1')
   useEffect(() => { if (!canEdit) setIsEditing(false) }, [canEdit])
@@ -169,30 +194,40 @@ export default function ProductDetailPage() {
   const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [editServiceUnit,setEditServiceUnit] = useState('')
   const [editQuantityDecimals,setEditQuantityDecimals] = useState('0')
-  const agendaGuard = useDraftGuard(isEditing && !!agenda.dirty)
+  const [baseLocked,setBaseLocked]=useState<boolean|null>(null),[unitsBusy,setUnitsBusy]=useState(false),[unitsError,setUnitsError]=useState(''),[editUnits,setEditUnits]=useState<ProductUnitsDraft>(emptyUnitsDraft)
+  const isSaving=updateMutation.isPending||unitsBusy
+  const originalExact=product?exactProductValues(product):null
+  const scalarDirty=!!product&&[editName!==product.name,editPrice!==originalExact.price,editPriceWholesale!==(originalExact.priceWholesale??''),editPricePromotion!==(originalExact.pricePromotion??''),editStock!==originalExact.stock,editCost!==originalExact.cost,editMinStock!==originalExact.minStock,editDescription!==product.description,editBarcode!==product.barcode,editBrand!==product.brand,editSize!==product.size,editAvailableForSale!==(product.availableForSale!==false),editTracksExpiry!==(product.tracksExpiry===true),editCategoryId!==String(rawProduct?.category_id??''),editSupplierId!==String(rawProduct?.supplier_id??''),editImageUrl!==product.imageUrl,editServiceUnit!==(product.serviceUnitLabel??''),editQuantityDecimals!==String(product.quantityDecimals??0),editPromotionUntil!==(product.promotionValidUntil?.slice(0,16)??'')].some(Boolean)
+  const originalUnits=unitsDraft(product?.unitConfiguration??product?.baseUnitConfiguration)
+  const unitsDirty=JSON.stringify(editUnits)!==JSON.stringify(originalUnits)
+  const presentationChanges=JSON.stringify(editUnits.presentations)!==JSON.stringify(originalUnits.presentations)
+  const agendaGuard = useDraftGuard(isUploadingImage||isEditing && (!!agenda.dirty||scalarDirty||unitsDirty),registerTenantExitGuard,contextKey)
 
   useEffect(() => {
     if (!product) return
+    if(skipScalarReset.current){skipScalarReset.current=false;return}
+    const exact=exactProductValues(product)
+    setEditUnits(unitsDraft(product.unitConfiguration??product.baseUnitConfiguration))
     setEditName(product.name ?? '')
     setEditServiceUnit(product.serviceUnitLabel ?? '')
     setEditQuantityDecimals(String(product.quantityDecimals ?? 0))
-    setEditPrice(String(product.price ?? ''))
+    setEditPrice(exact.price)
     setEditPriceWholesale(
-      product.priceWholesale != null && product.priceWholesale > 0 ? String(product.priceWholesale) : ''
+      exact.priceWholesale??''
     )
     setEditPricePromotion(
-      product.pricePromotion != null && product.pricePromotion > 0 ? String(product.pricePromotion) : ''
+      exact.pricePromotion??''
     )
     setEditPromotionUntil(
       product.promotionValidUntil ? String(product.promotionValidUntil).slice(0, 16) : ''
     )
-    setEditStock(String(product.stock ?? ''))
+    setEditStock(exact.stock)
     setEditBrand(product.brand ?? '')
     setEditSize(product.size ?? '')
     setEditBarcode(product.barcode ?? '')
     setEditDescription(product.description ?? '')
-    setEditCost(String(product.cost ?? ''))
-    setEditMinStock(String(product.minStock ?? ''))
+    setEditCost(exact.cost)
+    setEditMinStock(exact.minStock)
     setEditImageUrl(product.imageUrl ?? undefined)
     const rawCategoryId = (rawProduct as { category_id?: string | number } | null)?.category_id
     setEditCategoryId(rawCategoryId ? String(rawCategoryId) : undefined)
@@ -268,6 +303,7 @@ export default function ProductDetailPage() {
   }
 
   const handleEditProductImageFile = async (file: File) => {
+    const owner=contextKey,operation=++imageOperation.current
     try {
       setIsUploadingImage(true)
       if (file.size > 5 * 1024 * 1024) {
@@ -290,6 +326,7 @@ export default function ProductDetailPage() {
         url?: string
         message?: string
       }
+      if(liveContext.current!==owner||imageOperation.current!==operation)return
       if (!response.ok) {
         const msg = typeof data.message === 'string' ? data.message : 'No se pudo subir la imagen'
         throw new Error(msg)
@@ -299,38 +336,41 @@ export default function ProductDetailPage() {
       setEditImageUrl(imageUrl)
       toast({ title: 'Imagen actualizada', description: 'La imagen se subió correctamente.' })
     } catch (error) {
+      if(liveContext.current!==owner||imageOperation.current!==operation)return
       toast({
         title: 'Error',
         description: (error as Error)?.message ?? 'Error al subir la imagen',
         variant: 'destructive',
       })
     } finally {
-      setIsUploadingImage(false)
+      if(liveContext.current===owner&&imageOperation.current===operation)setIsUploadingImage(false)
     }
   }
 
   const resetEditState = () => {
     if (!product || !rawProduct) return
+    const exact=exactProductValues(product)
+    setEditUnits(unitsDraft(product.unitConfiguration??product.baseUnitConfiguration))
     setEditServiceUnit(product.serviceUnitLabel ?? '')
     setEditQuantityDecimals(String(product.quantityDecimals ?? 0))
     setEditName(product.name ?? '')
-    setEditPrice(String(product.price ?? ''))
+    setEditPrice(exact.price)
     setEditPriceWholesale(
-      product.priceWholesale != null && product.priceWholesale > 0 ? String(product.priceWholesale) : ''
+      exact.priceWholesale??''
     )
     setEditPricePromotion(
-      product.pricePromotion != null && product.pricePromotion > 0 ? String(product.pricePromotion) : ''
+      exact.pricePromotion??''
     )
     setEditPromotionUntil(
       product.promotionValidUntil ? String(product.promotionValidUntil).slice(0, 16) : ''
     )
-    setEditStock(String(product.stock ?? ''))
+    setEditStock(exact.stock)
     setEditBrand(product.brand ?? '')
     setEditSize(product.size ?? '')
     setEditBarcode(product.barcode ?? '')
     setEditDescription(product.description ?? '')
-    setEditCost(String(product.cost ?? ''))
-    setEditMinStock(String(product.minStock ?? ''))
+    setEditCost(exact.cost)
+    setEditMinStock(exact.minStock)
     setEditImageUrl(product.imageUrl ?? undefined)
     const rawCategoryId = (rawProduct as { category_id?: string | number } | null)?.category_id
     setEditCategoryId(rawCategoryId ? String(rawCategoryId) : undefined)
@@ -339,6 +379,27 @@ export default function ProductDetailPage() {
     setEditAvailableForSale(product.availableForSale !== false)
     setEditTracksExpiry(product.tracksExpiry === true)
   }
+
+  const mutatePresentation=async(row:PresentationDraft,archive=false)=>{
+    if(!canEdit||!isEditing||!rawProduct?.base_unit_id||isSaving||unitsInFlight.current||liveContext.current!==contextKey)return
+    const owner=contextKey
+    unitsInFlight.current=true;setUnitsBusy(true);setUnitsError('')
+    try{
+      const result=archive&&row.id?await archivePresentation(unitCatalog.scope,product.id,row.id,rawProduct.unit_revision??1):await savePresentation(unitCatalog.scope,product.id,rawProduct.unit_revision??1,presentationInput(row,product.kind),row.id)
+      if(liveContext.current!==owner)return
+      const saved=result.presentation
+      const nextDefault=(old:string|null|undefined,enabled:boolean)=>old===row.id?(saved.active&&enabled?saved.id:null):old??null
+      skipScalarReset.current=true
+      setRawProduct(previous=>previous?{...previous,unit_revision:result.unit_revision,base_unit_locked:true,presentations:row.id?(previous.presentations??[]).flatMap(p=>p.id===row.id?saved.active?[saved]:[]:[p]):[...(previous.presentations??[]),...(saved.active?[saved]:[])],default_purchase_presentation_id:nextDefault(previous.default_purchase_presentation_id,saved.purchase_enabled),default_sale_presentation_id:nextDefault(previous.default_sale_presentation_id,saved.sale_enabled)}:previous)
+      setEditUnits(previous=>({...previous,presentations:previous.presentations.flatMap(p=>p.key===row.key?saved.active?[presentationDraft(saved)]:[]:[p]),defaultPurchaseKey:previous.defaultPurchaseKey===row.key?(saved.active&&saved.purchase_enabled?saved.id:null):previous.defaultPurchaseKey,defaultSaleKey:previous.defaultSaleKey===row.key?(saved.active&&saved.sale_enabled?saved.id:null):previous.defaultSaleKey}))
+      setBaseLocked(true)
+      toast({title:archive?'Presentación archivada':'Presentación guardada',description:archive?'Los registros anteriores conservan su presentación.':'Los nuevos registros usarán la versión guardada.'})
+    }catch(error){if(liveContext.current===owner)setUnitsError((error as Error).message);throw error}
+    finally{unitsInFlight.current=false;if(liveContext.current===owner)setUnitsBusy(false)}
+  }
+  const exact=exactProductValues(product),advanced=!!product.unitConfiguration
+  const displayMoney=(raw:string)=>formatUnitMoney(raw,locale,currencyCode)
+  const measuredMetrics=advanced?unitProductMetrics(exact.price,exact.cost,exact.stock):null
 
   return (
     <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-4 px-4 py-5 sm:px-8">
@@ -364,12 +425,6 @@ export default function ProductDetailPage() {
             </DropdownMenu>}
           </>
         } />
-        {!isEditing && <MetricStrip label="Precio y existencias" items={[
-          { label: 'Precio de venta', value: fmt(product.price) },
-          ...(isService ? [{label:'Unidad de cobro',value:product.serviceUnitLabel || '—'},{label:'Decimales',value:product.quantityDecimals ?? 0}] : [
-          { label: 'Stock actual', value: `${product.stock} unidades` },
-          { label: 'Stock mínimo', value: `${product.minStock} unidades` }]),
-        ]} />}
       </header>
       <AlertDialog open={isBranchDialogOpen} onOpenChange={setIsBranchDialogOpen}>
         <AlertDialogContent variant="auna">
@@ -442,13 +497,13 @@ export default function ProductDetailPage() {
         <fieldset className="record-edit-panel">
           <legend className="sr-only">Identificación</legend>
           <h3 className="record-edit-heading" aria-hidden="true"><Info />Identificación</h3>
-          <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <div className="grid items-start gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
             <div className="space-y-1.5">
               <Label>Fotografía</Label>
-              <div className="flex items-start gap-3">
+              <div className="space-y-2">
               {(editImageUrl || product.imageUrl) && <img src={editImageUrl ?? product.imageUrl} alt={product.name} width={80} height={80} className="h-20 w-20 shrink-0 rounded-lg border object-contain p-2" />}
               <ImageUploadDropzone
-                className="min-w-0 flex-1"
+                className="min-w-0 [&_.auna-file-dropzone]:min-h-0 [&_.auna-file-dropzone]:py-3 [&_.auna-file-dropzone_svg]:h-5 [&_.auna-file-dropzone_svg]:w-5"
                 onFileSelect={file => void handleEditProductImageFile(file)}
                 onReject={message => toast({ title: 'Archivo no válido', description: message, variant: 'destructive' })}
                 disabled={isUploadingImage || isSaving} isUploading={isUploadingImage}
@@ -479,7 +534,7 @@ export default function ProductDetailPage() {
                           <PopoverContent className="w-[320px] p-0">
                             <Command>
                               <CommandInput placeholder="Buscar categoría..." />
-                              <CommandEmpty>No se encontraron categorías.</CommandEmpty>
+                              {categoriesQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando categorías…</p> : categoriesQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar categorías.<Button type="button" variant="ghost" onClick={() => void categoriesQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={categories.length > 0} title="Las categorías del catálogo aparecerán aquí" description="Configura las categorías para organizar tus registros." /></CommandEmpty>}
                               <CommandList>
                                 <CommandGroup>
                                   <ScrollArea className="h-48">
@@ -513,7 +568,7 @@ export default function ProductDetailPage() {
                           <PopoverContent className="w-[320px] p-0">
                             <Command>
                               <CommandInput placeholder="Buscar proveedor..." />
-                              <CommandEmpty>No se encontraron proveedores.</CommandEmpty>
+                              {suppliersQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando proveedores…</p> : suppliersQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar proveedores.<Button type="button" variant="ghost" onClick={() => void suppliersQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={suppliers.length > 0} title="Aquí aparecerán tus proveedores" description="Registra un contacto de tipo proveedor para asociarlo a tus productos." /></CommandEmpty>}
                               <CommandList>
                                 <CommandGroup>
                                   <ScrollArea className="h-48">
@@ -553,7 +608,7 @@ export default function ProductDetailPage() {
               ...(canViewCost && !isService ? [{ id: 'edit-cost', label: 'Costo', value: editCost, set: setEditCost }] : []),
             ].map(field => <div key={field.id} className="space-y-1.5">
               <Label htmlFor={field.id}>{field.label}</Label>
-              <Input id={field.id} type="number" value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
+              <Input id={field.id} type="text" inputMode="decimal" value={field.value} onChange={event => field.set(event.target.value)} disabled={isSaving} />
             </div>)}
             <div className="space-y-1.5 sm:col-span-2"><Label htmlFor="edit-promotion-until">Promoción hasta</Label>
               <Input id="edit-promotion-until" type="datetime-local" value={editPromotionUntil} onChange={event => setEditPromotionUntil(event.target.value)} disabled={isSaving} />
@@ -564,9 +619,9 @@ export default function ProductDetailPage() {
           <legend className="sr-only">Control de inventario</legend>
           <h3 className="record-edit-heading" aria-hidden="true"><Boxes />{isService ? 'Condiciones del servicio' : 'Control de inventario'}</h3>
           <div className="grid items-start gap-4 sm:grid-cols-2">
-            {isService ? <ServiceQuantityFields unit={editServiceUnit} decimals={editQuantityDecimals} onUnitChange={setEditServiceUnit} onDecimalsChange={setEditQuantityDecimals} disabled={isSaving} /> : <>
-            <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual</Label><Input id="edit-stock" type="number" value={editStock} onChange={event => setEditStock(event.target.value)} disabled={isSaving} /></div>
-            <div className="space-y-1.5"><Label htmlFor="edit-min-stock">Stock mínimo</Label><Input id="edit-min-stock" type="number" value={editMinStock} onChange={event => setEditMinStock(event.target.value)} disabled={isSaving} /></div>
+            {isService ? <ServiceQuantityFields unit={editServiceUnit} decimals={editQuantityDecimals} onUnitChange={setEditServiceUnit} onDecimalsChange={setEditQuantityDecimals} disabled={isSaving||!!editUnits.baseUnitId} /> : <>
+            <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual{rawProduct?.base_unit?.label?` (${rawProduct.base_unit.label})`:''}</Label><Input id="edit-stock" type="text" inputMode="decimal" value={editStock} onChange={event => setEditStock(event.target.value)} disabled={isSaving} /></div>
+            <div className="space-y-1.5"><Label htmlFor="edit-min-stock">Stock mínimo{rawProduct?.base_unit?.label?` (${rawProduct.base_unit.label})`:''}</Label><Input id="edit-min-stock" type="text" inputMode="decimal" value={editMinStock} onChange={event => setEditMinStock(event.target.value)} disabled={isSaving} /></div>
             </>}
             <div className="space-y-2">
               <div className="flex items-center justify-between gap-3"><Label htmlFor="edit-available-sale">Disponible para la venta</Label><Switch id="edit-available-sale" checked={editAvailableForSale} onCheckedChange={setEditAvailableForSale} disabled={isSaving} /></div>
@@ -579,35 +634,37 @@ export default function ProductDetailPage() {
           </div>
         </fieldset>
         </div>
+        <div className="record-edit-panel">{unitsError&&<p role="alert" className="text-sm text-destructive">{unitsError}</p>}<UnitSettingsFields enabled={inventoryUnitsEnabled} kind={product.kind??'STANDARD'} units={unitCatalog.units} value={editUnits} onChange={setEditUnits} disabled={isSaving||!canEdit||unitCatalog.isLoading||unitCatalog.isError} baseLocked={baseLocked!==false} allowPresentationDrafts={!!rawProduct?.base_unit_id} basePrice={editPrice} locale={locale} onSavePresentation={rawProduct?.base_unit_id?row=>mutatePresentation(row):undefined} onArchivePresentation={row=>mutatePresentation(row,true)} />{presentationChanges&&<p role="status" className="mt-3 text-sm text-muted-foreground">Guarda o quita las presentaciones modificadas antes de guardar los demás cambios.</p>}</div>
         {agenda.allowed && <fieldset className="record-edit-panel"><legend className="sr-only">Agenda del servicio</legend>{agenda.error ? <p role="alert" className="text-destructive">No se pudo cargar Agenda; recarga antes de guardar.</p> : <ServiceScheduleFields value={agenda.value} onChange={agenda.change} directory={agenda.directory} disabled={isSaving || !agenda.ready} errors={{}} />}</fieldset>}
         <div className="record-edit-actions">
           <Button variant="outline" onClick={() => agendaGuard.request(() => { setIsEditing(false); resetEditState(); agenda.reset(); })} disabled={isSaving || isUploadingImage}>Cancelar cambios</Button>
-          <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={isSaving || isUploadingImage || !agenda.ready}
+          <Button className="bg-brand-orange text-white hover:bg-brand-orange-strong" disabled={isSaving || isUploadingImage || !agenda.ready || presentationChanges || !canEdit}
                 onClick={async () => {
-                  if (!product || !rawProduct) return
+                  if (!product || !rawProduct || !canEdit || isSaving || presentationChanges || liveContext.current!==contextKey) return
+                  const owner=contextKey
                   try {
-                    const numeric = (v: string) => (v ? Number(v) : undefined)
+                    const unitFieldsChanged=editUnits.baseUnitId!==originalUnits.baseUnitId||editUnits.quantityDecimals!==originalUnits.quantityDecimals||editUnits.defaultPurchaseKey!==originalUnits.defaultPurchaseKey||editUnits.defaultSaleKey!==originalUnits.defaultSaleKey
+                    const advanced=inventoryUnitsEnabled&&!!(product.unitConfiguration||unitFieldsChanged&&editUnits.baseUnitId)
+                    const values=productDecimalPayload({price:editPrice,priceWholesale:editPriceWholesale,pricePromotion:editPricePromotion,stock:editStock,minStock:editMinStock,cost:editCost===exactProductValues(product).cost?undefined:editCost},{kind:product.kind??'STANDARD',quantityDecimals:advanced?Number(editUnits.quantityDecimals):Number(editQuantityDecimals),advanced},locale)
+                    if(values.price==='0')throw new Error('El precio debe ser mayor a cero')
+                    const unitPayload=advanced?{unit_revision:rawProduct.unit_revision??1,...(unitFieldsChanged?{base_unit_id:editUnits.baseUnitId,quantity_decimals:Number(editUnits.quantityDecimals),default_purchase_presentation_id:editUnits.defaultPurchaseKey,default_sale_presentation_id:editUnits.defaultSaleKey}:{})}:{}
                     if (isService && (!editServiceUnit.trim() || !/^[0-4]$/.test(editQuantityDecimals))) throw new Error('Ingresa una unidad de cobro y de 0 a 4 decimales')
                     const rawCategoryId = (rawProduct as { category_id?: string | number } | null)?.category_id
                     const rawSupplierId = (rawProduct as { supplier_id?: string | number } | null)?.supplier_id
                     const updated = await updateProductAsync({
                       id: product.id,
                       payload: {
+                        ...values,
+                        ...unitPayload,
                         id: product.id,
                         name: editName.trim() || product.name,
                         category_id: editCategoryId ?? rawCategoryId ?? '',
                         ...(!isService ? {
                         brand: editBrand || undefined,
                         size: editSize || undefined,
-                        stock: numeric(editStock),
-                        min_stock: numeric(editMinStock),
-                        cost: numeric(editCost),
                         supplier_id: editSupplierId ?? (rawSupplierId ? String(rawSupplierId) : undefined),
                         tracks_expiry: editTracksExpiry,
-                        } : {service_unit_label:editServiceUnit.trim(),quantity_decimals:Number(editQuantityDecimals)}),
-                        price: numeric(editPrice),
-                        price_wholesale: editPriceWholesale.trim() ? Number(editPriceWholesale) : null,
-                        price_promotion: editPricePromotion.trim() ? Number(editPricePromotion) : null,
+                        } : {service_unit_label:editServiceUnit.trim(),quantity_decimals:advanced?Number(editUnits.quantityDecimals):Number(editQuantityDecimals)}),
                         promotion_valid_until: editPromotionUntil.trim()
                           ? new Date(editPromotionUntil).toISOString()
                           : null,
@@ -618,11 +675,13 @@ export default function ProductDetailPage() {
                         ...agenda.payload,
                       },
                     })
+                    if(liveContext.current!==owner)return
                     setRawProduct(updated)
                     await agenda.reload()
                     setIsEditing(false)
                     toast({ title: 'Producto actualizado', description: 'Los cambios se guardaron correctamente.' })
                   } catch (error) {
+                    if(liveContext.current!==owner)return
                     toast({
                       title: 'Error',
                       description: (error as Error)?.message ?? 'No se pudieron guardar los cambios',
@@ -643,40 +702,44 @@ export default function ProductDetailPage() {
           </TabsList>
         </div>
         {!isService && product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
-          <ProductLotsSection productId={id} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
+          <ProductLotsSection productId={id} baseDecimals={product.unitConfiguration?.quantity_decimals??0} baseLabel={product.unitConfiguration?.base_unit?.label??'unidades'} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
         </TabsContent>}
-        {!isService && <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} /></TabsContent>}
+        {!isService && <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} baseDecimals={product.unitConfiguration?.quantity_decimals??0} baseLabel={product.unitConfiguration?.base_unit?.label??'unidades'} /></TabsContent>}
         <TabsContent value="information" forceMount hidden={detailTab !== 'information'} className="mt-5 data-[state=inactive]:hidden">
+          <section className="auna-surface space-y-4 rounded-xl border p-4">
+          <UnitSettingsFields enabled={inventoryUnitsEnabled} kind={product.kind??'STANDARD'} units={[...(rawProduct?.base_unit?[rawProduct.base_unit]:[]),...unitCatalog.units]} value={unitsDraft(product.unitConfiguration??product.baseUnitConfiguration)} onChange={()=>{}} readOnly basePrice={exactProductValues(product).price} locale={locale} />
           <div className="grid items-start gap-4 lg:grid-cols-2">
-            <section className="auna-surface min-w-0 space-y-4 rounded-xl border p-5" aria-labelledby="product-information-heading">
-              <h2 id="product-information-heading" className="text-lg font-semibold">Información del producto</h2>
-              <dl className="grid gap-4 sm:grid-cols-2">
+            <section className="min-w-0 space-y-3 border-t pt-3" aria-labelledby="product-information-heading">
+              <h2 id="product-information-heading" className="text-base font-semibold">Información del producto</h2>
+              <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
                 {[
                   ['Categoría', categoryLabel || 'Sin categoría'],
                   ...(isService ? [['Unidad de cobro',product.serviceUnitLabel || '—'],['Decimales de cantidad',String(product.quantityDecimals ?? 0)]] : [['Proveedor', supplierLabel || 'Sin proveedor']]),
                   ['Código de barras', product.barcode || '—'],
                   ['Disponible para venta', product.availableForSale !== false ? 'Sí' : 'No'],
-                  ...(!isService ? [['Control de caducidad', product.tracksExpiry ? 'Sí' : 'No']] : []),
+                  ...(!isService ? [['Stock actual',`${advanced?formatUnitDecimal(exact.stock,locale):product.stock} ${rawProduct?.base_unit?.label??'unidades'}`],['Stock mínimo',`${advanced?formatUnitDecimal(exact.minStock,locale):product.minStock} ${rawProduct?.base_unit?.label??'unidades'}`],['Control de caducidad', product.tracksExpiry ? 'Sí' : 'No']] : []),
                 ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium">{value}</dd></div>)}
               </dl>
-              <div className="border-t pt-4"><h3 className="text-sm font-medium">Descripción</h3><p className="mt-2 whitespace-pre-line break-words text-sm text-muted-foreground">{product.description || 'Sin descripción'}</p></div>
+              {product.description&&<div><h3 className="text-sm text-muted-foreground">Descripción</h3><p className="mt-1 whitespace-pre-line break-words text-sm">{product.description}</p></div>}
             </section>
-            <section className="auna-surface min-w-0 space-y-4 rounded-xl border p-5" aria-labelledby="product-prices-heading">
-              <h2 id="product-prices-heading" className="text-lg font-semibold">Precios y rentabilidad</h2>
-              <dl className="grid gap-4 sm:grid-cols-2">
+            <section className="min-w-0 space-y-3 border-t pt-3" aria-labelledby="product-prices-heading">
+              <h2 id="product-prices-heading" className="text-base font-semibold">Precios y rentabilidad</h2>
+              <dl className="grid gap-x-4 gap-y-3 sm:grid-cols-3">
                 {[
-                  ['Precio mayoreo', product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : 'No configurado'],
-                  ['Precio promoción', product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : 'No configurado'],
+                  ['Precio de venta',advanced?displayMoney(exact.price):fmt(product.price)],
+                  ['Precio mayoreo', advanced?(exact.priceWholesale==null?'No configurado':displayMoney(exact.priceWholesale)):product.priceWholesale != null && product.priceWholesale > 0 ? fmt(product.priceWholesale) : 'No configurado'],
+                  ['Precio promoción', advanced?(exact.pricePromotion==null?'No configurado':displayMoney(exact.pricePromotion)):product.pricePromotion != null && product.pricePromotion > 0 ? fmt(product.pricePromotion) : 'No configurado'],
                   ['Promoción hasta', product.promotionValidUntil ? new Date(product.promotionValidUntil).toLocaleString(locale || 'es-GT') : 'Sin fecha'],
                   ...(canViewCost && !isService ? [
-                    ['Costo', fmt(product.cost)],
-                    ['Margen de ganancia', `${fmt(product.price - product.cost)} (${product.price > 0 ? (((product.price - product.cost) / product.price) * 100).toFixed(1) : '0'}%)`],
-                    ['Valor de inventario', fmt(product.stock * product.cost)],
+                    ['Costo', advanced?`${formatUnitDecimal(exact.cost,locale)} ${currencyCode}`:fmt(product.cost)],
+                    ['Margen de ganancia', measuredMetrics?`${displayMoney(measuredMetrics.marginMoney)} (${measuredMetrics.marginPercent}%)`:`${fmt(product.price - product.cost)} (${product.price > 0 ? (((product.price - product.cost) / product.price) * 100).toFixed(1) : '0'}%)`],
+                    ['Valor de inventario', measuredMetrics?displayMoney(measuredMetrics.inventoryValue):fmt(product.stock * product.cost)],
                   ] : []),
                 ].map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-sm text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm font-medium tabular-nums">{value}</dd></div>)}
               </dl>
             </section>
           </div>
+          </section>
         </TabsContent>
         {!isService && (product.kind === 'KIT' || canEdit) && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
           <ProductKitSection product={product} productId={id} canEdit={canEdit} onUpdated={() => void reloadProduct()} />

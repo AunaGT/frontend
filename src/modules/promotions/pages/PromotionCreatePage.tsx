@@ -33,6 +33,7 @@ import {
   type ApplicableProductRef,
   type ApplicableCategoryRef
 } from './PromotionApplicableScopeFields'
+import {PromotionQuantityReferenceFields,promotionReferenceDraft,promotionReferenceInput,type PromotionQuantityReference} from './PromotionQuantityReferenceFields'
 import { PromotionBranchesField } from './PromotionBranchesField'
 import { PromotionPreview } from './PromotionPreview'
 import { PromotionCouponDesigner } from './PromotionCouponDesigner'
@@ -70,6 +71,8 @@ const defaultFormData = {
   buy_quantity: '',
   get_quantity: '',
   min_quantity: '',
+  trigger_unit_id:'',
+  gift_unit_id:'',
   trigger_product_id: '',
   target_product_id: '',
   applies_to_all: true,
@@ -90,6 +93,7 @@ export default function PromotionCreatePage() {
   const coupon=useCouponDesign({companyId:company?.id||''})
   const [cancelOpen,setCancelOpen]=useState(false)
 
+  const [referenceError,setReferenceError]=useState('')
   const [formData, setFormData] = useState(defaultFormData)
   const [codeMode, setCodeMode] = useState<'auto' | 'manual'>('auto')
   const [codeCount, setCodeCount] = useState('1')
@@ -167,7 +171,9 @@ export default function PromotionCreatePage() {
       buy_quantity: '',
       get_quantity: '',
       min_quantity: '',
-      trigger_product_id: '',
+      trigger_unit_id:'',
+  gift_unit_id:'',
+  trigger_product_id: '',
       target_product_id: '',
       applies_to_all:
         nextType && supportsProductCategoryScope(nextType.name) ? prev.applies_to_all : true
@@ -176,6 +182,7 @@ export default function PromotionCreatePage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    if(referenceError){toast({title:'Revisa las referencias de cantidad',description:referenceError,variant:'destructive'});return}
     let couponPayload:Record<string,unknown>
     try{couponPayload=coupon.payload()}catch(error){toast({title:'Revisa el cupón',description:error instanceof Error?error.message:'Diseño no válido',variant:'destructive'});return}
     if (formData.end_date && formData.start_date && formData.end_date < formData.start_date) {
@@ -195,7 +202,8 @@ export default function PromotionCreatePage() {
       active,
       description: formData.description || null,
       type_id: formData.type_id,
-      applies_to_all: formData.applies_to_all,
+      applies_to_all: ['FREE_GIFT','COMBO_DISCOUNT'].includes(selectedType.name)?false:formData.applies_to_all,
+      quantity_reference:promotionReferenceInput(formData),
       start_date: formData.start_date || null,
       end_date: formData.end_date || null,
       max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
@@ -220,11 +228,11 @@ export default function PromotionCreatePage() {
         : null
     }
     if (selectedType.name === 'BUY_X_GET_Y') {
-      payload.buy_quantity = formData.buy_quantity ? parseInt(formData.buy_quantity) : null
-      payload.get_quantity = formData.get_quantity ? parseInt(formData.get_quantity) : null
+      payload.buy_quantity = formData.buy_quantity.trim() || null
+      payload.get_quantity = formData.get_quantity.trim() || null
     }
     if (selectedType.name === 'MIN_QTY_DISCOUNT') {
-      payload.min_quantity = formData.min_quantity ? parseInt(formData.min_quantity) : null
+      payload.min_quantity = formData.min_quantity.trim() || null
     }
     if (selectedType.name === 'FREE_GIFT' || selectedType.name === 'COMBO_DISCOUNT') {
       payload.trigger_product_id = formData.trigger_product_id || null
@@ -465,7 +473,7 @@ export default function PromotionCreatePage() {
                       <Input
                         id="buy_quantity"
                         type="number"
-                        min={1}
+                        min="0.000001" step="any"
                         value={formData.buy_quantity}
                         onChange={(e) => setFormData({ ...formData, buy_quantity: e.target.value })}
                         placeholder="2"
@@ -477,7 +485,7 @@ export default function PromotionCreatePage() {
                       <Input
                         id="get_quantity"
                         type="number"
-                        min={0}
+                        min={0} step="any"
                         value={formData.get_quantity}
                         onChange={(e) => setFormData({ ...formData, get_quantity: e.target.value })}
                         placeholder="1"
@@ -679,6 +687,7 @@ export default function PromotionCreatePage() {
                 />
               )}
             <div className="border-t pt-4">
+              <PromotionQuantityReferenceFields typeName={selectedType?.name} value={formData} onChange={value=>setFormData(current=>({...current,...value}))} onError={setReferenceError} productIds={applicableProducts.map(p=>p.id)} categoryIds={applicableCategories.map(c=>c.id)} appliesToAll={['FREE_GIFT','COMBO_DISCOUNT'].includes(selectedType?.name??'')?false:formData.applies_to_all} triggerProductId={formData.trigger_product_id} targetProductId={formData.target_product_id}/>
               <PromotionBranchesField
                 appliesToAll={appliesToAllBranches}
                 branchIds={branchIds}

@@ -50,7 +50,8 @@ export interface Warehouse {
   dispatch_priority: number;
   active: boolean;
   notes: string | null;
-  stock_units?: number;
+  stock_units?: number | null;
+  stock_lines?: number;
   locations: StockLocation[];
 }
 

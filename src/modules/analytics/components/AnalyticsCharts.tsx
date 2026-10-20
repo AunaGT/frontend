@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useState, type ReactNode } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -7,7 +8,7 @@ import type { RankingRow } from '../analyticsViewModel'
 import { SERIES, percent } from './chartTheme'
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="flex h-full min-h-40 items-center justify-center text-sm text-muted-foreground">{children}</p>
+  return <CollectionEmptyState compact title="Los datos contarán la historia" description={typeof children === 'string' ? children : 'Los resultados de este alcance aparecerán aquí cuando estén disponibles.'} />
 }
 
 export function ChartCard({ title, description, aside, children, className, bodyClassName }: {
@@ -73,7 +74,7 @@ export function RankedBars({ label, rows, format, color = SERIES.sales }: {
   format: (value: number) => string
   color?: string
 }) {
-  if (!rows.length) return <Empty>Sin datos en el período.</Empty>
+  if (!rows.length) return <Empty>Este período todavía no tiene datos para esta consulta. Prueba otro rango de fechas.</Empty>
   const max = Math.max(0, ...rows.map((row) => row.value))
   return (
     <ol className="analytics-ranking" aria-label={label}>
@@ -151,7 +152,7 @@ export function ExpandableTable({ label, columns, rows, limit = 8 }: {
   limit?: number
 }) {
   const [expanded, setExpanded] = useState(false)
-  if (!rows.length) return <Empty>Sin datos en el período.</Empty>
+  if (!rows.length) return <Empty>Este período todavía no tiene datos para esta consulta. Prueba otro rango de fechas.</Empty>
   const visible = expanded ? rows : rows.slice(0, limit)
   return (
     <>

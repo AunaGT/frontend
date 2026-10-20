@@ -17,9 +17,9 @@ test('workspace navigation stretches with content and keeps mobile layout shrink
   assert.equal(props('.config-center-content')['min-width'],'0')
   assert.notEqual(props('.config-section-actions').position,'fixed')
 })
-test('a single workspace frame contains flat forms and embedded tables, not nested card frames',async()=>{
+test('settings workspace, forms and embedded tables stay unframed on the page background',async()=>{
   const fs=require('node:fs'),{root}=await require('postcss')().process(fs.readFileSync(require('node:path').join(__dirname,'../src/modules/config/pages/config.css'),'utf8'),{from:undefined})
-  for(const selector of ['.config-center-content .config-panel','.config-center-content .auna-data-table-shell']){
+  for(const selector of ['.config-center','.config-center-content .config-panel','.config-center-content .auna-data-table-shell']){
     const props={};root.walkRules(rule=>{if(rule.selector===selector)rule.walkDecls(d=>props[d.prop]=d.value)})
     assert.equal(props.border,'0');assert.equal(props['border-radius'],'0');assert.equal(props.background,'transparent');assert.equal(props['box-shadow'],'none')
   }

@@ -12,6 +12,7 @@ const root = path.resolve(__dirname, '../src')
 
 // SSR does not run effects: no accounting writes or staging requests are made.
 function render(name, props = {}, states = []) {
+  if (name === 'JournalTab') states = states.filter((_, index) => index !== 2) // Page now belongs to the shared persistence hook.
   const target = path.join(root, 'modules/accounting/components', name + '.tsx')
   const cache = new Map()
   let state = 0
@@ -57,8 +58,8 @@ test('accounts paginate outside their only result frame and summarize the comple
   assert.match(html, /metric-strip/)
   assert.ok(html.indexOf('metric-strip') < html.indexOf('compact-filter-toolbar'))
   assert.match(html, />31<\/strong>/)
-  assert.match(html, /Cuenta 25/)
-  assert.doesNotMatch(html, /Cuenta 26<\/td>/)
+  assert.match(html, /Cuenta 10/)
+  assert.doesNotMatch(html, /Cuenta 11<\/td>/)
   assertPaginationOutside(html)
   const readonly = render('AccountsTab', { accounts: [account], canManage: false, onChanged() {} })
   assert.doesNotMatch(readonly, /Nueva cuenta|>Editar<|>Desactivar</)
@@ -107,6 +108,16 @@ test('ledger and trial balance keep actual monetary values in flat summaries abo
   assert.match(balance, /metric-strip/)
   assert.match(balance, /Cuadrada/)
   assert.match(balance, /0\.00/)
+})
+
+test('ledger and trial balance empty scoped queries offer filter recovery instead of record creation', () => {
+  const data = { account, initialBalance: 0, movements: [], totals: { debit: 0, credit: 0 }, finalBalance: 0 }
+  const ledger = render('LedgerTab', { accounts: [account] }, ['1', '2040-01-01', '', data, false, false])
+  assert.match(ledger, /Busquemos por otro lado/)
+  assert.match(ledger, /Limpiar filtros/)
+  const balance = render('TrialBalanceTab', {}, ['2040-01-01', '', { rows: [], totals: { debit: 0, credit: 0, initialDebit: 0, initialCredit: 0, finalDebit: 0, finalCredit: 0 } }, false, false])
+  assert.match(balance, /Busquemos por otro lado/)
+  assert.match(balance, /Limpiar filtros/)
 })
 
 test('tax summaries precede the annual selector and keep regime-specific report columns', () => {

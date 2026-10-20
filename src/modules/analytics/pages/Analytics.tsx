@@ -1,3 +1,4 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -150,6 +151,7 @@ const Analytics = () => {
           </Card>
         ) : (
           <AnalyticsDetailTabs
+            locale={locale}
             data={data}
             isLoading={isLoading}
             sectionAccess={sectionAccess}
@@ -159,19 +161,13 @@ const Analytics = () => {
           >
             <MetricStrip label="Indicadores principales" loading={isLoading} items={[
               { label: 'Ventas totales', value: formatCurrency(sales), hint: selectedYear === 'all' ? 'Histórico acumulado' : `Año ${selectedYear}` },
-              { label: 'Unidades vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos vendidos` },
+              { label: 'Partidas vendidas', value: formatNumber(data?.totals.stockRotation ?? 0), hint: `${formatNumber(data?.totals.productsCount ?? 0)} productos vendidos` },
               { label: 'Rentabilidad (margen)', value: formatPercent(margin), hint: `Utilidad ${formatCurrency(data?.totals.totalProfit ?? 0)}` },
               ...(sectionAccess.inventory ? [{ label: 'Valor del inventario', value: formatCurrency(data?.inventory.stockValue ?? 0), hint: `${formatNumber(data?.inventory.productsCount ?? 0)} productos` }] : []),
             ]} />
 
             {!isLoading && !hasSalesData ? (
-              <Card className="auna-surface rounded-2xl">
-                <CardContent className="px-6 py-14 text-center">
-                  <ChartNoAxesCombined className="mx-auto h-11 w-11 text-muted-foreground/60" />
-                  <h2 className="mt-4 text-lg font-semibold">Aún no hay ventas en este período</h2>
-                  <p className="mt-2 text-sm text-muted-foreground">Cuando registres ventas aparecerán aquí los gráficos y tendencias.</p>
-                </CardContent>
-              </Card>
+              <CollectionEmptyState title="Tus resultados están por tomar forma" description={selectedYear === 'all' ? 'Los gráficos y tendencias aparecerán aquí cuando haya ventas en el historial consultado.' : `Todavía no hay ventas para mostrar en ${selectedYear}. Prueba otro año para explorar tus resultados.`} />
             ) : (
               <>
                 <section className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">

@@ -10,31 +10,41 @@
 
 import { BaseEntity, ProductCategory, StockStatus } from "./common";
 import type { ProfileInput } from "@/modules/appointments/types";
+import type {UnitConfiguration,UnitValues,MeasureUnit,Presentation,InitialUnitsConfiguration} from '@/modules/inventory/units/public';
 
 export type ProductKind = "STANDARD" | "KIT" | "SERVICE";
 
 export type ProductBomComponentDraft = {
   component_product_id: string;
-  qty_per_unit: number;
+  qty_per_unit: number | string;
   component_name?: string;
+  unit_label?:string;
+  quantity_decimals?:number;
 };
 
 export type ProductBomLineApi = {
   id: string;
   component_product_id: string;
-  qty_per_unit: number;
+  qty_per_unit: number | string;
   sort_order?: number;
   component_product?: {
     id: string;
     name: string;
     barcode?: string | null;
     price?: number | string;
-    stock?: number;
+    stock?: number|string;
+    quantity_decimals?:number;
+    base_unit_id?:string|null;
+    base_unit?:{code:string;label:string}|null;
     kind?: ProductKind;
   };
 };
 
 export interface Product extends BaseEntity {
+  /** Exact authority for configured products. Numeric compatibility fields below are display-only. */
+  unitValues?: UnitValues;
+  unitConfiguration?: UnitConfiguration;
+  baseUnitConfiguration?: UnitConfiguration;
   name: string;
   category: ProductCategory | string; // Permitir string para flexibilidad
   brand: string;
@@ -87,6 +97,11 @@ export interface NewProductForm {
 
 // Interfaz para producto en carrito de ventas
 export interface CartProduct {
+  unitMetadataVersion?:1|2;
+  unitSnapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+  priceExact?:string;
+  lineTotalExact?:string;
+  baseQty?:string;
   id: string;
   name: string;
   price: number;
@@ -125,6 +140,14 @@ export interface ProductStats {
 
 // API shapes and payloads used by services
 export interface ApiProduct {
+  unit_metadata_version?:1|2;
+  base_unit_id?:string|null;
+  base_unit?:MeasureUnit|null;
+  unit_revision?:number;
+  presentations?:Presentation[];
+  default_purchase_presentation_id?:string|null;
+  default_sale_presentation_id?:string|null;
+  base_unit_locked?:boolean;
   id: string | number;
   name: string;
   category?: string | { id: string | number; name: string };
@@ -159,19 +182,24 @@ export interface ApiProduct {
 }
 
 export interface CreateProductPayload {
+  units_configuration?:InitialUnitsConfiguration;
+  base_unit_id?:string;
+  unit_revision?:number;
+  default_purchase_presentation_id?:string|null;
+  default_sale_presentation_id?:string|null;
   schedule_profile?: ProfileInput;
   id?: string;
   name: string;
   category_id: number | string;
   brand?: string;
   size?: string;
-  stock?: number;
-  min_stock?: number;
-  price?: number;
-  price_wholesale?: number | null;
-  price_promotion?: number | null;
+  stock?: number|string;
+  min_stock?: number|string;
+  price?: number|string;
+  price_wholesale?: number|string|null;
+  price_promotion?: number|string|null;
   promotion_valid_until?: string | null;
-  cost?: number;
+  cost?: number|string;
   image_url?: string;
   supplier_id?: string;
   barcode?: string;

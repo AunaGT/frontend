@@ -8,6 +8,7 @@ import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
 import type { Sale } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils/formatters'
 import { previewLineTotal } from '@/lib/commercialQuantity'
+import {formatUnitDecimal,unitLineTotal} from '@/modules/inventory/units/public'
 import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace, PDF_DOCUMENT_COLORS } from '@/utils/pdfBranding'
 import {internalSaleDocumentTitle,saleCommercialState,salePaymentLabel} from '../commercialPresentation'
 
@@ -73,8 +74,8 @@ export function generateSaleInvoicePDF(
   const tableBody = sale.products.map((p) => [
     p.name,
     `${p.qty} ${p.unitLabel || ''}`.trim(),
-    fmt(p.price),
-    fmt(p.lineTotal ?? Number(previewLineTotal(String(p.qty), String(p.price)))),
+    p.unitMetadataVersion===2?`${currencyCode} ${formatUnitDecimal(p.priceExact!,locale)}`:fmt(p.price),
+    fmt(p.unitMetadataVersion===2?Number(p.lineTotalExact??unitLineTotal(String(p.qty),p.priceExact!)):p.lineTotal ?? Number(previewLineTotal(String(p.qty), String(p.price)))),
   ])
 
   autoTable(doc, {

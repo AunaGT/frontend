@@ -1,3 +1,4 @@
+import { DEFAULT_PAGE_SIZE, TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -20,7 +21,7 @@ import type { CashClosure, TheoreticalData, PaymentMethodBreakdown, Denomination
 
 const API_URL = getApiBaseUrl()
 const CLOSURE_HISTORY_KEY = 'cierre-caja/historial'
-const CLOSURE_PAGE_SIZES = [5, 10, 25, 50, 100] as const
+const CLOSURE_PAGE_SIZES = TABLE_PAGE_SIZES
 
 interface FetchClosuresResponse {
     closures: CashClosure[]
@@ -120,7 +121,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
     const [pageSize, setPageSize] = useState(() => {
         const s = readListUiPersisted(CLOSURE_HISTORY_KEY)
         const n = Number(s.pageSize)
-        return CLOSURE_PAGE_SIZES.includes(n as (typeof CLOSURE_PAGE_SIZES)[number]) ? n : 10
+        return CLOSURE_PAGE_SIZES.includes(n as (typeof CLOSURE_PAGE_SIZES)[number]) ? n : DEFAULT_PAGE_SIZE
     })
 
     useEffect(() => {

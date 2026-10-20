@@ -1,3 +1,5 @@
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 /**
  * Pestaña de cajas registradoras (POS) en Datos maestros.
  * Crear cajas, renombrarlas, marcar la predeterminada y activar/desactivar.
@@ -63,7 +65,7 @@ export function CashRegistersTab() {
   const [search, setSearch] = useState('')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [status, setStatus] = useState('all')
-  const [page, setPage] = useState(1)
+  const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('catalogos/cajas')
   useEffect(() => { setPage(1) }, [search, order, status, branch?.id])
 
   const { data: registers = [], isLoading, isFetching, error: registersError } = useQuery({
@@ -74,9 +76,9 @@ export function CashRegistersTab() {
     `${reg.name} ${reg.code}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()) &&
     (status === 'all' || reg.active === (status === 'active'))
   ).sort((a, b) => a.name.localeCompare(b.name, 'es') * (order === 'asc' ? 1 : -1))
-  const totalPages = Math.max(1, Math.ceil(filteredRegisters.length / 10))
+  const totalPages = Math.max(1, Math.ceil(filteredRegisters.length / pageSize))
   const safePage = Math.min(page, totalPages)
-  const visibleRegisters = filteredRegisters.slice((safePage - 1) * 10, safePage * 10)
+  const visibleRegisters = filteredRegisters.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   const [dialog, setDialog] = useState<RegisterDialogState>({ open: false, mode: 'create' })
   const [formName, setFormName] = useState('')
@@ -239,9 +241,7 @@ export function CashRegistersTab() {
         <CardContent className="catalog-content">
           {isFetching && !isLoading && <LoadingIndicator message="Actualizando cajas…" />}
           {registersError ? <p role="alert" className="p-6 text-destructive">{registersError.message}</p> : !isLoading && visibleRegisters.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">
-              No hay cajas registradas
-            </div>
+            <CollectionEmptyState title="Tu punto de cobro empieza aquí" description="Crea una caja para organizar sus asignaciones y operaciones." filtered={Boolean(search.trim() || status !== 'all')} onReset={() => { setSearch(''); setStatus('all'); setPage(1) }} action={canManage && <Button onClick={openCreate}>Nueva caja</Button>} />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -354,7 +354,7 @@ export function CashRegistersTab() {
         </CardContent>
 
       </Card>
-<div className="auna-pagination-outside">{!registersError && !isLoading && <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={filteredRegisters.length} pageSize={10} count={visibleRegisters.length} itemLabel="cajas" />}</div></>
+<div className="auna-pagination-outside">{!registersError && !isLoading && <Pagination currentPage={safePage} totalPages={totalPages} onPageChange={setPage} totalItems={filteredRegisters.length} pageSize={pageSize} onPageSizeChange={setPageSize} count={visibleRegisters.length} itemLabel="cajas" />}</div></>
 
       <Dialog
         open={dialog.open}
@@ -434,9 +434,7 @@ export function CashRegistersTab() {
               {usersError ? <p role="alert" className="p-4 text-destructive">{usersError.message}</p> : isLoadingUsers ? (
                 <LoadingState variant="cards" message="Cargando usuarios…" />
               ) : filteredUsers.length === 0 ? (
-                <div className="py-8 text-center text-sm text-muted-foreground">
-                  No se encontraron usuarios
-                </div>
+                <CollectionEmptyState compact title="El equipo de esta caja aparecerá aquí" description="No hay usuarios disponibles en esta sucursal para asignar a la caja." filtered={Boolean(assignSearch.trim())} onReset={() => { setAssignSearch(''); setAssignPage(1) }} />
               ) : (
                 filteredUsers.map((u) => {
                   const checked = assignSelected.has(u.id)

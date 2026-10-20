@@ -10,17 +10,22 @@
 
 import { apiFetch } from "./api";
 import type { LoginRequest, LoginResponse } from "@/types/auth";
+import {authSessionGeneration,beginAuthSessionChange,confirmAuthSession} from './authSession';
 
 export const loginRequest = async (payload: LoginRequest): Promise<LoginResponse> => {
   // La sesión queda en cookies httpOnly seteadas por el backend; no hay token que guardar.
-  return apiFetch<LoginResponse>(`/api/auth/login`, {
+  const generation=beginAuthSessionChange();
+  const response=await apiFetch<LoginResponse>(`/api/auth/login`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
+  confirmAuthSession(generation,response.user.id);
+  return response;
 };
 
 /** Revoca el refresh token en el backend y limpia las cookies. Best-effort. */
 export const logoutRequest = async () => {
+  beginAuthSessionChange();
   try {
     await apiFetch(`/api/auth/logout`, { method: "POST" });
   } catch {
@@ -30,5 +35,8 @@ export const logoutRequest = async () => {
 
 /** Usuario actual desde la cookie de sesión (para restaurar sesión al recargar). */
 export const fetchMe = async (): Promise<LoginResponse> => {
-  return apiFetch<LoginResponse>(`/api/auth/me`);
+  const generation=authSessionGeneration();
+  const response=await apiFetch<LoginResponse>(`/api/auth/me`);
+  confirmAuthSession(generation,response.user.id);
+  return response;
 };

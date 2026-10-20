@@ -21,7 +21,7 @@ export type Order = {
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   fulfillment_mode?: 'LEGACY' | 'SEPARATE';
-  deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number | string; qty_invoiced: number | string }> }>;
+  deliveries?: Array<{ id: string; created_at: string; reversed_at?: string | null; notes?: string | null; lines: Array<{ document_line_id: string; qty: number | string; qty_invoiced: number | string;unit_metadata_version?:number;unit_snapshot?:QuoteLine['unit_snapshot'];base_invoiced?:string;unit_label?:string }> }>;
   id: string;
   reference?: string | null;
   branch_id?: string;
@@ -115,12 +115,13 @@ export type OrdersListResponse = {
 };
 
 export type ConvertOrderToSalePayload = {
+  idempotency_key?: string;
   due_date?: string;
   initial_payment?: { amount: number; payment_method_id: number };
   payment_method_id: number;
   amount_received?: number;
   change?: number;
-  lines?: Array<{ line_id: string; qty: string | number }>;
+  lines?: Array<{ line_id: string; qty: string | number;presentation_id?:null }>;
   /** Caja seleccionada en el POS; valida el turno contra ella */
   cash_register_id?: string;
 };
@@ -164,6 +165,10 @@ export type PublicOrder = {
   company_name: string;
   company_logo_url?: string;
   lines: Array<{
+    unit_metadata_version?:1|2;
+    unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
+    base_qty?:string|null;
+    base_fulfilled?:string|null;
     product_name?: string | null;
     item_kind?: 'STANDARD' | 'KIT' | 'SERVICE';
     unit_label?: string | null;
@@ -257,8 +262,9 @@ export async function fetchOrderShareLink(id: string): Promise<{ public_token: s
   return apiFetch(`/api/orders/${encodeURIComponent(id)}/share-link`, { method: "GET" });
 }
 
-export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
+export async function createOrder(payload: CreateOrderPayload,options:RequestInit={}): Promise<Order> {
   return apiFetch<Order>("/api/orders", {
+    ...options,
     method: "POST",
     body: JSON.stringify(payload),
   });
@@ -296,22 +302,24 @@ export async function cancelOrder(id: string): Promise<Order> {
 
 export async function convertOrderToSale(
   id: string,
-  payload: ConvertOrderToSalePayload
+  payload: ConvertOrderToSalePayload,
+  options: RequestInit = {}
 ): Promise<{ order: Order; sale: unknown }> {
   return apiFetch(`/api/orders/${encodeURIComponent(id)}/convert-to-sale`, {
+    ...options,
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function deliverOrder(id: string, payload: { request_key: string; lines: Array<{ line_id: string; qty: string | number }> }) {
-  return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries`, { method: 'POST', body: JSON.stringify(payload) });
+export function deliverOrder(id: string, payload: { request_key: string; lines: Array<{ line_id: string; qty: string | number;presentation_id?:null }> },options:RequestInit={}) {
+  return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries`, { ...options,method: 'POST', body: JSON.stringify(payload) });
 }
 
 export function reverseOrderDelivery(id: string, deliveryId: string) {
   return apiFetch<{ order: Order }>(`/api/orders/${encodeURIComponent(id)}/deliveries/${encodeURIComponent(deliveryId)}/reverse`, { method: 'POST', body: '{}' });
 }
 
-export function invoiceOrder(id: string, payload: ConvertOrderToSalePayload & { request_key: string; due_date?: string }) {
-  return apiFetch<{ order: Order; sale: { id: string; reference?: string } }>(`/api/orders/${encodeURIComponent(id)}/invoices`, { method: 'POST', body: JSON.stringify(payload) });
+export function invoiceOrder(id: string, payload: ConvertOrderToSalePayload & { request_key: string; due_date?: string },options:RequestInit={}) {
+  return apiFetch<{ order: Order; sale: { id: string; reference?: string } }>(`/api/orders/${encodeURIComponent(id)}/invoices`, { ...options,method: 'POST', body: JSON.stringify(payload) });
 }

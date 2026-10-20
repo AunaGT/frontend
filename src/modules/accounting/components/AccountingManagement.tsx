@@ -74,7 +74,7 @@ const AccountingManagement = () => {
   }, [canCreate, toast])
 
   return (
-    <div className="accounting-page mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8 space-y-5">
+    <div className={`accounting-page mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8 space-y-5 ${activeTab !== 'configuracion' ? 'auna-page-fluid' : ''}`}>
       <h1 className="sr-only">Contabilidad</h1>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">

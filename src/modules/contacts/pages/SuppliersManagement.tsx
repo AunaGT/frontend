@@ -1,3 +1,4 @@
+import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -18,6 +19,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
 import { ContactImage } from '@/components/shared/ContactImage'
+import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { ModuleTabBar } from '@/components/shared/ModuleTabs'
@@ -44,8 +46,8 @@ const SuppliersManagement = () => {
   const [partyFilter, setPartyFilter] = useState<'all' | 'SUPPLIER' | 'CUSTOMER'>('all')
   const [statusFilter, setStatusFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
-  const { page: currentPage, setPage: setCurrentPage, pageSize: tablePageSize, setPageSize, viewMode, setViewMode } = usePersistedListUiState('contactos/lista', { defaultPageSize: 10, defaultView: 'cards' })
-  const pagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage })
+  const { page: currentPage, setPage: setCurrentPage, pageSize: tablePageSize, setPageSize, viewMode, setViewMode } = usePersistedListUiState('contactos/lista', { defaultPageSize: 50, defaultView: 'cards' })
+  const pagination = useCardPagination({ enabled: viewMode === 'cards', tablePageSize, onPageChange: setCurrentPage, storageKey: "contactos/lista" })
   const pageSize = pagination.pageSize
   const canViewSuppliers = hasPermission('contacts.suppliers.view')
   const canViewClients = hasPermission('contacts.clients.view')
@@ -78,7 +80,7 @@ const SuppliersManagement = () => {
     ...(canViewSuppliers && categoryFilter !== 'all' ? [{ label: 'Categoría: ' + (categories.find(category => String(category.id) === categoryFilter)?.name ?? categoryFilter), onRemove: () => setCategoryFilter('all') }] : []),
   ]
 
-  return <div className="contacts-list mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
+  return <div className="contacts-list auna-page-fluid mx-auto w-full space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Contactos</h1>
     <MetricStrip label="Resumen de contactos" loading={isLoading} items={([['total', 'Contactos'], ['active', 'Activos'], ['inactive', 'Inactivos']] as const).map(([key, label]) => ({ label, value: isError ? '—' : data?.summary?.[key] ?? '—' }))} />
     <CompactFilterPanel title="Filtros de contactos" activeCount={activeCount} onClear={clearFilters} appliedFilters={appliedFilters}
@@ -92,7 +94,7 @@ const SuppliersManagement = () => {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm font-semibold">Contactos <span className="font-normal text-muted-foreground">({data?.totalItems ?? 0})</span></p>
       <div className="flex flex-wrap items-center gap-3">
-        <label className="flex items-center gap-2 text-sm text-muted-foreground">{viewMode === 'cards' ? 'Tarjetas' : 'Filas'} por página<Select value={String(pageSize)} onValueChange={value => { if (viewMode === 'cards') pagination.setCardPageSize(Number(value)); else setPageSize(Number(value)); setCurrentPage(1) }}><SelectTrigger className="w-20" aria-label="Contactos por página"><SelectValue /></SelectTrigger><SelectContent>{(viewMode === 'cards' ? pagination.pageSizeOptions : [...new Set([10, 20, 40, tablePageSize])].sort((a, b) => a - b)).map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></label>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">{viewMode === 'cards' ? 'Tarjetas' : 'Filas'} por página<Select value={String(pageSize)} onValueChange={value => { if (viewMode === 'cards') pagination.setCardPageSize(Number(value)); else setPageSize(Number(value)); setCurrentPage(1) }}><SelectTrigger className="w-20" aria-label="Contactos por página"><SelectValue /></SelectTrigger><SelectContent>{(viewMode === 'cards' ? pagination.pageSizeOptions : TABLE_PAGE_SIZES).map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent></Select></label>
         <ModuleTabBar ariaLabel="Vista de contactos" value={viewMode} onValueChange={setViewMode} items={[{ value: 'table', label: '', ariaLabel: 'Tabla', icon: List }, { value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid }]} />
       </div>
     </div>
@@ -101,7 +103,7 @@ const SuppliersManagement = () => {
       {isFetching && !isLoading && <LoadingIndicator message="Actualizando contactos…" />}
       {isLoading ? <LoadingState variant={viewMode === 'table' ? 'table' : 'cards'} columns={['Contacto', 'NIT', 'Comunicación', 'Dirección', 'Categoría', 'Estado', 'Acciones']} message="Cargando contactos…" />
         : isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 py-6"><p className="text-destructive">No se pudieron cargar los contactos.</p><Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>
-        : contacts.length === 0 ? <p className="py-10 text-center text-muted-foreground">No hay contactos para mostrar. Ajusta la búsqueda o los filtros.</p>
+        : contacts.length === 0 ? <CollectionEmptyState title="Tu próxima relación comercial empieza aquí" description="No hay contactos registrados todavía. Reúne aquí a tus clientes y proveedores para tener sus datos a mano." filtered={Boolean(searchTerm.trim()) || activeCount > 0} onReset={() => { setSearchTerm(''); clearFilters() }} action={canCreate ? <Button onClick={() => navigate('/contactos/nuevo')}><Plus aria-hidden="true" className="mr-2 h-4 w-4" />Nuevo contacto</Button> : undefined} />
         : viewMode === 'table' ? <div className="auna-surface overflow-hidden rounded-xl border"><div className="contacts-table-scroll" role="region" tabIndex={0} aria-label="Tabla de contactos">
           <table className="auna-data-table min-w-[1080px]"><thead><tr>{['Contacto', 'NIT', 'Comunicación', 'Dirección', 'Categoría', 'Estado', 'Acciones'].map(title => <th key={title} scope="col" className={title === 'Acciones' ? 'text-right' : 'text-left'}>{title}</th>)}</tr></thead><tbody>
             {contacts.map(contact => <tr key={contact.id}>
