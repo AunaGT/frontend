@@ -427,7 +427,7 @@ export default function OrderDetailPage() {
           {canManage ? <div className="min-w-[210px] space-y-1"><Label htmlFor="order-status">Estado del pedido</Label><Select value={order.status} onValueChange={changeStatus} disabled={confirmMutation.isPending || cancelMutation.isPending || statusOptions.length === 1}><SelectTrigger id="order-status"><SelectValue /></SelectTrigger><SelectContent>{statusOptions.map((status) => <SelectItem key={status} value={status}>{status === "DRAFT" ? "Borrador" : status === "CONFIRMED" ? "Confirmado" : status === "CANCELLED" ? "Cancelado" : status}</SelectItem>)}</SelectContent></Select></div> : null}
           {order.fulfillment_mode === 'SEPARATE' && <OrderOperations order={order} />}
           {canRegisterSale && canManage && canSell ? <>
-            <Button variant="outline" onClick={() => navigate(`/ventas/nueva?pedido=${encodeURIComponent(order.reference ?? order.id)}`)}><ShoppingCart className="mr-2 h-4 w-4" />Abrir en POS</Button>
+            <Button variant="outline" onClick={() => navigate(`/ventas/pos?pedido=${encodeURIComponent(order.reference ?? order.id)}`)}><ShoppingCart className="mr-2 h-4 w-4" />Abrir en POS</Button>
             <Button onClick={openSaleDialog} disabled={noUsableCashRegister} title={noUsableCashRegister ? "No tenés un turno de caja abierto. Abrí caja desde Abrir en POS primero." : undefined}><Receipt className="mr-2 h-4 w-4" />Registrar venta</Button>
           </> : null}
           {confirmMutation.isPending || cancelMutation.isPending ? <LoadingIndicator message="Actualizando estado…" /> : null}

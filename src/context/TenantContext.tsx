@@ -23,7 +23,7 @@ export type TenantContextType = {
   isConsolidated: boolean;
   setCompany: (companyId: string) => void;
   setBranch: (branchId: string) => void;
-  registerTenantExitGuard: (guard: () => boolean) => () => void;
+  registerTenantExitGuard: (guard: (proceed?: () => void) => boolean) => () => void;
 };
 
 export const TenantContext = createContext<TenantContextType | undefined>(undefined);

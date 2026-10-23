@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '../../src')
 function loadReportModule(relative, mocks = {}, nodes = []) {
   const cache = new Map()
   function load(file) {
+    if (Object.hasOwn(mocks, file)) return mocks[file]
     if (cache.has(file)) return cache.get(file).exports
     const mod = new Module(file, module)
     cache.set(file, mod)

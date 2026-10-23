@@ -27,7 +27,7 @@ function PdfCanvas({ document: pdf, page, scale, thumbnail = false }: { document
   }, [pdf, page, scale, thumbnail])
   return <>{error && <p role="alert" className="text-sm text-destructive">{error}</p>}<canvas ref={canvas} role="img" aria-label={`Página ${page} del documento${thumbnail ? ' (miniatura)' : ''}`} /></>
 }
-export function PdfDocumentPreview({ pdf, onDownload }: { pdf: Blob; onDownload: () => void }) {
+export function PdfDocumentPreview({ pdf, onDownload, downloadLabel = 'Descargar PDF', canAccess }: { pdf: Blob; onDownload: () => void; downloadLabel?: string; canAccess?: () => boolean }) {
   const [loaded, setLoaded] = useState<{ blob: Blob; document: PDFDocumentProxy } | null>(null), [error, setError] = useState<string | null>(null), [retry, setRetry] = useState(0)
   const [page, setPage] = useState(1), [scale, setScale] = useState(1), [thumbnails, setThumbnails] = useState(false), [message, setMessage] = useState<string | null>(null)
   const frame = useRef<HTMLDivElement>(null), viewport = useRef<HTMLDivElement>(null), fullscreenButton = useRef<HTMLButtonElement>(null), width = useRef(700)
@@ -41,6 +41,7 @@ export function PdfDocumentPreview({ pdf, onDownload }: { pdf: Blob; onDownload:
   useEffect(() => { const restore = () => { if (!globalThis.document.fullscreenElement) fullscreenButton.current?.focus() }; globalThis.document.addEventListener('fullscreenchange', restore); return () => globalThis.document.removeEventListener('fullscreenchange', restore) }, [])
   const fullscreen = async () => { try { if (globalThis.document.fullscreenElement) await globalThis.document.exitFullscreen(); else if (frame.current?.requestFullscreen) await frame.current.requestFullscreen(); else setMessage('Tu navegador no admite pantalla completa. Puedes ampliar con el zoom.') } catch { setMessage('No se pudo activar pantalla completa. Puedes ampliar con el zoom.') } }
   const print = () => {
+    if(canAccess&&!canAccess()){setMessage('La sesión cambió. Vuelve a abrir el documento.');return}
     const url = URL.createObjectURL(pdf), opened = window.open(url, '_blank')
     if (!opened) { URL.revokeObjectURL(url); setMessage('Permite abrir ventanas para imprimir o descarga el PDF.'); return }
     setMessage('Se abrió el PDF. Utiliza Imprimir en el visor del navegador.')
@@ -55,7 +56,7 @@ export function PdfDocumentPreview({ pdf, onDownload }: { pdf: Blob; onDownload:
     <Button size="icon" variant="ghost" aria-label="Página siguiente" disabled={!document || current >= total} onClick={() => setPage(current + 1)}><ChevronRight size={17} /></Button>
     <Button size="icon" variant="ghost" aria-label="Alejar" disabled={!document || scale <= .5} onClick={() => setScale(v => Math.max(.5, v - .1))}><Minus size={17} /></Button><span className="text-sm w-12">{Math.round(scale * 100)}%</span><Button size="icon" variant="ghost" aria-label="Acercar" disabled={!document || scale >= 2} onClick={() => setScale(v => Math.min(2, v + .1))}><Plus size={17} /></Button>
     <Button size="icon" variant="ghost" aria-label="Ajustar al ancho" disabled={!document} onClick={() => setScale(Math.max(.5, Math.min(2, ((viewport.current?.clientWidth || 700) - 40) / width.current)))}><ScanLine size={17} /></Button>
-    <Button ref={fullscreenButton} size="icon" variant="ghost" aria-label="Pantalla completa" onClick={fullscreen}><Maximize size={17} /></Button><Button variant="outline" onClick={print}><Printer size={16} /> Imprimir</Button><Button onClick={onDownload}><Download size={16} /> Descargar PDF</Button>
+    <Button ref={fullscreenButton} size="icon" variant="ghost" aria-label="Pantalla completa" onClick={fullscreen}><Maximize size={17} /></Button><Button variant="outline" onClick={print}><Printer size={16} /> Imprimir</Button><Button onClick={onDownload}><Download size={16} /> {downloadLabel}</Button>
   </div>{message && <p role="status" className="p-3 text-sm">{message}</p>}
     <div className="report-viewer-body">{document && thumbnails && <aside className="report-thumbnails" aria-label="Miniaturas del documento">{Array.from({ length: Math.max(0, end - start + 1) }, (_, i) => start + i).map(n => <button key={n} className={n === current ? 'is-active' : ''} aria-label={`Ir a página ${n}`} aria-current={n === current ? 'page' : undefined} onClick={() => setPage(n)}><PdfCanvas document={document} page={n} scale={.16} thumbnail /><span>{n}</span></button>)}</aside>}
       <div ref={viewport} className="report-document-stage" tabIndex={0} role="region" aria-label="Página PDF del documento.">{error ? <div role="alert" className="report-viewer-error"><p>{error}</p><Button variant="outline" onClick={() => setRetry(v => v + 1)}>Reintentar</Button></div> : document ? <PdfCanvas document={document} page={current} scale={scale} /> : <LoadingState message="Cargando documento…" variant="page" />}</div>

@@ -18,7 +18,7 @@ import { apiFetch } from "./api";
 export type StockMovementReason =
   | "INITIAL" | "PURCHASE" | "SALE" | "SALE_RETURN" | "ORDER_FULFILL"
   | "TRANSFER_OUT" | "TRANSFER_IN" | "TRANSFER_CANCEL" | "INTERNAL_MOVE"
-  | "COUNT_ADJUST" | "MANUAL_ADJUST" | "KIT_ASSEMBLE" | "KIT_DISASSEMBLE";
+  | "COUNT_ADJUST" | "MANUAL_ADJUST" | "KIT_ASSEMBLE" | "KIT_DISASSEMBLE" | "PRODUCTION";
 
 export const REASON_LABELS: Record<StockMovementReason, string> = {
   INITIAL: "Saldo inicial",
@@ -33,6 +33,7 @@ export const REASON_LABELS: Record<StockMovementReason, string> = {
   COUNT_ADJUST: "Ajuste por conteo",
   MANUAL_ADJUST: "Ajuste manual",
   KIT_ASSEMBLE: "Kit armado",
+  PRODUCTION: "Fabricación propia",
   KIT_DISASSEMBLE: "Kit desarmado",
 };
 

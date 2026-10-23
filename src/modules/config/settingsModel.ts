@@ -15,13 +15,14 @@ export const SECTION_KEYS = {
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
-export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial' | 'hardware'
+export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial' | 'hardware' | 'plantillas'
 export type SectionValues = Partial<SystemSettings>
 export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath | ExpiryPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
   { id: 'empresa', group: 'Empresa', label: 'Identidad', keywords: ['nombre', 'logo', 'empresa'] },
   { id: 'regional', group: 'Empresa', label: 'Región y formatos', keywords: ['moneda', 'zona horaria', 'idioma', 'fecha'] },
   { id: 'fiscal', group: 'Facturación', label: 'Datos fiscales', keywords: ['NIT', 'FEL', 'facturas', 'impuestos', 'dirección'] },
+  { id:'plantillas',group:'Facturación',label:'Plantillas de documentos',keywords:['diseño','factura','comprobante','ticket','XML','apariencia'] },
   { id: 'inventario', group: 'Operación', label: 'Inventario', keywords: ['bienes', 'servicios', 'impresión', 'etiquetas', 'códigos de barras','vencimientos','lotes','anticipación','prioridad'] },
   { id: 'ventas', group: 'Operación', label: 'Ventas y POS', keywords: ['experiencia', 'crédito', 'canales', 'caja', 'fiscal'] },
   { id: 'cotizaciones', group: 'Operación', label: 'Cotizaciones', keywords: ['vigencia', 'reserva temporal', 'horas'] },

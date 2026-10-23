@@ -54,7 +54,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import '@/components/shared/recordEditLayout.css'
 import {UnitSettingsFields} from '../units/UnitSettingsFields'
 import {useUnitCatalog} from '../units/useUnitCatalog'
-import {exactProductValues,unitsDraft,emptyUnitsDraft,productDecimalPayload,fetchPresentations,savePresentation,archivePresentation,formatUnitDecimal,formatUnitMoney,unitProductMetrics} from '../units/public'
+import {exactProductValues,unitsDraft,emptyUnitsDraft,productDecimalPayload,savePresentation,archivePresentation,formatUnitDecimal,formatUnitMoney,unitProductMetrics} from '../units/public'
 import {presentationDraft,presentationInput} from '../units/model'
 import type {ProductUnitsDraft,PresentationDraft} from '../units/types'
 
@@ -87,6 +87,7 @@ export default function ProductDetailPage() {
   const unitCatalog=useUnitCatalog(inventoryUnitsEnabled)
   const contextKey=JSON.stringify([id,unitCatalog.scope.companyId,unitCatalog.scope.branchId]),liveContext=useRef(contextKey),loadedContext=useRef(contextKey),skipScalarReset=useRef(false),unitsInFlight=useRef(false),imageOperation=useRef(0)
   liveContext.current=contextKey
+  const readGeneration=useRef(0)
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
 
   const suppliersQuery = useSuppliers(SUPPLIERS_DROPDOWN_PARAMS)
@@ -115,6 +116,7 @@ export default function ProductDetailPage() {
 
   useEffect(() => {
     const controller=new AbortController(),owner=contextKey
+    readGeneration.current++
     imageOperation.current++;setIsUploadingImage(false)
     liveContext.current=owner
     setRawProduct(null);setBaseLocked(null);setUnitsError('');setUnitsBusy(false);setEditUnits(emptyUnitsDraft())
@@ -126,11 +128,7 @@ export default function ProductDetailPage() {
         if(liveContext.current!==owner||controller.signal.aborted)return
         loadedContext.current=owner
         setRawProduct(data)
-        if(inventoryUnitsEnabled){
-          const configuration=await fetchPresentations(unitCatalog.scope,id,controller.signal)
-          if(liveContext.current!==owner||controller.signal.aborted)return
-          setBaseLocked(configuration.base_unit_locked)
-        }
+        setBaseLocked(typeof data?.base_unit_locked==='boolean'?data.base_unit_locked:null)
       } catch (e) {
         if(liveContext.current!==owner||controller.signal.aborted)return
         setUnitsError((e as Error).message)
@@ -144,14 +142,17 @@ export default function ProductDetailPage() {
       }
     }
     load()
-    return()=>{imageOperation.current++;controller.abort();if(liveContext.current===owner)liveContext.current='disposed'}
+    return()=>{imageOperation.current++;readGeneration.current++;controller.abort();if(liveContext.current===owner)liveContext.current='disposed'}
   }, [contextKey,inventoryUnitsEnabled])
 
   const reloadProduct = async () => {
     if (!id) return
-    const owner=contextKey
+    const owner=contextKey,generation=readGeneration.current
     const data = await fetchProductById(id,{scope:unitCatalog.scope})
-    if(liveContext.current===owner)setRawProduct(data)
+    if(liveContext.current===owner&&readGeneration.current===generation){
+      setRawProduct(data)
+      setBaseLocked(typeof data?.base_unit_locked==='boolean'?data.base_unit_locked:null)
+    }
   }
 
   const product: Product | null = useMemo(
@@ -195,6 +196,17 @@ export default function ProductDetailPage() {
   const [editServiceUnit,setEditServiceUnit] = useState('')
   const [editQuantityDecimals,setEditQuantityDecimals] = useState('0')
   const [baseLocked,setBaseLocked]=useState<boolean|null>(null),[unitsBusy,setUnitsBusy]=useState(false),[unitsError,setUnitsError]=useState(''),[editUnits,setEditUnits]=useState<ProductUnitsDraft>(emptyUnitsDraft)
+  const [visitedPanels,setVisitedPanels]=useState<{owner:string;tabs:string[]}>(()=>({owner:contextKey,tabs:[]}))
+  const ownsPanels=visitedPanels.owner===contextKey
+  if(!ownsPanels){
+    setVisitedPanels({owner:contextKey,tabs:[]})
+    setDetailTab('information')
+  }
+  const visitPanel=(tab:string)=>{
+    setDetailTab(tab)
+    setVisitedPanels(previous=>({owner:contextKey,tabs:[...new Set([...(previous.owner===contextKey?previous.tabs:[]),tab])]}))
+  }
+  const hasVisited=(tab:string)=>ownsPanels&&visitedPanels.tabs.includes(tab)
   const isSaving=updateMutation.isPending||unitsBusy
   const originalExact=product?exactProductValues(product):null
   const scalarDirty=!!product&&[editName!==product.name,editPrice!==originalExact.price,editPriceWholesale!==(originalExact.priceWholesale??''),editPricePromotion!==(originalExact.pricePromotion??''),editStock!==originalExact.stock,editCost!==originalExact.cost,editMinStock!==originalExact.minStock,editDescription!==product.description,editBarcode!==product.barcode,editBrand!==product.brand,editSize!==product.size,editAvailableForSale!==(product.availableForSale!==false),editTracksExpiry!==(product.tracksExpiry===true),editCategoryId!==String(rawProduct?.category_id??''),editSupplierId!==String(rawProduct?.supplier_id??''),editImageUrl!==product.imageUrl,editServiceUnit!==(product.serviceUnitLabel??''),editQuantityDecimals!==String(product.quantityDecimals??0),editPromotionUntil!==(product.promotionValidUntil?.slice(0,16)??'')].some(Boolean)
@@ -248,10 +260,12 @@ export default function ProductDetailPage() {
 
   const supplierLabel = useMemo(() => {
     if (!product) return ''
-    if (product.supplier && !/^[0-9a-f-]{8,}$/.test(String(product.supplier))) return String(product.supplier)
+    if (editSupplierId === '') return 'Sin proveedor habitual'
     const rawSupplierId = (rawProduct as { supplier_id?: string | number } | null)?.supplier_id
     const effectiveId = editSupplierId ?? rawSupplierId
     const found = suppliers.find((s) => String(s.id) === String(effectiveId))
+    if(found)return found.name
+    if (editSupplierId == null && product.supplier && !/^[0-9a-f-]{8,}$/.test(String(product.supplier))) return String(product.supplier)
     return found?.name ?? String(effectiveId ?? '')
   }, [product, rawProduct, suppliers, editSupplierId])
 
@@ -556,7 +570,7 @@ export default function ProductDetailPage() {
                     </div>
 
                     {!isService && <div>
-                      <Label id="edit-supplier-label" className="text-muted-foreground">Proveedor</Label>
+                      <Label id="edit-supplier-label" className="text-muted-foreground">Proveedor habitual (opcional)</Label>
                       {isEditing && canEdit ? (
                         <Popover>
                           <PopoverTrigger asChild>
@@ -570,6 +584,7 @@ export default function ProductDetailPage() {
                               <CommandInput placeholder="Buscar proveedor..." />
                               {suppliersQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando proveedores…</p> : suppliersQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar proveedores.<Button type="button" variant="ghost" onClick={() => void suppliersQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={suppliers.length > 0} title="Aquí aparecerán tus proveedores" description="Registra un contacto de tipo proveedor para asociarlo a tus productos." /></CommandEmpty>}
                               <CommandList>
+                                <CommandItem onSelect={()=>setEditSupplierId('')}>Sin proveedor habitual</CommandItem>
                                 <CommandGroup>
                                   <ScrollArea className="h-48">
                                     {suppliers.map((supplier) => (
@@ -662,7 +677,7 @@ export default function ProductDetailPage() {
                         ...(!isService ? {
                         brand: editBrand || undefined,
                         size: editSize || undefined,
-                        supplier_id: editSupplierId ?? (rawSupplierId ? String(rawSupplierId) : undefined),
+                        supplier_id: editSupplierId === '' ? null : editSupplierId ?? (rawSupplierId ? String(rawSupplierId) : undefined),
                         tracks_expiry: editTracksExpiry,
                         } : {service_unit_label:editServiceUnit.trim(),quantity_decimals:advanced?Number(editUnits.quantityDecimals):Number(editQuantityDecimals)}),
                         promotion_valid_until: editPromotionUntil.trim()
@@ -691,7 +706,7 @@ export default function ProductDetailPage() {
                 }}
           >{isSaving ? 'Guardando…' : 'Guardar cambios'}</Button>
         </div>
-      </div> : <Tabs value={detailTab} onValueChange={setDetailTab}>
+      </div> : <Tabs key={contextKey} value={ownsPanels?detailTab:'information'} onValueChange={visitPanel}>
         <div className="overflow-x-auto">
           <TabsList variant="detail" aria-label="Detalles del producto">
             <TabsTrigger value="information"><Info className="mr-2 h-4 w-4" aria-hidden="true" />Información y precios</TabsTrigger>
@@ -701,10 +716,10 @@ export default function ProductDetailPage() {
             {!isService && (product.kind === 'KIT' || canEdit) && <TabsTrigger value="kit"><Boxes className="mr-2 h-4 w-4" aria-hidden="true" />Kit / combo</TabsTrigger>}
           </TabsList>
         </div>
-        {!isService && product.kind !== 'KIT' && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
+        {!isService && product.kind !== 'KIT' && hasVisited('lots') && <TabsContent value="lots" forceMount hidden={detailTab !== 'lots'} className="mt-5 data-[state=inactive]:hidden">
           <ProductLotsSection productId={id} baseDecimals={product.unitConfiguration?.quantity_decimals??0} baseLabel={product.unitConfiguration?.base_unit?.label??'unidades'} tracksExpiry={product.tracksExpiry === true} onMutated={() => void reloadProduct()} />
         </TabsContent>}
-        {!isService && <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} baseDecimals={product.unitConfiguration?.quantity_decimals??0} baseLabel={product.unitConfiguration?.base_unit?.label??'unidades'} /></TabsContent>}
+        {!isService && hasVisited('locations') && <TabsContent value="locations" forceMount hidden={detailTab !== 'locations'} className="mt-5 data-[state=inactive]:hidden"><ProductLocationsSection productId={id} baseDecimals={product.unitConfiguration?.quantity_decimals??0} baseLabel={product.unitConfiguration?.base_unit?.label??'unidades'} /></TabsContent>}
         <TabsContent value="information" forceMount hidden={detailTab !== 'information'} className="mt-5 data-[state=inactive]:hidden">
           <section className="auna-surface space-y-4 rounded-xl border p-4">
           <UnitSettingsFields enabled={inventoryUnitsEnabled} kind={product.kind??'STANDARD'} units={[...(rawProduct?.base_unit?[rawProduct.base_unit]:[]),...unitCatalog.units]} value={unitsDraft(product.unitConfiguration??product.baseUnitConfiguration)} onChange={()=>{}} readOnly basePrice={exactProductValues(product).price} locale={locale} />
@@ -741,7 +756,7 @@ export default function ProductDetailPage() {
           </div>
           </section>
         </TabsContent>
-        {!isService && (product.kind === 'KIT' || canEdit) && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
+        {!isService && (product.kind === 'KIT' || canEdit) && hasVisited('kit') && <TabsContent value="kit" forceMount hidden={detailTab !== 'kit'} className="mt-5 data-[state=inactive]:hidden">
           <ProductKitSection product={product} productId={id} canEdit={canEdit} onUpdated={() => void reloadProduct()} />
         </TabsContent>}
         {isService && hasPermission('sales.view') && detailTab==='history' && <TabsContent value="history" className="mt-5"><ProductCommercialHistory productId={id} /></TabsContent>}

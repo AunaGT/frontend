@@ -173,7 +173,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
 
     return {
         id: String(r.id ?? ''),
-        settlementSource: r.settlement_source === 'ENGAGEMENT_RECEIPTS' ? 'ENGAGEMENT_RECEIPTS' : 'LEGACY',
+        settlementSource: r.settlement_source === 'ENGAGEMENT_RECEIPTS' ? 'ENGAGEMENT_RECEIPTS' : r.settlement_source==='MANUAL_SALE'?'MANUAL_SALE':'LEGACY',
         commercial:r.commercial as Sale['commercial']??{state:({draft:'DRAFT',completed:'CONFIRMED',cancelled:'CANCELLED'} as const)[status as 'draft'|'completed'|'cancelled']||'LEGACY',originEngagementId:typeof r.origin_engagement_id==='string'?r.origin_engagement_id:null,version:Number(r.version)||1,confirmedAt:r.confirmed_at?String(r.confirmed_at):null,fiscalState:sale_dtes.length?'REVIEW_REQUIRED':'UNRECORDED'},
         capabilities:r.capabilities as Sale['capabilities'],
         isCredit: paymentObj?.is_credit === true,

@@ -164,7 +164,7 @@ export interface ApiProduct {
   cost?: number | string;
    image_url?: string | null;
   supplier?: string | { id: string | number; name: string } | null;
-  supplier_id?: string | number;
+  supplier_id?: string | number | null;
   supplier_name?: string;
   barcode?: string;
   description?: string | null;
@@ -201,7 +201,7 @@ export interface CreateProductPayload {
   promotion_valid_until?: string | null;
   cost?: number|string;
   image_url?: string;
-  supplier_id?: string;
+  supplier_id?: string | null;
   barcode?: string;
   description?: string;
   status_id?: number;

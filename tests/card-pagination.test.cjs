@@ -59,6 +59,15 @@ test('hidden cards retain table size and height-only resizing does not reset pag
   } finally { h.cleanup() }
 })
 
+test('compact POS tiles paginate using their actual width without changing standard cards',()=>{
+ const h=harness({enabled:true,tablePageSize:9,cardMinWidth:140,cardGap:10})
+ try{
+  h.render().containerRef({clientWidth:600})
+  let value=h.render();assert.equal(value.columns,4);assert.equal(value.pageSize,40)
+  h.resize(760);value=h.render();assert.equal(value.columns,5);assert.ok(value.pageSizeOptions.every(n=>n%5===0))
+ }finally{h.cleanup()}
+})
+
 test('wide pages round forty to full rows and preserve a manually chosen quantity across widths', () => {
   const h = harness()
   try {

@@ -6,6 +6,11 @@ test('PDF viewer has named controls, live loading, no automatic download or succ
   for (const name of ['Página anterior', 'Página siguiente', 'Acercar', 'Alejar', 'Ajustar al ancho', 'Pantalla completa', 'Imprimir', 'Descargar PDF']) assert.ok(html.includes(name), name)
   assert.ok(html.includes('Cargando documento')); assert.ok(!html.includes('Impreso correctamente'))
 })
+test('shared viewer can name an original-file download without mislabelling an image as PDF',()=>{
+  const {ReportDocumentPreview}=loadReportModule('components/ReportDocumentPreview.tsx')
+  const html=renderToStaticMarkup(React.createElement(ReportDocumentPreview,{pdf:new Blob(['%PDF-QA']),onDownload(){},downloadLabel:'Descargar original'}))
+  assert.match(html,/Descargar original/);assert.doesNotMatch(html,/Descargar PDF/)
+})
 test('each viewer effect destroys its own loading task and ignores a late old document', async () => {
   const { hookHarness } = require('./helpers/reportHookHarness.cjs'), h = hookHarness(), tasks = []
   const previousDocument = global.document

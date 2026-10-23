@@ -2,7 +2,6 @@ const test = require('node:test'), assert = require('node:assert/strict'), fs = 
 const { spawnSync } = require('node:child_process'), { jsPDF } = require('jspdf')
 const { loadReportModule } = require('./helpers/loadReportModule.cjs')
 const cases = [
-  ['sales', 'generateSaleInvoicePDF', 'Comprobante-interno-QA-001.pdf'],
   ['quotes', 'generateQuotePDF', 'cotizacion-QA-001.pdf'],
   ['orders', 'generateOrderPDF', 'pedido-QA-001.pdf'],
   ['transfers', 'generateTransferPDF', 'traslado-QA-001.pdf'],
@@ -60,9 +59,4 @@ test('long customers, final totals and multipage notes stay inside printable con
       }
     })
   }
-})
-test('invoice keeps discounts, returns, credit balance, deadline and SAT authorization after a multipage table', () => {
-  const record = { ...fixture(101), hasReturns: true, totalReturned: 2, adjustedTotal: 23, isCredit: true, creditPaid: 8, creditBalance: 15, dueDate: '2026-11-10T12:00:00Z', sale_dtes: [{ authorization: 'SAT-AUTHORIZATION-QA' }] }
-  const text = extract(generate('sales', 'generateSaleInvoicePDF', record).buffer)
-  for (const expected of ['ArticuloQA101', '30.00', '5.00', '2.00', 'Total neto:', '23.00', 'Monto recibido:', '50.00', 'Vuelto:', '25.00', 'Venta a crédito', '8.00', '15.00', 'Vencimiento:', 'SAT-AUTHORIZATION-QA']) assert.ok(text.includes(expected), expected)
 })

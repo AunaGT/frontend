@@ -179,7 +179,7 @@ export default function ProductCreatePage() {
       ...(!isService ? {
       brand: formData.brand?.trim() || undefined,
       size: formData.size?.trim() || undefined,
-      supplier_id: formData.supplier,
+      supplier_id: formData.supplier || null,
       tracks_expiry: formData.tracksExpiry,
       } : {service_unit_label:formData.serviceUnitLabel.trim(),quantity_decimals:units?.quantity_decimals??Number(formData.quantityDecimals)}),
       promotion_valid_until: formData.promotionValidUntil?.trim()
@@ -239,7 +239,7 @@ export default function ProductCreatePage() {
           <div>
             <CardTitle>Datos esenciales</CardTitle>
             <p className="mt-1 text-sm text-muted-foreground">
-              {isService ? 'Nombre, categoría, unidad de cobro y precio.' : 'Nombre, categoría, precio y proveedor son suficientes para comenzar.'}
+              {isService ? 'Nombre, categoría, unidad de cobro y precio.' : 'Nombre, categoría y precio son suficientes. El proveedor habitual es opcional.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +355,7 @@ export default function ProductCreatePage() {
                     </>
                   )}
                 {!isService && <div>
-                  <Label className="text-muted-foreground">Proveedor *</Label>
+                  <Label className="text-muted-foreground">Proveedor habitual (opcional)</Label>
                   <Popover open={supplierPopoverOpen} onOpenChange={setSupplierPopoverOpen}>
                     <PopoverTrigger asChild>
                       <Button variant="outline" role="combobox" className="w-full justify-between mt-1">
@@ -368,6 +368,7 @@ export default function ProductCreatePage() {
                         <CommandInput placeholder="Buscar proveedor..." />
                         {suppliersQuery.isLoading ? <p className="p-3 text-sm" role="status">Cargando proveedores…</p> : suppliersQuery.isError ? <div className="p-3 text-sm" role="alert">No se pudieron cargar proveedores.<Button type="button" variant="ghost" onClick={() => void suppliersQuery.refetch()}>Reintentar</Button></div> : <CommandEmpty><CollectionEmptyState compact filtered={suppliers.length > 0} title="Aquí aparecerán tus proveedores" description="Registra un contacto de tipo proveedor para asociarlo a tus productos." /></CommandEmpty>}
                         <CommandList>
+                          <CommandItem onSelect={()=>{onFormChange('supplier','');setSupplierPopoverOpen(false)}}>Sin proveedor habitual</CommandItem>
                           <CommandGroup>
                             <ScrollArea className="h-48">
                               {suppliers.map((s: { id: string; name: string }) => (

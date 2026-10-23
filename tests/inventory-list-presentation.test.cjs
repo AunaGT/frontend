@@ -8,10 +8,12 @@ const { assertPaginationOutside } = require('./pagination-assertions.cjs')
 
 const product = { id: 'qa-product', name: 'Bebida QA 330 ml', category: 'Bebidas', brand: 'QA', size: '330 ml', stock: 24, minStock: 5, price: 25.5, cost: 12, supplier: 'Proveedor QA', barcode: '7401001000098', description: '', imageUrl: '/qa-bottle.png', status: 'available', availableForSale: true, inBranch: true, kind: 'STANDARD' }
 
-function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario', catalogsEnabled=true, stockError=false } = {}) {
+function renderList({ view = 'table', permissions = ['products.view', 'products.edit'], products = [product], loading = false, error = false, states = {}, totalPages = 2, pagination, servicesEnabled=false, route='/inventario', catalogsEnabled=true, stockError=false, searchPending=false } = {}) {
   let index = 0
-  const nodes = [], changes = [], navigations = [], queries = [], mutations = [], reads = []
+  const nodes = [], changes = [], navigations = [], queries = [], mutations = [], reads = [], exports = [], fullReads = []
+  const useInventoryProducts = options => { reads.push(options); return { data: { items: products, totalItems: totalPages === 1 ? products.length : 36, totalPages, page: 1, nextPage: totalPages > 1 ? 2 : null, prevPage: null, summary: { total: 36, forSale: 35, kits: 2, tracksExpiry: 5 } }, isLoading: loading, isFetching: false, isError: error, isSearchPending:searchPending, refetch() {} } }
   const Page = loadReportModule('../inventory/products/ProductManagement.tsx', {
+    '@/components/scanner/QuickProductScan': {QuickProductScan:()=>null},
     ...(pagination ? { '@/hooks/useCardPagination': { useCardPagination: () => pagination } } : {}),
     react: { ...React, useState: initial => {
       const key = index++, [value, setValue] = React.useState(Object.hasOwn(states, key) ? states[key] : initial)
@@ -25,9 +27,10 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: (...codes) => codes.some(code => permissions.includes(code)) }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ',inventoryServicesEnabled:servicesEnabled }) },
     '@/components/layout/PageNavigation': {usePageTrail(){}},
-    '@/hooks/useProducts': { PRODUCTS_QUERY_KEY: ['products'], useProducts: options => { reads.push(options); return { data: { items: products, totalItems: totalPages === 1 ? products.length : 36, totalPages, page: 1, nextPage: totalPages > 1 ? 2 : null, prevPage: null, summary: { total: 36, forSale: 35, kits: 2, tracksExpiry: 5 } }, isLoading: loading, isFetching: false, isError: error, refetch() {} } } },
+    '@/hooks/useProducts': { PRODUCTS_QUERY_KEY: ['products'], useProducts:useInventoryProducts },
+    './hooks/useInventoryProducts': { useInventoryProducts },
     '@/hooks/useCategories': { useCategories: () => ({ data: [{ id: 1, name: 'Bebidas' }] }) },
-    '@/services/productService': { adaptApiProduct: p => p, fetchAllProducts() { throw Error('No real export or products query') }, addProductToBranch() { throw Error('No real stock changes') } },
+    '@/services/productService': { adaptApiProduct: p => p, fetchAllProducts:async()=>{fullReads.push('read');return products}, exportProducts:async args=>exports.push(args), addProductToBranch() { throw Error('No real stock changes') } },
     '@/services/warehouseService': { fetchWarehouses() { throw Error('No real warehouse query') } },
     '@/services/stockMoveService': { fetchStockByLocation() { throw Error('No real stock query') } },
     '@/services/api': { apiFetch() { throw Error('No real requests') } },
@@ -37,8 +40,17 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
     },
   }, nodes).default
   const html = renderToStaticMarkup(React.createElement(MemoryRouter, {initialEntries:[route]}, React.createElement(Page)))
-  return { html, nodes, changes, navigations, queries, mutations, reads }
+  return { html, nodes, changes, navigations, queries, mutations, reads, exports, fullReads }
 }
+test('pending inventory search blocks actual export and all-pages selection callbacks',async()=>{
+  const r=renderList({permissions:['products.view','products.export'],searchPending:true,states:{0:'caf',5:['qa-product']}})
+  const all=r.nodes.find(n=>n.props.onClick && String(n.props.children).includes('Seleccionar todos (todas las páginas)'))
+  assert.equal(all.props.disabled,true)
+  await all.props.onClick()
+  const dialog=r.nodes.find(n=>n.type?.name==='ExportDialog')
+  await dialog.props.onExport({format:'csv',columns:['name']});await dialog.props.secondaryAction.onClick();await new Promise(setImmediate)
+  assert.deepEqual(r.exports,[]);assert.deepEqual(r.fullReads,[])
+})
 test('inventory category action requires catalog authority and availability and uses its canonical destination',()=>{
   for(const [permissions,catalogsEnabled,expected] of [[['products.view','catalogs.manage'],true,true],[['products.view','catalogs.view'],true,true],[['products.view'],true,false],[['products.view','catalogs.manage'],false,false]]) {
     const result=renderList({permissions,catalogsEnabled})

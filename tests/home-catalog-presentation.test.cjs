@@ -12,6 +12,7 @@ function renderHome({ search = '', enabled = new Set(['sales', 'inventory', 'con
   let stateIndex = 0
   try {
     const Page = loadReportModule('../../pages/HomePage.tsx', {
+      '@/components/scanner/QuickProductScan':{QuickProductScan:()=>null},
       react: { ...React, useState: initial => { const [value, setValue] = React.useState(stateIndex++ === 0 ? search : initial); return [value, next => { changes.push(next); setValue(next) }] } },
       'react-router-dom': { ...require('react-router-dom'), useNavigate: () => path => navigations.push(path) },
       '@/context/useModules': { useModules: () => ({ enabledModuleCodes: enabled, isLoading: loading, isError: error, refetch: () => retries.push('retry') }) },

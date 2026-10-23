@@ -56,7 +56,7 @@ export function MerchandisePaymentsPanel({
   const writable =
       hasPermission("merchandise.mark_paid") &&
       !isConsolidated &&
-      record.source !== "INITIAL",
+      (record.source || 'PURCHASE') === "PURCHASE",
     entries = record.payment_entries || [],
     money = (v: number|string) =>
       new Intl.NumberFormat(settings.locale || "es-GT", {
@@ -107,10 +107,9 @@ export function MerchandisePaymentsPanel({
           },
         ]}
       />
-      {record.source === "INITIAL" && (
+      {record.source && record.source !== "PURCHASE" && (
         <p className="text-sm text-muted-foreground">
-          Esta es una carga inicial de inventario; no genera una cuenta por
-          pagar.
+          Esta entrada no es una compra; no genera una cuenta por pagar.
         </p>
       )}
       {record.payment_balance_review_required && (

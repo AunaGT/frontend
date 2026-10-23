@@ -110,6 +110,15 @@ test('real detail name edit omits an unchanged derived12 cost and writes exact b
     assert.equal(payload.cost,undefined);assert.equal(payload.stock,'0.123456');assert.equal(payload.min_stock,'0.000001');assert.equal(payload.unit_revision,4)
   }finally{d.unmount()}
 })
+test('clearing the habitual supplier updates its visible selection and saves an explicit null',async()=>{
+  const d=await detail({product:{supplier:{id:'supplier',name:'Proveedor anterior'}}});try{
+    d.nodes.find(n=>n.props.children==='Sin proveedor habitual'&&n.props.onSelect).props.onSelect();d.render()
+    const picker=d.nodes.find(n=>n.props['aria-labelledby']==='edit-supplier-label')
+    assert.match(text(picker.props.children),/Sin proveedor habitual/)
+    await d.nodes.find(n=>n.props.children==='Guardar cambios').props.onClick()
+    const request=d.requests.find(r=>r.options.method==='PUT');assert.equal(JSON.parse(request.options.body).supplier_id,null)
+  }finally{d.unmount()}
+})
 test('real detail changed manual cost accepts six places and rejects seven without a request',async()=>{
   for(const [cost,allowed] of [['1,123456',true],['1,1234567',false]]){
     const d=await detail();try{d.nodes.find(n=>n.props.id==='edit-cost').props.onChange({target:{value:cost}});d.render();await d.nodes.find(n=>n.props.children==='Guardar cambios').props.onClick();const request=d.requests.find(r=>r.options.method==='PUT');assert.equal(!!request,allowed);if(allowed)assert.equal(JSON.parse(request.options.body).cost,'1.123456')}finally{d.unmount()}

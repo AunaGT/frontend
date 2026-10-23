@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react'
-import {createSale,fetchCheckoutAttempt} from '@/services/saleService'
+import {createSaleConfirmation,fetchCheckoutAttempt} from '@/services/saleService'
 import {convertOrderToSale,type ConvertOrderToSalePayload} from '@/services/orderService'
 import {getActiveCompanyId,getActiveBranchId,getAuthToken} from '@/services/api'
 import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
@@ -22,7 +22,7 @@ export function useCheckoutFlow(scope:CheckoutScope,allowed:boolean,onConfirmed:
   const flow=useMemo(()=>{
     const options={headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}}
     return createCheckoutFlow({scope,cartOwnerId,getDraftId:()=>draft.current,storage:localStorage,isCurrent,newKey:()=>crypto.randomUUID(),withLock:run=>withCheckoutLock(scope,run),
-      submit:async(kind,payload,orderId)=>kind==='SALE'?createSale(payload as unknown as Parameters<typeof createSale>[0],options):{id:((await convertOrderToSale(orderId!,payload as ConvertOrderToSalePayload,options)).sale as {id?:string})?.id},
+      submit:async(kind,payload,orderId)=>kind==='SALE'?createSaleConfirmation(payload as unknown as Parameters<typeof createSaleConfirmation>[0],options):{id:((await convertOrderToSale(orderId!,payload as ConvertOrderToSalePayload,options)).sale as {id?:string})?.id},
       lookup:key=>fetchCheckoutAttempt(key,options),onState:setState,onConfirmed:a=>callback.current(a,a.cartOwnerId===cartOwnerId)})
   // The owner is replaced on any scope, session or permission change.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -35,5 +35,5 @@ export function useCheckoutFlow(scope:CheckoutScope,allowed:boolean,onConfirmed:
     return()=>{owner.active=false;window.removeEventListener('storage',sync)}
   },[flow,owner])
   const blocked=!authSessionMatches(scope.userId)
-  return {...state,blocked,error:blocked?'La sesión cambió en otra pestaña. Recarga Auna antes de continuar.':state.error,submit:flow.submit,reconcile:flow.reconcile,isCurrent}
+  return {...state,blocked,error:blocked?'La sesión cambió en otra pestaña. Recarga Auna antes de continuar.':state.error,canRetry:!state.pending&&isCurrent()&&flow.canRetry(),retry:flow.retry,submit:flow.submit,reconcile:flow.reconcile,isCurrent}
 }

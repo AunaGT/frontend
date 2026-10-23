@@ -5,6 +5,7 @@
  */
 
 import { apiFetch, downloadFile } from "@/services/api";
+import {scannerIdentity} from '@/services/contextScannerService';
 
 export type InventoryCountSessionStatus =
   | "DRAFT"
@@ -88,6 +89,10 @@ export type InventoryCountLineRow = {
 };
 
 const path = (p: string) => `/inventory-counts${p}`;
+export type CountScanMatch={lineId:string;name:string;location:string};
+async function scanRead<T>(url:string,signal?:AbortSignal){const identity=scannerIdentity();if(signal?.aborted)throw new DOMException('Lectura cancelada','AbortError');const out=await apiFetch<T>(url,{signal});if(signal?.aborted||identity!==scannerIdentity())throw new DOMException('Cambió la sucursal o sesión','AbortError');return out}
+export const findCountScan=(sessionId:string,code:string,signal:AbortSignal)=>scanRead<CountScanMatch[]>(path(`/${encodeURIComponent(sessionId)}/scan?${new URLSearchParams({code})}`),signal);
+export const readScannedCountLine=(sessionId:string,lineId:string,signal?:AbortSignal)=>scanRead<{data:InventoryCountLineRow[]}>(path(`/${encodeURIComponent(sessionId)}/lines?${new URLSearchParams({line_id:lineId,limit:'1'})}`),signal);
 
 export async function listInventorySessions(params?: {
   includeSummary?: boolean;

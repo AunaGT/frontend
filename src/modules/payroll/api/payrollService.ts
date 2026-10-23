@@ -32,6 +32,8 @@ export const PAYROLL_STATUS_LABELS: Record<PayrollStatus, string> = {
 };
 
 export interface PayslipLine {
+  deduction_id?: string | null;
+  deduction_snapshot?: { id: string; revision: number; amount: string; reason: string; target_run_id: string | null; employee_id: string } | null;
   id: string;
   concept: string;
   type: PayslipLineType;

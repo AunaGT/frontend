@@ -29,6 +29,7 @@ export function HardwareDeviceEditor({ device, devices, disabled, fields, onSave
         </>}
       </div>
     </section>
+    {value.kind==='SCANNER'&&<HardwareField id="hardware-scanner-prefix" label="Prefijo para lectura automática (opcional)" hint="Configura el mismo prefijo en el aparato. Sin él, Auna usa el campo de lectura para no confundir el lector con tu escritura." error={fields['profile.scannerPrefix']}><Input id="hardware-scanner-prefix" maxLength={8} value={value.profile.scannerPrefix||''} disabled={disabled} onChange={e=>profile('scannerPrefix',e.target.value)} placeholder="Ej. ~"/></HardwareField>}
     <HardwareField id="hardware-notes" label="Modelo, driver o notas (opcional)"><Input id="hardware-notes" maxLength={500} value={value.notes} disabled={disabled} onChange={e => change('notes', e.target.value)} /></HardwareField>
     <div className="config-section-actions"><p className="text-xs text-muted-foreground">No se instalará ningún conector ni se enviarán comandos.</p><Button type="submit" disabled={disabled || !dirty}>Guardar equipo</Button></div>
   </form>

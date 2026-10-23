@@ -66,7 +66,7 @@ export const PayslipCard = ({ payslip, companyName, companyLogoUrl }: { payslip:
           {deducciones.length === 0 && <p className="text-muted-foreground">Ninguna</p>}
           {deducciones.map((l) => (
             <div key={l.id} className="flex justify-between gap-2">
-              <span className="text-muted-foreground">{l.description}</span>
+              <span className="min-w-0 break-words text-muted-foreground">{l.deduction_snapshot?.reason || l.description}</span>
               <span>{money(l.amount)}</span>
             </div>
           ))}

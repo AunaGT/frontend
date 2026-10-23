@@ -116,6 +116,8 @@ const RolesPermissionsManagement = usersModule.pages.Roles;
 const RolePermissionsDetail = usersModule.pages.RoleDetail;
 const RoleCreatePage = usersModule.pages.RoleCreate;
 const ConfigManagement = configModule.pages.Management;
+const DocumentTemplatesPage=configModule.pages.DocumentTemplates;
+const DocumentTemplateEditorPage=configModule.pages.DocumentTemplateEditor;
 const CategoryManagementPage = inventoryModule.pages.Categories;
 const CategoryImportPage = inventoryModule.pages.CategoriesImport;
 const CatalogSettingsPage = configModule.pages.Catalog;
@@ -125,6 +127,7 @@ const PromotionCreatePage = promotionsModule.pages.Create;
 const PromotionEditPage = promotionsModule.pages.Edit;
 const SalesManagement = salesModule.pages.Management;
 const NewSalePage = salesModule.pages.Create;
+const PosSalePage = salesModule.pages.Pos;
 const SaleInvoicePage = salesModule.pages.Invoice;
 const SaleConfirmationPage = salesModule.pages.Confirm;
 const ExternalInvoicePage = salesModule.pages.ExternalInvoice;
@@ -232,6 +235,8 @@ const App = () => (
                 />
 
                 {/* Cotizaciones */}
+                <Route path={salesModule.paths.pos} element={<PermissionRoute any={["sales.create"]}><PosSalePage /></PermissionRoute>} />
+                <Route path={salesModule.paths.edit} element={<PermissionRoute any={["sales.create"]}><NewSalePage /></PermissionRoute>} />
                 <Route path={salesModule.paths.confirm} element={<PermissionRoute any={["appointments.issue_sale"]}><SaleConfirmationPage /></PermissionRoute>} />
                 <Route path={salesModule.paths.externalInvoice} element={<PermissionRoute any={["sales.view_detail","sales.view_invoice"]}><ExternalInvoicePage /></PermissionRoute>} />
                 <Route path={salesModule.paths.externalInvoiceEdit} element={<PermissionRoute any={["sales.view_detail","sales.view_invoice"]}><ExternalInvoicePage /></PermissionRoute>} />
@@ -372,7 +377,7 @@ const App = () => (
                 <Route
                   path={inventoryModule.paths.movements}
                   element={
-                    <PermissionRoute any={["stock_moves.view", "stock_moves.create"]}>
+                    <PermissionRoute any={["stock_moves.view", "stock_moves.create", "products.view"]}>
                       <StockMovesPage />
                     </PermissionRoute>
                   }
@@ -658,7 +663,7 @@ const App = () => (
                 <Route
                   path={hrModule.paths.list}
                   element={
-                    <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view"]}>
+                    <PermissionRoute any={["hr.employees.view", "hr.attendance.view", "hr.advances.view", "hr.deductions.view"]}>
                       <HrPage />
                     </PermissionRoute>
                   }
@@ -778,6 +783,9 @@ const App = () => (
                 />
 
                 {/* Configuración del sistema */}
+                <Route path={configModule.paths.templates} element={<PermissionRoute any={['document_templates.view','document_templates.manage','document_templates.publish']}><DocumentTemplatesPage/></PermissionRoute>}/>
+                <Route path={configModule.paths.templateCreate} element={<PermissionRoute any={['document_templates.manage']}><DocumentTemplateEditorPage/></PermissionRoute>}/>
+                <Route path={configModule.paths.templateEdit} element={<PermissionRoute any={['document_templates.view','document_templates.manage','document_templates.publish']}><DocumentTemplateEditorPage/></PermissionRoute>}/>
                 <Route
                   path={configModule.paths.list}
                   element={

@@ -17,7 +17,7 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { Plus, Calculator, PauseCircle, Table2, LayoutGrid } from 'lucide-react'
+import { Plus, Calculator, PauseCircle, Table2, LayoutGrid, Monitor } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Label } from '@/components/ui/label'
@@ -159,15 +159,15 @@ const SalesManagement = (_props: SalesManagementProps) => {
                     </AlertTitle>
                     <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <span>
-                            Tienes una venta guardada para continuar después. Ábrela desde Nueva venta.
+                            Tienes un carrito guardado para continuar después en el punto de venta.
                         </span>
                         <Button
                             size="sm"
                             variant="outline"
                             className="border-amber-700 text-amber-900 shrink-0"
-                            onClick={() => navigate('/ventas/nueva?recuperar=1')}
+                            onClick={() => navigate('/ventas/pos?recuperar=1')}
                         >
-                            Continuar venta
+                            Continuar en POS
                         </Button>
                     </AlertDescription>
                 </Alert>
@@ -203,6 +203,9 @@ const SalesManagement = (_props: SalesManagementProps) => {
                                 {isValidatingClosure ? 'Validando...' : 'Cierre de Caja'}
                             </span>
                         </Button>
+                    )}
+                    {canCreateSale && (
+                        <Button variant="outline" className="h-12 px-4" onClick={() => navigate('/ventas/pos')}><Monitor className="h-4 w-4" aria-hidden="true" />Abrir POS</Button>
                     )}
                     {canCreateSale && (
                         <Button
@@ -258,6 +261,7 @@ const SalesManagement = (_props: SalesManagementProps) => {
                         canChangeStatus={canChangeSaleStatus}
                         onStatusChange={updateSaleStatus}
                         onViewSale={handleViewSale}
+                        onEditManual={sale=>navigate(`/ventas/${sale.id}/editar`)}
                         onViewInvoice={(sale) => navigate(`/ventas/${sale.reference ?? sale.id}/factura`)}
                         canViewDetail={canViewDetail}
                         canViewInvoice={canViewInvoice}

@@ -1,6 +1,8 @@
 import {useTenant} from '@/context/useTenant'
 import {normalizeUnitDecimal,countBaseQuantity,fetchPresentations,compareUnitQuantities} from '@/modules/inventory/units/public'
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
+import {ScannerField} from '@/components/shared/ScannerField'
+import {findCountScan,readScannedCountLine,type CountScanMatch,type InventoryCountLineRow} from '../api/inventoryCountService'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -76,10 +78,12 @@ import {
 } from "@/components/ui/select";
 
 export default function InventoryCountSessionPage() {
+  const countTenant=useTenant();
   const { sessionId = "" } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const scanKey=JSON.stringify([countTenant.company?.id,countTenant.branch?.id,user?.id,sessionId]);
   const queryClient = useQueryClient();
   const { hasPermission } = useAuthPermissions();
   const { locale, currencyCode } = useSystemSettings();
@@ -100,6 +104,17 @@ export default function InventoryCountSessionPage() {
   const [approveReason, setApproveReason] = useState("");
   const [submitOpen, setSubmitOpen] = useState(false);
   const [submitReason, setSubmitReason] = useState("");
+  const [choiceState,setScanChoices]=useState<{key:string;items:CountScanMatch[]}>({key:'',items:[]});
+  const scanChoices=choiceState.key===scanKey?choiceState.items:[];
+  const [revealed,setRevealed]=useState<{key:string;rows:InventoryCountLineRow[]}>({key:'',rows:[]});
+  const [scanFocus,setScanFocus]=useState({key:'',id:'',tick:0});
+  const liveScanKey=useRef(scanKey);liveScanKey.current=scanKey;
+  useEffect(()=>{if(scanFocus.key===scanKey){const input=document.getElementById(`count-${scanFocus.id}`);input?.scrollIntoView({block:'center'});input?.focus({preventScroll:true})}},[scanFocus,scanKey]);
+  async function revealLine(lineId:string,signal?:AbortSignal){
+    const out=await readScannedCountLine(sessionId,lineId,signal);if(signal?.aborted||liveScanKey.current!==scanKey||!out.data[0])return;
+    setRevealed(old=>({key:scanKey,rows:[...(old.key===scanKey?old.rows:[]).filter(r=>r.id!==lineId),out.data[0]]}));
+    setScanChoices({key:scanKey,items:[]});setScanFocus(old=>({key:scanKey,id:lineId,tick:old.tick+1}));
+  }
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(search.trim()), 300);
@@ -159,26 +174,30 @@ export default function InventoryCountSessionPage() {
 
   const savePrimary = useCallback(
     async (lineId: string, qty: number|string) => {
-      await updateInventoryLine(sessionId, lineId, {
+      const updated=await updateInventoryLine(sessionId, lineId, {
         qty_counted: qty,
       });
+      if(liveScanKey.current!==scanKey)return;
+      setRevealed(old=>old.key===scanKey?{...old,rows:old.rows.map(row=>row.id===lineId?updated:row)}:old);
       queryClient.invalidateQueries({ queryKey: ["inventory-session", sessionId] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["inventory-sessions"] });
     },
-    [sessionId, queryClient]
+    [sessionId, queryClient,scanKey]
   );
 
   const saveSecondary = useCallback(
     async (lineId: string, qty: number|string) => {
-      await updateInventoryLine(sessionId, lineId, {
+      const updated=await updateInventoryLine(sessionId, lineId, {
         qty_counted_secondary: qty,
       });
+      if(liveScanKey.current!==scanKey)return;
+      setRevealed(old=>old.key===scanKey?{...old,rows:old.rows.map(row=>row.id===lineId?updated:row)}:old);
       queryClient.invalidateQueries({ queryKey: ["inventory-session", sessionId] });
-      queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
+      await queryClient.invalidateQueries({ queryKey: ["inventory-lines", sessionId] });
       queryClient.invalidateQueries({ queryKey: ["inventory-sessions"] });
     },
-    [sessionId, queryClient]
+    [sessionId, queryClient,scanKey]
   );
 
   const submitMut = useMutation({
@@ -232,6 +251,7 @@ export default function InventoryCountSessionPage() {
 
   const session = sessionQuery.data;
   const lines = linesQuery.data?.data ?? [];
+  const displayedLines=[...(revealed.key===scanKey?revealed.rows:[]).filter(row=>!lines.some(line=>line.id===row.id)),...lines];
   const linesTotal = linesQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(linesTotal / pageSize));
   useEffect(() => { if (linesQuery.data && page >= totalPages) setPage(totalPages - 1) }, [linesQuery.data, page, totalPages]);
@@ -376,7 +396,11 @@ export default function InventoryCountSessionPage() {
       )}
 
       {!isDraft && (
-        <><section className="compact-filter-toolbar" aria-label="Filtros del conteo"><div className="flex flex-wrap items-center gap-3">
+        <>
+        {!locked&&<ScannerField scopeKey={scanKey} label="Localizar para contar" onScan={async(code,signal)=>{const matches=await findCountScan(sessionId,code,signal);if(signal.aborted||liveScanKey.current!==scanKey)return;if(matches.length===1)await revealLine(matches[0].lineId,signal);else setScanChoices({key:scanKey,items:matches})}}/>}
+        {scanChoices.length>0&&<section aria-label="Elegir ubicación del producto" className="space-y-2"><p className="text-sm">El producto aparece en varias líneas. Elige dónde estás contando.</p><div className="flex flex-wrap gap-2">{scanChoices.map(choice=><Button key={choice.lineId} variant="outline" disabled={locked} onClick={()=>void revealLine(choice.lineId).catch(e=>toast({title:'No se pudo localizar la línea',description:e.message,variant:'destructive'}))}>{choice.name} · {choice.location}</Button>)}</div></section>}
+        {revealed.key===scanKey&&revealed.rows.length>0&&<p role="status" className="text-sm text-muted-foreground">Las coincidencias escaneadas se mantienen visibles aunque estén fuera de tus filtros o página. Escanear no suma ni guarda: ingresa la cantidad y usa Guardar o Enter.</p>}
+        <section className="compact-filter-toolbar" aria-label="Filtros del conteo"><div className="flex flex-wrap items-center gap-3">
           <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   aria-label="Escanear o buscar producto"
@@ -443,10 +467,10 @@ export default function InventoryCountSessionPage() {
             {linesQuery.isFetching && !linesQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
             {linesQuery.isLoading && <LoadingState columns={['Producto', 'Código', 'Ubicación', 'En sistema', 'Contado', ...(doubleCount ? ['Comprobación'] : []), 'Diferencia', 'Valor aprox.']} message="Cargando productos…" />}
             {linesQuery.isError && <div role="alert" className="p-6 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => linesQuery.refetch()}>Reintentar</Button></div>}
-            {!linesQuery.isLoading && !linesQuery.isError && pendingOnly && lines.length === 0 && inProgress && (
+            {!linesQuery.isLoading && !linesQuery.isError && pendingOnly && displayedLines.length === 0 && inProgress && (
               <CollectionEmptyState compact title="Sin filas pendientes en esta consulta" description="Revisa el resto del conteo o ajusta los filtros para consultar otras líneas." filtered onReset={() => { setSearch(""); setDebouncedQ(""); setPendingOnly(false); setLocationId("all"); setPage(0); }} />
             )}
-            {!linesQuery.isLoading && !linesQuery.isError && !(pendingOnly && lines.length === 0) && (
+            {!linesQuery.isLoading && !linesQuery.isError && !(pendingOnly && displayedLines.length === 0) && (
               <div className="auna-data-table-shell auna-table-embedded overflow-x-auto">
                 <Table>
                   <TableHeader>
@@ -462,8 +486,8 @@ export default function InventoryCountSessionPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {!lines.length && <TableRow><TableCell colSpan={doubleCount ? 8 : 7}><CollectionEmptyState compact title="Las líneas del conteo aparecerán aquí" description="Esta sesión no tiene productos para mostrar en la consulta actual." filtered={Boolean(search.trim() || debouncedQ) || locationId !== "all" || pendingOnly} onReset={() => { setSearch(""); setDebouncedQ(""); setPendingOnly(false); setLocationId("all"); setPage(0); }} /></TableCell></TableRow>}
-                    {lines.map((row) => (
+                    {!displayedLines.length && <TableRow><TableCell colSpan={doubleCount ? 8 : 7}><CollectionEmptyState compact title="Las líneas del conteo aparecerán aquí" description="Esta sesión no tiene productos para mostrar en la consulta actual." filtered={Boolean(search.trim() || debouncedQ) || locationId !== "all" || pendingOnly} onReset={() => { setSearch(""); setDebouncedQ(""); setPendingOnly(false); setLocationId("all"); setPage(0); }} /></TableCell></TableRow>}
+                    {displayedLines.map((row) => (
                       <LineRow
                         key={row.id}
                         row={row}
@@ -697,11 +721,11 @@ export function LineRow({
             min={0}
             step="any"
             aria-label={`Cantidad contada de ${row.product.name}`}
+            id={`count-${row.id}`}
             className="w-20 text-right"
             disabled={locked || saving}
             value={val}
             onChange={(e) => setVal(e.target.value)}
-            onBlur={() => commit()}
             onKeyDown={(e) => e.key === "Enter" && commit()}
           />
           {!locked && (
@@ -733,7 +757,6 @@ export function LineRow({
               disabled={locked || saving}
               value={val2}
               onChange={(e) => setVal2(e.target.value)}
-              onBlur={() => commit(true)}
               onKeyDown={(e) => e.key === "Enter" && commit(true)}
             />
             {!locked && (

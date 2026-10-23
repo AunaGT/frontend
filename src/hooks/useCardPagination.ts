@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { listUiOwner, readListUiPersisted, writeListUiPersisted } from './usePersistedListUiState'
 
-export function useCardPagination({ enabled, tablePageSize, onPageChange, storageKey }: {
+export function useCardPagination({ enabled, tablePageSize, onPageChange, storageKey, cardMinWidth = 320, cardGap = 12 }: {
   enabled: boolean
   tablePageSize: number
   onPageChange: (page: number) => void
   storageKey?: string
+  cardMinWidth?: number
+  cardGap?: number
 }) {
   const owner = listUiOwner()
   const restoreSelection = () => {
@@ -29,8 +31,8 @@ export function useCardPagination({ enabled, tablePageSize, onPageChange, storag
   }, [])
   useEffect(() => () => observer.current?.disconnect(), [])
 
-  // Match .auna-record-grid's 320px minimum and 12px gap, including sidebar resizing.
-  const columns = Math.max(1, Math.floor(((width ?? 0) + 12) / 332))
+  // Defaults match .auna-record-grid; POS supplies its compact tile dimensions.
+  const columns = Math.max(1, Math.floor(((width ?? 0) + cardGap) / (cardMinWidth + cardGap)))
   const fitRows = (size: number) => Math.min(Math.ceil(size / columns) * columns, Math.floor(100 / columns) * columns || 100)
   const legacySize = selection.multiple ? Math.ceil(10 / columns) * columns * selection.multiple : 40
   const cardSize = fitRows(selection.size ?? legacySize)
@@ -47,5 +49,5 @@ export function useCardPagination({ enabled, tablePageSize, onPageChange, storag
       if (storageKey) writeListUiPersisted(storageKey, { cardPageSize: size }, owner)
     }
   }
-  return { containerRef, pageSize, pageSizeOptions, setCardPageSize }
+  return { containerRef, pageSize, pageSizeOptions, setCardPageSize, columns }
 }

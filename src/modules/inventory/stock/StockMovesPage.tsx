@@ -1,5 +1,6 @@
 /** Copyright (c) 2026 Diego Patzán. All Rights Reserved. Proprietary License. */
 import { useEffect, useMemo, useState } from 'react'
+import {useLocation,useNavigate} from 'react-router-dom'
 import { MetricStrip } from '@/components/shared/MetricStrip'
 import { useQuery } from '@tanstack/react-query'
 import { History, MoveRight, PackageSearch, Scale, Search } from 'lucide-react'
@@ -21,9 +22,13 @@ import { fetchWarehouses } from '@/services/warehouseService'
 import { fetchMovementPage, fetchReplenishment, REASON_LABELS, type ReplenishmentRow, type StockMovementReason } from '@/services/stockMoveService'
 import { StockOperationDialog } from './StockOperationDialog'
 import { usePageTrail } from '@/components/layout/PageNavigation'
+import {resolveContextScan,scannerIdentity,type StockScanIntent} from '@/services/contextScannerService'
+import {authSessionIdentity} from '@/services/authSession'
+import type {ApiProduct} from '@/types/product'
 
-function StockMovesWorkspace() {
+export function StockMovesWorkspace({scanIntent}:{scanIntent?:StockScanIntent}={}) {
   const { branch } = useTenant()
+  const navigate=useNavigate()
   const { hasPermission } = useAuthPermissions()
   const { locale, timezone } = useSystemSettings()
   const canMove = hasPermission('stock_moves.create')
@@ -41,6 +46,35 @@ function StockMovesWorkspace() {
   const { page, setPage, pageSize, setPageSize } = usePersistedListUiState('inventario/movimientos')
   const { page: replenishmentPage, setPage: setReplenishmentPage, pageSize: replenishmentSize, setPageSize: setReplenishmentSize } = usePersistedListUiState('inventario/reposiciones')
   const [replenishmentSearch, setReplenishmentSearch] = useState('')
+  const [scanProduct,setScanProduct]=useState<ApiProduct>()
+  const [scanOwner,setScanOwner]=useState('')
+  const [scanKind,setScanKind]=useState<'LOSS'|'SURPLUS'>('LOSS')
+  const [scanError,setScanError]=useState('')
+  const [scanPending,setScanPending]=useState(false)
+  useEffect(()=>{
+    if(!scanIntent)return
+    const controller=new AbortController()
+    const prepare=async()=>{
+      setScanPending(true);setScanError('')
+      try{
+        const {action,code,productId,identity}=scanIntent
+        if(!branch||identity!==scannerIdentity()||typeof code!=='string'||!code||typeof productId!=='string'||!['move','loss','surplus','replenishment','history'].includes(action))throw Error('Este acceso ya no corresponde a la sesión o sucursal. Escanea de nuevo el producto.')
+        if(!hasPermission('products.view')||(['move','replenishment'].includes(action)&&!canMove)||(['loss','surplus'].includes(action)&&!canAdjust))throw Error('No tienes permiso para esta operación.')
+        const {product}=await resolveContextScan(code,'LOOKUP',controller.signal)
+        if(controller.signal.aborted||identity!==scannerIdentity())return
+        if(String(product.id)!==productId||product.kind==='SERVICE')throw Error('El código ya no corresponde a un bien disponible. Escanea de nuevo el producto.')
+        setScanProduct(product);setScanOwner(identity);setPage(1);setReplenishmentPage(1)
+        setTab(action==='replenishment'?'replenishment':'history')
+        if(['move','loss','surplus'].includes(action)){
+          setScanKind(action==='surplus'?'SURPLUS':'LOSS');setSuggestion(undefined);setOperation(action==='move'?'move':'adjust')
+        }
+        navigate('/inventario/movimientos',{replace:true,state:null})
+      }catch(e){if(!controller.signal.aborted)setScanError(e instanceof Error?e.message:'No se pudo preparar la operación.')}
+      finally{if(!controller.signal.aborted)setScanPending(false)}
+    }
+    void prepare()
+    return()=>controller.abort()
+  },[scanIntent,branch?.id,canMove,canAdjust])
   useEffect(() => {
     const timer = window.setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1) }, 280)
     return () => window.clearTimeout(timer)
@@ -51,18 +85,20 @@ function StockMovesWorkspace() {
   const replenishmentQuery = useQuery({ queryKey: ['stock-replenishment', branch?.id], queryFn: fetchReplenishment, enabled: Boolean(branch) && tab === 'replenishment' })
   const invalidRange = Boolean(from && to && from > to)
   const movementQuery = useQuery({
-    queryKey: ['stock-moves', branch?.id, page, pageSize, debouncedSearch, locationId, reason, from, to, 'summary'],
-    queryFn: () => fetchMovementPage({ page, pageSize, search: debouncedSearch || undefined, location_id: locationId === 'all' ? undefined : locationId, reason: reason === 'all' ? undefined : reason, from: from || undefined, to: to || undefined, includeSummary: true }),
+    queryKey: ['stock-moves', branch?.id, page, pageSize, debouncedSearch, locationId, reason, from, to, 'summary',scanProduct?.id],
+    queryFn: () => fetchMovementPage({ page, pageSize, product_id:scanProduct?String(scanProduct.id):undefined, search: debouncedSearch || undefined, location_id: locationId === 'all' ? undefined : locationId, reason: reason === 'all' ? undefined : reason, from: from || undefined, to: to || undefined, includeSummary: true }),
     enabled: Boolean(branch) && tab === 'history' && !invalidRange,
   })
   const data = movementQuery.data
   const movements = data?.items ?? []
-  const replenishments = (replenishmentQuery.data ?? []).filter(r => `${r.product_name} ${r.barcode ?? ''} ${r.warehouse_name} ${r.location_code}`.toLocaleLowerCase().includes(replenishmentSearch.trim().toLocaleLowerCase()))
+  const replenishments = (replenishmentQuery.data ?? []).filter(r => (!scanProduct||r.product_id===String(scanProduct.id))&&`${r.product_name} ${r.barcode ?? ''} ${r.warehouse_name} ${r.location_code}`.toLocaleLowerCase().includes(replenishmentSearch.trim().toLocaleLowerCase()))
   const replenishmentPages = Math.max(1, Math.ceil(replenishments.length / replenishmentSize))
   const safeReplenishmentPage = Math.min(replenishmentPage, replenishmentPages)
   const openOperation = (task: 'move' | 'adjust', row?: ReplenishmentRow) => { setSuggestion(row); setOperation(task) }
   const resetFilter = (setter: (value: string) => void, value = '') => { setter(value); setPage(1) }
+  const clearFilters=()=>{setScanProduct(undefined);setSearch('');setDebouncedSearch('');setLocationId('all');setReason('all');setFrom('');setTo('');setPage(1)}
   const appliedFilters = [
+    ...(scanProduct?[{label:`Producto: ${scanProduct.name}`,onRemove:()=>{setScanProduct(undefined);setPage(1);setReplenishmentPage(1)}}]:[]),
     ...(debouncedSearch ? [{ label: `Búsqueda: ${debouncedSearch}`, onRemove: () => { setSearch(''); setDebouncedSearch(''); setPage(1) } }] : []),
     ...(locationId !== 'all' ? [{ label: `Ubicación: ${locations.find(l => l.id === locationId)?.label ?? locationId}`, onRemove: () => resetFilter(setLocationId, 'all') }] : []),
     ...(reason !== 'all' ? [{ label: `Motivo: ${REASON_LABELS[reason]}`, onRemove: () => { setReason('all'); setPage(1) } }] : []),
@@ -73,6 +109,9 @@ function StockMovesWorkspace() {
   const pageActions = <>{branch && <div className="flex flex-wrap gap-2">{canAdjust && <Button variant="outline" disabled={!locations.length} onClick={() => openOperation('adjust')}><Scale className="h-4 w-4" aria-hidden="true" />Ajustar existencias</Button>}{canMove && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={locations.length < 2} onClick={() => openOperation('move')}><MoveRight className="h-4 w-4" aria-hidden="true" />Mover mercancía</Button>}</div>}</>
   return <div className="min-h-full bg-brand-surface dark:bg-brand-navy"><div className="auna-page-fluid mx-auto w-full space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Existencias y movimientos</h1>
+    {scanPending&&<LoadingIndicator message="Preparando el producto escaneado…"/>}
+    {scanError&&<p role="alert" className="text-sm text-red-600 dark:text-red-400">{scanError}</p>}
+    {scanProduct&&<div className="flex flex-wrap items-center gap-3 text-sm"><span>Producto escaneado: <strong>{scanProduct.name}</strong></span><Button variant="ghost" size="sm" onClick={()=>{setScanProduct(undefined);setPage(1);setReplenishmentPage(1)}}>Mostrar todos los productos</Button></div>}
     {!branch ? <EmptyState icon={PackageSearch} title="Selecciona una sucursal" description="Los movimientos y ajustes pertenecen a una sucursal concreta. Elígela en el selector superior." /> : <>
       {warehouseQuery.isError ? <div role="alert" className="flex flex-wrap items-center gap-3 rounded-lg border p-3 text-sm"><p>No se pudieron cargar las ubicaciones.</p><Button variant="outline" size="sm" onClick={() => warehouseQuery.refetch()}>Reintentar</Button></div> : !warehouseQuery.isLoading && (canMove || canAdjust) && locations.length < 2 ? <p className="text-sm text-muted-foreground">{locations.length === 0 ? 'Para operar necesitas una ubicación activa.' : 'Para mover mercancía necesitas dos ubicaciones activas.'} Configúralas en Sucursales → Almacenes.</p> : null}
       <Tabs value={tab} onValueChange={setTab}>
@@ -80,7 +119,7 @@ function StockMovesWorkspace() {
         <TabsContent value="history" className="space-y-3 pt-2">
           <MetricStrip label="Resumen de movimientos" loading={movementQuery.isLoading && !invalidRange} items={([['total', 'Movimientos'], ['incoming', 'Entradas'], ['outgoing', 'Salidas']] as const).map(([key, label]) => ({ label, value: movementQuery.isError || invalidRange ? '—' : data?.summary?.[key] ?? '—' }))} />
 
-          <CompactFilterPanel actions={pageActions} title="Filtros de movimientos" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={() => { setSearch(''); setDebouncedSearch(''); setLocationId('all'); setReason('all'); setFrom(''); setTo(''); setPage(1) }} search={<div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar movimientos" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder="Producto, código o nota…" /></div>}>
+          <CompactFilterPanel actions={pageActions} title="Filtros de movimientos" activeCount={appliedFilters.length} appliedFilters={appliedFilters} onClear={clearFilters} search={<div className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" /><Input aria-label="Buscar movimientos" className="pl-9" value={search} onChange={e => setSearch(e.target.value)} placeholder="Producto, código o nota…" /></div>}>
             <div className="space-y-2"><Label htmlFor="stock-location-filter">Ubicación</Label><select id="stock-location-filter" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => resetFilter(setLocationId, e.target.value)}><option value="all">Todas las ubicaciones</option>{locations.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}</select></div>
             <div className="space-y-2"><Label htmlFor="stock-reason-filter">Motivo</Label><select id="stock-reason-filter" className="auna-control auna-control-select auna-receipt-select" value={reason} onChange={e => { setReason(e.target.value as typeof reason); setPage(1) }}><option value="all">Todos los motivos</option>{Object.entries(REASON_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></div>
             <div className="space-y-2"><Label htmlFor="stock-from">Desde</Label><Input id="stock-from" type="date" value={from} max={to || undefined} onChange={e => resetFilter(setFrom, e.target.value)} /></div>
@@ -110,15 +149,16 @@ function StockMovesWorkspace() {
 <div className="auna-pagination-outside">{!replenishmentQuery.isError && <Pagination currentPage={safeReplenishmentPage} totalPages={replenishmentPages} onPageChange={setReplenishmentPage} loading={replenishmentQuery.isFetching} totalItems={replenishments.length} pageSize={replenishmentSize} onPageSizeChange={setReplenishmentSize} count={Math.min(replenishmentSize, Math.max(0, replenishments.length - (safeReplenishmentPage - 1) * replenishmentSize))} itemLabel="reposiciones" />}</div></>
         </TabsContent>
       </Tabs>
-      {operation && ((operation === 'move' && canMove) || (operation === 'adjust' && canAdjust)) && <StockOperationDialog key={`${operation}-${suggestion?.product_id ?? 'new'}-${suggestion?.location_id ?? ''}`} task={operation} branchId={branch.id} locations={locations} suggestion={suggestion} onClose={() => setOperation(null)} />}
+      {operation && ((operation === 'move' && canMove) || (operation === 'adjust' && canAdjust)) && <StockOperationDialog key={`${operation}-${suggestion?.product_id ?? scanProduct?.id ?? 'new'}-${suggestion?.location_id ?? ''}`} task={operation} branchId={branch.id} locations={locations} suggestion={suggestion} initialProduct={suggestion?undefined:scanProduct} initialKind={scanKind} scanIdentity={scanOwner} onClose={() => setOperation(null)} />}
     </>}
   </div></div>
 }
 
 export const StockMovesPage = () => {
-  const { branch } = useTenant()
+  const { company,branch } = useTenant()
+  const {state}=useLocation()
   // Changing branch discards filters and drafts rather than sending them to another branch.
-  return <StockMovesWorkspace key={branch?.id ?? 'none'} />
+  return <StockMovesWorkspace key={JSON.stringify([company?.id,branch?.id,authSessionIdentity()])} scanIntent={state?.stockScan}/>
 }
 export default StockMovesPage
 import {compareUnitQuantities} from '@/modules/inventory/units/public'

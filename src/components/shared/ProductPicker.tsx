@@ -42,7 +42,7 @@ export function ProductPicker({ companyId,branchId, onPick, money = String, supp
     },{signal,...(companyId?{headers:{'X-Company-Id':companyId,'X-Branch-Id':branchId??''}}:{})}),
     initialPageParam: 1,
     getNextPageParam: (last) => last.nextPage ?? undefined,
-    enabled: open && (purchase ? Boolean(supplierId) : Boolean(branchId)),
+    enabled: open && Boolean(branchId),
     staleTime: 30_000,
   })
   const products = useMemo(() => {
@@ -53,7 +53,7 @@ export function ProductPicker({ companyId,branchId, onPick, money = String, supp
 
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
-      <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-12 w-full justify-between rounded-xl font-normal" disabled={purchase ? !supplierId : !branchId}>
+      <Button type="button" variant="outline" role="combobox" aria-expanded={open} className="h-12 w-full justify-between rounded-xl font-normal" disabled={!branchId}>
         <span className="flex items-center gap-2 text-muted-foreground"><Search className="h-4 w-4" />Buscar por nombre o código…</span>
         <ChevronsUpDown className="h-4 w-4 opacity-50" />
       </Button>

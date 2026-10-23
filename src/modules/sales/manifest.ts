@@ -6,6 +6,8 @@ export const salesModule = {
   paths: {
     list: '/ventas',
     create: '/ventas/nueva',
+    pos: '/ventas/pos',
+    edit: '/ventas/:id/editar',
     invoice: '/ventas/:id/factura',
     confirm: '/ventas/:id/confirmar',
     externalInvoice: '/ventas/:id/factura-externa',
@@ -14,7 +16,8 @@ export const salesModule = {
   routePrefixes: [] as const,
   pages: {
     Management: lazy(() => import('./SalesManagement')),
-    Create: lazy(() => import('./NewSalePage')),
+    Create: lazy(() => import('./ManualSalePage')),
+    Pos: lazy(() => import('./NewSalePage')),
     Confirm: lazy(() => import('./SaleConfirmationPage')),
     ExternalInvoice: lazy(() => import('./ExternalInvoicePage')),
     Invoice: lazy(() => import('./SaleInvoicePage')

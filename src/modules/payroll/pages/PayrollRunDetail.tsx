@@ -77,6 +77,8 @@ export const PayrollRunDetail = () => {
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['payroll-runs'] })
     qc.invalidateQueries({ queryKey: ['hr-advances'] })
+    qc.invalidateQueries({ queryKey: ['hr-deductions'] })
+    qc.invalidateQueries({ queryKey: ['hr-employee-history'] })
     qc.invalidateQueries({ queryKey: ['accounting'] })
   }
 
@@ -133,6 +135,8 @@ export const PayrollRunDetail = () => {
 
       <MetricStrip label="Resumen de nómina" items={[{label:'Empleados',value:run.payslips.length},{label:'Total bruto',value:money(run.total_earnings)},{label:'Deducciones',value:money(run.total_deductions)},{label:'Total neto',value:money(run.total_net)},{label:'Costo patronal',value:money(run.total_employer_cost)}]} />
       <RunRatesPanel key={contextKey} run={run} scope={scope} canAdopt={!busy&&!isConsolidated&&hasPermission('payroll.create')} onUpdated={invalidate}/>
+
+      {run.payslips.some(p => p.lines.some(l => l.deduction_id)) && <section className="space-y-2 border-y py-3" aria-label="Descuentos de salario incluidos"><h2 className="font-semibold">Descuentos de salario incluidos</h2>{run.status === 'BORRADOR' && <p className="text-sm text-muted-foreground">Se aplicarán al confirmar. Si cambiaste algún descuento en RRHH, recalcula antes de continuar.</p>}<ul className="divide-y">{run.payslips.flatMap(p => p.lines.filter(l => l.deduction_id).map(l => <li key={l.id} className="flex flex-wrap items-baseline justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words"><strong>{p.employee?.first_name} {p.employee?.last_name}</strong> · {l.deduction_snapshot?.reason || l.description}</span><span className="tabular-nums">{money(l.amount)}</span></li>))}</ul></section>}
 
       <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">Empleados ({run.payslips.length})</h2><div className="relative w-full sm:w-80"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Buscar empleados" placeholder="Buscar empleado, código o puesto..." className="pl-9" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1) }} /></div></div>
       <><Card className="auna-data-table-shell"><CardContent className="p-0"><div className="overflow-x-auto"><Table className="auna-data-table min-w-[900px]"><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Empleado</TableHead><TableHead>Puesto</TableHead><TableHead className="text-right">Días</TableHead><TableHead className="text-right">Bruto</TableHead><TableHead className="text-right">Deducciones</TableHead><TableHead className="text-right">Neto</TableHead><TableHead className="text-right">Acciones</TableHead></TableRow></TableHeader><TableBody>

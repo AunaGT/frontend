@@ -4,7 +4,8 @@
  * API cotizaciones comerciales.
  */
 
-import { apiFetch } from "./api";
+import { apiFetch,getActiveCompanyId,getActiveBranchId } from "./api";
+import {authSessionIdentity} from './authSession';
 import type { PublicServiceConditions } from './serviceConditions';
 export async function previewQuoteServiceConditions(productIds:string[],signal?:AbortSignal):Promise<{conditions:Record<string,PublicServiceConditions|null>}>{
   return apiFetch('/api/quotes/service-conditions',{method:'POST',body:JSON.stringify({productIds}),signal});
@@ -40,6 +41,8 @@ export type QuoteLine = {
 };
 
 export type Quote = {
+  hasDirectSale?:boolean;
+  directSale?:{id:string;reference:string|null;status:'DRAFT'|'CONFIRMED'|'CANCELLED'}|null;
   engagementId?:string|null;
   agenda?:{canOpen:boolean;canCreate:boolean;reason:string};
   payment_condition?: 'CASH' | 'CREDIT';
@@ -201,6 +204,12 @@ export async function convertQuoteToOrder(id: string): Promise<ConvertToOrderRes
   return apiFetch<ConvertToOrderResponse>(`/api/quotes/${encodeURIComponent(id)}/convert-to-order`, {
     method: "POST",
   });
+}
+
+export async function convertQuoteToSale(id:string,scope:{companyId:string;branchId:string;sessionIdentity:string}){
+  const check=()=>{if(!scope.companyId||!scope.branchId||scope.branchId==='all'||getActiveCompanyId()!==scope.companyId||getActiveBranchId()!==scope.branchId||authSessionIdentity()!==scope.sessionIdentity)throw new DOMException('Cambió la empresa, sucursal o sesión','AbortError')};check();
+  const sale=await apiFetch<{id:string;reference:string;status:'DRAFT'|'CONFIRMED'|'CANCELLED'}>(`/api/quotes/${encodeURIComponent(id)}/convert-to-sale`,{method:'POST',headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}});
+  check();return sale;
 }
 
 export type PublicQuote = {

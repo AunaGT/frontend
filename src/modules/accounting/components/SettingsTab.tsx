@@ -48,6 +48,7 @@ const KEY_LABELS: Record<string, string> = {
   retainedEarnings: 'Utilidades acumuladas',
   cashOverShort: 'Sobrantes / faltantes de caja',
   customerAdvances: 'Anticipos de clientes (opcional)',
+  payrollOtherDeductions: 'Descuentos de nómina por conciliar (pasivo)',
 }
 
 export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canManage: boolean }) => {
@@ -286,7 +287,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
                 >
                   <SelectTrigger><SelectValue placeholder="Seleccionar cuenta" /></SelectTrigger>
                   <SelectContent>
-                    {postables.filter((a) => key !== 'customerAdvances' || a.type === 'LIABILITY').map((a) => (
+                    {postables.filter((a) => !['customerAdvances', 'payrollOtherDeductions'].includes(key) || a.type === 'LIABILITY').map((a) => (
                       <SelectItem key={a.id} value={a.code}>{a.code} — {a.name}</SelectItem>
                     ))}
                   </SelectContent>

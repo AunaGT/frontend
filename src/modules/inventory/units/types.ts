@@ -10,5 +10,6 @@ export type PresentationDraft={key:string;id?:string;version?:number;name:string
 export type ProductUnitsDraft={baseUnitId:string;quantityDecimals:string;presentations:PresentationDraft[];defaultPurchaseKey:string|null;defaultSaleKey:string|null}
 export type InitialUnitsConfiguration={base_unit_id:string;quantity_decimals:number;presentations:(PresentationInput&{client_key:string})[];default_purchase_key:string|null;default_sale_key:string|null}
 export type UnitPreview={qty:string;base_qty:string;unit_metadata_version:1|2;unit_revision?:number;unit_price?:string;line_total?:string;unit_snapshot:UnitSnapshot|LegacyUnitSnapshot}
+export type UnitPreviewLine={client_line_key:string;product_id:string;qty:string;presentation_id?:string|null;unit_revision:number;accept_rounding?:boolean;price_tier?:'LIST'|'WHOLESALE'|'PROMOTION'}
 export type LegacyUnitSnapshot={version:1;factor:'1';unit_label:string}
 export type UnitSnapshot={version:2;baseUnit:{id:string;code:string;name:string;label:string;decimals:number};presentation:{id:string;version:number;name:string;label:string;decimals:number}|null;factor:string;roundingDelta:string}

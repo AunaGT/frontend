@@ -280,6 +280,23 @@ export const uploadEmployeeDocument = (employeeId: string, typeId: string, file:
 export type DirectoryEmployee = Pick<Employee, 'id' | 'code' | 'first_name' | 'last_name' | 'position'> & { branch: { id: string; name: string } };
 export interface EmployeeHistoryEntry { id: string; event: string; changes: Record<string, unknown>; actor: { id: string; name: string } | null; created_at: string }
 export interface EmployeeOverview { attendance: { marked: number; present: number } | null; advances: { count: number; balance: string } | null; documents: { complete: boolean; missingRequired: { id: string; name: string }[] } | null; history: { count: number } }
-export const fetchEmployeeHistory = (id: string, page = 1) => apiFetch<Paginated<EmployeeHistoryEntry>>(`/api/hr/employees/${id}/history?page=${page}&pageSize=10`);
-export const fetchEmployeeOverview = (id: string) => apiFetch<EmployeeOverview>(`/api/hr/employees/${id}/overview`);
-export const fetchEmployeeDirectory = (purpose: 'attendance' | 'advance' | 'supervisor', filters: { q?: string; page?: number; pageSize?: number; excludeId?: string } = {}) => apiFetch<Paginated<DirectoryEmployee>>(`/api/hr/employee-directory${qs({ ...filters, purpose, page: String(filters.page ?? 1), pageSize: String(filters.pageSize ?? 10) })}`);
+export const fetchEmployeeHistory = (id: string, page = 1, request?: RequestInit) => apiFetch<Paginated<EmployeeHistoryEntry>>(`/api/hr/employees/${id}/history?page=${page}&pageSize=10`, request);
+export const fetchEmployeeOverview = (id: string, request?: RequestInit) => apiFetch<EmployeeOverview>(`/api/hr/employees/${id}/overview`, request);
+export const fetchEmployeeDirectory = (purpose: 'attendance' | 'advance' | 'supervisor' | 'deduction', filters: { q?: string; page?: number; pageSize?: number; excludeId?: string } = {}, request?: RequestInit) => apiFetch<Paginated<DirectoryEmployee>>(`/api/hr/employee-directory${qs({ ...filters, purpose, page: String(filters.page ?? 1), pageSize: String(filters.pageSize ?? 10) })}`, request);
+
+export interface DeductionsScope { companyId: string; branchId: string }
+export type DeductionStatus = 'PENDIENTE' | 'APLICADO' | 'CANCELADO';
+export interface DeductionTarget { id: string; code: string; name: string; pay_date: string; status: string }
+export interface EmployeeDeduction {
+  id: string; employee_id: string; amount: string; reason: string; status: DeductionStatus; revision: number;
+  target_run_id: string | null; applied_run_id: string | null; target_run: DeductionTarget | null; applied_run: DeductionTarget | null;
+  cancelled_reason: string | null; created_at: string;
+  employee: { id: string; code: string; first_name: string; last_name: string };
+}
+export interface DeductionPayload { employee_id: string; amount: string; reason: string; target_run_id: string | null; revision?: number }
+export const deductionRequest = (scope: DeductionsScope, signal?: AbortSignal): RequestInit => ({ headers: { 'X-Company-Id': scope.companyId, 'X-Branch-Id': scope.branchId }, signal });
+export const fetchDeductions = (filters: { employee_id?: string; status?: string; q?: string; page: number; pageSize: number }, scope: DeductionsScope, signal?: AbortSignal) => apiFetch<Paginated<EmployeeDeduction>>(`/api/hr/deductions${qs({ ...filters, page: String(filters.page), pageSize: String(filters.pageSize) })}`, deductionRequest(scope, signal));
+export const fetchDeductionTargets = (employeeId: string, filters: { q?: string; page: number }, scope: DeductionsScope, signal?: AbortSignal) => apiFetch<Paginated<DeductionTarget>>(`/api/hr/deductions/targets${qs({ employee_id: employeeId, q: filters.q, page: String(filters.page), pageSize: '10' })}`, deductionRequest(scope, signal));
+export const createDeduction = (payload: DeductionPayload, scope: DeductionsScope) => apiFetch<EmployeeDeduction>('/api/hr/deductions', { ...deductionRequest(scope), method: 'POST', body: JSON.stringify(payload) });
+export const updateDeduction = (id: string, payload: DeductionPayload, scope: DeductionsScope) => apiFetch<EmployeeDeduction>(`/api/hr/deductions/${id}`, { ...deductionRequest(scope), method: 'PATCH', body: JSON.stringify(payload) });
+export const cancelDeduction = (id: string, payload: { revision: number; reason: string }, scope: DeductionsScope) => apiFetch<EmployeeDeduction>(`/api/hr/deductions/${id}/cancel`, { ...deductionRequest(scope), method: 'POST', body: JSON.stringify(payload) });

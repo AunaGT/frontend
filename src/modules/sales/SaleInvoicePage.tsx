@@ -11,14 +11,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, Printer } from 'lucide-react'
+import { ArrowLeft, Printer, Settings2 } from 'lucide-react'
+import {Popover,PopoverTrigger,PopoverContent} from '@/components/ui/popover'
 import type { Sale } from '@/types'
 import { fetchSaleById } from '@/services/saleService'
 import { normalizeRawSale } from './hooks'
-import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
-import { getCompanyNamePublic } from '@/services/settingsService'
-import { generateSaleInvoicePDF } from './documents/generateSaleInvoicePDF'
 import { LoadingState } from '@/components/shared/LoadingState'
 import { SaleDetailContent, SaleStatusBadge } from './components/SaleDetailContent'
 import {usePageTrail} from '@/components/layout/PageNavigation'
@@ -29,6 +27,8 @@ import {usePrintDestination,PrintDestination} from '@/modules/config/hardware/pu
 import {useAuth} from '@/context/useAuth'
 import {getAuthToken} from '@/services/api'
 import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
+import {useSaleDocument} from './documents/useSaleDocument'
+import {PdfDocumentPreview} from '@/components/shared/pdf/PdfDocumentPreview'
 
 export const SaleInvoicePage = () => {
   const { id } = useParams<{ id: string }>()
@@ -49,6 +49,8 @@ export const SaleInvoicePage = () => {
   const [ticketError,setTicketError]=useState<string|null>(null)
   const printScope={companyId:tenant.company?.id||'',branchId:tenant.branch?.id||'',userId:user?.id||''}
   const printDestination=usePrintDestination(printScope,'RECEIPT')
+  const [documentFormat,setDocumentFormat]=useState<''|'LETTER'|'A4'>('')
+  const generatedDocument=useSaleDocument({scope:printScope,saleId:id||'',format:documentFormat||undefined})
   useEffect(()=>{setTicketPending(false);setTicketError(null)},[ownerKey])
 
   useEffect(() => {
@@ -95,18 +97,7 @@ export const SaleInvoicePage = () => {
   }
 
   const handlePrint = async () => {
-    try {
-      const { company_name, company_logo_url } = await getCompanyNamePublic()
-      const logoDataUrl = await resolvePdfLogoDataUrl(company_logo_url || companyLogoUrl)
-      generateSaleInvoicePDF(sale, {
-        companyName: company_name || companyName,
-        logoDataUrl,
-        locale,
-        currencyCode,
-      })
-    } catch {
-      generateSaleInvoicePDF(sale, { companyName, locale, currencyCode })
-    }
+    await generatedDocument.prepare()
   }
 
   const handleTicket=async()=>{
@@ -130,15 +121,25 @@ export const SaleInvoicePage = () => {
         </div>
         <div className="flex flex-wrap gap-2 print:hidden">
         {sale.capabilities?.confirm&&<Button onClick={()=>navigate(`/ventas/${sale.id}/confirmar`)}>Confirmar venta</Button>}
+        {sale.capabilities?.editManual&&<Button onClick={()=>navigate(`/ventas/${sale.id}/editar`)}>Editar / confirmar borrador</Button>}
         <SaleFiscalAction sale={sale} onRequested={commercial=>setSale(current=>current?.id===sale.id?{...current,commercial,capabilities:current.capabilities?{...current.capabilities,requestInvoice:false}:undefined}:current)}/>
-        <Button variant="outline" onClick={handlePrint}>
-          <Printer aria-hidden /> Descargar PDF / Imprimir
+        <Button variant="outline" onClick={handlePrint} disabled={generatedDocument.pending||sale.status==='draft'||sale.commercial?.state==='DRAFT'}>
+          <Printer aria-hidden /> {generatedDocument.pending?'Preparando documento…':'Ver / descargar comprobante'}
         </Button>
-        <Button variant="outline" onClick={handleTicket} disabled={ticketPending}><Printer aria-hidden />{ticketPending?'Preparando ticket…':'Descargar ticket (80 mm)'}</Button></div>
+        <Button variant="outline" onClick={handleTicket} disabled={ticketPending||sale.status==='draft'||sale.commercial?.state==='DRAFT'}><Printer aria-hidden />{ticketPending?'Preparando ticket…':'Descargar ticket (80 mm)'}</Button>
+        <Popover>
+          <PopoverTrigger asChild><Button variant="outline"><Settings2 aria-hidden />Opciones de impresión</Button></PopoverTrigger>
+          <PopoverContent align="end" className="w-[min(24rem,calc(100vw-2rem))] space-y-4" aria-label="Opciones de impresión">
+            <PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange} disabled={ticketPending}/>
+            <label className="grid gap-1 text-sm">Hoja del comprobante<select className="auna-control auna-control-select" disabled={generatedDocument.pending} value={documentFormat} onChange={e=>setDocumentFormat(e.target.value as typeof documentFormat)}><option value="">Preferida de la empresa</option><option value="LETTER">Carta</option><option value="A4">A4</option></select></label>
+            <p className="text-xs text-muted-foreground">El comprobante interno no constituye factura fiscal. El ticket se genera en 80 mm.</p>
+            {generatedDocument.fallback&&<p className="text-xs text-muted-foreground">Diseño base capturado al preparar este documento.</p>}
+          </PopoverContent>
+        </Popover></div>
       </header>
-      <div className="print:hidden"><PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange} disabled={ticketPending}/></div>
-      <p className="text-xs text-muted-foreground">El comprobante interno no constituye factura fiscal. Confirmación, pagos y emisión fiscal son procesos separados.</p>
       {ticketError&&<p role="alert" className="text-sm text-destructive">{ticketError}</p>}
+      {generatedDocument.error&&<div role="alert" className="space-y-3 py-3"><p className="text-sm text-destructive">{generatedDocument.error}</p><div className="flex flex-wrap gap-3"><Button variant="outline" disabled={generatedDocument.pending} onClick={()=>void generatedDocument.prepare({retry:true})}>Reintentar documento</Button><Button variant="ghost" disabled={generatedDocument.pending} onClick={()=>{if(window.confirm('¿Generar otro archivo usando el diseño base capturado? No se cambiará el original, la venta ni su facturación.'))void generatedDocument.prepare({useBase:true})}}>Usar diseño base capturado</Button></div></div>}
+      {generatedDocument.pdf&&<PdfDocumentPreview pdf={generatedDocument.pdf} onDownload={generatedDocument.download} canAccess={generatedDocument.canAccess}/>}
       <SaleDetailContent sale={sale} locale={locale} currencyCode={currencyCode} />
     </div>
   )

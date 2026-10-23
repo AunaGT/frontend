@@ -1,0 +1,20 @@
+const test=require('node:test'),assert=require('node:assert/strict'),{loadReportModule}=require('./helpers/loadReportModule.cjs')
+const load=()=>loadReportModule('../../lib/scannerFlow.ts')
+test('scanner queue preserves repeated scans and serial order instead of debouncing a product',async()=>{
+ const {createScanQueue}=load(),seen=[];let release;const wait=new Promise(r=>release=r)
+ const q=createScanQueue({current:()=>true,handle:async code=>{seen.push(code);if(seen.length===1)await wait},error:e=>{throw e}})
+ const a=q.push('001'),b=q.push('001');assert.deepEqual(seen,['001']);release();await Promise.all([a,b]);assert.deepEqual(seen,['001','001'])
+})
+test('scanner queue discards pending work after scope changes and recovers after an individual failure',async()=>{
+ const {createScanQueue}=load(),seen=[],errors=[];let active=true,release;const wait=new Promise(r=>release=r)
+ const q=createScanQueue({current:()=>active,handle:async code=>{seen.push(code);await wait},error:e=>errors.push(e.message)})
+ const a=q.push('a'),b=q.push('b');active=false;release();await Promise.all([a,b]);assert.deepEqual(seen,['a'])
+ const good=createScanQueue({current:()=>true,handle:async c=>{if(c==='bad')throw Error('unknown');seen.push(c)},error:e=>errors.push(e.message)})
+ await good.push('bad');await good.push('ok');assert.deepEqual(errors,['unknown']);assert.deepEqual(seen,['a','ok'])
+})
+test('scanner validation preserves leading zeros and explicit prefixes; ordinary keys do not start a global read',()=>{
+ const {scanCode,createPrefixedReader}=load();assert.equal(scanCode('00123',{suffix:'ENTER',min:1,max:100,prefix:''}),'00123')
+ const read=createPrefixedReader({suffix:'ENTER',min:1,max:100,prefix:'~'})
+ assert.equal(read.key('a'),null);assert.equal(read.key('Enter'),null);read.key('~');read.key('0');read.key('1');assert.equal(read.key('Enter'),'01')
+ assert.throws(()=>scanCode('bad\ncode',{suffix:'ENTER',min:1,max:100,prefix:''}));assert.throws(()=>scanCode('',{suffix:'ENTER',min:1,max:100,prefix:''}))
+})

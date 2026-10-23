@@ -1,6 +1,12 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{loadReportModule}=require('./helpers/loadReportModule.cjs')
 const mem=()=>{const m=new Map();return{getItem:k=>m.get(k)||null,setItem:(k,v)=>m.set(k,v),removeItem:k=>m.delete(k)}}
 const scope={companyId:'A',branchId:'B',userId:'U'}
+test('recovery stores the original bounded failure without persisting extra exception fields',()=>{
+ const api=loadReportModule('../sales/checkout/attemptStorage.ts'),storage=mem()
+ api.saveCheckoutAttempt(scope,{...scope,key:'K',kind:'SALE',state:'UNKNOWN',lastError:'x'.repeat(600),stack:'private trace'},storage)
+ const restored=api.loadCheckoutAttempt(scope,storage)
+ assert.equal(restored.lastError.length,500);assert.equal(restored.stack,undefined)
+})
 test('checkout attempt is scoped, survives reload, and stores only recovery metadata',()=>{
  const api=loadReportModule('../sales/checkout/attemptStorage.ts'),storage=mem(),attempt={...scope,key:'K',kind:'SALE',state:'UNKNOWN',customer:'must not persist'}
  api.saveCheckoutAttempt(scope,attempt,storage)

@@ -96,7 +96,7 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
-  settlement_source?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS';
+  settlement_source?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS' | 'MANUAL_SALE';
   commercial?:SaleCommercialView;
   payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';
   due_date?: string | null;
@@ -177,6 +177,7 @@ export const createSale = async (payload: CreateSalePayload, options: RequestIni
     body: JSON.stringify(payload),
   });
 };
+export const createSaleConfirmation=(payload:CreateSalePayload,options:RequestInit={})=>apiFetch<{id:string;checkout_state:'CONFIRMED'}>('/api/sales?response=confirmation',{...options,method:'POST',body:JSON.stringify(payload)});
 
 export const fetchSaleById = async (saleId: string, options: RequestInit = {}): Promise<Sale> => {
   return await apiFetch(`/api/sales/${saleId}`, {

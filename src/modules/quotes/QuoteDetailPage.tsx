@@ -4,7 +4,7 @@
  * Detalle de cotización — acciones según estado.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays, ExternalLink, FileDown, FileText, Link2, Loader2, Mail, PackagePlus, User } from "lucide-react";
@@ -24,6 +24,7 @@ import { getCompanyNamePublic } from "@/services/settingsService";
 import { resolvePdfLogoDataUrl } from "@/utils/pdfBranding";
 import {
   convertQuoteToOrder,
+  convertQuoteToSale,
   fetchQuoteById,
   fetchQuoteShareLink,
   buildQuoteMailto,
@@ -35,6 +36,7 @@ import {
 import { generateQuotePDF } from "./documents/generateQuotePDF";
 import {quoteAgendaDestination} from './quoteViewModel.mjs';
 import {useTenant} from '@/context/useTenant';
+import {authSessionIdentity} from '@/services/authSession';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,6 +45,9 @@ export default function QuoteDetailPage() {
   const queryClient = useQueryClient();
   const {company,branch,isConsolidated}=useTenant();
   const quoteQueryKey=['quote',company?.id,isConsolidated?'all':branch?.id,id];
+  const sessionIdentity=authSessionIdentity(),conversionIdentity=JSON.stringify([company?.id,branch?.id,isConsolidated,id,sessionIdentity]),liveConversion=useRef(conversionIdentity);liveConversion.current=conversionIdentity;
+  const conversionMounted=useRef(true);
+  useEffect(()=>{conversionMounted.current=true;return()=>{conversionMounted.current=false}},[]);
   const { hasPermission } = useAuthPermissions();
   const { isEnabled } = useModules();
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings();
@@ -88,6 +93,16 @@ export default function QuoteDetailPage() {
     onError: (e: Error) => {
       toast({ title: "No se pudo convertir", description: e.message, variant: "destructive" });
     },
+  });
+  const saleMutation=useMutation({
+    mutationFn:(request:{quoteId:string;companyId:string;branchId:string;sessionIdentity:string;identity:string})=>convertQuoteToSale(request.quoteId,request),
+    onSuccess:(sale,request)=>{
+      if(!conversionMounted.current||liveConversion.current!==request.identity||authSessionIdentity()!==request.sessionIdentity)return;
+      void queryClient.invalidateQueries({queryKey:quoteQueryKey});void queryClient.invalidateQueries({queryKey:['quotes']});void queryClient.invalidateQueries({queryKey:['sales']});
+      toast({title:sale.status==='DRAFT'?'Borrador de venta listo':'Venta vinculada',description:'Conserva el acuerdo de la cotización. No se ha registrado ningún cobro.'});
+      navigate(sale.status==='DRAFT'?`/ventas/${sale.id}/editar`:`/ventas/${sale.id}/factura`);
+    },
+    onError:(error:Error,request)=>{if(conversionMounted.current&&liveConversion.current===request.identity&&authSessionIdentity()===request.sessionIdentity)toast({title:'No se pudo crear la venta',description:error.message,variant:'destructive'})},
   });
   useEffect(() => { if (quote) setPaymentTerms({ payment_condition: quote.payment_condition ?? 'CASH', credit_days: quote.credit_days ?? null }); }, [quote]);
   const paymentMutation = useMutation({
@@ -162,19 +177,28 @@ export default function QuoteDetailPage() {
     ordersEnabled &&
     canManage &&
     !linkedOrder &&
+    !quote.hasDirectSale &&
     !quote.engagementId &&
     quote.status === "ACCEPTED";
-  const canSchedule=isEnabled('appointments')&&hasPermission('appointments.view')&&(quote.agenda?.canOpen||quote.agenda?.canCreate);
+  const canSchedule=!quote.hasDirectSale&&isEnabled('appointments')&&hasPermission('appointments.view')&&(quote.agenda?.canOpen||quote.agenda?.canCreate);
+  const canCreateSale=isEnabled('sales')&&canManage&&hasPermission('sales.create')&&!isConsolidated&&!!branch?.id&&quote.branch_id===branch.id&&!linkedOrder&&!quote.engagementId&&!quote.hasDirectSale&&quote.status==='ACCEPTED';
 
   const publicUrl = quote.public_token ? `${window.location.origin}/q/${quote.public_token}` : "";
   const shareable = ["SENT", "ACCEPTED"].includes(quote.status);
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     {isFetching && <LoadingIndicator message="Actualizando cotización…" />}
     <header className="auna-page-toolbar"><div><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{quote.reference || quote.id.slice(0, 8)}</h1><QuoteStatusBadge status={quote.status} /></div><p className="auna-module-description">Creada el {formatDateTime(quote.created_at, undefined, locale)} por {quote.createdBy?.name || "usuario del sistema"}</p></div>
-      <div className="compact-filter-actions">{canSchedule&&<Button variant="outline" aria-label={quote.engagementId?'Ver contratación':'Agendar servicios'} onClick={()=>navigate(quoteAgendaDestination(quote))}><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true"/>{quote.engagementId?'Ver contratación':'Agendar servicios'}</Button>}{shareable && <Button variant="outline" onClick={() => void handleEmailLink()}><Mail className="mr-2 h-4 w-4" />Enviar por correo</Button>}{canConvert && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={convertMutation.isPending} onClick={() => convertMutation.mutate()}>{convertMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PackagePlus className="mr-2 h-4 w-4" />}Convertir a pedido</Button>}</div>
+      <div className="compact-filter-actions">
+        {canSchedule&&<Button variant="outline" aria-label={quote.engagementId?'Ver contratación':'Agendar servicios'} onClick={()=>navigate(quoteAgendaDestination(quote))}><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true"/>{quote.engagementId?'Ver contratación':'Agendar servicios'}</Button>}
+        {shareable&&<Button variant="outline" onClick={()=>void handleEmailLink()}><Mail className="mr-2 h-4 w-4" aria-hidden/>Enviar por correo</Button>}
+        {canCreateSale&&<Button variant="outline" aria-label="Crear borrador de venta" aria-busy={saleMutation.isPending} disabled={saleMutation.isPending||convertMutation.isPending} onClick={()=>saleMutation.mutate({quoteId:quote.id,companyId:company!.id,branchId:branch!.id,sessionIdentity,identity:conversionIdentity})}>{saleMutation.isPending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden/>}Crear borrador de venta</Button>}
+        {canConvert&&<Button className="bg-brand-orange text-white hover:bg-brand-orange/90" disabled={convertMutation.isPending||saleMutation.isPending} onClick={()=>convertMutation.mutate()}>{convertMutation.isPending?<Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden/>:<PackagePlus className="mr-2 h-4 w-4" aria-hidden/>}Convertir a pedido</Button>}
+      </div>
     </header>
+    {quote.directSale&&<Button variant="outline" aria-label="Ver venta vinculada" onClick={()=>navigate(quote.directSale!.status==='DRAFT'&&hasPermission('sales.create')?`/ventas/${quote.directSale!.id}/editar`:`/ventas/${quote.directSale!.id}/factura`)}>{quote.directSale.status==='DRAFT'?'Ver borrador de venta':'Ver venta'} · {quote.directSale.reference}</Button>}
+    {quote.hasDirectSale&&!quote.directSale&&<p className="text-sm text-muted-foreground">Esta cotización ya tiene una venta vinculada. Selecciona su sucursal y revisa tus permisos para abrirla.</p>}
     <section className="auna-surface grid gap-4 rounded-2xl border p-5 text-sm sm:grid-cols-3">
-      <div><p className="text-muted-foreground">Cotización creada</p><p className="mt-1 font-semibold">{formatDateTime(quote.created_at, undefined, locale)}</p></div><div><p className="text-muted-foreground">Estado actual</p><div className="mt-1"><QuoteStatusBadge status={quote.status} /></div></div><div><p className="text-muted-foreground">Pedido vinculado</p>{linkedOrder ? <Button variant="link" className="h-auto p-0" disabled={!ordersEnabled} onClick={() => navigate(`/pedidos/${linkedOrder.id}`)}>{linkedOrder.reference || linkedOrder.id.slice(0, 8)}</Button> : <p className="mt-1">Todavía no convertida</p>}</div>
+      <div><p className="text-muted-foreground">Cotización creada</p><p className="mt-1 font-semibold">{formatDateTime(quote.created_at, undefined, locale)}</p></div><div><p className="text-muted-foreground">Estado actual</p><div className="mt-1"><QuoteStatusBadge status={quote.status} /></div></div><div><p className="text-muted-foreground">{quote.hasDirectSale?'Venta vinculada':'Pedido vinculado'}</p>{linkedOrder?<Button variant="link" className="h-auto p-0" disabled={!ordersEnabled} onClick={()=>navigate(`/pedidos/${linkedOrder.id}`)}>{linkedOrder.reference||linkedOrder.id.slice(0,8)}</Button>:<p className="mt-1">{quote.hasDirectSale?quote.directSale?.reference||'Venta creada':'Todavía no convertida'}</p>}</div>
     </section>
     <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-5"><div className="grid gap-5 md:grid-cols-2">
@@ -193,7 +217,7 @@ export default function QuoteDetailPage() {
         {canManage && ["DRAFT", "SENT", "ACCEPTED"].includes(quote.status) && <Card className="auna-surface"><CardHeader><CardTitle className="text-lg">Gestionar cotización</CardTitle></CardHeader><CardContent className="space-y-3">
           {quote.status === "DRAFT" && <Button className="w-full bg-brand-orange text-white" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate("SENT")}>Generar cotización</Button>}
           {quote.status === "SENT" && <><Button className="w-full" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate("ACCEPTED")}>Registrar aceptación</Button><Button className="w-full" variant="outline" disabled={statusMutation.isPending} onClick={() => setPendingStatus("REJECTED")}>Registrar rechazo</Button></>}
-          {!linkedOrder && <Button variant="outline" className="w-full text-destructive" disabled={statusMutation.isPending} onClick={() => setPendingStatus("CANCELLED")}>Cancelar cotización</Button>}
+          {!linkedOrder && !quote.hasDirectSale && <Button variant="outline" className="w-full text-destructive" disabled={statusMutation.isPending} onClick={() => setPendingStatus("CANCELLED")}>Cancelar cotización</Button>}
         </CardContent></Card>}
       </aside>
     </div>

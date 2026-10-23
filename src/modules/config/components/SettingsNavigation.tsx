@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { SETTINGS_SECTIONS, findSettingsSections, type SettingsSection } from '../settingsModel'
 import {ConfiguracionIcon,SucursalesIcon,ReporteFinancieroIcon,InventarioIcon,VentasIcon,CotizacionesIcon,PedidosIcon,DevolucionesIcon,CierreCajaIcon,RrhhIcon,NominaIcon,UsuariosIcon,ReportesIcon} from '@/components/icons/CustomIcons'
-const icons={empresa:SucursalesIcon,regional:ConfiguracionIcon,fiscal:ReporteFinancieroIcon,inventario:InventarioIcon,ventas:VentasIcon,cotizaciones:CotizacionesIcon,pedidos:PedidosIcon,devoluciones:DevolucionesIcon,caja:CierreCajaIcon,hardware:CierreCajaIcon,rrhh:RrhhIcon,nomina:NominaIcon,modulos:ConfiguracionIcon,accesos:UsuariosIcon,historial:ReportesIcon}
+const icons={empresa:SucursalesIcon,regional:ConfiguracionIcon,fiscal:ReporteFinancieroIcon,plantillas:ReportesIcon,inventario:InventarioIcon,ventas:VentasIcon,cotizaciones:CotizacionesIcon,pedidos:PedidosIcon,devoluciones:DevolucionesIcon,caja:CierreCajaIcon,hardware:CierreCajaIcon,rrhh:RrhhIcon,nomina:NominaIcon,modulos:ConfiguracionIcon,accesos:UsuariosIcon,historial:ReportesIcon}
 
 export function SettingsNavigation({ active, onSelect,companyName='Empresa activa',sections=SETTINGS_SECTIONS }: { active: SettingsSection; onSelect: (id: SettingsSection) => void;companyName?:string;sections?:typeof SETTINGS_SECTIONS }) {
   const [search, setSearch] = useState(''), matches = findSettingsSections(search).filter(s=>sections.some(allowed=>allowed.id===s.id))

@@ -81,6 +81,7 @@ function collection(relative, { states = {}, allowed = true, branch = { id: 'qa'
   let index = 0
   const nodes = [], changes = [], navigations = []
   const Page = loadReportModule(relative, {
+    '@/components/scanner/QuickProductScan': {QuickProductScan:()=>null},
     react: { ...React, useState(initial) { const i = index++; return [Object.hasOwn(states, i) ? states[i] : initial, value => changes.push([i, value])] } },
     'react-router-dom': { ...require('react-router-dom'), useNavigate: () => value => navigations.push(value), useSearchParams: () => [new URLSearchParams(route.split('?')[1]), () => {}], useParams: () => ({ id: 'qa', sessionId: 'qa' }) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => allowed }) },

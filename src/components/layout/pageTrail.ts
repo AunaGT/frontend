@@ -9,7 +9,7 @@ const listPermissions: Record<string, readonly string[]> = {
   sales: ['sales.view'], quotes: ['quotes.view'], orders: ['orders.view'], inventory: ['products.view'],
   'inventory-count': ['inventory_count.view'], merchandise: ['merchandise.view'], returns: ['returns.view'],
   contacts: ['contacts.suppliers.view', 'contacts.clients.view'], users: ['users.view', 'roles.manage'],
-  hr: ['hr.employees.view', 'hr.attendance.view', 'hr.advances.view'], payroll: ['payroll.view'],
+  hr: ['hr.employees.view', 'hr.attendance.view', 'hr.advances.view', 'hr.deductions.view'], payroll: ['payroll.view'],
   receivables: ['receivables.view'], 'cash-closure': ['cashclosure.view'], transfers: ['transfers.view'],
   promotions: ['promotions.view', 'promotions.manage'], branches: ['branches.manage', 'companies.manage'],
   catalogs: ['catalogs.view', 'catalogs.manage'], alerts: ['alerts.view', 'alerts.manage'],

@@ -14,6 +14,7 @@ import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTab
 import EmployeesManagement from './EmployeesManagement'
 import AttendanceSheet from './AttendanceSheet'
 import AdvancesManagement from './AdvancesManagement'
+import DeductionsManagement from './DeductionsManagement'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -27,22 +28,26 @@ export const HrPage = () => {
   const canEmployees = hasPermission('hr.employees.view')
   const canAttendance = hasPermission('hr.attendance.view')
   const canAdvances = hasPermission('hr.advances.view')
-  const [tab, setTab] = useState(canEmployees ? 'empleados' : canAttendance ? 'asistencia' : 'anticipos')
-  usePageTrail([{ label: tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos' }])
+  const canDeductions = hasPermission('hr.deductions.view')
+  const [tab, setTab] = useState(canEmployees ? 'empleados' : canAttendance ? 'asistencia' : canAdvances ? 'anticipos' : 'descuentos')
+  const label = tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : tab === 'descuentos' ? 'Descuentos' : 'Anticipos'
+  usePageTrail([{ label }])
   const navigate = useNavigate()
   return (
   <div className="hr-record-page">
   <div className="hr-record-container auna-page-fluid space-y-5">
-    <h1 className="sr-only">{tab === 'empleados' ? 'Empleados' : tab === 'asistencia' ? 'Asistencia' : 'Anticipos'}</h1>
+    <h1 className="sr-only">{label}</h1>
     <Tabs value={tab} onValueChange={setTab}>
       <div className="overflow-x-auto"><ModuleTabsList>
         {canEmployees && <ModuleTabsTrigger value="empleados">Empleados</ModuleTabsTrigger>}
         {canAttendance && <ModuleTabsTrigger value="asistencia">Asistencia</ModuleTabsTrigger>}
         {canAdvances && <ModuleTabsTrigger value="anticipos">Anticipos</ModuleTabsTrigger>}
+        {canDeductions && <ModuleTabsTrigger value="descuentos">Descuentos</ModuleTabsTrigger>}
       </ModuleTabsList></div>
       {canEmployees && <TabsContent value="empleados"><EmployeesManagement actions={<>{tab === 'empleados' && hasPermission('hr.employees.create') && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => navigate('/rrhh/empleados/nuevo')}><Plus className="mr-2 h-4 w-4" />Nuevo empleado</Button>}</>} /></TabsContent>}
       {canAttendance && <TabsContent value="asistencia"><AttendanceSheet /></TabsContent>}
       {canAdvances && <TabsContent value="anticipos"><AdvancesManagement /></TabsContent>}
+      {canDeductions && <TabsContent value="descuentos"><DeductionsManagement /></TabsContent>}
     </Tabs>
   </div>
   </div>

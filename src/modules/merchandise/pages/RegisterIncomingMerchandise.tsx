@@ -26,6 +26,9 @@ import { useSupplier } from '@/hooks/useSupplier'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { usePaymentMethods } from '@/hooks/usePaymentMethods'
 import { ProductPicker } from '@/components/shared/ProductPicker'
+import {ScannerField} from '@/components/shared/ScannerField'
+import {resolveContextScan} from '@/services/contextScannerService'
+import {adaptApiProduct} from '@/services/productService'
 import { SupplierPicker } from '@/components/shared/SupplierPicker'
 import '../merchandise.css'
 import { Pagination } from '@/components/shared/Pagination'
@@ -35,6 +38,7 @@ import type { Product } from '@/types/product'
 import {useTenant} from '@/context/useTenant'
 import {useAuth} from '@/context/useAuth'
 import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
+import {OwnReceiptForm,EntrySourceSelector,type EntrySource} from '../components/OwnReceiptForm'
 import {UnitLineFields} from '@/components/shared/UnitLineFields'
 import {selectProductUnit,selectedQuantity,selectedBaseQuantity,selectedUnitPayload,exactProductValues,normalizeUnitDecimal,deriveUnitPrice,unitLineTotal,formatUnitMoney,previewUnitLine,type UnitSelection} from '@/modules/inventory/units/public'
 
@@ -68,10 +72,14 @@ export const RegisterIncomingMerchandise = () => {
   const pendingOwner=useRef<object|null>(null)
   const money = (value: number) => new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode }).format(value)
   const [itemsPage, setItemsPage] = useState(1)
+  const [source,setSource]=useState<EntrySource>('PURCHASE')
   const [supplierLabel, setSupplierLabel] = useState('Seleccionar proveedor…')
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('')
   const [notes, setNotes] = useState('')
   const [items, setItems] = useState<IncomingItem[]>([])
+  const [waitingScan,setWaitingScan]=useState<{product:Product;presentationId:string|null}[]>([])
+  const [scanFocus,setScanFocus]=useState({id:'',tick:0})
+  const receivedSeed=useRef('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [paymentTermId, setPaymentTermId] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'PAID'>('PENDING')
@@ -85,7 +93,7 @@ export const RegisterIncomingMerchandise = () => {
   const previousScope=useRef(scopeKey)
   useEffect(()=>{
     owner.active=true
-    if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setItems([]);setSelectedSupplierId('');setNotes('');setIsSubmitting(false);retry.current=null;pendingOwner.current=null}
+    if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setItems([]);setSelectedSupplierId('');setNotes('');setIsSubmitting(false);setWaitingScan([]);setScanFocus({id:'',tick:0});retry.current=null;pendingOwner.current=null}
     return()=>{owner.active=false;owner.controller.abort()}
   },[owner,scopeKey])
 
@@ -178,9 +186,9 @@ export const RegisterIncomingMerchandise = () => {
     )
   }, [paymentTermId, paymentTermsOptions])
 
-  const handleAddProduct = (product: Product) => {
+  const handleAddProduct = (product: Product,presentationId?:string|null) => {
     if (!selectedSupplierId || items.some(item => item.product_id === product.id)) return
-    const selection=inventoryUnitsEnabled?selectProductUnit(product,undefined,'LIST','PURCHASE'):undefined
+    const selection=inventoryUnitsEnabled||product.unitConfiguration?selectProductUnit(product,presentationId,'LIST','PURCHASE'):undefined
     let cost=String(product.cost??0)
     if(selection){try{cost=normalizeUnitDecimal(deriveUnitPrice(normalizeUnitDecimal(exactProductValues(product).cost,{decimals:6}),selection.snapshot.factor),{decimals:6})}catch{cost=''}}
     setItems(previous => [...previous, {
@@ -191,6 +199,22 @@ export const RegisterIncomingMerchandise = () => {
     }])
     setItemsPage(Math.ceil((items.length + 1) / 8))
   }
+  async function scanProduct(code:string,signal:AbortSignal){
+    if(pendingOwner.current||isSubmitting||!owner.active)return
+    const result=await resolveContextScan(code,'PURCHASE',signal);if(signal.aborted||!owner.active||currentScope.current!==scopeKey)return
+    const product=adaptApiProduct(result.product),index=items.findIndex(item=>item.product_id===product.id)
+    if(index>=0){setItemsPage(Math.floor(index/8)+1);setScanFocus(old=>({id:product.id,tick:old.tick+1}));return}
+    if(!selectedSupplierId){setWaitingScan(old=>old.some(row=>row.product.id===product.id)?old:[...old,{product,presentationId:result.presentationId}]);return}
+    handleAddProduct(product,result.presentationId);setScanFocus(old=>({id:product.id,tick:old.tick+1}))
+  }
+  useEffect(()=>{if(waitingScan.length&&selectedSupplierId&&!isSubmitting){const added=waitingScan.filter(row=>!items.some(item=>item.product_id===row.product.id));for(const row of added)handleAddProduct(row.product,row.presentationId);setItemsPage(Math.max(1,Math.ceil((items.length+added.length)/8)));if(added.length)setScanFocus(old=>({id:added[added.length-1].product.id,tick:old.tick+1}));setWaitingScan([])}},[waitingScan,selectedSupplierId,isSubmitting])
+  useEffect(()=>{if(scanFocus.id&&typeof document!=='undefined'){const input=document.getElementById(`incoming-count-${scanFocus.id}`);input?.scrollIntoView({block:'center'});input?.focus({preventScroll:true})}},[scanFocus,itemsPage,items.length])
+  useEffect(()=>{
+    if(typeof window==='undefined'||!company||!branch)return
+    const params=new URLSearchParams(window.location?.search||''),code=params.get('codigo'),key=JSON.stringify([scopeKey,code])
+    if(!code||receivedSeed.current===key||params.get('empresa')!==company.id||params.get('sucursal')!==branch.id)return
+    receivedSeed.current=key;void scanProduct(code,owner.controller.signal).catch(e=>{if(owner.active)toast({title:'No se pudo preparar el producto',description:e.message,variant:'destructive'})})
+  },[owner,scopeKey])
 
   const handleRemoveProduct = (index: number) => {
     setItems(items.filter((_, i) => i !== index))
@@ -379,12 +403,16 @@ export const RegisterIncomingMerchandise = () => {
   const totalPages = Math.max(1, Math.ceil(items.length / 8))
   const visibleItems = items.slice((itemsPage - 1) * 8, itemsPage * 8)
 
+  if(source!=='PURCHASE')return <OwnReceiptForm key={scopeKey+source} source={source} onSourceChange={setSource} locations={receiveLocations}/>
   return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy">
     {draftGuard.dialog}
     <div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
 
       <h1 className="sr-only">Registrar entrada de mercadería</h1>
+      <fieldset disabled={isSubmitting}><EntrySourceSelector source={source} onChange={next=>{if(!pendingOwner.current&&next!==source)draftGuard.request(()=>{setItems([]);setNotes('');setSource(next)})}}/></fieldset>
       <fieldset disabled={isSubmitting} className="min-w-0 space-y-5">
+        <ScannerField scopeKey={scopeKey} enabled={!isSubmitting&&hasPermission('products.register_incoming')} label="Agregar mercancía por código" onScan={scanProduct}/>
+        {waitingScan.length>0&&<p role="status" className="text-sm text-muted-foreground">{waitingScan.length} producto(s) listos para agregar: {waitingScan.map(row=>row.product.name).join(', ')}. Selecciona el proveedor para continuar; aún no se ha registrado ninguna entrada.</p>}
         <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2"><Label>Proveedor <span className="text-brand-orange">*</span></Label><SupplierPicker label={supplierDetail?.name || supplierLabel} onSelect={supplier => { setSupplierLabel(supplier?.name || 'Seleccionar proveedor…'); selectSupplier(supplier?.id || '') }} />{supplierDetailError && <div role="alert" className="space-y-1"><p className="text-xs text-destructive">No se pudieron cargar las condiciones.</p><Button type="button" variant="outline" size="sm" onClick={() => retrySupplier()}>Reintentar</Button></div>}{supplierDetailLoading && <LoadingIndicator message="Cargando condiciones…" />}</div>
           <div className="space-y-2"><Label htmlFor="receipt-location">Almacén / ubicación</Label><select id="receipt-location" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => setLocationId(e.target.value)}><option value="default">Ubicación de recepción predeterminada</option>{receiveLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.name}</option>)}</select></div>
@@ -398,7 +426,7 @@ export const RegisterIncomingMerchandise = () => {
           <div className="space-y-2 sm:col-span-2 xl:col-span-4"><Label htmlFor="receipt-notes">Observaciones</Label><Textarea id="receipt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre la recepción…" /></div>
         </CardContent></Card>
         <><section className="auna-data-table-shell">
-          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md"><ProductPicker companyId={company?.id} branchId={branch?.id} purchase supplierId={selectedSupplierId || undefined} excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} /></div></div>
+          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md">{selectedSupplierId?<ProductPicker companyId={company?.id} branchId={branch?.id} purchase excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} />:<p className="text-sm text-muted-foreground">Primero selecciona el proveedor de esta compra.</p>}</div></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[1000px]"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th>Acciones</th></tr></thead><tbody>
             {!items.length && <tr><td colSpan={9} className="py-12 text-center text-muted-foreground"><CollectionEmptyState compact title="La entrega está por tomar forma" description={selectedSupplierId ? 'Busca y agrega los productos recibidos para preparar esta entrada.' : 'Selecciona un proveedor para agregar los productos de esta entrega.'} /></td></tr>}
             {visibleItems.map((item, offset) => {
@@ -406,7 +434,7 @@ export const RegisterIncomingMerchandise = () => {
               return <tr key={item.product_id}><td>{index + 1}</td><td><div className="flex items-center gap-3">{item.image_url ? <img src={item.image_url} alt={item.product_name} className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<span className="max-w-56 font-medium">{item.product_name}</span></div></td><td>{item.barcode || '—'}</td>
                 <td><Input aria-label={`Lote de ${item.product_name}`} className="w-28" value={item.lot_code} onChange={e => handleLotFieldChange(index, 'lot_code', e.target.value)} placeholder="Opcional" /></td>
                 <td><Input type="date" aria-label={`Caducidad de ${item.product_name}`} required={item.tracks_expiry} className="w-40" value={item.expiry_date} onChange={e => handleLotFieldChange(index, 'expiry_date', e.target.value)} />{item.tracks_expiry && <small className="text-brand-orange">Requerida</small>}</td>
-                <td><Input type="text" inputMode="decimal" aria-label={`Cantidad de ${item.product_name}`} className="w-24" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} />{item.unitSelection&&item.product&&<UnitLineFields product={item.product} selection={item.unitSelection} quantity={item.quantity} operation="PURCHASE" onSelect={id=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:selectProductUnit(item.product!,id,'LIST','PURCHASE')}:row))} onAcceptRounding={accepted=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:{...row.unitSelection!,acceptRounding:accepted}}:row))}/>}</td>
+                <td><Input id={`incoming-count-${item.product_id}`} type="text" inputMode="decimal" aria-label={`Cantidad de ${item.product_name}`} className="w-24" value={item.quantity} onChange={e => handleQuantityChange(index, e.target.value)} />{item.unitSelection&&item.product&&<UnitLineFields product={item.product} selection={item.unitSelection} quantity={item.quantity} operation="PURCHASE" onSelect={id=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:selectProductUnit(item.product!,id,'LIST','PURCHASE')}:row))} onAcceptRounding={accepted=>setItems(rows=>rows.map((row,i)=>i===index?{...row,unitSelection:{...row.unitSelection!,acceptRounding:accepted}}:row))}/>}</td>
                 <td><Input type="text" inputMode="decimal" aria-label={`Costo de ${item.product_name}`} className="w-28" value={item.unit_cost} onChange={e => handleCostChange(index, e.target.value)} /><small>Por {item.unitSelection?.snapshot.presentation?.label??item.unitSelection?.snapshot.baseUnit.label??'unidad'}</small></td>
                 <td className="whitespace-nowrap font-medium">{subtotal(item)?formatUnitMoney(subtotal(item)!,locale,currencyCode):'—'}</td><td><Button type="button" variant="ghost" size="icon" aria-label={`Quitar ${item.product_name}`} onClick={() => handleRemoveProduct(index)}><Trash2 className="h-4 w-4" /></Button></td></tr>
             })}

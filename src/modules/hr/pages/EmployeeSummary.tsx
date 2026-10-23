@@ -1,5 +1,5 @@
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
-import { useQuery } from '@tanstack/react-query'
+import { useEmployeePrivateQuery } from './useEmployeePrivateQuery'
 import { CalendarDays, Wallet, History, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -7,7 +7,7 @@ import { fetchEmployeeOverview, PAYMENT_METHOD_LABELS, type Employee } from '@/s
 import { EmployeeRecentActivity } from './EmployeeRecentActivity'
 
 export function EmployeeSummary({ employee, onTab }: { employee: Employee; onTab?: (tab: string) => void }) {
-  const query = useQuery({ queryKey: ['hr-employee-overview', employee.id], queryFn: () => fetchEmployeeOverview(employee.id) })
+  const query = useEmployeePrivateQuery(['hr-employee-overview', employee.id], employee.id, request => fetchEmployeeOverview(employee.id, request))
   const money = (value: string) => new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ' }).format(Number(value))
   const sections = [
     { title: 'Datos personales', rows: [['Nombre completo', `${employee.first_name} ${employee.last_name}`], ['DPI', employee.dpi], ['NIT', employee.nit], ['Nacimiento', employee.birth_date?.slice(0, 10)], ['Teléfono', employee.phone], ['Correo electrónico', employee.email], ['Dirección', employee.address]] },

@@ -9,10 +9,9 @@
  */
 
 /**
- * NewSalePage - Página de nueva venta con layout de dos columnas:
- * Izquierda: información de la venta (cliente, pago, carrito, total, registrar).
- * Derecha: productos en cards con imagen y opción de agregar a la venta.
- * Al registrar, la venta queda en estado Completada y se descuenta stock.
+ * POS de dos pasos: componer con catálogo a la derecha y revisar el pago
+ * con la venta a la derecha, sin elegir un método por el cajero.
+ * El registro y sus estados comerciales siguen bajo la autoridad del backend.
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -20,18 +19,14 @@ import { Button } from '@/components/ui/button'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { PosNumericKeypad } from './components/PosNumericKeypad'
+import { SalePresentationDialog } from './components/SalePresentationDialog'
+import { applyPosKey } from './posInput'
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Pagination } from '@/components/shared/Pagination'
+import { useCardPagination } from '@/hooks/useCardPagination'
 import './pos.css'
-import {stepQuantity,previewPartialLineTotal} from '@/lib/commercialQuantity'
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import {normalizeQuantityInput,previewPartialLineTotal} from '@/lib/commercialQuantity'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,36 +46,38 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Plus, Receipt, Search, ChevronDown, ChevronLeft, PauseCircle, RotateCcw, Landmark, Settings, List, LayoutGrid, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2, Minus } from 'lucide-react'
+import { ArrowLeft, CreditCard, Printer, Receipt, Search, ChevronDown, PauseCircle, RotateCcw, Landmark, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useToast } from '@/hooks/use-toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWarehouses } from '@/services/warehouseService'
 import { fetchStockByLocation } from '@/services/stockMoveService'
-import { useAllProducts, PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
-import { useCategories } from '@/hooks/useCategories'
+import { PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
+import {SALES_QUERY_KEY} from '@/hooks/useSales'
+import {usePosAvailability} from './hooks/usePosAvailability'
+import {usePosCatalog,preparePosPrices} from './hooks/usePosCatalog'
 import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
 import { isCashMethod } from '@/services/paymentMethodsService'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
-import { useExperienceProfile } from '@/hooks/useExperienceProfile'
-import { EXPERIENCE_PROFILE_LABELS } from '@/config/experienceProfiles'
 import { checkCustomerCredit } from '@/modules/receivables'
 import { formatMoney } from '@/utils'
 import {useCheckoutFlow} from './checkout/useCheckoutFlow'
 import {CheckoutRecoveryNotice} from './checkout/CheckoutRecoveryNotice'
 import {downloadSavedSaleTicket} from './documents/saleTicketRecovery'
-import {usePrintDestination,PrintDestination,DrawerSimulationAction} from '@/modules/config/hardware/public'
+import {usePrintDestination,PrintDestination} from '@/modules/config/hardware/public'
 import {
   fetchOrderById,
   pendingOrderLineQty,
   type Order,
 } from '@/services/orderService'
-import { postPricingPreview, fetchPosAvailability,fetchProductById,adaptApiProduct, type ProductAvailability } from '@/services/productService'
+import { resolvePosCatalogCode,adaptApiProduct, type ProductAvailability } from '@/services/productService'
 import {UnitLineFields} from '@/components/shared/UnitLineFields'
 import {useDraftGuard} from '@/modules/appointments/components/DraftGuard'
-import {selectProductUnit,selectedBaseQuantity,selectedUnitPayload,selectedQuantity,exactProductValues,compareUnitQuantities,addUnitQuantities,stepUnitQuantity,formatUnitDecimal,formatUnitMoney,previewUnitLine,isUnitDocumentLine,frozenDocumentSelection,remainingDocumentQuantity,documentNetAmounts,unitCartKey,type UnitSelection} from '@/modules/inventory/units/public'
+import {selectProductUnit,selectedBaseQuantity,selectedUnitPayload,selectedQuantity,exactProductValues,compareUnitQuantities,addUnitQuantities,stepUnitQuantity,formatUnitDecimal,formatUnitMoney,previewUnitLines,isUnitDocumentLine,frozenDocumentSelection,remainingDocumentQuantity,documentNetAmounts,unitCartKey,type UnitSelection} from '@/modules/inventory/units/public'
 import {lookupScannedUnitProduct} from '@/services/scannerService'
+import {ScannerField} from '@/components/shared/ScannerField'
+import {resolveContextScan} from '@/services/contextScannerService'
 import {
   saveNewSaleDraft,
   loadNewSaleDraft,
@@ -92,7 +89,7 @@ import { useAuth } from '@/context/useAuth'
 import { useModules } from '@/context/useModules'
 import type { Product } from '@/types/product'
 
-import { useCart, useSalesData } from './hooks'
+import { useCart } from './hooks'
 import { usePromotions } from '@/hooks/usePromotions'
 import {
   AvailabilityDialog,
@@ -110,6 +107,11 @@ import {useTenant} from '@/context/useTenant'
 
 type ProductBrowseLayout = 'flat' | 'byCategory'
 
+function presentationEquivalence(qty:string,selection?:UnitSelection,locale?:string){
+  if(!selection?.snapshot.presentation)return null
+  try{return `${formatUnitDecimal(qty,locale)} ${selection.snapshot.presentation.label} = ${formatUnitDecimal(selectedBaseQuantity(qty,{...selection,acceptRounding:true}),locale)} ${selection.snapshot.baseUnit.label}`}catch{return 'Revisa la cantidad y su equivalencia'}
+}
+
 const PRODUCT_LAYOUT_STORAGE_KEY = 'deposito:listUi:v1:ventas/nueva/productos-layout'
 
 function readProductBrowseLayout(): ProductBrowseLayout {
@@ -120,7 +122,7 @@ function readProductBrowseLayout(): ProductBrowseLayout {
   } catch {
     /* ignore */
   }
-  return 'byCategory'
+  return 'flat'
 }
 
 function writeProductBrowseLayout(layout: ProductBrowseLayout) {
@@ -131,110 +133,39 @@ function writeProductBrowseLayout(layout: ProductBrowseLayout) {
   }
 }
 
-function getProductCategoryName(product: Product): string {
-  const c: unknown = product.category
-  if (typeof c === 'string' && c.trim()) return c.trim()
-  if (c && typeof c === 'object' && 'name' in c && typeof c.name === 'string' && c.name.trim()) {
-    return c.name.trim()
-  }
-  return 'Sin categoría'
+const ProductCard = ({ product, onAdd, disabled, formatPrice, displayUnitPrice, availableQty, physicalStock, posQty, posMode }: {
+  product: Product; onAdd: () => void; disabled?: boolean; formatPrice: (n: number) => string
+  displayUnitPrice: number; availableQty?: number; physicalStock?: number; posQty?: number | null; posMode?: boolean
+}) => {
+  const [imageFailed, setImageFailed] = useState(false)
+  const stock = product.kind === 'SERVICE' ? product.serviceUnitLabel || 'Servicio' : posMode
+    ? posQty != null ? `Mostrador: ${posQty}` : 'Mostrador: …'
+    : `Disponible: ${availableQty ?? product.stock ?? 0}`
+  return <button type="button" className="pos-product-tile pos-product-row" aria-label={`Agregar ${product.name}`} onClick={onAdd} disabled={disabled}>
+    <span className="pos-tile-image">
+      {product.imageUrl && !imageFailed ? <img src={product.imageUrl} alt="" width={96} height={96} loading="lazy" onError={() => setImageFailed(true)} /> : <Package className="h-8 w-8 text-muted-foreground" aria-hidden="true" />}
+    </span>
+    <span className="pos-tile-content">
+      <span className="pos-tile-name" title={product.name}>{product.name}</span>
+      <span className="pos-tile-price">{formatPrice(displayUnitPrice)}</span>
+      <span className="pos-tile-stock">{stock}</span>
+      {product.kind !== 'SERVICE' && posQty != null && availableQty != null && availableQty > posQty && <span className="pos-tile-other">{availableQty - posQty} en otros almacenes</span>}
+      {!posMode && physicalStock != null && availableQty != null && physicalStock !== availableQty && <span className="pos-tile-other">{physicalStock} físicamente</span>}
+    </span>
+  </button>
 }
 
-const ProductCard = ({
-  product,
-  onAdd,
-  disabled,
-  formatPrice,
-  displayUnitPrice,
-  availableQty,
-  physicalStock,
-  posQty,
-  posMode,
-}: {
-  product: Product
-  onAdd: () => void
-  disabled?: boolean
-  formatPrice: (n: number) => string
-  displayUnitPrice: number
-  availableQty?: number
-  physicalStock?: number
-  /** Existencias en la ubicación desde la que despacha la caja. */
-  posQty?: number | null
-  /** La caja despacha de una ubicación concreta: el total de sucursal no sirve acá. */
-  posMode?: boolean
-}) => (
-  <article className="pos-product-row">
-    <div className="pos-product-image">
-      {product.imageUrl ? (
-        <img
-          src={product.imageUrl}
-          alt={product.name}
-          className="h-full w-full object-contain"
-          loading="lazy"
-          width={64}
-          height={64}
-        />
-      ) : (
-        <div className="w-full h-full flex items-center justify-center text-muted-foreground text-sm">
-          <Package className="h-6 w-6" aria-hidden="true" />
-        </div>
-      )}
-    </div>
-    <div className="min-w-0 flex-1">
-      <p className="font-medium text-sm truncate" title={product.name}>
-        {product.name}
-      </p>
-      <p className="text-xs text-muted-foreground">
-        {formatPrice(displayUnitPrice)}
-        {product.kind==='SERVICE' ? ` · ${product.serviceUnitLabel} · Sin control de existencias` : posMode
-          ? // Mientras no llegue el dato de la ubicación no se enseña el total de
-            // sucursal: en la caja ese número miente sobre lo que hay a la mano.
-            posQty != null
-            ? ` · Mostrador: ${posQty}`
-            : ' · Mostrador: …'
-          : availableQty != null && physicalStock != null && physicalStock !== availableQty
-            ? ` · Disp: ${availableQty} (${physicalStock} fís.)`
-            : ` · Stock: ${availableQty ?? product.stock ?? 0}`}
-      </p>
-      {posQty != null && availableQty != null && availableQty > posQty ? (
-        <p className="text-xs text-amber-700 dark:text-amber-300">
-          {availableQty - posQty} en otros almacenes
-        </p>
-      ) : null}
-    </div>
-      <Button
-        size="sm"
-        aria-label={`Agregar ${product.name}`}
-        className="shrink-0"
-        onClick={onAdd}
-        disabled={disabled}
-      >
-        <Plus className="w-4 h-4 mr-1" />
-        Agregar
-      </Button>
-  </article>
-)
-
-const CategoryBrowseCard = ({
-  name,
-  count,
-  imageUrl,
-  onSelect,
-  disabled,
-}: {
-  name: string
-  count: number
-  imageUrl?: string | null
-  onSelect: () => void
-  disabled?: boolean
-}) => (
-  <button type="button" className="pos-category-row" onClick={onSelect} disabled={disabled}>
+const CategoryBrowseCard = ({ name, count, imageUrl, onSelect, disabled, selected }: {
+  name: string; count: number; imageUrl?: string | null; onSelect: () => void; disabled?: boolean; selected?: boolean
+}) => {
+  const [imageFailed, setImageFailed] = useState(false)
+  return <button type="button" className="pos-category-row" aria-pressed={Boolean(selected)} aria-label={`Ver categoría ${name}`} onClick={onSelect} disabled={disabled}>
     <span className="pos-category-image">
-      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" width={48} height={48} className="h-full w-full object-contain" /> : <ImageIcon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />}
+      {imageUrl && !imageFailed ? <img src={imageUrl} alt="" loading="lazy" width={48} height={48} onError={() => setImageFailed(true)} /> : <ImageIcon className="h-5 w-5 text-muted-foreground" aria-hidden="true" />}
     </span>
-    <span className="min-w-0 text-left"><span className="block truncate font-medium">{name}</span><span className="text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span>
+    <span className="min-w-0 text-left"><span className="block font-medium">{name}</span><span className="text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span>
   </button>
-)
+}
 
 export default function NewSalePage() {
   const {company,branch,registerTenantExitGuard}=useTenant()
@@ -266,18 +197,13 @@ export default function NewSalePage() {
     salesShowChannels,
     inventoryUnitsEnabled,
   } = useSystemSettings()
-  const { profile, isCompact, showAdvancedByDefault } = useExperienceProfile()
   const fmt = (n: number) => formatMoney(n, locale, currencyCode)
-  const salesData = useSalesData()
 
   const paymentMethodsQuery = usePaymentMethods()
   const paymentMethods = useMemo(() => paymentMethodsQuery.data ?? [], [paymentMethodsQuery.data])
   // Solo lo que maneja esta sucursal: no se puede vender lo que no está aquí.
   const {inventoryServicesEnabled}=useSystemSettings()
-  const productsQuery = useAllProducts({ forSaleOnly: true, inBranchOnly: true,catalogType:inventoryServicesEnabled ? 'all' : 'goods' })
   const [scannedProducts,setScannedProducts]=useState<Product[]>([])
-  const availableProducts = useMemo(() => [...new Map([...(productsQuery.data??[]),...scannedProducts].map(p=>[p.id,p])).values()], [productsQuery.data,scannedProducts])
-  const categoriesQuery = useCategories()
 
   // Ubicación desde la que despacha este punto de venta (si la sucursal la marcó).
   const warehousesQuery = useQuery({ queryKey: ['warehouses'], queryFn: () => fetchWarehouses() })
@@ -296,19 +222,45 @@ export default function NewSalePage() {
   const [productPageSize, setProductPageSize] = useState(9)
   const [productLayout, setProductLayout] = useState<ProductBrowseLayout>(readProductBrowseLayout)
   const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null)
+  const productPagination = useCardPagination({ enabled: true, tablePageSize: productPageSize, onPageChange: setProductPage, storageKey: 'ventas/nueva/productos', cardMinWidth: 140, cardGap: 10 })
+  const pageSize = productPagination.pageSize
+  const catalogType=inventoryServicesEnabled?'all':'goods'
+  const productsQuery=usePosCatalog(checkoutScope,{page:productPage,pageSize,search:productSearch,category:selectedCategoryName,catalogType},hasPermission('sales.create'))
+  const pageProducts=useMemo(()=>productsQuery.data?.items??[],[productsQuery.data])
+  const availableProducts=useMemo(()=>[...new Map([...productsQuery.retainedProducts,...scannedProducts].map(p=>[p.id,p])).values()],[productsQuery.retainedProducts,scannedProducts])
+  const totalPages=productsQuery.data?.totalPages??1,safePage=productsQuery.data?.page??productPage
+  useEffect(()=>{if(productsQuery.data&&productPage!==productsQuery.data.page)setProductPage(productsQuery.data.page)},[productsQuery.data,productPage])
   const [customer, setCustomer] = useState('Consumidor final')
   const [customerNit, setCustomerNit] = useState('')
   const [pickedCustomerId, setPickedCustomerId] = useState<string>('__none__')
   const [salesChannel, setSalesChannel] = useState<'POS' | 'WHOLESALE' | 'ONLINE'>('POS')
   const [unitPricesById, setUnitPricesById] = useState<Record<string, number>>({})
   const [unitPriceTier,setUnitPriceTier]=useState('LIST')
-  const [availabilityById, setAvailabilityById] = useState<Record<string, ProductAvailability>>({})
+  const availabilityRef = useRef<Record<string, ProductAvailability>>({})
   const [isFinalConsumer, setIsFinalConsumer] = useState(true)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType | null>(null)
   const [amountReceived, setAmountReceived] = useState('')
+  const [saleStep, setSaleStep] = useState<'products' | 'payment'>('products')
+  const paymentTitleRef = useRef<HTMLHeadingElement | null>(null)
+  const paymentReviewButtonRef = useRef<HTMLButtonElement | null>(null)
+  const stepFocusRequest = useRef<{step: 'products' | 'payment'; scope: string} | null>(null)
+  useEffect(() => {
+    const request = stepFocusRequest.current
+    stepFocusRequest.current = null
+    if (!request || request.scope !== scopeKey || request.step !== saleStep) return
+    const target = saleStep === 'payment' ? paymentTitleRef.current : paymentReviewButtonRef.current
+    target?.focus()
+  }, [saleStep, scopeKey])
+  const [mobileView, setMobileView] = useState<'catalog' | 'sale'>('catalog')
+  const [selectedLineKey, setSelectedLineKey] = useState<string | null>(null)
+  const [unitChange, setUnitChange] = useState<{from: string; to: string; scope: string} | null>(null)
+  const [quantityDraft, setQuantityDraft] = useState<{owner: string; value: string; replace: boolean} | null>(null)
+  const [actionPanel, setActionPanel] = useState<'customer' | 'promotions' | 'options' | 'unit' | 'print' | 'turn' | null>(null)
+  const [pendingPresentation,setPendingPresentation]=useState<{product:Product;scope:string;generation:number}|null>(null)
+  const handledPresentation=useRef<object|null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [showCustomerDetails, setShowCustomerDetails] = useState(showAdvancedByDefault)
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(showAdvancedByDefault)
+  const [isHydrating,setIsHydrating]=useState(false)
+  const hydrationOwner=useRef<object|null>(null)
   const [promoCodesToRestore, setPromoCodesToRestore] = useState<string[] | null>(null)
   /** Fuerza recomputar si hay borrador en localStorage (React no observa el storage). */
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
@@ -319,7 +271,7 @@ export default function NewSalePage() {
     [paymentMethods, salesAllowCredit]
   )
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
-  type ElsewhereState = { product: Product;selection?:{presentationId?:string|null;priceContext?:string}; atPos: number|string; rows: { label: string; stock: number|string }[] }
+  type ElsewhereState = { generation:number;product: Product;selection?:{presentationId?:string|null;priceContext?:string}; atPos: number|string; rows: { label: string; stock: number|string }[] }
   const [elsewhere, setElsewhere] = useState<ElsewhereState | null>(null)
   // El AlertDialog sigue montado durante la animación de cierre, cuando `elsewhere`
   // ya es null: leerlo directo pintaba "Solo quedan undefined en el mostrador".
@@ -343,7 +295,8 @@ export default function NewSalePage() {
   const [initialCreditPayment, setInitialCreditPayment] = useState('')
   const [initialCreditMethod, setInitialCreditMethod] = useState('')
   const [creditOverride, setCreditOverride] = useState(false)
-  const isCreditSale = Boolean(paymentMethod?.is_credit)
+  const currentPaymentMethod = visiblePaymentMethods.find(method => method.id === paymentMethod?.id) ?? null
+  const isCreditSale = Boolean(currentPaymentMethod?.is_credit)
   const canOverrideCredit = hasPermission('sales.credit.override')
 
   const getUnitPrice = useCallback(
@@ -357,8 +310,8 @@ export default function NewSalePage() {
   )
 
   const getAvailableQty = useCallback(
-    (p: Product) => availabilityById[p.id]?.available ?? Number(p.stock ?? 0),
-    [availabilityById]
+    (p: Product) => availabilityRef.current[p.id]?.available ?? Number(p.stock ?? 0),
+    []
   )
 
   const cartProducts=useMemo(()=>{
@@ -372,11 +325,11 @@ export default function NewSalePage() {
     }
     return [...byId.values()]
   },[availableProducts,loadedOrder])
-  const getAvailableQtyExact=useCallback((p:Product)=>String(availabilityById[p.id]?.available??exactProductValues(p).stock),[availabilityById])
+  const getAvailableQtyExact=useCallback((p:Product)=>String(availabilityRef.current[p.id]?.available??exactProductValues(p).stock),[])
   const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty,getAvailableQtyExact,priceContext:unitPriceTier,isCurrent:()=>unitOwner.active&&currentScope.current===unitOwner.key })
   const draftGuard=useDraftGuard(cart.cartItems.length>0,registerTenantExitGuard,scopeKey)
   const oldCartScope=useRef(scopeKey)
-  useEffect(()=>{if(oldCartScope.current!==scopeKey){oldCartScope.current=scopeKey;unitPrepareOwner.current=null;setUnitPreparing(false);cart.clearCart();setScannedProducts([]);setLoadedOrder(null);setUnitPricesById({});setAvailabilityById({})}},[scopeKey])
+  useEffect(()=>{if(oldCartScope.current!==scopeKey){oldCartScope.current=scopeKey;unitPrepareOwner.current=null;setUnitPreparing(false);cart.clearCart();setScannedProducts([]);setLoadedOrder(null);setUnitPricesById({});availabilityRef.current={};setPaymentMethod(null);setAmountReceived('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('');setCreditOverride(false);setSaleStep('products');setMobileView('catalog');setQuantityDraft(null);setSelectedLineKey(null);setActionPanel(null);setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setIsFinalConsumer(true)}},[scopeKey])
   const hydrateOrderCartRef=useRef(cart.hydrateFromLines)
   hydrateOrderCartRef.current=cart.hydrateFromLines
   useEffect(()=>{
@@ -388,12 +341,33 @@ export default function NewSalePage() {
    * venta: se dice en qué anaquel está el producto y el cajero decide. Después
    * sigue el flujo de siempre (cantidad adicional, autorización de admin).
    */
-  const addingRef = useRef<Set<string>>(new Set())
+  const addingRef = useRef<Map<string,Promise<void>>>(new Map())
+  const pendingAdditionsRef=useRef(new Map<object,number>())
+  const [,setAdditionsRevision]=useState(0)
+  const cartAcceptsAdditions=useRef(true)
+  const cartGeneration=()=>cart.getGeneration()
+  const hasPendingAdditions=()=>[...pendingAdditionsRef.current.values()].some(generation=>generation===cartGeneration())
+  const additionIsCurrent=(generation:number)=>generation===cartGeneration()&&cartAcceptsAdditions.current&&currentScope.current===unitOwner.key&&unitOwner.active
+  const trackAddition=<T,>(generation:number,run:()=>Promise<T>)=>{
+    const token={};pendingAdditionsRef.current.set(token,generation);setAdditionsRevision(value=>value+1)
+    return Promise.resolve().then(run).finally(()=>{pendingAdditionsRef.current.delete(token);if(unitOwner.active)setAdditionsRevision(value=>value+1)})
+  }
+  const hydrateCart=(run:(generation:number)=>Promise<boolean>)=>{
+    if(hydrationOwner.current||isProcessing||unitPrepareOwner.current)return Promise.resolve(false)
+    const token={},generation=cart.getGeneration()
+    hydrationOwner.current=token;cartAcceptsAdditions.current=false;setIsHydrating(true)
+    return trackAddition(generation,()=>run(generation)).finally(()=>{if(hydrationOwner.current===token){hydrationOwner.current=null;if(unitOwner.active)setIsHydrating(false)}})
+  }
+  useEffect(()=>{hydrationOwner.current=null;setIsHydrating(false)},[scopeKey])
   /** Hay un aviso de "está en otro almacén" esperando que el cajero decida. */
   const decisionPendienteRef = useRef(false)
 
-  const addProduct = async (product: Product,selection?:{presentationId?:string|null;priceContext?:string}) => {
-    if (product.kind==='SERVICE') {cart.addToCart(product);return}
+  const addProduct = (product: Product,selection?:{presentationId?:string|null;priceContext?:string}) => {
+    const generation=cartGeneration(),queueKey=JSON.stringify([generation,product.id])
+    const run=async()=>{
+    if(!additionIsCurrent(generation)||decisionPendienteRef.current)return
+    try {
+    if (product.kind==='SERVICE') {cart.addToCart(product,selection);return}
     if (posSinConfigurar) {
       toast({
         title: 'Falta configurar el punto de venta',
@@ -404,21 +378,21 @@ export default function NewSalePage() {
       return
     }
     if (!posLocationId) { cart.addToCart(product,selection); return }
-    // Un clic a la vez por producto: la consulta de abajo tarda, y sin esto dos
-    // clics seguidos leen el mismo carrito viejo, no ven que el mostrador ya se
-    // agotó y se saltan el aviso.
-    if (addingRef.current.has(product.id)) return
-    addingRef.current.add(product.id)
-    let esperaDecision = false
-    try {
+      const fresh=await posAvailability.ensureCurrent([product.id])
+      if(!additionIsCurrent(generation)||decisionPendienteRef.current)return
+      availabilityRef.current={...availabilityRef.current,...fresh.availability}
+      const known=fresh.availability[product.id]
+      if(!known||known.location_stock==null)throw Error('No se pudo comprobar la disponibilidad del producto. Vuelve a intentarlo.')
+      const chosen=product.unitConfiguration?selectProductUnit(product,selection?.presentationId,selection?.priceContext??unitPriceTier):undefined
+      // Esta estimación no acepta el redondeo: el carrito conserva su revisión obligatoria.
+      const required=addUnitQuantities(cart.getBaseQuantity(product.id),chosen?selectedBaseQuantity('1',{...chosen,acceptRounding:true}):'1')
+      if(compareUnitQuantities(required,String(known.location_stock))<=0){cart.addToCart(product,selection);return}
       const rows = await queryClient.fetchQuery({
         queryKey: ['stock-by-location',checkoutScope.companyId,checkoutScope.branchId, product.id],
         queryFn: () => fetchStockByLocation(product.id,{signal:unitOwner.controller.signal,headers:{'X-Company-Id':checkoutScope.companyId,'X-Branch-Id':checkoutScope.branchId}}),
-        staleTime: 30_000,
+        staleTime: 0,
       })
-      if(currentScope.current!==unitOwner.key||!unitOwner.active)return
-      const chosen=product.unitConfiguration?selectProductUnit(product,selection?.presentationId,selection?.priceContext??unitPriceTier):undefined
-      const required=chosen?addUnitQuantities(cart.baseQuantities[product.id]??'0',selectedBaseQuantity('1',chosen)):String(Number(cart.cartItems.find((i)=>i.id===product.id)?.qty||0)+1)
+      if(!additionIsCurrent(generation))return
       const atPos = rows.find((r) => r.location.id === posLocationId)?.stock ?? 0
       const otras = rows
         .filter((r) => r.location.id !== posLocationId && compareUnitQuantities(String(r.stock),'0')>0)
@@ -432,16 +406,20 @@ export default function NewSalePage() {
         // Si se soltara al abrir, un segundo clic pendiente volvía a abrir el
         // aviso que el cajero ya había resuelto.
         decisionPendienteRef.current = true
-        esperaDecision = true
-        setElsewhere({ product,selection, atPos, rows: otras })
+        setElsewhere({ generation,product,selection, atPos, rows: otras })
         return
       }
-    } catch {
-      // Si no se pudo consultar, no se estorba la venta: sigue el flujo normal.
-    } finally {
-      if (!esperaDecision) addingRef.current.delete(product.id)
+    } catch(error) {
+      if(additionIsCurrent(generation)&&(error as Error).name!=='AbortError')toast({title:'No se pudo comprobar el producto',description:(error as Error).message,variant:'destructive'})
+      return
     }
-    if(currentScope.current===unitOwner.key&&unitOwner.active)cart.addToCart(product,selection)
+    if(additionIsCurrent(generation))cart.addToCart(product,selection)
+    }
+    const previous=addingRef.current.get(queueKey)??Promise.resolve()
+    const next=trackAddition(generation,async()=>{await previous;await run()})
+    addingRef.current.set(queueKey,next)
+    void next.then(()=>{if(addingRef.current.get(queueKey)===next)addingRef.current.delete(queueKey)},()=>{if(addingRef.current.get(queueKey)===next)addingRef.current.delete(queueKey)})
+    return next
   }
 
   /**
@@ -479,11 +457,15 @@ export default function NewSalePage() {
     currencyCode,
   })
 
-  const pricingContext=JSON.stringify([availableProducts.map(product=>product.unitConfiguration?[product.id,exactProductValues(product),product.unitConfiguration]:[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
+  const priceIdsKey=JSON.stringify([...new Set([...pageProducts.map(p=>p.id),...cart.cartItems.map(p=>p.id)])].sort())
+  const pricingProducts=useMemo(()=>{const ids=new Set<string>(JSON.parse(priceIdsKey));return availableProducts.filter(product=>ids.has(product.id))},[availableProducts,priceIdsKey])
+  const pricingContext=JSON.stringify([pricingProducts.map(product=>product.unitConfiguration?[product.id,exactProductValues(product),product.unitConfiguration]:[product.id,product.price,product.priceWholesale,product.pricePromotion,product.promotionValidUntil]),salesChannel,customerContactIdForPricing])
   const pricingReadyRef=useRef<string|null>(null)
   useEffect(() => {
     let cancelled = false
-    const ids = availableProducts.map((p) => p.id)
+    const controller=new AbortController()
+    if(loadedOrder)return
+    const ids = pricingProducts.map((p) => p.id)
     pricingReadyRef.current=null
     setUnitPricesById({})
     if (ids.length === 0) {
@@ -492,11 +474,7 @@ export default function NewSalePage() {
     }
     void (async () => {
       try {
-        const r = await postPricingPreview({
-          product_ids: ids,
-          sales_channel: salesChannel,
-          customer_contact_id: customerContactIdForPricing ?? null,
-        },{signal:unitOwner.controller.signal,headers:{'X-Company-Id':company?.id??'','X-Branch-Id':branch?.id??''}})
+        const r = await preparePosPrices(checkoutScope,ids,salesChannel,customerContactIdForPricing??null,controller.signal)
         if (!cancelled) {pricingReadyRef.current=ids.every(id=>Object.prototype.hasOwnProperty.call(r.unit_prices ?? {},id)) ? pricingContext : null;setUnitPriceTier(r.price_tier_used);setUnitPricesById(r.unit_prices ?? {})}
       } catch {
         if (!cancelled) setUnitPricesById({})
@@ -504,56 +482,16 @@ export default function NewSalePage() {
     })()
     return () => {
       cancelled = true
+      controller.abort()
     }
-  }, [availableProducts, salesChannel, customerContactIdForPricing,pricingContext,unitOwner])
+  }, [pricingProducts,salesChannel,customerContactIdForPricing,pricingContext,unitOwner,loadedOrder])
 
   useEffect(() => {
     repriceCartRef.current()
   }, [unitPricesById,unitPriceTier])
 
-  const filteredProducts = useMemo(
-    () =>
-      availableProducts.filter(
-        (p) =>
-          p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-          (p.barcode ?? '').includes(productSearch)
-      ),
-    [availableProducts, productSearch]
-  )
-
   const isProductSearchActive = productSearch.trim().length > 0
-
-  const categoryImageByName = useMemo(() => {
-    const map = new Map<string, string | null>()
-    for (const c of categoriesQuery.data ?? []) {
-      map.set(c.name, c.image_url ?? null)
-    }
-    return map
-  }, [categoriesQuery.data])
-
-  const categorySummaries = useMemo(() => {
-    const counts = new Map<string, number>()
-    for (const p of filteredProducts) {
-      const name = getProductCategoryName(p)
-      counts.set(name, (counts.get(name) ?? 0) + 1)
-    }
-    return Array.from(counts.entries())
-      .map(([name, count]) => ({
-        name,
-        count,
-        imageUrl: categoryImageByName.get(name) ?? null,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-  }, [filteredProducts, categoryImageByName])
-
-  const browseProducts = useMemo(() => {
-    if (productLayout === 'flat' || isProductSearchActive) return filteredProducts
-    if (!selectedCategoryName) return []
-    return filteredProducts.filter((p) => getProductCategoryName(p) === selectedCategoryName)
-  }, [productLayout, isProductSearchActive, filteredProducts, selectedCategoryName])
-
-  const showCategoryPicker =
-    productLayout === 'byCategory' && !isProductSearchActive && selectedCategoryName === null
+  const categorySummaries=productsQuery.categories.data?.items.map(category=>({...category,imageUrl:category.image_url}))??[]
 
   useEffect(() => {
     writeProductBrowseLayout(productLayout)
@@ -563,38 +501,9 @@ export default function NewSalePage() {
     setProductPage(1)
   }, [productSearch, productLayout, selectedCategoryName])
 
-  const pageSize = productPageSize
-  const totalPages = Math.max(1, Math.ceil(browseProducts.length / pageSize))
-  const safePage = Math.min(productPage, totalPages)
-  const pageProducts = useMemo(() => {
-    const start = (safePage - 1) * pageSize
-    return browseProducts.slice(start, start + pageSize)
-  }, [browseProducts, safePage, pageSize])
-
-  useEffect(() => {
-    let cancelled = false
-    const ids = [
-      ...new Set([
-        ...pageProducts.map((p) => p.id),
-        ...cart.cartItems.map((i) => i.id),
-      ]),
-    ]
-    if (ids.length === 0) {
-      setAvailabilityById({})
-      return
-    }
-    void (async () => {
-      try {
-        const { availability } = await fetchPosAvailability(ids,{signal:unitOwner.controller.signal,headers:{'X-Company-Id':company?.id??'','X-Branch-Id':branch?.id??''}})
-        if (!cancelled) setAvailabilityById(availability)
-      } catch {
-        if (!cancelled) setAvailabilityById({})
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [pageProducts, cart.cartItems,unitOwner])
+  const posAvailability=usePosAvailability(checkoutScope,posLocationId,[...pageProducts.map(p=>p.id),...cart.cartItems.map(item=>item.id)],hasPermission('sales.create')&&checkoutScope.branchId!=='all')
+  const availabilityById=posAvailability.availability
+  availabilityRef.current=availabilityById
 
   const displayLineTotals=loadedOrder ? Object.fromEntries(cart.cartItems.map(item=>{
     if(item.unitSelection?.sourceLineId)return[item.lineKey??item.id,cart.lineTotals[item.lineKey??item.id]]
@@ -605,35 +514,26 @@ export default function NewSalePage() {
     ? cart.cartTotal
     : (promotions.finalTotal ?? cart.cartTotal)
   const changeAmount =
-    isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') && amountReceived
+    isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo') && amountReceived
       ? Math.max(0, parseFloat(amountReceived) - displayTotal)
       : 0
 
   const canCreate = hasPermission('sales.create')
 
-  // En mostrador la opción habitual queda lista. El usuario aún puede cambiarla;
-  // un método de crédito nunca se autoselecciona.
+  // A payment choice belongs to the cashier, never to the ordering of this list.
   useEffect(() => {
-    if (paymentMethod && visiblePaymentMethods.some((method) => method.id === paymentMethod.id)) return
-    const cash = visiblePaymentMethods.find((method) => isCashMethod(method,name=>name.toLowerCase()==='efectivo'))
-    setPaymentMethod(cash ?? visiblePaymentMethods.find((method) => !method.is_credit) ?? null)
+    if (paymentMethod && !visiblePaymentMethods.some(method => method.id === paymentMethod.id)) {
+      setPaymentMethod(null)
+      setAmountReceived('')
+      setInitialCreditPayment('')
+      setInitialCreditMethod('')
+    }
   }, [paymentMethod, salesAllowCredit, visiblePaymentMethods])
 
   useEffect(() => {
     if (!salesShowChannels && salesChannel !== 'POS') setSalesChannel('POS')
   }, [salesShowChannels, salesChannel])
 
-  useEffect(() => {
-    if (isCreditSale || pickedCustomerId !== '__none__' || loadedOrder) {
-      setShowCustomerDetails(true)
-    }
-  }, [isCreditSale, pickedCustomerId, loadedOrder])
-
-  useEffect(() => {
-    if (!showAdvancedByDefault) return
-    setShowCustomerDetails(true)
-    setShowAdvancedOptions(true)
-  }, [showAdvancedByDefault])
 
   /**
    * ¿Puede el cliente llevarse este total al crédito? Se consulta al servidor
@@ -806,15 +706,15 @@ export default function NewSalePage() {
       setIsClosingCashSession(false)
     }
   }, [cashRegisterMeta?.id, toast, queryClient])
-
   const [hasStoredDraft, setHasStoredDraft] = useState(false)
   useEffect(() => {
     setHasStoredDraft(userId ? hasNewSaleDraft(userId,checkoutScope) : false)
   }, [userId, checkoutScope, storedDraftRevision])
 
   const applyDraftToForm = useCallback(
-    (draft: NewSaleDraft) => {
+    (draft: NewSaleDraft,resolvedProducts?:Product[]) => {
       restoredDraftId.current=draft.draftId??draft.savedAt
+      setSaleStep('products');setQuantityDraft(null);setSelectedLineKey(null)
       promotions.clearPromotions()
       setCustomer(draft.customer ?? '')
       setCustomerNit(draft.customerNit ?? '')
@@ -840,7 +740,7 @@ export default function NewSalePage() {
 
       if (draft.paymentMethodId != null) {
         const pm = paymentMethods.find((p) => p.id === draft.paymentMethodId)
-        if (pm) setPaymentMethod(pm)
+        setPaymentMethod(pm && (salesAllowCredit || !pm.is_credit) ? pm : null)
       } else {
         setPaymentMethod(null)
       }
@@ -849,7 +749,7 @@ export default function NewSalePage() {
       if (lines.length > 0) {
         const { missingProductIds, qtyAdjustedIds,unitReviewIds } = cart.hydrateFromLines(
           lines,
-          draft.adminAuthorizedProductIds ?? []
+          draft.adminAuthorizedProductIds ?? [],resolvedProducts??availableProducts
         )
         if(unitReviewIds.length)toast({title:'Revisa las unidades del borrador',description:'Confirma la presentación guardada antes de cobrar.',variant:'destructive'})
         const promos = (draft.promotionCodes ?? []).filter((c) => String(c).trim().length > 0)
@@ -880,28 +780,13 @@ export default function NewSalePage() {
         })
       }
     },
-    [cart, paymentMethods, promotions, toast]
+    [cart, paymentMethods, promotions, toast, salesAllowCredit]
   )
 
   const recoverDraftIfReady = useCallback(
-    (draft: NewSaleDraft): boolean => {
+    async(draft: NewSaleDraft): Promise<boolean> => {
       const lines = draft.lines ?? []
-      if (!productsQuery.isSuccess) {
-        toast({
-          title: 'Espera un momento',
-          description: 'Aún se cargan los productos.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      if (lines.length > 0 && availableProducts.length === 0) {
-        toast({
-          title: 'Sin productos',
-          description: 'No hay productos en catálogo para armar el carrito.',
-          variant: 'destructive',
-        })
-        return false
-      }
+      if(isProcessing||unitPrepareOwner.current||!unitOwner.active||currentScope.current!==scopeKey)return false
       if (draft.paymentMethodId != null && paymentMethods.length === 0) {
         toast({
           title: 'Espera un momento',
@@ -910,15 +795,26 @@ export default function NewSalePage() {
         })
         return false
       }
-      applyDraftToForm(draft)
-      return true
+      const generation=cart.getGeneration()
+      const current=()=>unitOwner.active&&currentScope.current===scopeKey&&cart.getGeneration()===generation
+      let restored=false
+      await hydrateCart(async()=>{
+        try{
+          const resolved=await productsQuery.ensureProducts([...new Set(lines.map(line=>line.productId))])
+          if(!current())return
+          applyDraftToForm(draft,resolved.items)
+          restored=true
+        }catch(error){if(current()&&(error as Error).name!=='AbortError')toast({title:'No se pudo recuperar la venta',description:(error as Error).message,variant:'destructive'})}
+        return restored
+      })
+      return restored
     },
     [
-      productsQuery.isSuccess,
-      availableProducts.length,
+      productsQuery.ensureProducts,
       paymentMethods.length,
       applyDraftToForm,
       toast,
+      unitOwner,scopeKey,isProcessing,cart,
     ]
   )
 
@@ -936,12 +832,13 @@ export default function NewSalePage() {
       setStoredDraftRevision((r) => r + 1)
       return
     }
-    recoverDraftIfReady(draft)
+    void recoverDraftIfReady(draft)
   }, [userId, checkoutScope, recoverDraftIfReady, toast])
 
   const recuperarQueryHandledRef = useRef(false)
-  const applyDraftRef = useRef(applyDraftToForm)
-  applyDraftRef.current = applyDraftToForm
+  const applyDraftRef = useRef(recoverDraftIfReady)
+  applyDraftRef.current = recoverDraftIfReady
+  useEffect(()=>{recuperarQueryHandledRef.current=false},[scopeKey])
 
   useEffect(() => {
     if (searchParams.get('recuperar') !== '1') {
@@ -962,23 +859,21 @@ export default function NewSalePage() {
       return
     }
 
-    const lines = draft.lines ?? []
-    if (!productsQuery.isSuccess) return
-    if (lines.length > 0 && availableProducts.length === 0) return
     if (draft.paymentMethodId != null && paymentMethods.length === 0) return
-
-    applyDraftRef.current(draft)
     recuperarQueryHandledRef.current = true
-    setSearchParams({}, { replace: true })
+    void applyDraftRef.current(draft).then(restored=>{
+      if(!unitOwner.active||currentScope.current!==scopeKey)return
+      if(restored)setSearchParams({}, { replace: true })
+      else recuperarQueryHandledRef.current=false
+    })
   }, [
     searchParams,
     userId,
     checkoutScope,
-    productsQuery.isSuccess,
-    availableProducts.length,
     paymentMethods.length,
     setSearchParams,
     toast,
+    scopeKey,unitOwner,
   ])
 
   useEffect(() => {
@@ -1063,7 +958,9 @@ export default function NewSalePage() {
   }
 
   const applyOrderToPos = useCallback(
-    (order: Order) => {
+    async(order: Order,generation=cart.getGeneration()) => {
+      const current=()=>unitOwner.active&&currentScope.current===scopeKey&&cart.getGeneration()===generation
+      if(!current())return false
       if (!['CONFIRMED', 'PARTIALLY_FULFILLED'].includes(order.status)) {
         toast({
           title: 'Pedido no disponible',
@@ -1090,10 +987,17 @@ export default function NewSalePage() {
         toast({ title: 'Sin líneas pendientes', variant: 'destructive' })
         return
       }
+      const resolved=await productsQuery.ensureProducts([...new Set(lines.map(line=>line.productId))])
+      if(!current())return false
+      if(order.lines.some(line=>resolved.missingIds.includes(line.product_id)&&line.item_kind!=='SERVICE'&&!isUnitDocumentLine(line)))throw Error('No se pudieron cargar todos los productos pendientes del pedido. Revisa su disponibilidad en esta sucursal.')
       orderLineIdByProductRef.current = map
       setUnitPricesById(prices)
       setLoadedOrder(order)
-      if (order.payment_condition === 'CREDIT') setPaymentMethod(paymentMethods.find(method => method.is_credit) ?? null)
+      setPaymentMethod(null)
+      setAmountReceived('')
+      setSaleStep('products')
+      setQuantityDraft(null)
+      setSelectedLineKey(null)
       setInitialCreditPayment('')
       setCreditDueDate('')
       setCustomer(order.customer || order.customerContact?.name || '')
@@ -1103,40 +1007,50 @@ export default function NewSalePage() {
       setSalesChannel(order.sales_channel === 'POS' ? 'POS' : order.sales_channel === 'ONLINE' ? 'ONLINE' : 'WHOLESALE')
       promotions.clearPromotions()
       toast({ title: 'Pedido cargado', description: order.reference ?? order.id })
+      return true
     },
-    [promotions, toast, paymentMethods]
+    [promotions,toast,paymentMethods,productsQuery.ensureProducts,unitOwner,scopeKey,cart]
   )
 
   const handleLoadOrder = useCallback(async () => {
     const ref = loadOrderRef.trim()
     if (!ref) return
-    try {
+    if(isProcessing||hasPendingAdditions())return
+    await hydrateCart(async generation=>{try {
       const order = await fetchOrderById(ref)
-      applyOrderToPos(order)
-      setLoadOrderOpen(false)
-      setLoadOrderRef('')
+      if(!unitOwner.active||currentScope.current!==scopeKey||cart.getGeneration()!==generation)return false
+      if(await applyOrderToPos(order,generation)){setLoadOrderOpen(false);setLoadOrderRef('');return true}
     } catch (e) {
+      if(!unitOwner.active||currentScope.current!==scopeKey||cart.getGeneration()!==generation)return false
       toast({
         title: 'No se encontró el pedido',
         description: e instanceof Error ? e.message : 'Error',
         variant: 'destructive',
       })
-    }
-  }, [loadOrderRef, applyOrderToPos, toast])
+    }return false})
+  }, [loadOrderRef,applyOrderToPos,toast,isProcessing,cart,scopeKey,unitOwner])
 
   useEffect(() => {
     const pedidoRef = searchParams.get('pedido')?.trim()
     if (!canLoadOrders || !pedidoRef || pedidoLoadedRef.current === pedidoRef || !productsQuery.isSuccess) return
     pedidoLoadedRef.current = pedidoRef
-    void fetchOrderById(pedidoRef)
-      .then(applyOrderToPos)
-      .catch((e: Error) => {
-        toast({ title: 'Pedido', description: e.message, variant: 'destructive' })
-      })
+    void hydrateCart(async generation=>{
+      try{return Boolean(await applyOrderToPos(await fetchOrderById(pedidoRef),generation))}
+      catch(error){if(unitOwner.active&&currentScope.current===scopeKey&&cart.getGeneration()===generation)toast({title:'Pedido',description:(error as Error).message,variant:'destructive'});return false}
+    })
   }, [searchParams, productsQuery.isSuccess, applyOrderToPos, toast, canLoadOrders])
 
   const clearLoadedOrder = () => {
     setLoadedOrder(null)
+    setPaymentMethod(null)
+    setAmountReceived('')
+    setInitialCreditPayment('')
+    setInitialCreditMethod('')
+    setCreditDueDate('')
+    setCreditOverride(false)
+    setSaleStep('products')
+    setQuantityDraft(null)
+    setSelectedLineKey(null)
     orderLineIdByProductRef.current = new Map()
     cart.clearCart()
     pedidoLoadedRef.current = null
@@ -1153,12 +1067,11 @@ export default function NewSalePage() {
   }, [canLoadOrders, loadedOrder])
 
   const printDestination=usePrintDestination(checkoutScope,'RECEIPT',selectedRegisterId||undefined)
-  const [printNotice,setPrintNotice]=useState('')
   const [lastCheckout,setLastCheckout]=useState<{saleId:string;scopeKey:string;ticketFailed:boolean;ticketPending:boolean}|null>(null)
   const ticketFor=async(saleId:string)=>{
     const owner=checkout.isCurrent
     setLastCheckout({saleId,scopeKey,ticketFailed:false,ticketPending:true})
-    try{await downloadSavedSaleTicket(saleId,{companyName,logoUrl:companyLogoUrl||undefined,locale,currencyCode},owner,{headers:{'X-Company-Id':checkoutScope.companyId,'X-Branch-Id':checkoutScope.branchId}},{scope:checkoutScope,options:printDestination.options,notice:message=>{if(owner())setPrintNotice(message)}})}
+    try{await downloadSavedSaleTicket(saleId,{companyName,logoUrl:companyLogoUrl||undefined,locale,currencyCode},owner,{headers:{'X-Company-Id':checkoutScope.companyId,'X-Branch-Id':checkoutScope.branchId}},{scope:checkoutScope,options:printDestination.options,notice:message=>{if(owner())toast({title:'Ticket de venta',description:message,duration:5000})}})}
     catch(error){if(owner()&&(error as Error).name!=='AbortError'){setLastCheckout(current=>current?.saleId===saleId?{...current,ticketFailed:true}:current);toast({title:'Venta registrada; ticket pendiente',description:'Descarga el ticket nuevamente o abre el detalle de la venta.'})}}
     finally{if(owner())setLastCheckout(current=>current?.saleId===saleId?{...current,ticketPending:false}:current)}
   }
@@ -1169,20 +1082,93 @@ export default function NewSalePage() {
     if(ownsCart){
       restoredDraftId.current=undefined
       cart.clearCart();promotions.clearPromotions()
+      setPaymentMethod(null);setSaleStep('products');setMobileView('catalog');setQuantityDraft(null);setSelectedLineKey(null);setActionPanel(null)
       if(loadedOrder)clearLoadedOrder()
       setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setSalesChannel('POS');setIsFinalConsumer(true);setAmountReceived('');setProductSearch('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('')
     }
-    toast({title:isCreditSale?'Venta a crédito registrada':'Venta registrada correctamente'})
-    void Promise.resolve().then(()=>{salesData.refreshSales();return Promise.all([queryClient.invalidateQueries({queryKey:PRODUCTS_QUERY_KEY}),queryClient.invalidateQueries({queryKey:['receivables']}),queryClient.invalidateQueries({queryKey:['credit-check']})])}).catch(()=>{ /* The saved sale does not depend on refreshing the catalog. */ })
+    toast({title:isCreditSale?'Venta a crédito registrada':'Venta registrada correctamente',duration:4000})
+    void Promise.resolve().then(()=>Promise.all([queryClient.invalidateQueries({queryKey:SALES_QUERY_KEY,refetchType:'none'}),queryClient.invalidateQueries({queryKey:PRODUCTS_QUERY_KEY}),queryClient.invalidateQueries({queryKey:['receivables']}),queryClient.invalidateQueries({queryKey:['credit-check']})])).catch(()=>{ /* The saved sale does not depend on refreshing the catalog. */ })
     void ticketFor(attempt.saleId!)
   },JSON.stringify(user?.permissions??[]),restoredDraftId.current)
   useEffect(()=>setIsProcessing(unitPreparing||checkout.pending||!!checkout.attempt||checkout.blocked),[unitPreparing,checkout.pending,checkout.attempt,checkout.blocked])
   const reviewContextValue=JSON.stringify([scopeKey,cart.cartItems.map(item=>[item.id,item.qty,item.unitSelection]),unitPriceTier,customer,customerNit,isFinalConsumer,pickedCustomerId,salesChannel,paymentMethod?.id,amountReceived,initialCreditPayment,initialCreditMethod,creditDueDate,creditOverride,promotions.promotionCodes])
   const reviewContext=useRef('');reviewContext.current=reviewContextValue
   const visibleCheckout=lastCheckout?.scopeKey===scopeKey?lastCheckout:null
-  const checkoutNotice=<CheckoutRecoveryNotice attempt={checkout.attempt} pending={checkout.pending} error={checkout.error} lastSaleId={visibleCheckout?.saleId??checkout.attempt?.saleId} ticketFailed={visibleCheckout?.ticketFailed} ticketPending={visibleCheckout?.ticketPending} onCheck={()=>void checkout.reconcile()} onTicket={()=>void ticketFor(visibleCheckout?.saleId??checkout.attempt!.saleId!)} onDetail={()=>navigate(`/ventas/${visibleCheckout?.saleId??checkout.attempt?.saleId}/factura`)}/>
+  const checkoutNotice=<CheckoutRecoveryNotice attempt={checkout.attempt} pending={checkout.pending} hasProcessingButton={saleStep==='payment'&&Boolean(selectedRegisterId)&&cashSessionOpen&&cashCheckDone&&!cashCheckError&&!isHydrating} error={checkout.error} lastSaleId={visibleCheckout?.saleId??checkout.attempt?.saleId} ticketFailed={visibleCheckout?.ticketFailed} ticketPending={visibleCheckout?.ticketPending} onCheck={()=>void checkout.reconcile()} canRetry={checkout.canRetry} onRetry={()=>void checkout.retry()} productNames={Object.fromEntries(availableProducts.map(product=>[product.id,product.name]))} onTicket={()=>void ticketFor(visibleCheckout?.saleId??checkout.attempt!.saleId!)} onDetail={()=>navigate(`/ventas/${visibleCheckout?.saleId??checkout.attempt?.saleId}/factura`)}/>
+
+
+  const changedUnitLine = unitChange?.scope === scopeKey && unitChange.from === selectedLineKey
+    ? cart.cartItems.find(item => (item.lineKey ?? item.id) === unitChange.to) : null
+  const selectedLine = cart.cartItems.find(item => (item.lineKey ?? item.id) === selectedLineKey) ?? changedUnitLine ?? cart.cartItems[cart.cartItems.length - 1] ?? null
+  useEffect(() => {
+    if (!unitChange) return
+    // The cart may reject the request; follow its resulting line, not the requested key.
+    if (unitChange.scope === scopeKey && selectedLineKey === unitChange.from &&
+      !cart.cartItems.some(item => (item.lineKey ?? item.id) === unitChange.from) && changedUnitLine) {
+      setSelectedLineKey(unitChange.to)
+      setQuantityDraft(null)
+    }
+    setUnitChange(null)
+  }, [unitChange, scopeKey, selectedLineKey, cart.cartItems, changedUnitLine])
+  const selectedKey = selectedLine ? selectedLine.lineKey ?? selectedLine.id : null
+  const quantityOwner = JSON.stringify([scopeKey, selectedKey, selectedLine?.qty, selectedLine?.unitSelection])
+  const quantityText = quantityDraft?.owner === quantityOwner ? quantityDraft.value : selectedLine?.qty ?? ''
+  const quantityPending = Boolean(selectedLine && quantityDraft?.owner === quantityOwner && quantityText !== selectedLine.qty)
+  const quantityDecimals = selectedLine?.unitSelection
+    ? selectedLine.unitSelection.snapshot.presentation?.decimals ?? selectedLine.unitSelection.snapshot.baseUnit.decimals
+    : selectedLine?.kind === 'SERVICE' ? selectedLine.quantityDecimals ?? 0 : 0
+  let normalizedQuantity: string | null = null
+  try {
+    if (selectedLine) normalizedQuantity = selectedLine.unitSelection
+      ? selectedQuantity(quantityText, selectedLine.unitSelection)
+      : normalizeQuantityInput(quantityText, {kind: selectedLine.kind ?? 'STANDARD', quantityDecimals}, locale)
+    if (normalizedQuantity && compareUnitQuantities(normalizedQuantity, '0') <= 0) normalizedQuantity = null
+  } catch { /* Keep the draft visible until the cashier fixes it. */ }
+  const checkoutLocked = isProcessing || isHydrating || unitPreparing || checkout.pending || Boolean(checkout.attempt) || checkout.blocked
+  const presentationChoice=pendingPresentation?.scope===scopeKey&&pendingPresentation.generation===cartGeneration()&&saleStep==='products'&&!checkoutLocked&&!loadedOrder&&checkout.isCurrent()?pendingPresentation:null
+  cartAcceptsAdditions.current=saleStep==='products'&&!checkoutLocked
+  const availabilityPending = Boolean(cart.availabilityDialog?.open || cart.adminAuthDialog?.open || elsewhere)
+  const paymentReviewBlocked = !cart.cartItems.length || cart.hasInvalidQuantities || hasPendingAdditions() || quantityPending || availabilityPending || Boolean(presentationChoice) ||
+    promotions.isValidating || (pricingReadyRef.current !== pricingContext && !loadedOrder) || checkoutLocked
+  const goToPayment = () => {
+    if (paymentReviewBlocked || hasPendingAdditions() || !canCreate || !cashSessionOpen || !unitOwner.active || currentScope.current !== scopeKey) return
+    cartAcceptsAdditions.current=false
+    stepFocusRequest.current = {step: 'payment', scope: scopeKey}
+    setSaleStep('payment')
+    setActionPanel(null)
+  }
+  const choosePaymentMethod = (method: PaymentMethodType) => {
+    if (checkoutLocked || !visiblePaymentMethods.some(row => row.id === method.id)) return
+    if (currentPaymentMethod?.id !== method.id) {
+      setAmountReceived('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditOverride(false)
+    }
+    setPaymentMethod(method)
+  }
+  const applyQuantity = () => {
+    if (checkoutLocked || !selectedKey || !normalizedQuantity || !unitOwner.active || currentScope.current !== scopeKey) return
+    cart.updateQuantity(selectedKey, normalizedQuantity)
+    if (normalizedQuantity === selectedLine?.qty) setQuantityDraft(null)
+  }
+  const selectLine = (key: string) => {
+    if (checkoutLocked) return
+    setSelectedLineKey(key);setQuantityDraft(null);setUnitChange(null)
+  }
+  const addFromTile = (product: Product,presentationId?:string|null) => {
+    if (checkoutLocked||!canCreate||!unitOwner.active||currentScope.current!==scopeKey) return
+    if(!loadedOrder&&presentationId===undefined&&product.unitConfiguration?.presentations.some(p=>p.active&&p.sale_enabled)){
+      setPendingPresentation({product,scope:scopeKey,generation:cartGeneration()});return
+    }
+    try {
+      const key = unitCartKey(product.id, selectProductUnit(product, presentationId, unitPriceTier))
+      setSelectedLineKey(key);setQuantityDraft(null)
+    } catch { setSelectedLineKey(null) }
+    void addProduct(product,presentationId===undefined?undefined:{presentationId,priceContext:unitPriceTier})
+  }
+  const cashValue = Number(amountReceived)
+  const cashAmountValid = /^\d+(?:\.\d{1,2})?$/.test(amountReceived) && Number.isFinite(cashValue) && cashValue >= displayTotal
 
   const handleSubmit = async () => {
+    if(checkoutLocked || hasPendingAdditions() || quantityPending || availabilityPending || presentationChoice)return
     if(unitPrepareOwner.current||isProcessing||checkout.attempt)return
     if(reviewContext.current!==reviewContextValue)return
     if (cart.hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Cada partida debe tener una cantidad válida para su unidad de cobro.',variant:'destructive'});return}
@@ -1199,7 +1185,7 @@ export default function NewSalePage() {
       })
       return
     }
-    if (!paymentMethod) {
+    if (!currentPaymentMethod) {
       toast({ title: 'Selecciona un método de pago', variant: 'destructive' })
       return
     }
@@ -1241,10 +1227,10 @@ export default function NewSalePage() {
         return
       }
     }
-    const isCash = isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo')
+    const isCash = isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo')
     if (isCash) {
       const received = parseFloat(amountReceived || '0')
-      if (Number.isNaN(received) || received < displayTotal) {
+      if (!cashAmountValid) {
         toast({
           title: 'Monto insuficiente',
           description: `El monto en efectivo (${fmt(received)}) no puede ser menor al total a pagar (${fmt(displayTotal)}).`,
@@ -1257,7 +1243,7 @@ export default function NewSalePage() {
       customer,
       customer_nit: customerNit,
       is_final_consumer: isFinalConsumer,
-      payment_method_id: paymentMethod.id,
+      payment_method_id: currentPaymentMethod.id,
       status_id: 0,
       customer_contact_id: pickedCustomerId !== '__none__' ? pickedCustomerId : undefined,
       sales_channel: salesChannel,
@@ -1285,16 +1271,24 @@ export default function NewSalePage() {
       await checkout.submit('ORDER',{
         due_date:isCreditSale?creditDueDate:undefined,
         initial_payment:isCreditSale&&Number(initialCreditPayment)>0?{amount:Number(initialCreditPayment),payment_method_id:Number(initialCreditMethod)}:undefined,
-        payment_method_id:paymentMethod.id,amount_received:payload.amount_received,change:payload.change,lines,cash_register_id:payload.cash_register_id,
+        payment_method_id:currentPaymentMethod.id,amount_received:payload.amount_received,change:payload.change,lines,cash_register_id:payload.cash_register_id,
       },loadedOrder.id)
     }else {
       const prepare={};unitPrepareOwner.current=prepare;setUnitPreparing(true);const reviewed=reviewContext.current
-      try{const preparations=[]
-        for(const item of cart.cartItems)if(item.unitSelection)preparations.push({item,preview:await previewUnitLine(checkoutScope,item.id,{qty:selectedQuantity(item.qty,item.unitSelection),...selectedUnitPayload(item.unitSelection),unit_revision:item.unitSelection.revision,price_tier:unitPriceTier as 'LIST'|'WHOLESALE'|'PROMOTION'},unitOwner.controller.signal)})
+      try{
+        const selected=cart.cartItems.filter(item=>item.unitSelection)
+        if(selected.length>200)throw Error('Esta revisión admite hasta 200 líneas con presentaciones. Reduce las líneas antes de cobrar.')
+        const result=selected.length?await previewUnitLines(checkoutScope,selected.map(item=>({client_line_key:item.lineKey??item.id,product_id:item.id,qty:selectedQuantity(item.qty,item.unitSelection!),...selectedUnitPayload(item.unitSelection),unit_revision:item.unitSelection!.revision,price_tier:unitPriceTier as 'LIST'|'WHOLESALE'|'PROMOTION'})),unitOwner.controller.signal):{items:[]}
+        const expected=new Set(selected.map(item=>item.lineKey??item.id)),seen=new Set<string>()
+        if(!Array.isArray(result?.items)||result.items.length!==selected.length)throw Error('La revisión de productos llegó incompleta. Vuelve a intentarlo antes de cobrar.')
+        for(const row of result.items){
+          if(!row||!expected.has(row.client_line_key)||seen.has(row.client_line_key)||!row.preview)throw Error('La revisión de productos llegó incompleta. Vuelve a intentarlo antes de cobrar.')
+          seen.add(row.client_line_key)
+        }
         if(reviewed!==reviewContext.current)throw Error('La venta cambió durante la revisión. Revisa el importe y vuelve a cobrar.')
         if(currentScope.current!==unitOwner.key||!unitOwner.active)return
         let changed=false
-        for(const {item,preview}of preparations)if(cart.reconcileUnitPreparation(item.lineKey??item.id,preview))changed=true
+        for(const {client_line_key,preview}of result.items)if(cart.reconcileUnitPreparation(client_line_key,preview))changed=true
         if(changed)throw Error('Se actualizaron cantidades o precios autorizados. Revisa el carrito y vuelve a cobrar.')
         if(currentScope.current===unitOwner.key&&unitOwner.active)await checkout.submit('SALE',payload)
       }catch(error){if(currentScope.current===unitOwner.key&&unitOwner.active)toast({title:'Revisa la unidad seleccionada',description:(error as Error).message,variant:'destructive'})}
@@ -1306,10 +1300,10 @@ export default function NewSalePage() {
 
   if (!selectedRegisterId) {
     return (
-      <CashRegisterPicker
+      <>{checkoutNotice}<CashRegisterPicker
         onSelect={(id) => setSelectedRegisterId(id)}
         onBack={() => navigate('/ventas')}
-      />
+      /></>
     )
   }
 
@@ -1332,7 +1326,7 @@ export default function NewSalePage() {
           <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold">Nueva venta</h1>
+          <h1 className="text-xl font-bold">Punto de venta</h1>
         </div>
         <Alert variant="destructive">
           <AlertTitle>No se pudo verificar la caja</AlertTitle>
@@ -1357,7 +1351,7 @@ export default function NewSalePage() {
           <Button variant="ghost" size="icon" onClick={() => setSelectedRegisterId(null)}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-xl font-bold">Nueva venta</h1>
+          <h1 className="text-xl font-bold">Punto de venta</h1>
         </div>
         <Alert variant="destructive">
           <AlertTitle>Caja en uso</AlertTitle>
@@ -1391,167 +1385,340 @@ export default function NewSalePage() {
   }
 
   return (
-    <div className="pos-page auna-page-fluid">
+    <div className="pos-page auna-page-fluid pos-live" data-step={saleStep}>
       {draftGuard.dialog}
-      <div className="auna-page-toolbar pos-toolbar">
-        <div className="flex items-start gap-3 min-w-0">
-          <Button variant="outline" size="sm" aria-label="Volver a ventas" className="shrink-0" onClick={() => navigate('/ventas')}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div className="min-w-0">
-            <h1 className="sr-only">Nueva venta</h1>
-            <p className="text-xs text-muted-foreground">
-              {loadedOrder
-                ? `Venta desde pedido ${loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}`
-                : isCompact
-                  ? 'Agrega productos, recibe el pago y cobra'
-                  : 'Agrega productos; cliente y opciones especiales aparecen cuando hacen falta'}
-            </p>
-          </div>
-        </div>
-        {canLoadOrders && !loadedOrder && (
-          <Button variant="outline" size="sm" className="shrink-0" onClick={() => setLoadOrderOpen(true)}>
-            <Package className="h-4 w-4 mr-2" />
-            Cargar pedido
-          </Button>
-        )}
-
-        {activeCashSession && (
-          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
-            <div
-              className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-2.5 py-1.5 text-xs text-muted-foreground sm:text-sm"
-              title={`${cashRegisterMeta?.name ?? 'Caja principal'} · Fondo Q${Number(activeCashSession.opening_float).toFixed(2)} · ${new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}${activeCashSession.openedBy?.name ? ` · ${activeCashSession.openedBy.name}` : ''}`}
-            >
-              <Landmark className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-              <span className="truncate">
-                <span className="text-foreground/80 font-medium">Turno abierto</span>
-                <span className="mx-1.5 text-border">·</span>
-                {cashRegisterMeta?.name ?? 'Caja principal'}
-                <span className="mx-1.5">·</span>
-                Q{Number(activeCashSession.opening_float).toFixed(2)}
-                <span className="mx-1.5">·</span>
-                {new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT', {
-                  dateStyle: 'short',
-                  timeStyle: 'short',
-                })}
-                {activeCashSession.openedBy?.name ? (
-                  <>
-                    <span className="mx-1.5">·</span>
-                    {activeCashSession.openedBy.name}
-                  </>
-                ) : null}
-              </span>
-            </div>
-            {canUserCloseCashTurn ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="h-8 w-8 shrink-0 border-border/80 bg-background"
-                    disabled={isProcessing || isClosingCashSession}
-                    aria-label="Acciones del turno de caja"
-                  >
-                    <Settings className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" sideOffset={6} className="w-56">
-                  <DropdownMenuItem
-                    className="text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer"
-                    disabled={isProcessing || isClosingCashSession}
-                    onSelect={() => setShowCloseCashDialog(true)}
-                  >
-                    Cerrar caja (fin de turno)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : (
-              <span className="text-[11px] leading-tight text-muted-foreground sm:text-xs sm:max-w-[12rem] sm:text-right">
-                Solo quien abrió el turno o un supervisor puede cerrarlo.
-              </span>
-            )}
-          </div>
-        )}
+      <div className="pos-toolbar">
+        <Button type="button" variant="ghost" size="sm" aria-label="Volver a ventas" onClick={() => navigate('/ventas')}><ArrowLeft className="h-4 w-4" aria-hidden="true" /> Ventas</Button>
+        <h1 className="sr-only">Punto de venta</h1>
+        <span className="text-xs text-muted-foreground">{loadedOrder ? `Pedido ${loadedOrder.reference ?? loadedOrder.id.slice(0,8)}` : 'Punto de venta'}</span>
+        <span className="pos-toolbar-context">{cashRegisterMeta?.name ?? 'Caja'}{activeCashSession ? ' · Turno abierto' : ''}</span>
       </div>
-
       {checkoutNotice}
-      {visibleCheckout&&<DrawerSimulationAction key={visibleCheckout.saleId} source={{sourceType:'SALE',sourceId:visibleCheckout.saleId}} workstationId={printDestination.route?.workstationId}/>}
-      {printNotice&&<p role="status" className="text-xs text-muted-foreground">{printNotice}</p>}
-      <PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange}/>
-      {loadedOrder && (
-        <Alert className="mb-6">
-          <Package className="h-4 w-4" />
-          <AlertTitle>Pedido {loadedOrder.reference ?? loadedOrder.id.slice(0, 8)}</AlertTitle>
-          <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
-            <span>Registrar venta desde pedido (precios congelados del pedido).</span>
-            <Button type="button" size="sm" variant="outline" onClick={clearLoadedOrder}>
-              Quitar pedido
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+      {loadedOrder && <div className="pos-order-notice"><span><Package className="h-4 w-4" aria-hidden="true" /> Pedido {loadedOrder.reference ?? loadedOrder.id.slice(0,8)} · Precios acordados{loadedOrder.payment_condition === 'CREDIT' ? ' · Condición acordada: crédito' : ''}</span><Button type="button" size="sm" variant="ghost" onClick={() => {clearLoadedOrder();setSaleStep('products');setQuantityDraft(null)}} disabled={checkoutLocked}>Quitar pedido</Button></div>}
+      {hasStoredDraft && <div className="pos-order-notice"><span><RotateCcw className="h-4 w-4" aria-hidden="true" /> Tenés una venta guardada para continuar.</span><Button type="button" size="sm" variant="outline" onClick={handleRecoverSavedSale} disabled={checkoutLocked}>Recuperar venta guardada</Button></div>}
+      {saleStep === 'products' && <nav className="pos-mobile-switch" aria-label="Secciones de la venta">
+        <Button type="button" variant={mobileView === 'catalog' ? 'default' : 'outline'} aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>Productos</Button>
+        <Button type="button" variant={mobileView === 'sale' ? 'default' : 'outline'} aria-pressed={mobileView === 'sale'} onClick={() => setMobileView('sale')}>Venta ({cart.cartItems.length})</Button>
+      </nav>}
+      {isHydrating&&<LoadingIndicator message="Recuperando productos de la venta…" />}
+      <fieldset className="pos-workspace min-w-0" data-step={saleStep} disabled={checkoutLocked}>
+        <div className="pos-sale-column" data-mobile-active={mobileView === 'sale' || saleStep === 'payment'}>
+          <header className="pos-sale-heading"><div><h2>Venta actual</h2><span>{cart.cartItems.length} {cart.cartItems.length === 1 ? 'producto' : 'productos'}</span></div>
+            <Button type="button" variant="ghost" className="pos-turn-button" onClick={() => setActionPanel('turn')}><span className="pos-turn-dot" />{cashRegisterMeta?.name ?? 'Caja'} · {activeCashSession ? 'Turno abierto' : 'Ver caja'}<span className="ml-auto">Ver turno ↗</span></Button>
+          </header>
+          <Button type="button" variant="ghost" className="pos-customer-button" onClick={() => setActionPanel('customer')}><UserRound className="h-4 w-4" aria-hidden="true" /><span><strong>{isFinalConsumer ? 'Consumidor final' : customer || 'Seleccionar cliente'}</strong><small>{customerNit ? `ID fiscal: ${customerNit}` : 'Cliente y datos fiscales'}</small></span><ChevronDown className="ml-auto h-4 w-4" aria-hidden="true" /></Button>
+          <section className="pos-cart" aria-label="Productos en la venta">
+            {!cart.cartItems.length ? <CollectionEmptyState compact title="¿Qué llevamos hoy?" description="Tocá un producto o escaneá su código para comenzar la venta." /> :
+              <ul className="pos-cart-lines">{cart.cartItems.map(item => {const key=item.lineKey??item.id;const label=item.unitSelection?.snapshot.presentation?.label??item.unitSelection?.snapshot.baseUnit.label??item.serviceUnitLabel??'unidad';return <li key={key} className={`pos-cart-line ${selectedKey===key?'is-selected':''}`}>
+                <button type="button" className="pos-line-select" aria-label={`Seleccionar ${item.name}, ${label}`} aria-pressed={selectedKey===key} onClick={() => selectLine(key)}>
+                  <span><strong>{item.qty} × {item.name}</strong><small>{item.unitSelection?.snapshot.presentation?.name??label} · {item.unitSelection ? `${currencyCode} ${formatUnitDecimal(item.unitSelection.unitPrice,locale)}` : fmt(item.price)} / {label}</small>{item.unitSelection?.snapshot.presentation&&<small>{presentationEquivalence(item.qty,item.unitSelection,locale)}</small>}</span>
+                  <b>{displayLineTotals[key] != null ? fmt(Number(displayLineTotals[key])) : '—'}</b>
+                </button>
+                {saleStep === 'products' && <Button type="button" variant="ghost" size="icon" className="pos-remove-line" data-line-key={key} aria-label={`Quitar ${item.name}`} disabled={checkoutLocked} onClick={() => {if(checkoutLocked)return;cart.removeFromCart(key);if(key===selectedKey){setQuantityDraft(null);setUnitChange(null)}}}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>}
+              </li>})}</ul>}
+          </section>
+          {saleStep === 'products' && <div className="pos-touch-board">
+            <div className="pos-quantity-heading"><div><strong>{selectedLine?.name ?? 'Seleccioná un producto'}</strong><span className="pos-selected-presentation">{selectedLine?.unitSelection?.snapshot.presentation?.name ?? selectedLine?.unitSelection?.snapshot.baseUnit.name ?? selectedLine?.serviceUnitLabel ?? 'Unidad'}</span></div>
+              <div className="pos-quantity-value"><Label htmlFor="pos-quantity">Cantidad</Label><Input id="pos-quantity" type="text" inputMode={quantityDecimals ? 'decimal' : 'numeric'} aria-label={`Cantidad de ${selectedLine?.name ?? 'producto seleccionado'}`} value={quantityText} disabled={!selectedLine || checkoutLocked} aria-invalid={Boolean(quantityText && !normalizedQuantity)} onChange={event => setQuantityDraft({owner:quantityOwner,value:event.target.value,replace:false})}/></div>
+            </div>
+            {selectedLine?.unitSelection&&<Button type="button" variant="outline" className="pos-presentation-button" aria-label={`Cambiar presentación de ${selectedLine.name}`} disabled={checkoutLocked||Boolean(loadedOrder)||quantityPending||Boolean(selectedLine.unitSelection.sourceLineId)} onClick={()=>setActionPanel('unit')}><Package className="h-4 w-4" aria-hidden="true"/>Cambiar presentación<ChevronDown className="ml-auto h-4 w-4" aria-hidden="true"/></Button>}
+            <div className="pos-touch-controls"><PosNumericKeypad disabled={!selectedLine || checkoutLocked} decimalEnabled={quantityDecimals>0} onKey={key => {
+              if(checkoutLocked||!selectedLine)return
+              const replace=quantityDraft?.owner!==quantityOwner||quantityDraft.replace
+              setQuantityDraft({owner:quantityOwner,value:applyPosKey(quantityText,key,quantityDecimals,replace),replace:false})
+            }}/>
+              <div className="pos-quick-actions">
+                <Button type="button" variant="outline" aria-label="Aplicar cantidad" disabled={!selectedLine || !normalizedQuantity || checkoutLocked} onClick={applyQuantity}>Aplicar cantidad</Button>
+                {promotionsEnabled && !loadedOrder && <Button type="button" variant="outline" onClick={() => setActionPanel('promotions')}><Receipt className="h-4 w-4" aria-hidden="true" />Promoción</Button>}
+                {canLoadOrders && !loadedOrder && <Button type="button" variant="outline" onClick={() => setLoadOrderOpen(true)}><Package className="h-4 w-4" aria-hidden="true" />Pedido</Button>}
+                <Button type="button" variant="outline" onClick={() => setActionPanel('options')}><SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Más acciones</Button>
+              </div>
+            </div>
+            <div className="pos-quantity-feedback" role="status">{quantityPending ? <><span>{normalizedQuantity ? 'Aplicá la cantidad antes de continuar al pago.' : 'Revisá la cantidad y los decimales permitidos.'}</span><Button type="button" variant="ghost" onClick={() => setQuantityDraft(null)}>Descartar edición</Button></> : <span>Tocá una línea para cambiar su cantidad o presentación.</span>}</div>
+          </div>}
+          <section className="pos-checkout" aria-label="Total y registro de la venta">
+            {promotionsEnabled && Boolean(promotions.appliedPromotions?.length) && <div className="pos-total-detail"><span>Promociones aplicadas</span><span>−{fmt(promotions.totalDiscount ?? 0)}</span></div>}
+            <div className="pos-total"><span>Total</span><strong>{fmt(displayTotal)}</strong></div>
+            <p className="pos-tax-note">{vatRegime === 'general' && displayTotal>0 ? `IVA incluido (${ivaRate}%): ${fmt(displayTotal-displayTotal/(1+ivaRate/100))}` : 'Según la configuración fiscal de tu empresa'}</p>
+            {saleStep === 'products' ? <Button ref={paymentReviewButtonRef} type="button" className="pos-pay-button" aria-label="Ir al pago" disabled={Boolean(paymentReviewBlocked) || !canCreate || !cashSessionOpen} onClick={goToPayment}><span>Ir al pago</span><span>{fmt(displayTotal)}</span><ChevronDown className="h-5 w-5 -rotate-90" aria-hidden="true" /></Button> :
+              <Button type="button" className="pos-pay-button" onClick={handleSubmit} aria-busy={unitPreparing || checkout.pending} disabled={Boolean(paymentReviewBlocked) || !currentPaymentMethod || !canCreate ||
+                (isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo') && !cashAmountValid) ||
+                (isCreditSale && (!customerContactIdForPricing || !creditDueDate || Number(initialCreditPayment)<0 || !Number.isFinite(Number(initialCreditPayment)) || Number(initialCreditPayment)>=displayTotal || (Number(initialCreditPayment)>0&&!initialCreditMethod) ||
+                (creditCheck.data != null && !creditCheck.data.ok && !(canOverrideCredit&&creditOverride))))}>
+                <span role="status" aria-live="polite">{isProcessing || unitPreparing || checkout.pending ? 'Procesando…' : isCreditSale ? 'Registrar venta a crédito' : 'Confirmar pago'}</span><span>{fmt(displayTotal)}</span>
+              </Button>}
+            {saleStep === 'products' && <Button type="button" variant="ghost" className="pos-save-button" onClick={() => {handleSaveForLater();setPaymentMethod(null);setAmountReceived('');setQuantityDraft(null)}} disabled={checkoutLocked || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}><PauseCircle className="h-4 w-4" aria-hidden="true" />Guardar y continuar después</Button>}
+          </section>
+        </div>
+        <section className="pos-payment-panel" aria-labelledby="pos-payment-title" hidden={saleStep !== 'payment'}>
+          <Button type="button" variant="ghost" className="pos-payment-back" onClick={() => {if(checkoutLocked)return;stepFocusRequest.current={step:'products',scope:scopeKey};setSaleStep('products');setMobileView('sale')}}><ArrowLeft className="h-4 w-4" aria-hidden="true" />Volver a los productos</Button>
+          <h2 id="pos-payment-title" ref={paymentTitleRef} tabIndex={-1} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Vamos a cobrar</h2><p className="pos-payment-intro">Elegí cómo paga el cliente. Tu venta sigue a la derecha.</p>
+          <div className="pos-payment-layout">
+            <div className="pos-payment-methods"><Label>Método de pago</Label>
+              {!visiblePaymentMethods.length ? <p role="status" className="text-sm text-destructive">No hay métodos de pago disponibles para esta empresa.</p> : visiblePaymentMethods.map(method => <Button key={method.id} type="button" variant="outline" className="pos-method-button" aria-pressed={currentPaymentMethod?.id===method.id} onClick={() => choosePaymentMethod(method)}>
+                {method.is_credit ? <UserRound className="h-5 w-5" aria-hidden="true" /> : isCashMethod(method,name=>name.toLowerCase()==='efectivo') ? <Landmark className="h-5 w-5" aria-hidden="true" /> : <CreditCard className="h-5 w-5" aria-hidden="true" />}
+                <span>{method.name}</span><span className="pos-method-radio" aria-hidden="true" />
+              </Button>)}
+            </div>
+            <div className="pos-payment-entry"><div className="pos-amount-due"><span>Total de la venta</span><strong>{fmt(displayTotal)}</strong></div>
+              {!currentPaymentMethod && <p className="pos-payment-placeholder" role="status">Seleccioná un método de pago para continuar.</p>}
+                                {isCreditSale && (
+                    <div className="space-y-2 border-t pt-3">
+                  {!customerContactIdForPricing ? (
+                    <p className="text-xs text-destructive">
+                      Una venta al crédito necesita un cliente del maestro: seleccionalo arriba.
+                    </p>
+                  ) : (
+                    <>
+                      <div>
+                        <Label htmlFor="due-date">Vence el</Label>
+                        <Input
+                          id="due-date"
+                          type="date"
+                          value={creditDueDate}
+                          onChange={(e) => setCreditDueDate(e.target.value)}
+                        />
+                        <p
+                          className={`mt-1 text-xs ${
+                            dueDateHint.bad ? 'text-destructive' : 'text-muted-foreground'
+                          }`}
+                        >
+                          {dueDateHint.text}
+                        </p>
+                      </div>
+                      {creditCheck.data && !creditCheck.data.ok && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
+                          <p className="font-medium text-destructive">{creditCheck.data.motivo}</p>
+                          <p className="mt-1 text-muted-foreground">
+                            Saldo actual {fmt(creditCheck.data.saldo_actual)}
+                            {creditCheck.data.credito_disponible > 0 &&
+                              ` (a favor ${fmt(creditCheck.data.credito_disponible)} · neto ${fmt(creditCheck.data.saldo_neto)})`}
+                            {creditCheck.data.limite != null &&
+                              ` · Límite ${fmt(creditCheck.data.limite)}`}
+                          </p>
+                          {canOverrideCredit ? (
+                            <label className="mt-2 flex items-center gap-2 text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={creditOverride}
+                                onChange={(e) => setCreditOverride(e.target.checked)}
+                                className="auna-checkbox w-3.5"
+                              />
+                              Autorizar de todas formas
+                            </label>
+                          ) : (
+                            <p className="mt-1 text-muted-foreground">
+                              Requiere permiso para autorizarla.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {creditCheck.data?.ok && creditCheck.data.limite != null && (
+                        <p className="text-xs text-muted-foreground">
+                          Disponible tras esta venta:{' '}
+                          {fmt(creditCheck.data.limite - creditCheck.data.saldo_resultante)}
+                        </p>
+                      )}
+                    </>
+                  )}
+                    </div>
+                  )}
 
-      {hasStoredDraft && (
-        <Alert className="mb-6 border-amber-500/50 bg-amber-500/5">
-          <RotateCcw className="h-4 w-4 text-amber-700" />
-          <AlertTitle className="text-amber-900 dark:text-amber-100">
-            Tienes una venta guardada
-          </AlertTitle>
-          <AlertDescription className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <span>
-              No se carga sola: pulsa recuperar para continuar con esa venta o empieza otra abajo.
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="border-amber-700 text-amber-900 shrink-0"
-              onClick={handleRecoverSavedSale}
-              disabled={isProcessing}
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Recuperar venta guardada
-            </Button>
-          </AlertDescription>
-        </Alert>
-      )}
+                            {isCreditSale && (
+                <Alert className="py-3">
+                  <UserRound className="h-4 w-4" />
+                  <AlertTitle>Venta al crédito</AlertTitle>
+                  <AlertDescription>
+                    Selecciona un cliente registrado y confirma su vencimiento.
+                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
+                  </AlertDescription>
+                </Alert>
+              )}
 
-      <fieldset className="pos-workspace min-w-0" disabled={checkout.pending||!!checkout.attempt||checkout.blocked}>
-        {/* Columna izquierda: información de la venta */}
-        <div className="pos-sale-column">
-          <section className="auna-surface rounded-xl border pos-context" aria-labelledby="pos-context-title">
-            <header className="pos-section-heading">
-              <h2 id="pos-context-title" className="flex items-center justify-between gap-3 text-base font-semibold">
-                <span>Cliente y pago</span>
-                <span className="text-[11px] font-normal uppercase tracking-wide text-muted-foreground">
-                  Perfil {EXPERIENCE_PROFILE_LABELS[profile]}
-                </span>
-              </h2>
+                            {isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo') && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="amount">Monto recibido</Label>
+                    {displayTotal > 0 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
+                      >
+                        Monto exacto
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="amount"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    min={displayTotal}
+                    value={amountReceived}
+                    onChange={(e) => setAmountReceived(e.target.value.replace(',', '.'))}
+                    step="0.01"
+                    className="font-semibold"
+                  />
+                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
+                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
+                  )}
+                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
+                    <p className="text-sm text-destructive">
+                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
+                    </p>
+                  )}
+                  <div className="pos-cash-shortcuts">{[50,100,200].map(value => <Button key={value} type="button" variant="outline" onClick={() => setAmountReceived(value.toFixed(2))} disabled={checkoutLocked}>{fmt(value)}</Button>)}</div>
+                  <PosNumericKeypad disabled={checkoutLocked} onKey={key => setAmountReceived(value => applyPosKey(value, key, 2, false))} />
+                </div>
+              )}
+              {currentPaymentMethod && !isCreditSale && !isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo') && <p className="text-sm text-muted-foreground">Verificá que el pago por {currentPaymentMethod.name.toLowerCase()} se haya recibido antes de confirmar. Esta pantalla no procesa el cobro en una terminal externa.</p>}
+            </div>
+          </div>
+          <div className="pos-payment-print"><span><Printer className="h-4 w-4" aria-hidden="true" />Ticket de esta venta</span><Button type="button" variant="outline" size="sm" onClick={() => setActionPanel('print')}>{printDestination.destinationId ? 'Destino configurado' : 'PDF sin equipo'} · Cambiar</Button></div>
+        </section>
+                {/* Catálogo: misma búsqueda, disponibilidad y escáner. */}
+        <div className="pos-catalog-column" hidden={saleStep !== 'products'} data-mobile-active={mobileView === 'catalog'}>
+          <aside className="pos-catalog" aria-labelledby="pos-catalog-title">
+            <header className="pos-catalog-heading">
+              <h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
+              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Buscar productos"
+                    ref={productSearchRef}
+                    placeholder="Buscar por nombre o código de barras..."
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value)
+                      setProductPage(1)
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'Enter') return
+                      if(presentationChoice){event.preventDefault();return}
+                      const term = productSearch.trim().toLowerCase()
+                      if (!term) return
+                      if(inventoryUnitsEnabled){
+                        event.preventDefault()
+                        const generation=cartGeneration()
+                        void trackAddition(generation,async()=>{
+                          try{
+                            if(!additionIsCurrent(generation))return
+                            const result=await lookupScannedUnitProduct({...checkoutScope,canViewProducts:hasPermission('products.view'),inventoryEnabled:isEnabled('inventory')},productSearch.trim(),{signal:unitOwner.controller.signal})
+                            if(!additionIsCurrent(generation))return
+                            const product=adaptApiProduct(result.product)
+                            setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product])
+                            await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier})
+                            if(additionIsCurrent(generation))setProductSearch('')
+                          }catch(error){
+                            if(additionIsCurrent(generation))toast({title:'No se pudo leer el producto',description:(error as Error).message,variant:'destructive'})
+                          }
+                        })
+                        return
+                      }
+                      event.preventDefault()
+                      const generation=cartGeneration()
+                      void trackAddition(generation,async()=>{
+                        try{
+                          if(!additionIsCurrent(generation))return
+                          const result=await resolvePosCatalogCode(checkoutScope,productSearch.trim(),catalogType,unitOwner.controller.signal)
+                          if(!additionIsCurrent(generation)||!result.item)return
+                          const product=adaptApiProduct(result.item)
+                          setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product])
+                          await addProduct(product)
+                          if(additionIsCurrent(generation))setProductSearch('')
+                        }catch(error){if(additionIsCurrent(generation)&&(error as Error).name!=='AbortError')toast({title:'No se pudo leer el producto',description:(error as Error).message,variant:'destructive'})}
+                      })
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+              </div>
+              <ScannerField compact scopeKey={`${scopeKey}:${cartGeneration()}:${saleStep}`} enabled={saleStep==='products'&&!checkoutLocked&&!loadedOrder&&!decisionPendienteRef.current&&!presentationChoice} label="Agregar por código" onScan={async(code,signal)=>{
+                const generation=cartGeneration();if(!additionIsCurrent(generation)||saleStep!=='products'||checkoutLocked||loadedOrder||presentationChoice)return
+                await trackAddition(generation,async()=>{
+                  const result=await resolveContextScan(code,'SALE',signal);if(signal.aborted||!additionIsCurrent(generation))return
+                  const product=adaptApiProduct(result.product);setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product]);await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier})
+                })
+              }}/>
+              <nav className="pos-category-rail" aria-label="Categorías de productos">
+                <button type="button" className="pos-category-row pos-all-category" aria-pressed={!selectedCategoryName} onClick={() => {setSelectedCategoryName(null);setProductLayout('flat');setProductPage(1)}}><Package className="h-5 w-5" aria-hidden="true" /><span>Todos</span></button>
+                {categorySummaries.map(category => <CategoryBrowseCard key={category.name} name={category.name} count={category.count} imageUrl={category.imageUrl} disabled={checkoutLocked} selected={selectedCategoryName===category.name} onSelect={() => {setSelectedCategoryName(category.name);setProductLayout('byCategory');setProductPage(1)}} />)}
+              </nav>
+              {productsQuery.categories.isError&&<div role="status" className="flex flex-wrap items-center gap-2 text-sm"><p>No se pudieron cargar las categorías.</p><Button type="button" variant="outline" size="sm" disabled={productsQuery.categories.isFetching} onClick={()=>void productsQuery.categories.refetch()}>Reintentar categorías</Button></div>}
             </header>
-            <div className="pos-context-fields">
-              <Collapsible
-                open={showCustomerDetails || isCreditSale}
-                onOpenChange={setShowCustomerDetails}
-                className="pos-customer"
-              >
-                <CollapsibleTrigger asChild>
-                  <Button type="button" variant="ghost" className="h-auto w-full justify-between p-3">
-                    <span className="flex min-w-0 items-center gap-2 text-left">
-                      <UserRound className="h-4 w-4 shrink-0" />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium">Cliente y factura</span>
-                        <span className="block truncate text-xs font-normal text-muted-foreground">
-                          {isFinalConsumer ? 'Consumidor final' : customer || 'Sin nombre'}
-                          {customerNit ? ` · ${customerNit}` : ''}
-                        </span>
-                      </span>
-                    </span>
-                    <ChevronDown className={`h-4 w-4 transition-transform ${(showCustomerDetails || isCreditSale) ? 'rotate-180' : ''}`} />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-3 pt-3">
-                  {canPickSavedCustomer && (
+            <div className="pos-catalog-body" aria-busy={productsQuery.isFetching||productsQuery.isLoading}>
+              <p className="text-xs text-muted-foreground mb-3">{isProductSearchActive ? 'La búsqueda incluye todas las categorías.' : 'Tocá un producto o escaneá su código para agregarlo.'}</p>
+              {posSinConfigurar ? (
+                <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  <p className="font-medium">Falta configurar el punto de venta</p>
+                  <p className="text-xs mt-0.5">
+                    Esta sucursal no tiene una ubicación de venta marcada, así que las
+                    existencias que se ven suman todos los almacenes y no reflejan lo que hay
+                    en el mostrador. Marcá la ubicación en Sucursales → Almacenes para poder vender.
+                  </p>
+                </div>
+              ) : null}
+              {productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
+              {productsQuery.isError && pageProducts.length > 0 && (
+                <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                  <p className="text-muted-foreground">No se pudieron actualizar los productos. Últimos datos disponibles.</p>
+                  <Button variant="outline" size="sm" disabled={productsQuery.isFetching} onClick={() => void productsQuery.refetch()}>Reintentar</Button>
+                </div>
+              )}
+              {productsQuery.isLoading ? (
+                <LoadingState variant="cards" message="Cargando productos…" />
+              ) : productsQuery.isError && pageProducts.length === 0 ? (
+                <div role="alert" className="py-8 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => void productsQuery.refetch()}>Reintentar</Button></div>
+              ) : pageProducts.length === 0 ? (
+                <CollectionEmptyState compact title="El catálogo espera sus productos" description="Los productos disponibles para esta venta aparecerán aquí." filtered={isProductSearchActive || Boolean(selectedCategoryName)} onReset={() => {setProductSearch('');setSelectedCategoryName(null);setProductPage(1)}} />
+              ) : (
+                <>
+                  {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
+                    <p className="text-sm font-medium text-foreground mb-3">{selectedCategoryName}</p>
+                  ) : null}
+                  <div className="pos-product-list" ref={productPagination.containerRef} style={{ gridTemplateColumns: `repeat(${productPagination.columns}, minmax(0, 1fr))` }}>
+                    {pageProducts.map((product) => (
+                      <ProductCard
+                        key={product.id}
+                        product={product}
+                        onAdd={() => addFromTile(product)}
+                        disabled={checkoutLocked}
+                        formatPrice={fmt}
+                        displayUnitPrice={getUnitPrice(product)}
+                        availableQty={availabilityById[product.id]?.available ?? product.stock}
+                        physicalStock={availabilityById[product.id]?.stock ?? product.stock}
+                        posQty={posLocationId ? availabilityById[product.id]?.location_stock ?? null : null}
+                        posMode={Boolean(posLocationId)}
+                      />
+                    ))}
+                  </div>
+
+                </>
+              )}
+            </div>
+          </aside>
+          {!productsQuery.isLoading && pageProducts.length > 0 && <div className="auna-pagination-outside">
+            <div className="flex items-center justify-end gap-2"><Label htmlFor="pos-page-size">Productos por página</Label><Select value={String(pageSize)} onValueChange={v => { productPagination.setCardPageSize(Number(v)); setProductPageSize(Number(v)); setProductPage(1) }}><SelectTrigger id="pos-page-size" className="w-20"><SelectValue /></SelectTrigger><SelectContent>{productPagination.pageSizeOptions.map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
+            <Pagination currentPage={safePage} totalPages={totalPages} totalItems={productsQuery.data?.totalItems??0} pageSize={pageSize} count={pageProducts.length} itemLabel="productos" onPageChange={setProductPage} loading={productsQuery.isFetching} />
+          </div>}
+        </div>
+      </fieldset>
+      <SalePresentationDialog product={presentationChoice?.product??null} priceContext={unitPriceTier} locale={locale} currencyCode={currencyCode} onCancel={()=>{handledPresentation.current=pendingPresentation;setPendingPresentation(null)}} onSelect={presentationId=>{
+        const request=pendingPresentation
+        if(!request||handledPresentation.current===request||!presentationChoice||!additionIsCurrent(request.generation)||checkoutLocked||!checkout.isCurrent())return
+        handledPresentation.current=request;setPendingPresentation(null);addFromTile(request.product,presentationId)
+      }}/>
+      <Dialog open={actionPanel !== null} onOpenChange={open => {if(!open)setActionPanel(null)}}>
+        <DialogContent variant="auna" className="pos-action-dialog">
+          <DialogHeader><DialogTitle>{actionPanel === 'customer' ? 'Cliente y datos fiscales' : actionPanel === 'promotions' ? 'Promociones de la venta' : actionPanel === 'unit' ? 'Presentación y equivalencias' : actionPanel === 'print' ? 'Ticket e impresión' : actionPanel === 'turn' ? 'Turno de caja' : 'Acciones de la venta'}</DialogTitle><DialogDescription>Se aplica a esta venta en la caja actual.</DialogDescription></DialogHeader>
+          <fieldset disabled={checkoutLocked} className="min-w-0 space-y-4">
+            {actionPanel === 'customer' && <div className="space-y-3">                  {canPickSavedCustomer && (
                     <SavedCustomerMany2One
                       valueId={pickedCustomerId}
                       linkedDisplayName={customer}
@@ -1616,508 +1783,24 @@ export default function NewSalePage() {
                       )}
                     </>
                   )}
-                  {isCreditSale && (
-                    <div className="space-y-2 border-t pt-3">
-                  {!customerContactIdForPricing ? (
-                    <p className="text-xs text-destructive">
-                      Una venta al crédito necesita un cliente del maestro: seleccionalo arriba.
-                    </p>
-                  ) : (
-                    <>
-                      <div>
-                        <Label htmlFor="due-date">Vence el</Label>
-                        <Input
-                          id="due-date"
-                          type="date"
-                          value={creditDueDate}
-                          onChange={(e) => setCreditDueDate(e.target.value)}
-                        />
-                        <p
-                          className={`mt-1 text-xs ${
-                            dueDateHint.bad ? 'text-destructive' : 'text-muted-foreground'
-                          }`}
-                        >
-                          {dueDateHint.text}
-                        </p>
-                      </div>
-                      {creditCheck.data && !creditCheck.data.ok && (
-                        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
-                          <p className="font-medium text-destructive">{creditCheck.data.motivo}</p>
-                          <p className="mt-1 text-muted-foreground">
-                            Saldo actual {fmt(creditCheck.data.saldo_actual)}
-                            {creditCheck.data.credito_disponible > 0 &&
-                              ` (a favor ${fmt(creditCheck.data.credito_disponible)} · neto ${fmt(creditCheck.data.saldo_neto)})`}
-                            {creditCheck.data.limite != null &&
-                              ` · Límite ${fmt(creditCheck.data.limite)}`}
-                          </p>
-                          {canOverrideCredit ? (
-                            <label className="mt-2 flex items-center gap-2 text-foreground">
-                              <input
-                                type="checkbox"
-                                checked={creditOverride}
-                                onChange={(e) => setCreditOverride(e.target.checked)}
-                                className="auna-checkbox w-3.5"
-                              />
-                              Autorizar de todas formas
-                            </label>
-                          ) : (
-                            <p className="mt-1 text-muted-foreground">
-                              Requiere permiso para autorizarla.
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {creditCheck.data?.ok && creditCheck.data.limite != null && (
-                        <p className="text-xs text-muted-foreground">
-                          Disponible tras esta venta:{' '}
-                          {fmt(creditCheck.data.limite - creditCheck.data.saldo_resultante)}
-                        </p>
-                      )}
-                    </>
-                  )}
-                    </div>
-                  )}
-                </CollapsibleContent>
-              </Collapsible>
-
-              <div className="pos-payment-fields">
-              <div className="space-y-2">
-                <Label>Método de pago *</Label>
-                {visiblePaymentMethods.length === 0 ? (
-                  <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
-                    No hay métodos de pago disponibles para esta empresa.
-                  </p>
-                ) : (
-                  <div className="grid grid-cols-2 gap-2">
-                    {visiblePaymentMethods.map((method) => (
-                      <Button
-                        key={method.id}
-                        type="button"
-                        variant={paymentMethod?.id === method.id ? 'default' : 'outline'}
-                        className="h-10 justify-start px-3"
-                        aria-pressed={paymentMethod?.id === method.id}
-                        onClick={() => setPaymentMethod(method)}
-                      >
-                        {method.name}
-                      </Button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {isCreditSale && (
-                <Alert className="py-3">
-                  <UserRound className="h-4 w-4" />
-                  <AlertTitle>Venta al crédito</AlertTitle>
-                  <AlertDescription>
-                    Selecciona un cliente registrado y confirma su vencimiento.
-                    <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
-                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
-                    <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
-                  </AlertDescription>
-                </Alert>
-              )}
-              {isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <Label htmlFor="amount">Monto recibido</Label>
-                    {displayTotal > 0 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setAmountReceived(displayTotal.toFixed(2))}
-                      >
-                        Monto exacto
-                      </Button>
-                    )}
-                  </div>
-                  <Input
-                    id="amount"
-                    type="number"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    min={displayTotal}
-                    value={amountReceived}
-                    onChange={(e) => setAmountReceived(e.target.value)}
-                    step="0.01"
-                    className="font-semibold"
-                  />
-                  {amountReceived && parseFloat(amountReceived) >= displayTotal && (
-                    <p className="text-sm font-medium text-primary">Vuelto: {fmt(changeAmount)}</p>
-                  )}
-                  {amountReceived && !Number.isNaN(parseFloat(amountReceived)) && parseFloat(amountReceived) < displayTotal && (
-                    <p className="text-sm text-destructive">
-                      Faltan {fmt(displayTotal - parseFloat(amountReceived))}.
-                    </p>
-                  )}
-                </div>
-              )}
-
-
-              </div>
-              {salesShowChannels && (
-                <Collapsible className="pos-advanced" open={showAdvancedOptions} onOpenChange={setShowAdvancedOptions}>
-                  <CollapsibleTrigger asChild>
-                    <Button type="button" variant="ghost" size="sm" className="w-full justify-between text-muted-foreground">
-                      <span className="flex items-center gap-2">
-                        <SlidersHorizontal className="h-4 w-4" /> Más opciones
-                      </span>
-                      <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedOptions ? 'rotate-180' : ''}`} />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-2">
-                    <Label>Canal de venta</Label>
-                    <Select
-                      value={salesChannel}
-                      onValueChange={(v) => {
-                        if (v === 'WHOLESALE' || v === 'ONLINE' || v === 'POS') setSalesChannel(v)
-                      }}
-                    >
-                      <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="POS">Mostrador (POS)</SelectItem>
-                        <SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem>
-                        <SelectItem value="ONLINE">En línea</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      El canal puede cambiar precios y promociones aplicables.
-                    </p>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </div>
-          </section>
-
-          {/* Carrito y total */}
-          <section className="auna-data-table-shell pos-cart" aria-label="Productos en la venta">
-            <header className="pos-section-heading">
-              <h2 className="text-base font-semibold">Productos en la venta ({cart.cartItems.length})</h2>
-            </header>
-            {cart.cartItems.length === 0 ? (
-              <CollectionEmptyState compact title="La venta empieza con un producto" description="Busca un producto en el catálogo o introduce su código de barras." />
-            ) : (
-              <div className="pos-cart-scroll">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Producto</TableHead>
-                      <TableHead className="text-right">Precio unitario</TableHead>
-                      <TableHead className="text-center">Cantidad</TableHead>
-                      <TableHead className="text-right">Subtotal</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {cart.cartItems.map(item => (
-                      <TableRow key={item.lineKey??item.id}>
-                        <TableCell>
-                          <div className="flex min-w-40 items-center gap-3">
-                            {item.imageUrl ? (
-                              <img src={item.imageUrl} alt="" loading="lazy" width={40} height={40} className="h-10 w-10 shrink-0 rounded-md border bg-background object-contain" />
-                            ) : <Package className="h-8 w-8 shrink-0 text-muted-foreground" aria-hidden="true" />}
-                            <div>
-                              <p className="font-medium">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">{item.barcode || 'Sin código de barras'}</p>
-                              {item.unitSelection&&<UnitLineFields product={item} selection={item.unitSelection} quantity={item.qty} disabled={isProcessing||!!loadedOrder} onSelect={id=>cart.selectCartUnit(item.lineKey??item.id,id)} onAcceptRounding={accepted=>cart.acceptCartRounding(item.lineKey??item.id,accepted)}/>}
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">{item.unitSelection?`${currencyCode} ${formatUnitDecimal(item.unitSelection.unitPrice,locale)} / ${item.unitSelection.snapshot.presentation?.label??item.unitSelection.snapshot.baseUnit.label}`:fmt(item.price)}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-center gap-1">
-                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Reducir cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,-1):stepQuantity(item.qty,-1))} disabled={isProcessing || cart.hasInvalidQuantities}>
-                              <Minus className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                            <Input
-                              type="text"
-                              inputMode={item.kind==='SERVICE' ? 'decimal' : 'numeric'}
-                              className="w-16 text-center"
-                              data-control-size="compact"
-                              aria-label={`Cantidad de ${item.name}`}
-                              value={item.qty}
-                              disabled={isProcessing}
-                              aria-invalid={displayLineTotals[item.lineKey??item.id]===null}
-                              onChange={event => cart.updateQuantity(item.lineKey??item.id,event.target.value)}
-                            />
-                            <Button size="icon" variant="outline" className="h-9 w-9" aria-label={`Aumentar cantidad de ${item.name}`} onClick={() => cart.updateQuantity(item.lineKey??item.id, item.unitSelection?stepUnitQuantity(item.qty,1):stepQuantity(item.qty,1))} disabled={isProcessing || cart.hasInvalidQuantities}>
-                              <Plus className="h-4 w-4" aria-hidden="true" />
-                            </Button>
-                          </div>
-                          {item.kind==='SERVICE' && <p className="mt-1 text-center text-xs text-muted-foreground">{item.serviceUnitLabel}</p>}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold tabular-nums">{displayLineTotals[item.lineKey??item.id]!==null ? fmt(Number(displayLineTotals[item.lineKey??item.id])) : '—'}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" className="text-destructive" aria-label={`Quitar ${item.name}`} onClick={() => cart.removeFromCart(item.lineKey??item.id)} disabled={isProcessing}>
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </section>
-
-          {promotionsEnabled && !loadedOrder && (
-          <PromotionCodeInput
-            appliedPromotions={promotions.appliedPromotions ?? []}
-            totalDiscount={promotions.totalDiscount ?? 0}
-            isValidating={promotions.isValidating ?? false}
-            onApplyCode={promotions.applyCode}
-            onRemovePromotion={promotions.removePromotion}
-          />
-
-          )}
-
-          <section className="pos-checkout auna-surface rounded-xl border" aria-label="Total y registro de la venta">
-            <div className="pos-checkout-summary">
-              {promotionsEnabled && promotions.appliedPromotions?.length ? (
-                <div className="pt-2 border-t">
-                  <p className="text-xs text-muted-foreground">Descuentos aplicados</p>
-                  <p className="text-green-600 font-medium">
-                    -{fmt(promotions.totalDiscount ?? 0)}
-                  </p>
-                </div>
-              ) : null}
-              {vatRegime === 'general' && displayTotal > 0 && (
-                <div className="flex justify-between text-xs text-muted-foreground pt-2">
-                  <span>IVA incluido ({ivaRate}%)</span>
-                  <span>{fmt(displayTotal - displayTotal / (1 + ivaRate / 100))}</span>
-                </div>
-              )}
-              <div className={`flex justify-between font-semibold text-lg ${vatRegime === 'general' ? '' : 'pt-2'}`}>
-                <span>Total</span>
-                <span>{fmt(displayTotal)}</span>
-              </div>
-
-            </div>
-          <div className="pos-checkout-actions">
-            <Button
-              type="button"
-              variant="secondary"
-              className="flex-1"
-              onClick={handleSaveForLater}
-              disabled={isProcessing || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}
-            >
-              <PauseCircle className="w-4 h-4 mr-2" />
-              Guardar y continuar después
-            </Button>
-            <Button
-              className="flex-1 bg-brand-orange text-white hover:bg-brand-orange-strong"
-              onClick={handleSubmit}
-              disabled={
-                cart.cartItems.length === 0 ||
-                cart.hasInvalidQuantities || promotions.isValidating || (pricingReadyRef.current!==pricingContext && !loadedOrder) ||
-                !paymentMethod ||
-                isProcessing ||
-                (isCashMethod(paymentMethod,name=>name.toLowerCase()==='efectivo') &&
-                  (!amountReceived ||
-                    Number.isNaN(parseFloat(amountReceived)) ||
-                    parseFloat(amountReceived) < displayTotal)) ||
-                (isCreditSale &&
-                  (!customerContactIdForPricing ||
-                    !creditDueDate || Number(initialCreditPayment) < 0 || !Number.isFinite(Number(initialCreditPayment)) || Number(initialCreditPayment) >= displayTotal || (Number(initialCreditPayment) > 0 && !initialCreditMethod) ||
-                    (creditCheck.data != null &&
-                      !creditCheck.data.ok &&
-                      !(canOverrideCredit && creditOverride))))
-              }
-            >
-              {isProcessing ? (
-                <span className="flex items-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-current border-t-transparent" />
-                  Procesando...
-                </span>
-              ) : (
-                <>
-                  <Receipt className="w-4 h-4 mr-2" />
-                  {isCreditSale ? 'Registrar venta a crédito' : 'Cobrar'}
-                </>
-              )}
-            </Button>
-          </div>
-          </section>
-        </div>
-
-        {/* Columna derecha: catálogo */}
-        <div className="pos-catalog-column">
-          <aside className="auna-surface rounded-xl border pos-catalog" aria-labelledby="pos-catalog-title">
-            <header className="pos-catalog-heading">
-              <h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
-              <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <div className="relative flex-1 min-w-0">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    aria-label="Buscar productos"
-                    ref={productSearchRef}
-                    placeholder="Buscar por nombre o código de barras..."
-                    value={productSearch}
-                    onChange={(e) => {
-                      setProductSearch(e.target.value)
-                      setProductPage(1)
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key !== 'Enter') return
-                      const term = productSearch.trim().toLowerCase()
-                      if (!term) return
-                      if(inventoryUnitsEnabled){event.preventDefault();void(async()=>{try{const result=await lookupScannedUnitProduct({...checkoutScope,canViewProducts:hasPermission('products.view'),inventoryEnabled:isEnabled('inventory')},productSearch.trim(),{signal:unitOwner.controller.signal});if(currentScope.current!==unitOwner.key||!unitOwner.active)return;const product=adaptApiProduct(result.product);setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product]);await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier});if(currentScope.current===unitOwner.key)setProductSearch('')}catch(error){if(currentScope.current===unitOwner.key&&unitOwner.active)toast({title:'No se pudo leer el producto',description:(error as Error).message,variant:'destructive'})}})();return}
-                      const exact = availableProducts.find(
-                        (product) => (product.barcode ?? '').trim().toLowerCase() === term
-                      )
-                      if (!exact) return
-                      event.preventDefault()
-                      void addProduct(exact)
-                      setProductSearch('')
-                    }}
-                    className="pl-9"
-                  />
-                </div>
-                <div
-                  className="flex items-center border rounded-md bg-background/80 shrink-0 self-end sm:self-auto"
-                  role="group"
-                  aria-label="Forma de ver productos"
-                >
-                  <Button
-                    type="button"
-                    variant={productLayout === 'flat' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="h-9 rounded-r-none gap-1.5 px-3"
-                    onClick={() => {
-                      setProductLayout('flat')
-                      setSelectedCategoryName(null)
-                    }}
-                    aria-pressed={productLayout === 'flat'}
-                    title="Lista de todos los productos"
-                  >
-                    <List className="w-4 h-4" />
-                    <span className="hidden sm:inline text-xs">Lista</span>
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={productLayout === 'byCategory' ? 'default' : 'ghost'}
-                    size="sm"
-                    className="h-9 rounded-l-none gap-1.5 px-3"
-                    onClick={() => {
-                      setProductLayout('byCategory')
-                      setSelectedCategoryName(null)
-                    }}
-                    aria-pressed={productLayout === 'byCategory'}
-                    title="Primero elegir categoría"
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                    <span className="hidden sm:inline text-xs">Categorías</span>
-                  </Button>
-                </div>
-              </div>
-              {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="w-fit h-8 px-2 -ml-2 text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setSelectedCategoryName(null)
-                    setProductPage(1)
-                  }}
-                >
-                  <ChevronLeft className="w-4 h-4 mr-1" />
-                  Todas las categorías
-                </Button>
-              ) : null}
-            </header>
-            <div className="pos-catalog-body">
-              <p className="text-xs text-muted-foreground mb-3">
-                Solo se muestran productos marcados como disponibles para la venta. Puedes cambiarlo en el detalle del
-                producto en Inventario.
-                {productLayout === 'byCategory' && !isProductSearchActive && !selectedCategoryName ? (
-                  <span className="block mt-1">
-                    Elige una categoría para ver sus productos.
-                  </span>
-                ) : null}
-                {productLayout === 'byCategory' && isProductSearchActive ? (
-                  <span className="block mt-1">
-                    Con búsqueda activa se muestran coincidencias en todas las categorías.
-                  </span>
-                ) : null}
-              </p>
-              {posSinConfigurar ? (
-                <div className="mb-3 rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  <p className="font-medium">Falta configurar el punto de venta</p>
-                  <p className="text-xs mt-0.5">
-                    Esta sucursal no tiene una ubicación de venta marcada, así que las
-                    existencias que se ven suman todos los almacenes y no reflejan lo que hay
-                    en el mostrador. Marcá la ubicación en Sucursales → Almacenes para poder vender.
-                  </p>
-                </div>
-              ) : null}
-              {productsQuery.isFetching && !productsQuery.isLoading && <LoadingIndicator message="Actualizando productos…" className="mb-3" />}
-              {productsQuery.isError && availableProducts.length > 0 && (
-                <div role="status" className="mb-3 flex flex-wrap items-center gap-2 text-sm">
-                  <p className="text-muted-foreground">No se pudieron actualizar los productos. Últimos datos disponibles.</p>
-                  <Button variant="outline" size="sm" disabled={productsQuery.isFetching} onClick={() => void productsQuery.refetch()}>Reintentar</Button>
-                </div>
-              )}
-              {productsQuery.isLoading ? (
-                <LoadingState variant="cards" message="Cargando productos…" />
-              ) : productsQuery.isError && availableProducts.length === 0 ? (
-                <div role="alert" className="py-8 text-center"><p>No se pudieron cargar los productos.</p><Button variant="outline" className="mt-3" onClick={() => void productsQuery.refetch()}>Reintentar</Button></div>
-              ) : showCategoryPicker ? (
-                categorySummaries.length === 0 ? (
-                  <CollectionEmptyState compact title="El catálogo espera sus productos" description="Los productos disponibles para esta venta aparecerán aquí, organizados por categoría." filtered={isProductSearchActive} onReset={() => {setProductSearch('');setSelectedCategoryName(null);setProductPage(1)}} />
-                ) : (
-                  <div className="pos-category-list">
-                    {categorySummaries.map((cat) => (
-                      <CategoryBrowseCard
-                        key={cat.name}
-                        name={cat.name}
-                        count={cat.count}
-                        imageUrl={cat.imageUrl}
-                        disabled={isProcessing}
-                        onSelect={() => {
-                          setSelectedCategoryName(cat.name)
-                          setProductPage(1)
-                        }}
-                      />
-                    ))}
-                  </div>
-                )
-              ) : browseProducts.length === 0 ? (
-                <CollectionEmptyState compact title="El catálogo espera sus productos" description="Los productos disponibles para esta venta aparecerán aquí." filtered={isProductSearchActive || Boolean(selectedCategoryName)} onReset={() => {setProductSearch('');setSelectedCategoryName(null);setProductPage(1)}} />
-              ) : (
-                <>
-                  {productLayout === 'byCategory' && selectedCategoryName && !isProductSearchActive ? (
-                    <p className="text-sm font-medium text-foreground mb-3">{selectedCategoryName}</p>
-                  ) : null}
-                  <div className="pos-product-list">
-                    {pageProducts.map((product) => (
-                      <ProductCard
-                        key={product.id}
-                        product={product}
-                        onAdd={() => void addProduct(product)}
-                        disabled={isProcessing}
-                        formatPrice={fmt}
-                        displayUnitPrice={getUnitPrice(product)}
-                        availableQty={availabilityById[product.id]?.available ?? product.stock}
-                        physicalStock={availabilityById[product.id]?.stock ?? product.stock}
-                        posQty={posLocationId ? availabilityById[product.id]?.location_stock ?? null : null}
-                        posMode={Boolean(posLocationId)}
-                      />
-                    ))}
-                  </div>
-
-                </>
-              )}
-            </div>
-          </aside>
-          {!productsQuery.isLoading && !showCategoryPicker && browseProducts.length > 0 && <div className="auna-pagination-outside">
-            <div className="flex items-center justify-end gap-2"><Label htmlFor="pos-page-size">Productos por página</Label><Select value={String(productPageSize)} onValueChange={v => { setProductPageSize(Number(v)); setProductPage(1) }}><SelectTrigger id="pos-page-size" className="w-20"><SelectValue /></SelectTrigger><SelectContent>{[9, 18, 36, 54].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent></Select></div>
-            <Pagination currentPage={safePage} totalPages={totalPages} totalItems={browseProducts.length} pageSize={pageSize} count={pageProducts.length} itemLabel="productos" onPageChange={setProductPage} loading={productsQuery.isFetching} />
-          </div>}
-        </div>
-      </fieldset>
-
+</div>}
+            {actionPanel === 'promotions' && promotionsEnabled && !loadedOrder && <PromotionCodeInput appliedPromotions={promotions.appliedPromotions ?? []} totalDiscount={promotions.totalDiscount ?? 0} isValidating={promotions.isValidating ?? false} onApplyCode={promotions.applyCode} onRemovePromotion={promotions.removePromotion} />}
+            {actionPanel === 'unit' && selectedLine?.unitSelection && <UnitLineFields product={selectedLine} selection={selectedLine.unitSelection} quantity={selectedLine.qty} disabled={checkoutLocked || Boolean(loadedOrder)} onSelect={id => {
+              if(checkoutLocked||!selectedKey)return
+              try {const selection=selectProductUnit(selectedLine,id,selectedLine.unitSelection!.priceContext);setSelectedLineKey(selectedKey);setUnitChange({from:selectedKey,to:unitCartKey(selectedLine.id,selection),scope:scopeKey});cart.selectCartUnit(selectedKey,id)} catch(error){toast({title:'Revisá la presentación',description:(error as Error).message,variant:'destructive'})}
+            }} onAcceptRounding={accepted => {if(!checkoutLocked&&selectedKey)cart.acceptCartRounding(selectedKey,accepted)}} />}
+            {actionPanel === 'print' && <PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange} disabled={checkoutLocked}/>}
+            {actionPanel === 'turn' && <div className="space-y-3"><p className="font-medium">{cashRegisterMeta?.name ?? 'Caja'}</p>{activeCashSession && <dl className="pos-turn-details"><dt>Abierto por</dt><dd>{activeCashSession.openedBy?.name ?? '—'}</dd><dt>Fondo inicial</dt><dd>{fmt(Number(activeCashSession.opening_float))}</dd><dt>Inicio</dt><dd>{new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}</dd></dl>}{canUserCloseCashTurn ? <Button type="button" variant="outline" className="text-destructive" disabled={checkoutLocked || isClosingCashSession} onClick={() => {setActionPanel(null);setShowCloseCashDialog(true)}}>Cerrar caja (fin de turno)</Button> : <p className="text-xs text-muted-foreground">Solo quien abrió el turno o un supervisor puede cerrarlo.</p>}</div>}
+            {actionPanel === 'options' && <div className="pos-options">
+              <Button type="button" variant="outline" onClick={() => setActionPanel('customer')}><UserRound className="h-4 w-4" aria-hidden="true" />Cliente y datos fiscales</Button>
+              <Button type="button" variant="outline" onClick={() => setActionPanel('print')}><Printer className="h-4 w-4" aria-hidden="true" />Ticket e impresión</Button>
+              <Button type="button" variant="outline" onClick={() => setActionPanel('turn')}><Landmark className="h-4 w-4" aria-hidden="true" />Ver turno de caja</Button>
+              {salesShowChannels && <div><Label>Canal de venta</Label><Select value={salesChannel} onValueChange={value => {if(value==='POS'||value==='WHOLESALE'||value==='ONLINE')setSalesChannel(value)}}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="POS">Mostrador (POS)</SelectItem><SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem><SelectItem value="ONLINE">En línea</SelectItem></SelectContent></Select><p className="mt-1 text-xs text-muted-foreground">El canal puede cambiar precios y promociones aplicables.</p></div>}
+            </div>}
+          </fieldset>
+          <DialogFooter><Button type="button" variant="outline" onClick={() => setActionPanel(null)}>Listo</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
       <AlertDialog open={elsewhere !== null} onOpenChange={(o) => !o && cerrarElsewhere()}>
         <AlertDialogContent variant="auna">
           <AlertDialogHeader>
@@ -2152,7 +1835,7 @@ export default function NewSalePage() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                                if (elsewhere) cart.addToCart(elsewhere.product,elsewhere.selection)
+                if (elsewhere&&additionIsCurrent(elsewhere.generation)) cart.addToCart(elsewhere.product,elsewhere.selection)
                 cerrarElsewhere()
               }}
             >
@@ -2240,6 +1923,7 @@ export default function NewSalePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   )
 }

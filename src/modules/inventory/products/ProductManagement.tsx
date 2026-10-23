@@ -1,4 +1,5 @@
 import { TABLE_PAGE_SIZES } from '@/utils/pagination'
+import {QuickProductScan} from '@/components/scanner/QuickProductScan'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -15,7 +16,7 @@ import { TABLE_PAGE_SIZES } from '@/utils/pagination'
  * This component orchestrates the product management feature.
  * Logic is extracted into custom hooks, UI into sub-components.
  */
-import { Fragment, useState, useMemo, useEffect } from 'react'
+import { Fragment, useState, useMemo, useEffect, useRef } from 'react'
 import { useModules } from '@/context/useModules'
 import { inventoryModule } from '../manifest'
 import { MetricStrip } from '@/components/shared/MetricStrip'
@@ -46,7 +47,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import type { Product } from '@/types'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useProducts, PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
+import { PRODUCTS_QUERY_KEY } from '@/hooks/useProducts'
+import { useInventoryProducts } from './hooks/useInventoryProducts'
 import { useCategories } from '@/hooks/useCategories'
 import { adaptApiProduct, addProductToBranch, fetchAllProducts } from '@/services/productService'
 import { fetchWarehouses } from '@/services/warehouseService'
@@ -72,7 +74,7 @@ function ProductListImage({ product, className }: { product: Product; className?
 // Feature imports
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
-import { usePersistedListUiState, useResetPageOnFilterChange } from '@/hooks/usePersistedListUiState'
+import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { usePageTrail } from '@/components/layout/PageNavigation'
 import { formatMoney } from '@/utils'
@@ -204,10 +206,17 @@ const ProductManagement = () => {
     const pageSizeOptions = viewMode === 'cards' ? cardPagination.pageSizeOptions : PAGE_SIZES
 
     // Data hooks
-    const { data: productsData, isLoading, isFetching, isError } = useProducts({
+    const filterIdentity = JSON.stringify([searchTerm, categoryFilter, pageSize, inBranchOnly, scopeBranch, scopeWarehouse, scopeLocation, catalogType])
+    const previousFilters = useRef(filterIdentity)
+    const filtersChanged = previousFilters.current !== filterIdentity
+    if (filtersChanged) {
+        previousFilters.current = filterIdentity
+        setCurrentPage(1)
+    }
+    const { data: productsData, isLoading, isFetching, isError, isSearchPending, refetch } = useInventoryProducts({
         catalogType,
         includeSummary: true,
-        page: currentPage,
+        page: filtersChanged ? 1 : currentPage,
         pageSize: pageSize,
         search: searchTerm || undefined,
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
@@ -216,6 +225,7 @@ const ProductManagement = () => {
         locationId: !serviceCatalog && scopeLocation !== 'all' ? scopeLocation : undefined,
         inBranchOnly: !serviceCatalog && scopeBranch !== 'all' && inBranchOnly ? true : undefined,
     })
+    const resultsPending = isSearchPending || isLoading || isError || !productsData
     const { data: categoriesData } = useCategories()
     const products = useMemo(() => {
         if (!productsData?.items) return []
@@ -229,10 +239,6 @@ const ProductManagement = () => {
         }
         return base.concat(['Whisky', 'Vinos', 'Cervezas', 'Rones', 'Vodkas', 'Tequilas', 'Ginebras'])
     }, [categoriesData])
-
-    useResetPageOnFilterChange(setCurrentPage, [
-        searchTerm, categoryFilter, pageSize, inBranchOnly, scopeBranch, scopeWarehouse, scopeLocation, catalogType,
-    ])
 
     // Almacenes del alcance elegido (y sus ubicaciones, ya en plano).
     const { data: scopeWarehouses = [] } = useQuery({
@@ -274,13 +280,16 @@ const ProductManagement = () => {
     const someOnPageSelected = onPageIds.some((id) => selectedSet.has(id))
 
     const toggleSelection = (id: string) => {
+        if (resultsPending) return
         setSelectedIds((prev) => (selectedSet.has(id) ? prev.filter((x) => x !== id) : [...prev, id]))
     }
     const toggleSelectAllOnPage = () => {
+        if (resultsPending) return
         if (allOnPageSelected) setSelectedIds((prev) => prev.filter((id) => !onPageIds.includes(id)))
         else setSelectedIds((prev) => [...new Set([...prev, ...onPageIds])])
     }
     const handleSelectAllPages = async () => {
+        if (resultsPending) return
         setSelectingAllPages(true)
         try {
             const all = await fetchAllProducts({catalogType})
@@ -336,7 +345,7 @@ const ProductManagement = () => {
         format: 'pdf' | 'csv' = 'pdf',
         fileName?: string,
     ) => {
-        if (!canExport) return
+        if (!canExport || resultsPending) return
         try {
             const svc = await import('@/services/productService')
             await svc.exportProducts({
@@ -404,6 +413,7 @@ const ProductManagement = () => {
         <div className="inventory-products-page auna-page-fluid mx-auto w-full min-w-0 p-4 sm:p-8 space-y-5">
             {/* Header */}
             <h1 className="sr-only">Inventario</h1>
+            <QuickProductScan label="Localizar por código"/>
             <div className="flex justify-end"><Button type="button" variant="outline" onClick={()=>navigate('/inventario/unidades')}>Unidades</Button></div>
             {inventoryServicesEnabled && <ModuleTabBar items={[{value:'goods',label:'Bienes'},{value:'services',label:'Servicios'}]} value={catalogType} ariaLabel="Tipo de catálogo" onValueChange={value=>{const next=new URLSearchParams(searchParams);next.set('tipo',value);setSearchParams(next);setCurrentPage(1);setSelectedIds([]);resetAdvancedFilters()}} />}
 
@@ -477,7 +487,7 @@ const ProductManagement = () => {
                                         Importar / exportar
                                     </DropdownMenuLabel>
                                     {canExport && (
-                                        <DropdownMenuItem onClick={() => setIsExportDialogOpen(true)}>
+                                        <DropdownMenuItem disabled={resultsPending} onClick={() => { if (!resultsPending) setIsExportDialogOpen(true) }}>
                                             <Download className="mr-2 h-4 w-4" />
                                             Exportar
                                         </DropdownMenuItem>
@@ -576,12 +586,12 @@ const ProductManagement = () => {
                 </div>
                 {isLoading && <LoadingState variant={viewMode === 'table' ? 'table' : 'cards'} columns={['Selección', 'Producto', 'Categoría', 'Stock', 'Precio', 'Estado', 'Acciones']} message="Cargando productos…" />}
                 {isFetching && !isLoading && <LoadingIndicator message="Actualizando productos…" />}
-                {isError && !isLoading && <div role="alert" className="py-8 text-center text-destructive">Error al cargar productos.</div>}
+                {isError && !isLoading && <div role="alert" className="py-8 text-center text-destructive">Error al cargar productos. <Button variant="outline" onClick={() => void refetch()}>Reintentar</Button></div>}
                 {!isLoading && !isError && <>
                     {viewMode === 'table' && selectedIds.length > 0 && (
                         <div className="flex flex-wrap items-center gap-3 border-y border-border py-3">
                             <span className="text-sm font-medium">{selectedIds.length} seleccionado{selectedIds.length !== 1 ? 's' : ''}</span>
-                            <Button type="button" variant="outline" onClick={handleSelectAllPages} disabled={selectingAllPages}>{selectingAllPages ? 'Cargando…' : 'Seleccionar todos (todas las páginas)'}</Button>
+                            <Button type="button" variant="outline" onClick={handleSelectAllPages} disabled={selectingAllPages || resultsPending}>{selectingAllPages ? 'Cargando…' : 'Seleccionar todos (todas las páginas)'}</Button>
                             <Button type="button" variant="ghost" onClick={() => setSelectedIds([])}>Limpiar selección</Button>
                         </div>
                     )}
@@ -669,6 +679,7 @@ const ProductManagement = () => {
             {/* Export PDF Dialog — columnas del reporte de inventario */}
             <ExportDialog
                 open={isExportDialogOpen}
+                pending={resultsPending}
                 onOpenChange={setIsExportDialogOpen}
                 title="Exportar inventario"
                 fileName="inventario"

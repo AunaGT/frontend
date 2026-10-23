@@ -10,6 +10,7 @@ const require = createRequire(import.meta.url)
 const root = path.resolve(import.meta.dirname, '../src')
 let state, calls = [], replenishmentMode = false, replenishmentRows = []
 const overrides = new Map([
+  ['@/components/scanner/QuickProductScan',{QuickProductScan:()=>null}],
   ['@/context/useModules', {useModules:()=>({isEnabled:()=>true,isLoading:false,isError:false})}],
   ['react', { ...React, useState: initial => React.useState(replenishmentMode && initial === 'history' ? 'replenishment' : initial) }],
   ['@/services/api', { apiFetch: () => { throw new Error('Remote calls disabled') } }],
@@ -23,7 +24,7 @@ const overrides = new Map([
   ['./components', { ClosuresHistoryList: () => null }],
   ['./CashClosureCreatePage', { CASH_CLOSURE_CREATE_PATH: '/cierre-caja/nuevo' }],
   ['@tanstack/react-query', { useQuery: options => { calls.push(options); return options.queryKey[0] === 'stock-replenishment' ? { data: replenishmentRows } : ['users-role-options', 'warehouses'].includes(options.queryKey[0]) ? { data: [] } : state }, useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) }],
-  ['react-router-dom', { ...require('react-router-dom'), useNavigate: () => () => {} }],
+  ['react-router-dom', { ...require('react-router-dom'), useNavigate: () => () => {},useLocation:()=>({state:null}) }],
   ['@/context/useTenant', { useTenant: () => ({ branch: { id: 'branch' }, company: { id: 'company' }, branches: [], companies: [] }) }],
   ['@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => true }) }],
   ['@/hooks/useSystemSettings', { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ', timezone: 'America/Guatemala' }) }],

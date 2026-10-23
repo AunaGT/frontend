@@ -4,6 +4,12 @@ const React=require('react')
 const {renderToStaticMarkup}=require('react-dom/server')
 const {MemoryRouter}=require('react-router-dom')
 const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('physical products validate without a habitual supplier',()=>{
+  const {EMPTY_PRODUCT_FORM}=loadReportModule('../inventory/products/types.ts')
+  const state={...EMPTY_PRODUCT_FORM,name:'Hecho en casa',category:'1',price:'10',supplier:''}
+  const {useProductForm}=loadReportModule('../inventory/products/hooks/useProductForm.ts',{react:{...React,useState:()=>[state,()=>{}],useCallback:fn=>fn},'@/hooks/use-toast':{useToast:()=>({toast(){}})},'@/services/api':{apiFetch(){throw Error('No network')}}})
+  assert.equal(useProductForm().validateForm(),true)
+})
 test('service form validates unit and precision without a supplier and preserves its kind when editing',()=>{
   const {EMPTY_PRODUCT_FORM}=loadReportModule('../inventory/products/types.ts')
   let state={...EMPTY_PRODUCT_FORM,productKind:'SERVICE',name:'Asesoría',category:'1',price:'100',serviceUnitLabel:'Hora',quantityDecimals:'2'}

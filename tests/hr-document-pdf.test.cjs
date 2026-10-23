@@ -1,0 +1,28 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('employee PDF preview preserves the exact original PDF bytes',async()=>{
+  const {employeeDocumentPdf}=loadReportModule('../hr/pages/employeeDocumentPdf.ts')
+  const original=new Blob(['%PDF-original'],{type:'application/pdf'})
+  assert.equal(await employeeDocumentPdf(original,'application/pdf'),original)
+})
+test('employee PNG is fitted into a PDF only for preview and the source is unchanged',async()=>{
+  const {employeeDocumentPdf}=loadReportModule('../hr/pages/employeeDocumentPdf.ts')
+  const bytes=require('node:fs').readFileSync(require('node:path').resolve(__dirname,'../public/auna/isotipo-192.png'))
+  const original=new Blob([bytes],{type:'image/png'}),result=await employeeDocumentPdf(original,'image/png')
+  assert.equal(result.type,'application/pdf');assert.match(await result.text(),/^%PDF-/)
+  assert.match(await result.text(),/\/Subtype \/Image/)
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()),bytes)
+})
+test('unsupported employee files are not embedded into an executable frame',async()=>{
+  const {employeeDocumentPdf}=loadReportModule('../hr/pages/employeeDocumentPdf.ts')
+  await assert.rejects(employeeDocumentPdf(new Blob(['<script>bad</script>']),'text/html'),/PDF|JPG|PNG/)
+})
+test('wide JPEG documents use a landscape preview page without changing the source image',async()=>{
+  const {employeeDocumentPdf}=loadReportModule('../hr/pages/employeeDocumentPdf.ts')
+  const sharp=require('../../deposito-backend/node_modules/sharp')
+  const bytes=await sharp({create:{width:1000,height:100,channels:3,background:'#ffffff'}}).jpeg().toBuffer()
+  const original=new Blob([bytes],{type:'image/jpeg'}),pdf=await employeeDocumentPdf(original,'image/jpeg')
+  const media=(await pdf.text()).match(/\/MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/)
+  assert.ok(media);assert.ok(Number(media[1])>Number(media[2]))
+  assert.deepEqual(Buffer.from(await original.arrayBuffer()),bytes)
+})

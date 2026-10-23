@@ -12,7 +12,7 @@ import type { ReactNode } from 'react'
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Eye, FileText, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Eye, FileText, MoreHorizontal, ChevronLeft, ChevronRight, Pencil } from 'lucide-react'
 import { Sale, SaleStatus } from '@/types'
 import { formatMoney, formatDateTime } from '@/utils'
 import { SaleStatusKey, STATUS_LABELS } from '../types'
@@ -41,6 +41,7 @@ interface SalesStatusTableProps {
     onStatusChange: (saleId: string, newStatus: SaleStatus) => void
     onViewSale: (sale: Sale) => void
     onViewInvoice: (sale: Sale) => void
+    onEditManual?: (sale: Sale) => void
     canViewDetail: boolean
     canViewInvoice: boolean
     locale?: string
@@ -55,7 +56,7 @@ const getStatusBadge = (status: SaleStatus) => <Badge
 export const SalesStatusTable = ({
     statusKey, viewMode = 'table', sales, pageSize = 10, pageInfo, isLoading, isFetching, error, emptyMessage, action, filtered = false, onReset, onRetry,
     updatingSaleIds, onPageChange, canChangeStatus, onStatusChange,
-    onViewSale, onViewInvoice, canViewDetail, canViewInvoice, locale, currencyCode
+    onViewSale, onViewInvoice, onEditManual, canViewDetail, canViewInvoice, locale, currencyCode
 }: SalesStatusTableProps) => {
     const title = statusKey ? `Ventas ${STATUS_LABELS[statusKey].toLowerCase()}` : 'Ventas'
     const initialLoading = isLoading && sales.length === 0
@@ -68,15 +69,16 @@ export const SalesStatusTable = ({
         const reference = sale.reference ?? sale.id
         const updating = updatingSaleIds.has(reference)
         return <div className="flex flex-wrap items-center justify-end gap-1">
+            {!card&&sale.capabilities?.editManual&&onEditManual&&<Button type="button" variant="ghost" size="icon" aria-label={`Editar borrador ${reference}`} title="Editar borrador" onClick={()=>onEditManual(sale)}><Pencil className="h-4 w-4" aria-hidden="true"/></Button>}
             {!card && canViewDetail && <Button type="button" variant="ghost" size="icon" aria-label={`Ver detalle de ${reference}`} title="Ver detalle" onClick={() => onViewSale(sale)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>}
             {!card&&canViewInvoice && <Button type="button" variant="ghost" size="icon" aria-label={`Ver comprobante de ${reference}`} title="Ver comprobante" onClick={() => onViewInvoice(sale)}><FileText className="h-4 w-4" aria-hidden="true" /></Button>}
-            {!card&&canChangeStatus&&!sale.commercial?.originEngagementId&&['CONFIRMED','CANCELLED'].includes(saleCommercialState(sale))&&<DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" disabled={updating} aria-label={`Más acciones de ${reference}`} title="Más acciones"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+            {!card&&canChangeStatus&&!sale.commercial?.originEngagementId&&!(sale.settlementSource==='MANUAL_SALE'&&sale.status==='cancelled')&&['CONFIRMED','CANCELLED'].includes(saleCommercialState(sale))&&<DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" disabled={updating} aria-label={`Más acciones de ${reference}`} title="Más acciones"><MoreHorizontal className="h-4 w-4" aria-hidden="true" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
                 {sale.status==='cancelled'?<DropdownMenuItem disabled={updating} onSelect={()=>onStatusChange(reference,'completed')}>Restaurar confirmación comercial</DropdownMenuItem>:<DropdownMenuItem disabled={updating} onSelect={() => onStatusChange(reference, 'cancelled')}>Cancelar venta</DropdownMenuItem>}
             </DropdownMenuContent></DropdownMenu>}
         </div>
     }
     const cards = <div className={viewMode === 'table' ? 'md:hidden' : ''}>
-        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="auna-record-grid">{sales.map(sale => <article key={sale.id} className="auna-surface auna-record-card rounded-lg border" {...recordCardNavigation(canViewDetail ? () => onViewSale(sale) : canViewInvoice?()=>onViewInvoice(sale):undefined)}>
+        {initialLoading ? <LoadingState variant="cards" message="Cargando ventas…" /> : <div className="auna-record-grid">{sales.map(sale => <article key={sale.id} className="auna-surface auna-record-card rounded-lg border" {...recordCardNavigation(sale.capabilities?.editManual&&onEditManual?()=>onEditManual(sale):canViewDetail ? () => onViewSale(sale) : canViewInvoice?()=>onViewInvoice(sale):undefined)}>
             <div className="auna-record-content space-y-1">
                 <strong className="text-sm">{sale.reference ?? sale.id}</strong>
                 <p className="font-medium">{sale.customer}</p>

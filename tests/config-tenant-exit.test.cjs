@@ -36,3 +36,15 @@ test('old owner cleanup cannot remove a newer guard; final cleanup restores ungu
     cleanupNew(); v.setBranch('BA2'); assert.deepEqual(h.calls, [['A', 'BA2'], 'clear', 'reload'])
   } finally { h.close() }
 })
+test('a deferred confirmation can resume the original company or branch switch without an early reload', () => {
+  for (const [method, target, expected] of [['setCompany', 'B', ['B', 'BB']], ['setBranch', 'BA2', ['A', 'BA2']]]) {
+    const h = tenantHarness()
+    try {
+      const v = h.render(); let resume, approved = false
+      v.registerTenantExitGuard(proceed => { if (approved) return true; resume = proceed; return false })
+      v[method](target); assert.deepEqual(h.calls, [])
+      approved = true; resume()
+      assert.deepEqual(h.calls, [expected, 'clear', 'reload'])
+    } finally { h.close() }
+  }
+})

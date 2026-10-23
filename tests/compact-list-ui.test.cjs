@@ -9,6 +9,7 @@ const { renderToStaticMarkup } = require('react-dom/server')
 const { assertPaginationOutside } = require('./pagination-assertions.cjs')
 const cache = new Map()
 const overrides = new Map()
+overrides.set('@/components/scanner/QuickProductScan',{QuickProductScan:()=>null})
 test('compact filters align actions with search and preserve applied filters', () => {
   const {CompactFilterPanel}=load(path.join(__dirname,'../src/components/shared/CompactFilterPanel.tsx'))
   const html=renderToStaticMarkup(React.createElement(CompactFilterPanel, {title:'Filtros de prueba', search:React.createElement('input',{'aria-label':'Buscar registros'}),actions:React.createElement('button',{type:'button'},'Nuevo registro'),activeCount:1,onClear(){},appliedFilters:[{label:'Estado: Activo',onRemove(){}}]},React.createElement('label',null,'Estado')))
@@ -96,12 +97,13 @@ test('import summaries use flat metrics and preserve partial errors, zero counts
 test('merchandise and product modes preserve records and keep card grids unframed', () => {
   const { MemoryRouter } = require('react-router-dom')
   let viewMode = 'cards'
-  const names = ['@/context/useModules', '@/hooks/usePersistedListUiState', '../hooks/useIncomingMerchandise', '@/hooks/useProducts', '@/hooks/useCategories', '@/services/productService', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/useSystemSettings', '@/hooks/use-toast', '@tanstack/react-query', '@/services/api', './api']
+  const names = ['./hooks/useInventoryProducts', '@/context/useModules', '@/hooks/usePersistedListUiState', '../hooks/useIncomingMerchandise', '@/hooks/useProducts', '@/hooks/useCategories', '@/services/productService', '@/context/useTenant', '@/hooks/useAuthPermissions', '@/hooks/useSystemSettings', '@/hooks/use-toast', '@tanstack/react-query', '@/services/api', './api']
   const previous = names.map(name => overrides.get(name))
   overrides.set('@/context/useModules', {useModules:()=>({enabledModuleCodes:new Set(['catalogs','inventory']),isEnabled:()=>true,isLoading:false,isError:false})})
   overrides.set('@/hooks/usePersistedListUiState', { usePersistedListUiState: () => ({ page: 1, pageSize: 10, viewMode, setPage() {}, setPageSize() {}, setViewMode() {} }), useResetPageOnFilterChange() {} })
   overrides.set('../hooks/useIncomingMerchandise', { useIncomingMerchandise: () => ({ data: { items: [{ id: 'record-1', date: '2026-10-06', supplier: { name: 'Proveedor visible' }, itemsCount: 2, totalValue: 25, payment_status: 'PAID' }], totalItems: 1, totalPages: 1 }, isLoading: false, isFetching: false, isError: false }) })
   overrides.set('@/hooks/useProducts', { useProducts: () => ({ data: { items: [{ id: 'p1', name: 'Producto visible', stock: 5, price: 25, category: 'Bebidas', availableForSale: true }], totalItems: 11, totalPages: 2, page: 1, nextPage: 2, prevPage: null }, isLoading: false }) })
+  overrides.set('./hooks/useInventoryProducts', {useInventoryProducts:overrides.get('@/hooks/useProducts').useProducts})
   overrides.set('@/hooks/useCategories', { useCategories: () => ({ data: [] }) })
   overrides.set('@/services/productService', { adaptApiProduct: p => p })
   overrides.set('@/context/useTenant', { useTenant: () => ({ branches: [] }) })
@@ -389,6 +391,7 @@ test('transfers keep pagination outside both result modes and hide it for loadin
 })
 
 test('stock movements opens with the history table and compact filters, not operation forms', () => {
+  overrides.set('react-router-dom', { ...require('react-router-dom'), useNavigate:()=>()=>{},useLocation:()=>({state:null}) })
   overrides.set('@/services/api', { apiFetch: () => { throw new Error('No remote calls in layout tests') } })
   overrides.set('./api', { apiFetch: () => { throw new Error('No remote calls in layout tests') } })
   overrides.set('@/hooks/useExperienceProfile', { useExperienceProfile: () => ({ showAdvancedByDefault: false }) })
@@ -438,7 +441,7 @@ test('stock operation forms preserve quantity signs and discard drafts when orig
   const names = ['react', '@tanstack/react-query', '@/services/stockMoveService']
   const previous = names.map(name => overrides.get(name))
   let states, index, job, request
-  overrides.set('react', { ...React, useState: initial => {
+  overrides.set('react', { ...React, useEffect(){},useState: initial => {
     const slot = index++
     if (states[slot] === undefined) states[slot] = initial
     return [states[slot], value => { states[slot] = typeof value === 'function' ? value(states[slot]) : value }]
@@ -795,7 +798,7 @@ test('product details separate tasks into tabs and keep the initial view free of
   let allowCost = true
   overrides.set('react', { ...React, useState: initial => {
     const index = stateIndex++
-    return React.useState(index === 0 ? apiProduct : index === 4 ? editing : index === 5 ? tab ?? initial : initial)
+    return React.useState(index === 0 ? apiProduct : index === 4 ? editing : index === 5 ? tab ?? initial : index === 30 && tab ? {owner:JSON.stringify(['product','qa-company','branch']),tabs:[tab]} : initial)
   } })
   overrides.set('react-router-dom', { ...require('react-router-dom'), useParams: () => ({ id: 'product' }), useNavigate: () => () => {} })
   overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'products.create' ? allowCost : allowEdit && ['products.edit', 'products.delete'].includes(permission) }) })
@@ -824,7 +827,7 @@ test('product details separate tasks into tabs and keep the initial view free of
   assert.match(initial, /role="tablist"/)
   assert.match(initial.match(/<button(?=[^>]*role="tab")[^>]*>[\s\S]*?<\/button>/)?.[0] || '', /Información y precios/)
   assert.match(initial.match(/<button(?=[^>]*role="tab")(?=[^>]*data-state="active")[^>]*>[\s\S]*?<\/button>/)?.[0] || '', /Información y precios/)
-  assert.match(initial, /LOTE-UX/)
+  assert.doesNotMatch(initial, /LOTE-UX/)
   assert.match(activePanel(initial), /UX-123/)
   assert.doesNotMatch(activePanel(initial), /Mínimo interno|LOTE-UX/)
   assert.match(initial, /Más acciones/)
@@ -854,7 +857,7 @@ test('product details separate tasks into tabs and keep the initial view free of
   assert.match(form, /class="record-edit-columns"/)
   assert.equal((form.match(/<fieldset[^>]*class="record-edit-panel"/g) || []).length, 3)
   for (const label of ['Identificación', 'Precios', 'Control de inventario']) assert.match(form, new RegExp(`<legend[^>]*>${label}</legend>`))
-  for (const label of ['Nombre', 'Marca', 'Presentación', 'Precio mayoreo', 'Precio promoción', 'Promoción hasta', 'Costo', 'Stock actual', 'Stock mínimo', 'Categoría', 'Proveedor', 'Código de barras', 'Descripción']) assert.match(form, new RegExp(`>${label}<`))
+  for (const label of ['Nombre', 'Marca', 'Presentación', 'Precio mayoreo', 'Precio promoción', 'Promoción hasta', 'Costo', 'Stock actual', 'Stock mínimo', 'Categoría', 'Proveedor habitual (opcional)', 'Código de barras', 'Descripción']) assert.ok(form.includes(`>${label}<`))
   assert.match(form, /Guardar cambios/)
   assert.doesNotMatch(form, /role="tablist"|LOTE-UX/)
 

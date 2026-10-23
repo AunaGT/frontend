@@ -297,7 +297,7 @@ export const appModules: AppModule[] = [
         icon: RrhhIcon,
         color: 'bg-pink-100/90',
         iconColor: 'text-pink-900',
-        permissions: ['hr.employees.view']
+        permissions: ['hr.employees.view', 'hr.attendance.view', 'hr.advances.view', 'hr.deductions.view']
     },
     {
         id: payrollModule.code,

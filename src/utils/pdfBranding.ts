@@ -65,14 +65,18 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /** Carga el logo vía proxy del backend (evita CORS y rasteriza SVG/WebP). */
-async function loadLogoFromProxy(): Promise<string | undefined> {
+async function loadLogoFromProxy(request?:RequestInit): Promise<string | undefined> {
   try {
-    const res = await fetch(`${getApiBaseUrl()}/settings/company-logo`, { credentials: 'include' })
-    if (!res.ok) return undefined
+    const res = await fetch(`${getApiBaseUrl()}/settings/company-logo`, { credentials: 'include',...request })
+    if (!res.ok) {
+      if(request&&res.status!==404)throw Object.assign(Error('No se pudo cargar el logo'),{status:res.status})
+      return undefined
+    }
     const blob = await res.blob()
     if (!blob.size) return undefined
     return blobToDataUrl(blob)
-  } catch {
+  } catch(error) {
+    if(request)throw error
     return undefined
   }
 }
@@ -192,6 +196,7 @@ export function addJsPdfCompanyHeader(doc: jsPDF, opts: JsPdfBrandingOptions = {
   return y + 7
 }
 
-export async function resolvePdfLogoDataUrl(logoUrl?: string | null): Promise<string | undefined> {
+export async function resolvePdfLogoDataUrl(logoUrl?: string | null,request?:RequestInit): Promise<string | undefined> {
+  if(request)return loadLogoFromProxy(request)
   return loadImageAsDataUrl(logoUrl ?? '')
 }

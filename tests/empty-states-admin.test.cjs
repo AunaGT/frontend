@@ -33,7 +33,7 @@ function render(file, name, props = {}, options = {}) {
     '@/hooks/use-toast': { useToast: () => ({ toast: noop }) },
     '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => ({ page: 1, pageSize: 10, setPage: noop, setPageSize: noop }), useResetPageOnFilterChange: noop },
     '@/context/useModules': { useModules: () => ({ modules: [], enabledModuleCodes: new Set(), isLoading: false, isError: false, refetch: noop }) },
-    '@tanstack/react-query': { useQuery: options.query || (() => result), useMutation: () => mutation, useQueryClient: () => ({ invalidateQueries: noop }) },
+    '@tanstack/react-query': { useQuery: options.query || (({queryKey}) => ['hr-employee-history','hr-employee-overview'].includes(queryKey[0]) ? {...result,data:{scopeKey:queryKey.at(-1),payload:result.data}} : result), useMutation: () => mutation, useQueryClient: () => ({ invalidateQueries: noop }) },
     ...options.mocks,
   }, nodes)[name]
   const html = renderToStaticMarkup(React.createElement(StaticRouter, { location: '/' }, React.createElement(Component, props)))

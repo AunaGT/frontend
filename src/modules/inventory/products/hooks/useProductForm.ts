@@ -66,14 +66,6 @@ export const useProductForm = (kind: Product['kind'] = 'STANDARD'): UseProductFo
             toast({title:'Servicio incompleto',description:'Ingresa una unidad de cobro y entre 0 y 4 decimales',variant:'destructive'})
             return false
         }
-        if (formData.productKind !== 'SERVICE' && !formData.supplier) {
-            toast({
-                title: 'Campo requerido',
-                description: 'El proveedor es obligatorio',
-                variant: 'destructive'
-            })
-            return false
-        }
 
         if (formData.productKind === 'KIT') {
             let valid=0;

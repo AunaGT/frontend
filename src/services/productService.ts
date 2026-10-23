@@ -159,6 +159,23 @@ export interface ProductsResponse {
   prevPage: number | null;
 }
 
+export type PosCatalogFilters={page:number;pageSize:number;search:string;category:string|null;catalogType:'goods'|'all'}
+export type PosCatalogCategories={items:{name:string;count:number;image_url:string|null}[];totalItems:number}
+type PosScope={companyId:string;branchId:string}
+const posOptions=(scope:PosScope,signal?:AbortSignal)=>({signal,headers:{'X-Company-Id':scope.companyId,'X-Branch-Id':scope.branchId}})
+export function fetchPosCatalog(scope:PosScope,filters:PosCatalogFilters,signal?:AbortSignal){
+ const params=new URLSearchParams({page:String(filters.page),pageSize:String(filters.pageSize),catalog_type:filters.catalogType})
+ if(filters.search)params.set('search',filters.search)
+ else if(filters.category)params.set('category',filters.category)
+ return apiFetch<ProductsResponse>(`/api/products/pos-catalog?${params}`,posOptions(scope,signal))
+}
+export function fetchPosCatalogCategories(scope:PosScope,filters:PosCatalogFilters,signal?:AbortSignal){
+ const params=new URLSearchParams({catalog_type:filters.catalogType});if(filters.search)params.set('search',filters.search)
+ return apiFetch<PosCatalogCategories>(`/api/products/pos-catalog/categories?${params}`,posOptions(scope,signal))
+}
+export const fetchPosCatalogItems=(scope:PosScope,ids:string[],catalogType:'goods'|'all',signal?:AbortSignal)=>apiFetch<{items:ApiProduct[];missingIds:string[]}>('/api/products/pos-catalog/items',{...posOptions(scope,signal),method:'POST',body:JSON.stringify({ids,catalog_type:catalogType})})
+export const resolvePosCatalogCode=(scope:PosScope,code:string,catalogType:'goods'|'all',signal?:AbortSignal)=>apiFetch<{item:ApiProduct|null}>(`/api/products/pos-catalog/resolve-code?${new URLSearchParams({code,catalog_type:catalogType})}`,posOptions(scope,signal))
+
 export const fetchProducts = async (params?: ProductsQueryParams,options:RequestInit={}): Promise<ProductsResponse> => {
   const search = new URLSearchParams();
   if (params?.catalogType) search.set('catalog_type', params.catalogType);

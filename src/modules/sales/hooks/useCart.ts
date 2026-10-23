@@ -11,7 +11,7 @@
 /**
  * useCart - Custom hook for managing the shopping cart
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, type SetStateAction } from 'react'
 import { useToast } from '@/hooks/use-toast'
 import { getApiBaseUrl } from '@/services/api'
 import {normalizeQuantityInput,previewLineTotal,stepQuantity} from '@/lib/commercialQuantity'
@@ -47,6 +47,8 @@ interface UseCartReturn {
     isAuthenticating: boolean
     // Actions
     addToCart: (product: Product, selection?: {presentationId?:string|null;priceContext?:string}) => void
+    getBaseQuantity: (productId:string) => string
+    getGeneration: () => number
     selectCartUnit: (lineKey:string,presentationId:string|null) => void
     acceptCartRounding: (lineKey:string,accepted:boolean) => void
     removeFromCart: (productId: string) => void
@@ -55,7 +57,8 @@ interface UseCartReturn {
     /** Restaura líneas desde borrador; devuelve productIds no encontrados en catálogo. */
     hydrateFromLines: (
         lines: { productId: string; qty: string | number;unitSelection?:UnitSelection;lineKey?:string }[],
-        adminAuthorizedIds: string[]
+        adminAuthorizedIds: string[],
+        resolvedProducts?:Product[]
     ) => { missingProductIds: string[]; qtyAdjustedIds: string[];unitReviewIds:string[] }
     /** Recalcula precios en carrito (p. ej. tras cambiar canal o cliente). */
     repriceCartLines: () => void
@@ -76,7 +79,15 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
     const normalize=useCallback((qty:string,product:Product)=>normalizeQuantityInput(qty,{kind:product.kind ?? 'STANDARD',quantityDecimals:product.quantityDecimals ?? 0},locale),[locale])
 
     // Cart state
-    const [cartItems, setCartItems] = useState<CartProduct[]>([])
+    const [cartItems, setCartState] = useState<CartProduct[]>([])
+    const currentItems=useRef(cartItems)
+    const generation=useRef(0)
+    // Escáner y clics agrupados necesitan ver también los cambios aún no renderizados.
+    const setCartItems=useCallback((update:SetStateAction<CartProduct[]>)=>{
+        const next=typeof update==='function'?update(currentItems.current):update
+        currentItems.current=next;setCartState(next)
+    },[])
+    const getBaseQuantity=useCallback((productId:string)=>currentItems.current.filter(item=>item.id===productId).reduce((sum,item)=>addUnitQuantities(sum,item.unitSelection?selectedBaseQuantity(item.qty,item.unitSelection):String(item.qty)),'0'),[])
     const [adminAuthorizedProducts, setAdminAuthorizedProducts] = useState<Set<string>>(new Set())
 
     // Availability dialog state
@@ -130,7 +141,7 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
         }
         const unit = getUnitPrice ? getUnitPrice(product) : Number(product.price ?? 0)
         const available = resolveAvailable(product)
-        const existing = cartItems.find(i => i.id === product.id)
+        const existing = currentItems.current.find(i => i.id === product.id)
         const currentQty = Number(existing?.qty || 0)
         const requestedQty = currentQty + 1
 
@@ -193,6 +204,7 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
     }, [availableProducts,cartItems,adminAuthorizedProducts,getAvailableQtyExact, removeFromCart, resolveAvailable,normalize])
 
     const clearCart = useCallback(() => {
+        generation.current++
         authOwner.operation++
         setIsAuthenticating(false)
         setAvailabilityDialog({open:false,product:null,requestedQty:0,availableStock:0})
@@ -203,7 +215,8 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
     }, [])
 
     const hydrateFromLines = useCallback(
-        (lines: { productId: string; qty: string | number;unitSelection?:UnitSelection;lineKey?:string }[], adminAuthorizedIds: string[]) => {
+        (lines: { productId: string; qty: string | number;unitSelection?:UnitSelection;lineKey?:string }[], adminAuthorizedIds: string[],resolvedProducts=availableProducts) => {
+            generation.current++
             const adminSet = new Set(adminAuthorizedIds)
             const missingProductIds: string[] = []
             const qtyAdjustedIds: string[] = []
@@ -212,7 +225,7 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
 
             for (const line of lines) {
                 const q = String(line.qty)
-                const p = availableProducts.find((x) => x.id === line.productId)
+                const p = resolvedProducts.find((x) => x.id === line.productId)
                 if (!p) {
                     missingProductIds.push(line.productId)
                     continue
@@ -406,6 +419,8 @@ export const useCart = ({ availableProducts, getUnitPrice, getAvailableQty,getAv
         adminPassword,
         isAuthenticating,
         addToCart,
+        getBaseQuantity,
+        getGeneration:()=>generation.current,
         removeFromCart,
         updateQuantity,
         clearCart,

@@ -39,6 +39,8 @@ function render(name, { record = sale, permissions = true, states = [record, fal
       if (dependency === '@/hooks/useAuthPermissions') return { useAuthPermissions: () => ({ hasPermission: () => permissions }) }
       if (dependency === '@/context/useAuth') return {useAuth:()=>({user:{id:'U'}})}
       if (dependency === '@/services/api') return {getAuthToken:()=> 'test-session'}
+      if (dependency === '@/services/authSession') return {authSessionIdentity:()=> 'test-session',authSessionMatches:id=>id==='U'}
+      if (dependency === './documents/useSaleDocument') return {useSaleDocument:()=>({pending:false,pdf:null,error:'',legacy:false,fallback:false,prepare:async()=>({kind:'LEGACY'}),download(){}})}
       if (dependency === '@/context/useModules') return { useModules: () => ({ isEnabled: () => true }) }
       if (dependency === '@/hooks/useSystemSettings') return { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ', companyName: 'Local QA', companyLogoUrl: '/logo.png' }) }
       if (dependency === '@/services/saleService') return { fetchSaleById: async () => { if (!remoteRecord) throw Error('Unexpected request'); return remoteRecord } }
@@ -169,14 +171,27 @@ test('detail return/exchange actions remain conditional on completed status and 
   }
 })
 
-test('invoice retains print branding and fallback without generating real documents', async () => {
-  for (const [brandFailure, companyName] of [[false, 'Empresa QA'], [true, 'Local QA']]) {
-    const view = render('SaleInvoicePage', { brandFailure })
-    await view.nodes.find(n => n.props.onClick?.name === 'handlePrint').props.onClick()
-    assert.equal(view.pdfs.length, 1)
-    assert.equal(view.pdfs[0].record.id, 'sale-1')
-    assert.equal(view.pdfs[0].options.companyName, companyName)
-    assert.equal(view.pdfs[0].options.currencyCode, 'GTQ')
+test('invoice never draws an old PDF after preparation fails or returns an obsolete response', async () => {
+  const view = render('SaleInvoicePage')
+  await view.nodes.find(n => n.props.onClick?.name === 'handlePrint').props.onClick()
+  assert.equal(view.pdfs.length, 0)
+})
+
+test('print configuration is collapsed in the toolbar rather than a permanent section above sale details',()=>{
+  const view=render('SaleInvoicePage')
+  assert.match(view.html,/Opciones de impresión/)
+  assert.ok(!view.html.includes('Destino previsto'))
+  assert.ok(!view.html.includes('Hoja del comprobante'))
+  assert.ok(!view.html.includes('Confirmación, pagos y emisión fiscal son procesos separados'))
+})
+
+test('cancelled sales can request their saved originals while drafts cannot generate sale documents',()=>{
+  for(const [status,disabled] of [['cancelled',false],['completed',false],['draft',true]]){
+    const view=render('SaleInvoicePage',{record:{...sale,status}})
+    for(const handler of ['handlePrint','handleTicket']){
+      const action=view.nodes.find(n=>n.props.onClick?.name===handler)
+      assert.ok(action,handler);assert.equal(action.props.disabled,disabled,`${status}: ${handler}`)
+    }
   }
 })
 

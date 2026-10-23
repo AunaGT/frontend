@@ -50,12 +50,13 @@ export interface IncomingMerchandisePaymentEntry {
 export interface IncomingMerchandise {
   unit_metadata_version?:1|2
   id: string
-  source?: 'PURCHASE'|'INITIAL'
+  source?: 'PURCHASE'|'INITIAL'|'PRODUCTION'
+  production_details?:{version:1;total:string;costs:{tracked_materials:string;materials:string;labor:string;other:string};components:{product_id:string;name:string;quantity:string;unit_cost:string;value:string}[]}|null
   legacy_settled_amount?: number|string
   payment_revision?: number
   payment_balance_review_required?: boolean
   supplier: {
-    id: string
+    id: string|null
     name: string
     contact?: string | null
     email?: string | null

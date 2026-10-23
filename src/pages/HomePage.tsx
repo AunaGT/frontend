@@ -1,4 +1,5 @@
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import {QuickProductScan} from '@/components/scanner/QuickProductScan'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -95,6 +96,7 @@ export const HomePage = () => {
                 </div>
             </div>
 
+            <QuickProductScan/>
             <section aria-label="Catálogo de módulos" className="min-w-0">
                 {isLoading ? <HomeModuleLoading /> : isError ? (
                     <div role="alert" className="auna-surface rounded-lg border px-4 py-10 text-center">
