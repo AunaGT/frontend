@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {matchRoutes}=require('react-router-dom')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('package routes are distinct from product detail and retain inventory breadcrumb',()=>{
+ const {inventoryModule:m}=loadReportModule('../inventory/manifest.ts')
+ const routes=[['list',m.paths.packages],['new',m.paths.packageCreate],['edit',m.paths.packageEdit],['product',m.paths.detail]].map(([id,path])=>({id,path}))
+ for(const [path,want]of [['/inventario/paquetes','list'],['/inventario/paquetes/nuevo','new'],['/inventario/paquetes/abc/editar','edit'],['/inventario/abc','product']])assert.equal(matchRoutes(routes,path).at(-1).route.id,want)
+ const {getRouteTrail}=loadReportModule('../../components/layout/pageTrail.ts')
+ const trail=getRouteTrail('/inventario/paquetes/abc/editar','',{code:'inventory',label:'Inventario',path:'/inventario'})
+ assert.deepEqual(trail.map(t=>t.label),['Inventario','Paquetes','Editar paquete'])
+})
