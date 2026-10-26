@@ -14,6 +14,8 @@ test('public facts retain legacy shape without groups and allowlist package fiel
  assert.equal(Object.hasOwn(quoteContext(dto),'packageGroups'),false)
  const facts=quoteContext({...dto,packageGroups:[group]})
  assert.equal(facts.packageGroups[0].variantName,'160 shots');assert.equal(facts.lines[0].packageComponentKey,'g:a');assert.doesNotMatch(JSON.stringify(facts),/PRIVATE|resourceIds|selection|unitCost/)
+ const withConditions=structuredClone(group);withConditions.components[0].serviceConditions={version:1,schedulingStyle:'WORK',durationPolicy:'FIXED',durationMinutes:60,allowedVenueKinds:['EVENT_VENUE'],publicInstructions:'Acceso público',resourceIds:['PRIVATE']}
+ const publicFacts=quoteContext({...dto,packageGroups:[withConditions]});assert.equal(publicFacts.packageGroups[0].components[0].serviceConditions.publicInstructions,'Acceso público');assert.doesNotMatch(JSON.stringify(publicFacts),/PRIVATE|resourceIds/)
 })
 test('PDF groups annotate real rows without duplicating component charges or final total',()=>{
  const {jsPDF}=require('jspdf'),{spawnSync}=require('node:child_process'),fs=require('node:fs'),path=require('node:path');let buffer
@@ -32,4 +34,17 @@ test('real quote lines group included components and keep independent free items
  const lines=[...full.map((l,i)=>({...l,name:i?'Mora':'Limón',unit_price:'1'})),{name:'Artículo suelto',qty:'1',unit_price:'2',line_total:'2'}]
  const html=renderToStaticMarkup(React.createElement(QuoteLines,{groups:[group],lines,money:n=>'Q '+n}))
  assert.match(html,/Experiencia Fiesta/);assert.match(html,/Artículo suelto/);assert.equal((html.match(/Limón/g)||[]).length,1)
+})
+test('partial sale shows the actual invoiced unit instead of the original package presentation',()=>{
+ const {CommercialPackageSummary}=loadReportModule('../../components/shared/CommercialPackageSummary.tsx')
+ const boxed={...group,components:[{...group.components[0],quantity:'2',unitLabel:'caja'}]}
+ const html=renderToStaticMarkup(React.createElement(CommercialPackageSummary,{groups:[boxed],lines:[{packageComponentKey:'g:a',qty:'20',unitLabel:'kg',lineTotal:'18.75'}],mode:'sale'}))
+ assert.match(html,/20 kg/);assert.doesNotMatch(html,/20 caja/)
+})
+test('grouped quote retains the frozen public service conditions instead of silently hiding them',()=>{
+ const {QuoteLines}=loadReportModule('../quotes/QuotePresentation.tsx',{'./api':{}})
+ const conditions={version:1,schedulingStyle:'WORK',durationPolicy:'FIXED',durationMinutes:60,allowedVenueKinds:['EVENT_VENUE'],publicInstructions:'Acceso lateral acordado'}
+ const services={...group,components:[{...group.components[0],itemKind:'SERVICE',itemName:'Montaje',serviceConditions:conditions}]}
+ const html=renderToStaticMarkup(React.createElement(QuoteLines,{groups:[services],lines:[{...full[0],name:'Montaje',item_kind:'SERVICE',unit_price:'1',service_schedule_snapshot:conditions}],money:n=>'Q '+n}))
+ assert.match(html,/Acceso lateral acordado/);assert.match(html,/60 min/);assert.match(html,/Horario sujeto a disponibilidad/)
 })
