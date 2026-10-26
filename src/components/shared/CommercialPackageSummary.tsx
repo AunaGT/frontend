@@ -1,8 +1,7 @@
 import type {PackageGroup} from '@/modules/inventory/packages/types'
 import {formatMoney} from '@/utils/formatters'
-import {serviceConditionText,type PublicServiceConditions} from '@/services/serviceConditions'
+import {serviceConditionText,publicServiceConditions as publicConditions} from '@/services/serviceConditions'
 export type PackageDisplayLine={package_component_key?:string|null;packageComponentKey?:string|null;qty?:string|number;quantity?:string;unitLabel?:string|null;unit_label?:string|null;line_total?:string|number;lineTotal?:string|number;net_total?:string|number}
-const publicConditions=(s:PublicServiceConditions)=>({version:s.version,schedulingStyle:s.schedulingStyle,durationPolicy:s.durationPolicy,durationMinutes:s.durationMinutes,allowedVenueKinds:[...s.allowedVenueKinds],publicInstructions:s.publicInstructions})
 export function publicCommercialPackageGroups(groups:PackageGroup[]):PackageGroup[]{
  return groups.map(g=>({schemaVersion:1,groupId:g.groupId,name:g.name,variantName:g.variantName,currency:g.currency,state:g.state,estimatedAmount:g.estimatedAmount,amount:g.amount,netAmount:g.netAmount,
   issues:g.issues.map(i=>({code:i.code,message:i.message,remainingQuantity:i.remainingQuantity})),

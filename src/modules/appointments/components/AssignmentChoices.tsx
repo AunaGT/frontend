@@ -1,0 +1,5 @@
+import {Checkbox} from '@/components/ui/checkbox'
+import {CollectionEmptyState} from '@/components/shared/CollectionEmptyState'
+export function AssignmentChoices({label,items,value,onChange,disabled}:{label:string;items:{id:string;name:string}[];value:string[];onChange:(ids:string[])=>void;disabled?:boolean}){
+ return <fieldset className="min-w-0 space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="flex max-h-40 flex-wrap gap-x-5 gap-y-2 overflow-auto">{items.map(item=><label key={item.id} className="flex min-h-8 min-w-0 items-center gap-2 text-sm"><Checkbox checked={value.includes(item.id)} onCheckedChange={checked=>onChange(checked?[...value,item.id]:value.filter(id=>id!==item.id))} disabled={disabled}/><span className="break-words">{item.name}</span></label>)}{!items.length&&<CollectionEmptyState compact title="Prepara las opciones de atención" description="Agrega las asignaciones que necesites en Configuración de Agenda; luego podrás elegirlas aquí."/>}</div></fieldset>
+}

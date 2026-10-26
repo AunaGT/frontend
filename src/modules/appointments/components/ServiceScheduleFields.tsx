@@ -1,4 +1,3 @@
-import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,12 +9,12 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog'
 import type { ProfileInput, Directory, SchedulingStyle } from '../types'
 import {CompletionPolicyField} from './CompletionPolicyField'
 import { venueLabels } from './AgendaVenueFields'
+import {AssignmentChoices} from './AssignmentChoices'
+import {AssignmentRequirementsFields} from './AssignmentRequirementsFields'
+export {AssignmentChoices} from './AssignmentChoices'
 
 export const defaultProfile: ProfileInput = { enabled: false, mode: 'INDIVIDUAL',schedulingStyle:'APPOINTMENT',durationPolicy:'FIXED',completionPolicy:'MANUAL', durationMinutes: 45, beforeMinutes: 0, afterMinutes: 0, intervalMinutes: 15, leadMinutes: 0, horizonDays: 60, cancellationHours: 24, confirmation: 'AUTOMATIC', capacity: 1, requiresProvider: true, requiresResource: false, branchIds: [], providerIds: [], resourceIds: [], instructions: '', expectedVersion: 0 }
 export const schedulingLabels={APPOINTMENT:'Atención individual · cita',CLASS:'Sesión con cupos',WORK:'Trabajo o evento completo'}
-export function AssignmentChoices({ label, items, value, onChange, disabled }: { label: string; items: { id: string; name: string }[]; value: string[]; onChange: (ids: string[]) => void; disabled?: boolean }) {
-  return <fieldset className="space-y-2"><legend className="text-sm font-medium">{label}</legend><div className="flex max-h-40 flex-wrap gap-x-5 gap-y-2 overflow-auto">{items.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><Checkbox checked={value.includes(item.id)} onCheckedChange={checked => onChange(checked ? [...value, item.id] : value.filter(id => id !== item.id))} disabled={disabled} />{item.name}</label>)}{!items.length && <CollectionEmptyState compact title="Prepara las opciones de atención" description="Agrega las asignaciones que necesites en Configuración de Agenda; luego podrás elegirlas aquí." />}</div></fieldset>
-}
 export function ServiceScheduleFields({ value, onChange, disabled, directory, errors }: { value: ProfileInput; onChange: (value: ProfileInput) => void; disabled: boolean; directory: Pick<Directory, 'branches' | 'providers' | 'resources'>; errors: Record<string, string> }) {
   const [nextStyle,setNextStyle]=useState<SchedulingStyle|null>(null)
   const style=value.schedulingStyle||(value.mode==='GROUP'?'CLASS':'APPOINTMENT')
@@ -29,6 +28,7 @@ export function ServiceScheduleFields({ value, onChange, disabled, directory, er
       <p className="text-sm text-muted-foreground">{style==='WORK'?'Se agenda un trabajo completo. Los asistentes estimados no generan inscripciones.':style==='CLASS'?'Cada sesión comparte un horario y admite inscripciones hasta completar sus cupos.':'Cada cita tiene su propio horario y cliente.'} {value.durationPolicy==='EDITABLE'?'Quien agenda puede ajustar el fin.':'El fin se calcula con la duración fija.'}</p>
       <div className="grid gap-5 md:grid-cols-2"><AssignmentChoices label="Sucursales donde se ofrece" items={directory.branches} value={value.branchIds} onChange={ids => set('branchIds', ids)} disabled={disabled} /><div className="space-y-3"><label className="flex items-center gap-2 text-sm"><Checkbox checked={value.requiresProvider} onCheckedChange={v => set('requiresProvider', v === true)} disabled={disabled} />Necesita profesional</label><label className="flex items-center gap-2 text-sm"><Checkbox checked={value.requiresResource} onCheckedChange={v => set('requiresResource', v === true)} disabled={disabled} />Necesita sala o equipo</label></div>
       <AssignmentChoices label="Profesionales habilitados" items={directory.providers.filter(p => p.active)} value={value.providerIds} onChange={ids => set('providerIds', ids)} disabled={disabled} /><AssignmentChoices label="Salas y equipos habilitados" items={directory.resources.filter(r => r.active)} value={value.resourceIds} onChange={ids => set('resourceIds', ids)} disabled={disabled} /></div>
+      <AssignmentRequirementsFields value={value.assignmentRequirements} onChange={v=>set('assignmentRequirements',v)} directory={directory} providerIds={value.providerIds} resourceIds={value.resourceIds} disabled={disabled} errors={errors}/>
       {errors.assignments && <p role="alert" className="text-sm text-destructive">{errors.assignments}</p>}
       {(['branchIds','providerIds','resourceIds','schedulingStyle'] as const).map(key=>errors[key]&&<p key={key} role="alert" className="text-sm text-destructive">{errors[key]}</p>)}
       <p className="text-xs text-muted-foreground">La sucursal responsable organiza el servicio, aunque se preste fuera del local. Sin requisitos marcados, las asignaciones son opcionales y el horario se indica manualmente.</p>

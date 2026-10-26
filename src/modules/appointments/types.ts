@@ -10,7 +10,9 @@ export type CompletionPolicy='MANUAL'|'AUTO'
 export type CompletionInfo={completionPolicy?:CompletionPolicy;overdue?:boolean;actualCompletedAt?:string|null;commercialCompletionConfirmedAt?:string|null}
 export type SessionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 export type BookingStatus = 'HELD' | 'PENDING' | 'CONFIRMED' | 'ARRIVED' | 'IN_SERVICE' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'EXPIRED'
+export type AssignmentRequirement={id:string;kind:'PROVIDER'|'RESOURCE';name:string;quantity:number;optionIds:string[]}
 export type ProfileInput = {
+  assignmentRequirements?:AssignmentRequirement[];
   schedulingStyle?:SchedulingStyle;durationPolicy?:DurationPolicy;completionPolicy?:CompletionPolicy;
   allowedVenueKinds?: VenueKind[];
   enabled: boolean; mode: ScheduleMode; durationMinutes: number; beforeMinutes: number; afterMinutes: number;
@@ -66,7 +68,7 @@ export type SummaryDto = { reservations: number; pending: number; arrived: numbe
 export type Provider = { id: string; name: string; employeeId: string | null; userId: string | null; branchIds: string[]; active: boolean; version: number; futureSessions?: number }
 export type Resource = { id: string; name: string; type: 'ROOM' | 'EQUIPMENT'; portable?: boolean; personCapacity: number | null; branchId: string; active: boolean; version: number; futureSessions?: number }
 export type Directory = { timezone?:string;branches: { id: string; name: string }[]; providers: Provider[]; resources: Resource[]; employeeCandidates: { id: string; name: string; photoUrl: string | null; branchId: string }[] }
-export type AgendaService = { id: string; name: string; price: string | null; unit: string; quantityDecimals: number; available: boolean; schedulable: boolean; mode: ScheduleMode; durationMinutes: number | null; capacity: number; confirmation?: 'MANUAL' | 'AUTOMATIC';schedulingStyle?:SchedulingStyle;durationPolicy?:DurationPolicy;completionPolicy?:CompletionPolicy;requiresProvider?:boolean;requiresResource?:boolean;providerIds?:string[];resourceIds?:string[];allowedVenueKinds?:VenueKind[];beforeMinutes?:number;afterMinutes?:number }
+export type AgendaService = { id: string; name: string; price: string | null; unit: string; quantityDecimals: number; available: boolean; schedulable: boolean; mode: ScheduleMode; durationMinutes: number | null; capacity: number; confirmation?: 'MANUAL' | 'AUTOMATIC';schedulingStyle?:SchedulingStyle;durationPolicy?:DurationPolicy;completionPolicy?:CompletionPolicy;requiresProvider?:boolean;requiresResource?:boolean;providerIds?:string[];resourceIds?:string[];allowedVenueKinds?:VenueKind[];beforeMinutes?:number;afterMinutes?:number;assignmentRequirements?:AssignmentRequirement[] }
 export type History = { items: { id: string; action: string; at: string; actor: string; reason: string | null }[]; hasMore: boolean }
 export type BookingDetail = BookingDto & { history: History }
 export type SessionDetail = SessionDto & { bookings: Page<BookingDto>; waitlist: Page<{ id: string; contactId: string; contactName: string; createdAt: string }>; history: History }
