@@ -78,7 +78,7 @@ test('confirmación conserva versión de apertura y no adopta silenciosamente un
     '@tanstack/react-query':{useQueryClient:()=>({invalidateQueries(){}})},
   },nodes)
   let row={id:'b',status:'PENDING',startsAt:'2030-01-01',version:1}
-  const render=()=>{nodes.length=0;h.render(()=>AgendaActions({scope:{companyId:'A',branchId:'B'},row,kind:'bookings',has:()=>true}))}
+  const render=()=>{nodes.length=0;h.render(()=>{const editor=AgendaActions({scope:{companyId:'A',branchId:'B'},row,kind:'bookings',has:()=>true});return editor.type(editor.props)})}
   render();nodes.find(n=>n.props.children==='Confirmar'&&n.props.onClick).props.onClick();row={...row,version:2};render()
   const confirms=nodes.filter(n=>n.props.children==='Confirmar'&&n.props.onClick)
   await confirms.at(-1).props.onClick();assert.equal(writes[0].expectedVersion,1)

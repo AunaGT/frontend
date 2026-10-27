@@ -43,5 +43,5 @@ export function useAgendaMutation(scope: AgendaScope) {
       return null
     } finally { if (active.current === attempt) active.current = null }
   }
-  return { submit, pending: state.key === key && state.pending, error: state.key === key ? state.error : null, fields: state.key === key ? state.fields : {} }
+  return { submit,reset:()=>{if(!active.current)setState({key,pending:false,error:null,fields:{}})}, pending: state.key === key && state.pending, error: state.key === key ? state.error : null, fields: state.key === key ? state.fields : {} }
 }

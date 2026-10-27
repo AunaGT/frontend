@@ -52,7 +52,7 @@ test('read-only timeline uses disabled system controls and errors are visible ne
 })
 test('engagement retry/context refresh retains private timeline drafts, but another company gets no copy',async()=>{
  const h=require('./helpers/reportHookHarness.cjs').hookHarness(),writes=[]
- const {useEngagementDraft}=loadReportModule('../appointments/engagementDraft.ts',{react:h.hooks,'./hooks':{useAgendaMutation:()=>({pending:false,error:null,fields:{},submit:async(...args)=>{writes.push(args);return null}})}})
+ const {useEngagementDraft}=loadReportModule('../appointments/engagementDraft.ts',{react:h.hooks,'./hooks':{useAgendaMutation:()=>({reset(){},pending:false,error:null,fields:{},submit:async(...args)=>{writes.push(args);return null}})}})
  let scope={companyId:'a',branchId:'b'},initial=[{lineId:'l1',quantity:'1',...session,operationalTimeline:t()}]
  const render=()=>h.render(()=>useEngagementDraft({scope,engagementId:'e1',version:1,initial,onSaved(){}}))
  const changed={...initial[0],operationalTimeline:{...t(),milestones:[{id:'m1',name:'Bienvenida',startOffsetMinutes:0,endOffsetMinutes:30,startInput:'2030-01-01T'}]}}

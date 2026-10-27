@@ -9,6 +9,7 @@ import { LoadingIndicator } from '@/components/shared/LoadingState'
 import { useAgendaMutation, useAvailability } from '../hooks'
 import { agendaRange, localDay, localInstant, agendaTime } from '../viewModel'
 import { AssignmentChoices } from './ServiceScheduleFields'
+import {PaymentReferenceReview} from './PaymentReferenceReview'
 import { FormFeedback } from './FormFeedback'
 import {AssignmentRequirementsStatus} from './AssignmentRequirementsFields'
 import { SlotPicker, slotKey } from './BookingFields'
@@ -33,26 +34,26 @@ export function MoveForm({ scope, row, kind, proposed, directory, onClose }: { s
   const selected = manual?manualSlot:selection || availability.data?.find(s => s.startsAt === proposed) || null
   const [dirty,setDirty]=useState(!!proposed),[confirm,setConfirm]=useState(false)
   const guard=useDraftGuard(dirty||mutation.pending)
-  const change = () => {setDirty(true);setSelection(null);setKey(crypto.randomUUID())}
+  const change = () => {mutation.reset();setDirty(true);setSelection(null);setKey(crypto.randomUUID())}
   const canSave=!!selected&&!!reason.trim()&&!mutation.pending&&(manual||!!availability.data?.some(s=>slotKey(s)===slotKey(selected)))
-  const save=async()=>{
+  const save=async(acknowledgedPaymentReviewHash?:string)=>{
     if(!canSave||!selected)return
     setConfirm(false)
-    if(await mutation.submit(`/${kind}/${row.id}/move`,{...location,startsAt:selected.startsAt,endsAt:selected.endsAt,timezone:selected.timezone,providerIds:selected.providerIds,resourceIds:selected.resourceIds,reason,expectedVersion:version,idempotencyKey:key}))guard.proceed(onClose)
+    if(await mutation.submit(`/${kind}/${row.id}/move`,{...(acknowledgedPaymentReviewHash?{acknowledgedPaymentReviewHash}:{}),...location,startsAt:selected.startsAt,endsAt:selected.endsAt,timezone:selected.timezone,providerIds:selected.providerIds,resourceIds:selected.resourceIds,reason,expectedVersion:version,idempotencyKey:key}))guard.proceed(onClose)
   }
   return <form className="agenda-editor-grid" aria-busy={mutation.pending} onSubmit={e=>{e.preventDefault();if(canSave)setConfirm(true)}}>
     {guard.dialog}
     <section className="agenda-panel space-y-4"><h2>Horario y asignaciones</h2>
       <AssignmentRequirementsStatus requirements={policy?.assignmentRequirements} providerIds={providerIds} resourceIds={resourceIds} directory={directory} venueKind={location.venue.kind} providerOptionIds={policy?.providerIds} resourceOptionIds={policy?.resourceIds}/>
-      <FormFeedback error={mutation.error||(availability.isError?'No se pudo consultar la disponibilidad. Reintenta para actualizarla.':null)} fields={mutation.fields}/>
+      <FormFeedback error={mutation.error||(availability.isError?'No se pudo consultar la disponibilidad. Reintenta para actualizarla.':null)} fields={mutation.fields}/><PaymentReferenceReview fields={mutation.fields} pending={mutation.pending} onConfirm={hash=>void save(hash)}/>
       <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="move-date">Nueva fecha</Label><Input id="move-date" type="date" value={date} disabled={mutation.pending} onChange={e=>{if(e.target.value){setDate(e.target.value);change()}}}/></div>
         {manual&&<div><Label htmlFor="move-clock">Hora de inicio *</Label><Input id="move-clock" type="time" value={clock} disabled={mutation.pending} onChange={e=>{setClock(e.target.value);change()}}/></div>}
         {editable&&<div><Label htmlFor="move-duration">Duración (minutos)</Label><Input id="move-duration" type="number" min={1} max={1440} value={duration} disabled={mutation.pending} onChange={e=>{setDuration(Number(e.target.value));change()}}/></div>}
       </div>
       <AgendaVenueFields value={location} onChange={next=>{setLocation({venue:next.venue||{kind:'BRANCH'},outboundMinutes:next.outboundMinutes||0,returnMinutes:next.returnMinutes||0});change()}} disabled={mutation.pending}/>
       <div className="grid gap-3 sm:grid-cols-2"><AssignmentChoices label="Profesionales" items={directory.providers.filter(p=>p.active)} value={providerIds} onChange={v=>{setProviders(v);change()}} disabled={mutation.pending}/><AssignmentChoices label="Salas y equipos" items={directory.resources.filter(r=>r.active)} value={resourceIds} onChange={v=>{setResources(v);change()}} disabled={mutation.pending}/></div>
-      {!manual&&<><Button type="button" variant="ghost" disabled={availability.isFetching||mutation.pending} onClick={()=>void availability.refetch()}>Actualizar horarios</Button>{availability.isLoading?<LoadingIndicator message="Buscando nuevo horario…"/>:<SlotPicker slots={availability.data||[]} value={selected?slotKey(selected):''} onSelect={s=>{setSelection(s);setDirty(true);setKey(crypto.randomUUID())}} pending={mutation.pending}/>}</>}
-      <div><Label htmlFor="agenda-reason">Motivo de reprogramación *</Label><Textarea id="agenda-reason" required value={reason} maxLength={1000} disabled={mutation.pending} onChange={e=>{setReason(e.target.value);setDirty(true);setKey(crypto.randomUUID())}}/></div>
+      {!manual&&<><Button type="button" variant="ghost" disabled={availability.isFetching||mutation.pending} onClick={()=>void availability.refetch()}>Actualizar horarios</Button>{availability.isLoading?<LoadingIndicator message="Buscando nuevo horario…"/>:<SlotPicker slots={availability.data||[]} value={selected?slotKey(selected):''} onSelect={s=>{mutation.reset();setSelection(s);setDirty(true);setKey(crypto.randomUUID())}} pending={mutation.pending}/>}</>}
+      <div><Label htmlFor="agenda-reason">Motivo de reprogramación *</Label><Textarea id="agenda-reason" required value={reason} maxLength={1000} disabled={mutation.pending} onChange={e=>{mutation.reset();setReason(e.target.value);setDirty(true);setKey(crypto.randomUUID())}}/></div>
       <div className="agenda-actions"><Button type="button" variant="outline" disabled={mutation.pending} onClick={()=>guard.request(onClose)}>Cancelar</Button><Button type="submit" disabled={!canSave}>Revisar cambio</Button></div>
     </section>
     <aside className="agenda-panel agenda-editor-summary space-y-4"><h2>{row.serviceName}</h2><div><p className="text-xs text-muted-foreground">Horario actual</p><p className="text-sm">{localDateTime(row.startsAt,row.timezone).replace('T',' ')} – {agendaTime(row.endsAt,row.timezone)}</p></div>
@@ -60,6 +61,6 @@ export function MoveForm({ scope, row, kind, proposed, directory, onClose }: { s
       {'commercial' in row&&row.commercial&&<div className="border-t pt-3 text-sm"><p>{row.commercial.quantity} {row.commercial.unit}</p><strong>{row.commercial.currencyCode} {row.commercial.total}</strong></div>}
       <p className="border-t pt-3 text-xs text-muted-foreground">Se conservan el servicio, precio y participantes. Preparación, traslados y disponibilidad se verificarán al guardar.</p>
     </aside>
-    <ConfirmDialog open={confirm} onOpenChange={setConfirm} appearance="auna" title="Confirmar nuevo horario" description={selected?`Antes: ${localDateTime(row.startsAt,row.timezone).replace('T',' ')}. Nuevo: ${localDateTime(selected.startsAt,row.timezone).replace('T',' ')} – ${agendaTime(selected.endsAt,row.timezone)}. Motivo: ${reason}`:''} confirmText="Confirmar nuevo horario" cancelText="Seguir editando" loading={mutation.pending} onConfirm={save}/>
+    <ConfirmDialog open={confirm} onOpenChange={setConfirm} appearance="auna" title="Confirmar nuevo horario" description={selected?`Antes: ${localDateTime(row.startsAt,row.timezone).replace('T',' ')}. Nuevo: ${localDateTime(selected.startsAt,row.timezone).replace('T',' ')} – ${agendaTime(selected.endsAt,row.timezone)}. Motivo: ${reason}`:''} confirmText="Confirmar nuevo horario" cancelText="Seguir editando" loading={mutation.pending} onConfirm={()=>save()}/>
   </form>
 }

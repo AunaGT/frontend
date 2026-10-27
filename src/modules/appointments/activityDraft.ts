@@ -29,12 +29,12 @@ export function useActivityDraft({scope,userId,timezone,initial,row,onSaved}: {s
   const [state,setState]=useState(seed.current),[reason,setReason]=useState(''),[localError,setLocalError]=useState<string|null>(null)
   const mutation=useAgendaMutation(scope),attempt=useRef<{key:string;hash:string;requestKey:string}|null>(null)
   const value=state.key===key?state.value:seed.current.value
-  const change=(value:ActivityDraft)=>{setState({key,value});setLocalError(null)}
-  const save=async()=>{
+  const change=(value:ActivityDraft)=>{setState({key,value});setLocalError(null);mutation.reset()}
+  const save=async(acknowledgedPaymentReviewHash?:string)=>{
     if(mutation.pending)return
     let payload:ActivityDraft
     try{payload=activityPayload(value);if(row&&!reason.trim())throw Error('Indica el motivo del cambio.')}catch(e){setLocalError(e instanceof Error?e.message:'Revisa los campos.');return}
-    const body={...payload,...(row?{expectedVersion:row.version,reason}:{})},hash=JSON.stringify(body)
+    const body={...payload,...(row?{expectedVersion:row.version,reason}:{}),...(acknowledgedPaymentReviewHash?{acknowledgedPaymentReviewHash}:{})},hash=JSON.stringify(body)
     if(attempt.current?.key!==key||attempt.current.hash!==hash)attempt.current={key,hash,requestKey:crypto.randomUUID()}
     const result=await mutation.submit<ActivityDto>(row?`/activities/${row.id}`:'/activities',{...body,idempotencyKey:attempt.current.requestKey},row?'PUT':'POST')
     if(result)onSaved(result)

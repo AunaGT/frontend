@@ -1,6 +1,17 @@
 const test=require('node:test'),assert=require('node:assert/strict')
 const {hookHarness}=require('./helpers/reportHookHarness.cjs')
 const {loadReportModule}=require('./helpers/loadReportModule.cjs')
+test('schedule retry acknowledges deadline changes only after explicit review, and edits clear that review',async()=>{
+ const h=hookHarness(),writes=[],hash='a'.repeat(64)
+ const {useEngagementDraft}=loadReportModule('../appointments/engagementDraft.ts',{react:h.hooks,'./api':{mutateAgenda:async(path,scope,body)=>{writes.push(body);throw Object.assign(Error('Revisa las fechas'),{data:{fields:{acknowledgedPaymentReviewHash:hash}}})}},'@tanstack/react-query':{useQueryClient:()=>({invalidateQueries(){}})}})
+ const render=()=>h.render(()=>useEngagementDraft({scope:{companyId:'a',branchId:'b'},engagementId:'e',version:1,onSaved(){}}))
+ render().change([{lineId:'l',quantity:'1',startsAt:'2027-01-10T16:00:00Z',timezone:'America/Guatemala'}])
+ await render().save(true);await render().save(true)
+ assert.equal(writes[1].acknowledgedPaymentReviewHash,undefined)
+ await render().save(true,hash);assert.equal(writes[2].acknowledgedPaymentReviewHash,hash)
+ render().change([{lineId:'l',quantity:'1',startsAt:'2027-01-09T16:00:00Z',timezone:'America/Guatemala'}])
+ assert.deepEqual(render().fields,{})
+})
 test('commercial programming draft preserves programs and retry key, rejects a duplicate submit and ignores old-tenant responses',async()=>{
   const h=hookHarness(),writes=[],saved=[];let scope={companyId:'a',branchId:'b'},resolve,reject
   const api={appointmentQueryKey:()=>[],mutateAgenda:async(path,scoped,body)=>{writes.push({path,scope:scoped,body});return new Promise((res,rej)=>{resolve=res;reject=rej})}}

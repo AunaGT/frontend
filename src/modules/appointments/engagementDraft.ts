@@ -10,12 +10,12 @@ export function useEngagementDraft({scope,engagementId,version,initial=[],onSave
   const [localError,setLocalError]=useState<{key:string;message:string}|null>(null)
   const attempt=useRef<{key:string;hash:string;requestKey:string}|null>(null)
   const programs=state.key===key?state.programs:seed.current.programs
-  const change=(programs:EngagementProgram[])=>{setState({key,programs});setLocalError(null)}
-  const save=async(partial:boolean)=>{
+  const change=(programs:EngagementProgram[])=>{setState({key,programs});setLocalError(null);mutation.reset()}
+  const save=async(partial:boolean,acknowledgedPaymentReviewHash?:string)=>{
     if(mutation.pending||!programs.length)return
     let prepared:EngagementProgram[]
     try{prepared=programs.map(p=>({...p,startsAt:timelineInstant(p.startsAt,p.timezone),...(p.endsAt?{endsAt:timelineInstant(p.endsAt,p.timezone)}:{}),...(p.operationalTimeline?{operationalTimeline:timelinePayload(p.operationalTimeline,{...p,endsAt:p.endsAt||''})}:{})}))}catch(error){setLocalError({key,message:error instanceof Error?error.message:'Revisa los horarios propios.'});return}
-    const body={expectedVersion:seed.current.version,partial,programs:prepared},hash=JSON.stringify(body)
+    const body={expectedVersion:seed.current.version,partial,programs:prepared,...(acknowledgedPaymentReviewHash?{acknowledgedPaymentReviewHash}:{})},hash=JSON.stringify(body)
     if(attempt.current?.key!==key||attempt.current.hash!==hash)attempt.current={key,hash,requestKey:crypto.randomUUID()}
     const result=await mutation.submit<EngagementDetail>(`/engagements/${engagementId}/program`,{...body,idempotencyKey:attempt.current.requestKey})
     if(result)onSaved(result)
