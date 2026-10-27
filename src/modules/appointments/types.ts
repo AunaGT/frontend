@@ -10,7 +10,11 @@ export type CompletionPolicy='MANUAL'|'AUTO'
 export type CompletionInfo={completionPolicy?:CompletionPolicy;overdue?:boolean;actualCompletedAt?:string|null;commercialCompletionConfirmedAt?:string|null}
 export type SessionStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED'
 export type BookingStatus = 'HELD' | 'PENDING' | 'CONFIRMED' | 'ARRIVED' | 'IN_SERVICE' | 'COMPLETED' | 'NO_SHOW' | 'CANCELLED' | 'EXPIRED'
-export type AssignmentRequirement={id:string;kind:'PROVIDER'|'RESOURCE';name:string;quantity:number;optionIds:string[]}
+export type AssignmentRequirement={id:string;kind:'PROVIDER'|'RESOURCE';name:string;quantity:number;optionIds:string[];attendanceMode?:'FULL'|'INTERVENTION'}
+export type TimelineSpan={startOffsetMinutes:number;endOffsetMinutes:number;startInput?:string;endInput?:string}
+export type TimelineMilestone=TimelineSpan&{id:string;name:string}
+export type AttendanceWindow=TimelineSpan&{kind:'USER'|'PROVIDER'|'RESOURCE';entityId:string;outboundMinutes:number;setupMinutes:number;teardownMinutes:number;returnMinutes:number;marginsReviewed?:boolean}
+export type OperationalTimeline={schemaVersion:1;milestones:TimelineMilestone[];attendanceWindows:AttendanceWindow[];requirementWindows:{requirementId:string;milestoneId:string}[]}
 export type ProfileInput = {
   assignmentRequirements?:AssignmentRequirement[];
   schedulingStyle?:SchedulingStyle;durationPolicy?:DurationPolicy;completionPolicy?:CompletionPolicy;
@@ -67,7 +71,7 @@ export type AvailabilityInput = LocationInput & Pick<AgendaFilter, 'from' | 'to'
 export type SummaryDto = { reservations: number; pending: number; arrived: number; inService: number; noShow: number }
 export type Provider = { id: string; name: string; employeeId: string | null; userId: string | null; branchIds: string[]; active: boolean; version: number; futureSessions?: number }
 export type Resource = { id: string; name: string; type: 'ROOM' | 'EQUIPMENT'; portable?: boolean; personCapacity: number | null; branchId: string; active: boolean; version: number; futureSessions?: number }
-export type Directory = { timezone?:string;branches: { id: string; name: string }[]; providers: Provider[]; resources: Resource[]; employeeCandidates: { id: string; name: string; photoUrl: string | null; branchId: string }[] }
+export type Directory = { operationalTimelineEnabled?:boolean;timezone?:string;branches: { id: string; name: string }[]; providers: Provider[]; resources: Resource[]; employeeCandidates: { id: string; name: string; photoUrl: string | null; branchId: string }[] }
 export type AgendaService = { id: string; name: string; price: string | null; unit: string; quantityDecimals: number; available: boolean; schedulable: boolean; mode: ScheduleMode; durationMinutes: number | null; capacity: number; confirmation?: 'MANUAL' | 'AUTOMATIC';schedulingStyle?:SchedulingStyle;durationPolicy?:DurationPolicy;completionPolicy?:CompletionPolicy;requiresProvider?:boolean;requiresResource?:boolean;providerIds?:string[];resourceIds?:string[];allowedVenueKinds?:VenueKind[];beforeMinutes?:number;afterMinutes?:number;assignmentRequirements?:AssignmentRequirement[] }
 export type History = { items: { id: string; action: string; at: string; actor: string; reason: string | null }[]; hasMore: boolean }
 export type BookingDetail = BookingDto & { history: History }
@@ -77,11 +81,13 @@ export type AgendaEntryDto = Omit<SessionDto,'productId'> & { recordType:'ACTIVI
   occupiedFrom:string;occupiedUntil:string;estimatedAttendance:number|null }
 export type EntriesSummaryDto = { activities:number;scheduled:number;inProgress:number;completed:number;cancelled:number }
 export type ActivityInput = { purpose:'MEETING'|'SERVICE_VISIT'|'EVENT';title:string;startsAt:string;endsAt:string;timezone:string;
+  operationalTimeline?:OperationalTimeline;
   completionPolicy?:CompletionPolicy;
   serviceScheduling?:'CONFIGURED';
   organizerId:string;userIds:string[];providerIds:string[];resourceIds:string[];guests:{name:string;contactId:string|null}[];
   productId:string|null;venue:VenueInput;estimatedAttendance:number|null;outboundMinutes:number;setupMinutes:number;teardownMinutes:number;returnMinutes:number;notes:string;idempotencyKey:string }
 export type ActivityDto = Omit<ActivityInput,'idempotencyKey'|'notes'> & CompletionInfo & CommercialPreparationInfo & { id:string;recordType:'ACTIVITY';branchId:string;status:SessionStatus;version:number;
+  attendanceReservations?:{kind:'USER'|'PROVIDER'|'RESOURCE';entityId:string;from:string;to:string}[];
   engagementId?:string;
   schedulingPolicy?:Partial<ProfileInput>;
   participants:{id:string;name:string}[];providers:{id:string;name:string}[];resources:{id:string;name:string}[];

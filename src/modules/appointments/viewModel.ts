@@ -9,6 +9,11 @@ export function agendaTime(value: string, timezone: string) {
 function parts(instant: Date, zone: string) {
   return Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(instant).map(p => [p.type, p.value]))
 }
+export function localDateTime(value:string,zone:string) {
+  if(!value||!/(Z|[+-]\d\d:\d\d)$/.test(value))return value
+  const p=parts(new Date(value),zone)
+  return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`
+}
 export function localDay(instant: string | Date, zone: string) {
   const p = parts(new Date(instant), zone)
   return `${p.year}-${p.month}-${p.day}`
