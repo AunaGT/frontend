@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react'
 import {Link,useNavigate} from 'react-router-dom'
 import {InventoryCatalogNav} from '../components/InventoryCatalogNav'
 import {Pagination} from '@/components/shared/Pagination'
+import {MetricStrip} from '@/components/shared/MetricStrip'
 import {useSystemSettings} from '@/hooks/useSystemSettings'
 import {Plus,Search,ChevronDown} from 'lucide-react'
 import {CompactFilterPanel} from '@/components/shared/CompactFilterPanel'
@@ -15,13 +16,15 @@ import {Badge} from '@/components/ui/badge'
 import {CollectionEmptyState} from '@/components/shared/CollectionEmptyState'
 import {usePackageScope} from './usePackageScope'
 import {fetchPackages,packageError} from './api'
-import type {PackageScope,PackageSummary} from './types'
+import type {PackageScope,PackageSummary,PackageCatalogMetrics} from './types'
 export function PackageLibrary({scope,canEdit}:{scope:PackageScope;canEdit:boolean}){
  const navigate=useNavigate(),{inventoryServicesEnabled}=useSystemSettings()
  const [rows,setRows]=useState<PackageSummary[]>([]),[search,setSearch]=useState(''),[cursor,setCursor]=useState<string|undefined>(),[back,setBack]=useState<(string|undefined)[]>([]),[next,setNext]=useState<string|null>(null),[archived,setArchived]=useState(false),[pending,setPending]=useState(true),[error,setError]=useState(''),[reload,setReload]=useState(0)
- useEffect(()=>{const abort=new AbortController();setPending(true);setNext(null);setError('');const timer=setTimeout(()=>void fetchPackages(scope,{q:search,cursor,includeArchived:archived},abort.signal).then(r=>{if(!abort.signal.aborted){setRows(r.items);setNext(r.nextCursor)}}).catch(e=>{if(!abort.signal.aborted)setError(packageError(e))}).finally(()=>{if(!abort.signal.aborted)setPending(false)}),150);return()=>{clearTimeout(timer);abort.abort()}},[scope,search,cursor,archived,reload])
+ const [metrics,setMetrics]=useState<PackageCatalogMetrics|null>(null)
+ useEffect(()=>{const abort=new AbortController();setPending(true);setNext(null);setError('');const timer=setTimeout(()=>void fetchPackages(scope,{q:search,cursor,includeArchived:archived,includeSummary:true},abort.signal).then(r=>{if(!abort.signal.aborted){setRows(r.items);setNext(r.nextCursor);setMetrics(r.summary??null)}}).catch(e=>{if(!abort.signal.aborted)setError(packageError(e))}).finally(()=>{if(!abort.signal.aborted)setPending(false)}),150);return()=>{clearTimeout(timer);abort.abort()}},[scope,search,cursor,archived,reload])
  return <main className="inventory-products-page auna-page-fluid mx-auto w-full min-w-0 p-4 sm:p-8 space-y-5"><h1 className="sr-only">Paquetes comerciales</h1>
  <InventoryCatalogNav value="packages" servicesEnabled={inventoryServicesEnabled} onValueChange={value=>{if(value!=='packages')navigate(value==='services'?'/inventario?tipo=services':'/inventario')}}/>
+ <MetricStrip label="Resumen de paquetes" loading={pending} items={[{label:'Paquetes',value:error?'—':metrics?.total??'—'},{label:'Activos',value:error?'—':metrics?.active??'—'},{label:'Borradores',value:error?'—':metrics?.draft??'—'},{label:'Archivados',value:error?'—':metrics?.archived??'—'}]}/>
  <div className="auna-list-toolbar space-y-3">
   <CompactFilterPanel title="Filtros de paquetes" activeCount={archived?1:0} onClear={()=>{setArchived(false);setCursor(undefined);setBack([])}} appliedFilters={archived?[{label:'Incluye archivados',onRemove:()=>{setArchived(false);setCursor(undefined);setBack([])}}]:[]}
    search={<div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true"/><Input id="package-search" aria-label="Buscar paquetes" className="pl-10" value={search} onChange={e=>{setSearch(e.target.value);setCursor(undefined);setBack([])}} placeholder="Buscar por nombre del paquete…"/></div>}

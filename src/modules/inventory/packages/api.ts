@@ -1,6 +1,6 @@
 import {apiFetch,getActiveCompanyId,getActiveBranchId} from '@/services/api'
 import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
-import type {PackageScope,CommercialPackage,PackageDefinition,PackageSummary,PackageSelection,PackageGroup,PackageIssue} from './types'
+import type {PackageScope,CommercialPackage,PackageDefinition,PackageSummary,PackageSelection,PackageGroup,PackageIssue,PackageCatalogMetrics} from './types'
 export function assertPackageScope(scope:PackageScope,signal?:AbortSignal){
  if(signal?.aborted||getActiveCompanyId()!==scope.companyId||getActiveBranchId()!==scope.branchId||authSessionIdentity()!==scope.sessionId||!authSessionMatches(scope.userId))throw new DOMException('Cambió la empresa o sesión','AbortError')
 }
@@ -17,7 +17,7 @@ export const uploadPackageImage=(scope:PackageScope,file:File,signal?:AbortSigna
  return packageRequest<{imageUrl:string}>(scope,base+'/images',{method:'POST',body,signal})
 }
 export const packageQueryKey=(scope:PackageScope)=>['commercial-packages',scope.companyId,scope.branchId,scope.userId,scope.sessionId]
-export const fetchPackages=(s:PackageScope,query:{q?:string;cursor?:string;includeArchived?:boolean;activeOnly?:boolean}={},signal?:AbortSignal)=>packageRequest<{items:PackageSummary[];nextCursor:string|null}>(s,base+'?'+new URLSearchParams({limit:'25',...Object.fromEntries(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]))}),{signal})
+export const fetchPackages=(s:PackageScope,query:{q?:string;cursor?:string;includeArchived?:boolean;activeOnly?:boolean;includeSummary?:boolean}={},signal?:AbortSignal)=>packageRequest<{items:PackageSummary[];nextCursor:string|null;summary?:PackageCatalogMetrics}>(s,base+'?'+new URLSearchParams({limit:'25',...Object.fromEntries(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]))}),{signal})
 export const fetchPackage=(s:PackageScope,id:string,signal?:AbortSignal)=>packageRequest<CommercialPackage>(s,base+'/'+encodeURIComponent(id),{signal})
 export const savePackage=(s:PackageScope,id:string|null,input:{expectedVersion:number;definition:PackageDefinition;branchIds:string[];idempotencyKey:string},signal?:AbortSignal)=>packageRequest<PackageSummary>(s,base+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',body:JSON.stringify(input),signal})
 export const activatePackage=(s:PackageScope,id:string,expectedVersion:number,idempotencyKey:string,signal?:AbortSignal)=>packageRequest<PackageSummary>(s,base+'/'+encodeURIComponent(id)+'/activate',{method:'POST',body:JSON.stringify({expectedVersion,idempotencyKey}),signal})

@@ -5,6 +5,7 @@ export type PackageChoice={id:string;name:string;totalQuantity:string|null;maxDi
 export type PackageVariant={id:string;name:string;price:string|null;components:PackageComponent[];choices:PackageChoice[]}
 export type PackageDefinition={schemaVersion:1;name:string;description:string;imageUrl:string|null;currency:string;variants:PackageVariant[]}
 export type PackageSummary={id:string;name:string;version:number;activeVersion:number|null;archivedAt:string|null;branchIds:string[]}
+export type PackageCatalogMetrics={total:number;active:number;draft:number;archived:number}
 export type CommercialPackage=PackageSummary&{definition:PackageDefinition;activeDefinition:PackageDefinition|null}
 export type PackageSelection={groupId:string;packageId:string;version:number;variantId:string;choices:{choiceId:string;items:{optionId:string;quantity:string}[]}[]}
 export type PackageIssue={code:string;choiceId?:string;message:string;remainingQuantity:string}
