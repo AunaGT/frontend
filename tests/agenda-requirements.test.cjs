@@ -43,3 +43,18 @@ test('public service facts and text expose requirements without internal option 
  assert.equal(groups[0].components[0].serviceConditions.assignmentRequirements[0].quantity,2)
  assert.doesNotMatch(JSON.stringify(groups),/PRIVATE|optionIds|req-1/)
 })
+test('a selected resource hidden by a venue or profile change remains explicitly removable',()=>{
+ const nodes=[],changes=[],{AssignmentChoices}=loadReportModule('../appointments/components/AssignmentChoices.tsx',{},nodes)
+ const html=renderToStaticMarkup(React.createElement(AssignmentChoices,{label:'Equipos',items:[],value:['removed-room'],onChange:v=>changes.push(v)}))
+ assert.match(html,/selecciones no disponibles/i)
+ nodes.find(n=>n.props.children==='Quitar selecciones no disponibles').props.onClick()
+ assert.deepEqual(changes,[[]])
+})
+test('requirement coverage excludes an incompatible venue or no-longer-enabled option',()=>{
+ const {AssignmentRequirementsStatus}=loadReportModule('../appointments/components/AssignmentRequirementsFields.tsx')
+ const d={...directory,resources:[{...directory.resources[0],type:'ROOM',portable:false}]},r={...requirement,quantity:1,optionIds:['r1']}
+ const html=renderToStaticMarkup(React.createElement(AssignmentRequirementsStatus,{requirements:[r],providerIds:[],resourceIds:['r1'],directory:d,venueKind:'EVENT_VENUE'}))
+ assert.match(html,/0 de 1/)
+ const noLongerAllowed=renderToStaticMarkup(React.createElement(AssignmentRequirementsStatus,{requirements:[r],providerIds:[],resourceIds:['r1'],directory:d,resourceOptionIds:[]}))
+ assert.match(noLongerAllowed,/0 de 1/)
+})

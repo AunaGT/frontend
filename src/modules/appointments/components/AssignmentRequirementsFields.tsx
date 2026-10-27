@@ -30,11 +30,11 @@ function counts(requirements:AssignmentRequirement[],selected:Map<string,string>
  seats.forEach((_,index)=>assign(index,new Set()))
  return requirements.map(r=>seats.reduce((sum,seat,index)=>sum+Number(seat.id===r.id&&matched.has(index)),0))
 }
-export function AssignmentRequirementsStatus({requirements=[],providerIds,resourceIds,directory}:{requirements?:AssignmentRequirement[];providerIds:string[];resourceIds:string[];directory:Options}){
+export function AssignmentRequirementsStatus({requirements=[],providerIds,resourceIds,directory,venueKind='BRANCH',providerOptionIds,resourceOptionIds}:{requirements?:AssignmentRequirement[];providerIds:string[];resourceIds:string[];directory:Options;venueKind?:string;providerOptionIds?:string[];resourceOptionIds?:string[]}){
  if(!requirements.length)return null
  const selected=new Map<string,string>()
- directory.providers.filter(p=>p.active&&providerIds.includes(p.id)).forEach(p=>selected.set(`PROVIDER:${p.id}`,`person:${p.userId||p.employeeId||p.id}`))
- directory.resources.filter(r=>r.active&&resourceIds.includes(r.id)).forEach(r=>selected.set(`RESOURCE:${r.id}`,`resource:${r.id}`))
+ directory.providers.filter(p=>p.active&&providerIds.includes(p.id)&&(!providerOptionIds||providerOptionIds.includes(p.id))).forEach(p=>selected.set(`PROVIDER:${p.id}`,`person:${p.userId||p.employeeId||p.id}`))
+ directory.resources.filter(r=>r.active&&resourceIds.includes(r.id)&&(!resourceOptionIds||resourceOptionIds.includes(r.id))&&(venueKind==='BRANCH'||r.type==='EQUIPMENT'&&r.portable)).forEach(r=>selected.set(`RESOURCE:${r.id}`,`resource:${r.id}`))
  const progress=counts(requirements,selected)
  return <section className="rounded-lg border p-3 text-sm space-y-2" aria-label="Requisitos de esta programación"><h3 className="font-medium">Personal y equipo necesarios</h3><ul className="space-y-1" aria-live="polite" aria-atomic="true">{requirements.map((r,index)=><li key={r.id} className="flex flex-wrap justify-between gap-x-3 gap-y-1"><span className="min-w-0 break-words">{r.name}</span><span className="tabular-nums text-muted-foreground">{progress[index]} de {r.quantity} seleccionados</span></li>)}</ul><p className="text-xs text-muted-foreground">Cada persona o equipo cuenta una sola vez. La identidad, el horario y la disponibilidad se validarán al guardar.</p></section>
 }

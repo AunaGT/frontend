@@ -43,7 +43,7 @@ export function MoveForm({ scope, row, kind, proposed, directory, onClose }: { s
   return <form className="agenda-editor-grid" aria-busy={mutation.pending} onSubmit={e=>{e.preventDefault();if(canSave)setConfirm(true)}}>
     {guard.dialog}
     <section className="agenda-panel space-y-4"><h2>Horario y asignaciones</h2>
-      <AssignmentRequirementsStatus requirements={policy?.assignmentRequirements} providerIds={providerIds} resourceIds={resourceIds} directory={directory}/>
+      <AssignmentRequirementsStatus requirements={policy?.assignmentRequirements} providerIds={providerIds} resourceIds={resourceIds} directory={directory} venueKind={location.venue.kind} providerOptionIds={policy?.providerIds} resourceOptionIds={policy?.resourceIds}/>
       <FormFeedback error={mutation.error||(availability.isError?'No se pudo consultar la disponibilidad. Reintenta para actualizarla.':null)} fields={mutation.fields}/>
       <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="move-date">Nueva fecha</Label><Input id="move-date" type="date" value={date} disabled={mutation.pending} onChange={e=>{if(e.target.value){setDate(e.target.value);change()}}}/></div>
         {manual&&<div><Label htmlFor="move-clock">Hora de inicio *</Label><Input id="move-clock" type="time" value={clock} disabled={mutation.pending} onChange={e=>{setClock(e.target.value);change()}}/></div>}
