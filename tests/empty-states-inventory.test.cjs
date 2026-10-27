@@ -114,12 +114,12 @@ test('goods and services reuse their own create routes and inventory scopes supp
     assert.deepEqual(initial.navigations, [target])
     assert.ok(!emptyNode(collection('../inventory/products/ProductManagement.tsx', { allowed: false, route })).props.action)
   }
-  for (const states of [{ 0: 'agua' }, { 1: 'Bebidas' }, { 8: 'qa' }, { 9: 'warehouse' }, { 10: 'location' }]) {
+  for (const states of [{ 0: 'agua' }, { 1: 'Bebidas' }, { 6: 'qa' }, { 7: 'warehouse' }, { 8: 'location' }]) {
     const filtered = collection('../inventory/products/ProductManagement.tsx', { states })
     assert.equal(emptyNode(filtered).props.filtered, true)
     assert.doesNotMatch(renderToStaticMarkup(React.createElement(emptyNode(filtered).type, emptyNode(filtered).props)), /Nuevo producto/)
     emptyNode(filtered).props.onReset()
-    for (const [i, value] of [[0, ''], [1, 'all'], [8, 'all'], [9, 'all'], [10, 'all']]) assert.ok(filtered.changes.some(change => change[0] === i && change[1] === value))
+    for (const [i, value] of [[0, ''], [1, 'all'], [6, 'all'], [7, 'all'], [8, 'all']]) assert.ok(filtered.changes.some(change => change[0] === i && change[1] === value))
   }
 })
 

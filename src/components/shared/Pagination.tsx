@@ -17,7 +17,7 @@ import { PageSizeSelect } from './PageSizeSelect'
 
 interface PaginationProps {
   currentPage: number
-  totalPages: number
+  totalPages?: number
   onPageChange: (page: number) => void
   hasNextPage?: boolean
   hasPrevPage?: boolean
@@ -43,16 +43,16 @@ export const Pagination = ({
   onPageSizeChange,
 }: PaginationProps) => {
   const canGoPrev = hasPrevPage !== undefined ? hasPrevPage : currentPage > 1
-  const canGoNext = hasNextPage !== undefined ? hasNextPage : currentPage < totalPages
+  const canGoNext = hasNextPage !== undefined ? hasNextPage : totalPages !== undefined && currentPage < totalPages
 
-  const first = Math.max(1, Math.min(currentPage - 2, totalPages - 4))
-  const last = Math.min(totalPages, first + 4)
+  const first = Math.max(1, Math.min(currentPage - 2, (totalPages ?? currentPage) - 4))
+  const last = Math.min(totalPages ?? currentPage, first + 4)
   const pages = Array.from({ length: last - first + 1 }, (_, index) => first + index)
   return (
     <footer className={totalItems === undefined ? 'flex justify-end items-center gap-2 mt-4' : 'auna-data-table-pagination'}>
       {onPageSizeChange && <PageSizeSelect value={pageSize} label={`${itemLabel.charAt(0).toUpperCase() + itemLabel.slice(1)} por página`} onChange={size => { onPageSizeChange(size); onPageChange(1) }} disabled={loading} />}
       <span className="text-sm text-muted-foreground mr-2">
-        {totalItems === undefined ? `Página ${currentPage} de ${totalPages}` : `Mostrando ${totalItems ? (currentPage - 1) * pageSize + 1 : 0} a ${totalItems ? (currentPage - 1) * pageSize + count : 0} de ${totalItems} ${itemLabel}`}
+        {totalItems === undefined ? `Página ${currentPage}${totalPages === undefined ? '' : ` de ${totalPages}`}` : `Mostrando ${totalItems ? (currentPage - 1) * pageSize + 1 : 0} a ${totalItems ? (currentPage - 1) * pageSize + count : 0} de ${totalItems} ${itemLabel}`}
       </span>
       <nav className="flex items-center gap-2" aria-label={`Paginación de ${itemLabel}`}>
       <Button

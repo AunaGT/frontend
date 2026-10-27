@@ -43,7 +43,7 @@ function renderList({ view = 'table', permissions = ['products.view', 'products.
   return { html, nodes, changes, navigations, queries, mutations, reads, exports, fullReads }
 }
 test('pending inventory search blocks actual export and all-pages selection callbacks',async()=>{
-  const r=renderList({permissions:['products.view','products.export'],searchPending:true,states:{0:'caf',5:['qa-product']}})
+  const r=renderList({permissions:['products.view','products.export'],searchPending:true,states: {0:'caf',4:['qa-product']}})
   const all=r.nodes.find(n=>n.props.onClick && String(n.props.children).includes('Seleccionar todos (todas las páginas)'))
   assert.equal(all.props.disabled,true)
   await all.props.onClick()
@@ -117,33 +117,33 @@ test('inventory queries and selector use the measured card size instead of the t
   const pagination = { pageSize: 12, pageSizeOptions: [12, 24, 36, 48], containerRef() {}, setCardPageSize: value => sizes.push(value) }
   const result = renderList({ view: 'cards', pagination })
   assert.equal(result.reads[0].pageSize, 12)
-  const select = result.nodes.find(n => n.props.value === '12' && n.props.onValueChange)
-  select.props.onValueChange('24')
+  const select = result.nodes.find(n => n.type?.name === 'PageSizeSelect')
+  select.props.onChange(24)
   assert.deepEqual(sizes, [24])
   assert.equal(result.changes.some(change => 'pageSize' in change), false, 'Card selection must not overwrite table preference')
   assert.equal(result.nodes.find(n => n.props.className === 'auna-record-grid').props.ref, pagination.containerRef)
 })
 
 test('inventory selection still reaches exports and changing views clears only selection', () => {
-  const result = renderList({ states: { 5: ['qa-product'] }, permissions: ['products.view', 'products.export'] })
+  const result = renderList({ states: { 4: ['qa-product'] }, permissions: ['products.view', 'products.export'] })
   const exportDialog = result.nodes.find(n => n.type?.name === 'ExportDialog')
   assert.ok(exportDialog.props.summary.includes('1 producto(s) seleccionados'))
-  const tabs = result.nodes.find(n => n.type?.name === 'ModuleTabBar')
+  const tabs = result.nodes.find(n => n.type?.name === 'ModuleTabBar' && n.props.ariaLabel === 'Vista de productos')
   tabs.props.onValueChange('cards')
-  assert.deepEqual(result.changes, [{ view: 'cards' }, { key: 5, value: [] }])
+  assert.deepEqual(result.changes, [{ view: 'cards' }, { key: 4, value: [] }])
   assertPaginationOutside(result.html)
 })
 
 test('stock breakdown spans the new action column and continues to query only expanded products', () => {
   assert.equal(renderList().queries.filter(q => q.queryKey[0] === 'stock-by-location').length, 0)
-  const expanded = renderList({ states: { 11: 'qa-product' } })
+  const expanded = renderList({ states: { 9: 'qa-product' } })
   assert.match(expanded.html, /colSpan="7"/i)
   assert.match(expanded.html, /A-01/)
   assert.deepEqual(expanded.queries.find(q => q.queryKey[0] === 'stock-by-location').queryKey, ['stock-by-location', 'qa-product'])
 })
 
 test('failed stock breakdown offers retry without claiming that every location is empty', () => {
-  const result = renderList({ states: { 11: 'qa-product' }, stockError: true })
+  const result = renderList({ states: { 9: 'qa-product' }, stockError: true })
   assert.match(result.html, /No se pudieron cargar las ubicaciones/)
   assert.match(result.html, /Reintentar/)
   assert.doesNotMatch(result.html, /workspace-flat\.png|Este producto aún no tiene ubicación/)

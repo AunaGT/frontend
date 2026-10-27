@@ -28,8 +28,8 @@ import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import {
-    Plus, Search, ScanLine, Download,
-    QrCode, Upload, LayoutGrid, Package, Eye, Pencil,
+    Plus, Search, Download,
+    Upload, LayoutGrid, Package, Eye, Pencil,
     ClipboardList, ChevronDown, RotateCcw, CalendarClock, MoveRight, Store,
     Table2, Printer,
 } from 'lucide-react'
@@ -42,7 +42,6 @@ import {
     DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import type { Product } from '@/types'
@@ -55,6 +54,8 @@ import { fetchWarehouses } from '@/services/warehouseService'
 import { fetchStockByLocation } from '@/services/stockMoveService'
 import { useTenant } from '@/context/useTenant'
 import { Pagination } from '@/components/shared/Pagination'
+import { PageSizeSelect } from '@/components/shared/PageSizeSelect'
+import { InventoryCatalogNav } from '../components/InventoryCatalogNav'
 import { LoadingIndicator, LoadingState } from '@/components/shared/LoadingState'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 import { CompactFilterPanel } from '@/components/shared/CompactFilterPanel'
@@ -152,7 +153,6 @@ const ProductManagement = () => {
     } = usePersistedListUiState('inventario/productos', { defaultPageSize: 50, defaultView: 'cards', pageSizeOptions: PAGE_SIZES })
 
     // Dialog states
-    const [isScannerOpen, setIsScannerOpen] = useState(false)
     const [isExportDialogOpen, setIsExportDialogOpen] = useState(false)
     const EXPORT_COLUMNS: { id: string; label: string }[] = [
         { id: 'name', label: 'Nombre' },
@@ -177,7 +177,6 @@ const ProductManagement = () => {
     const [selectedIds, setSelectedIds] = useState<string[]>([])
     const [selectingAllPages, setSelectingAllPages] = useState(false)
 
-    const [scannedCode, setScannedCode] = useState('')
     // Alcance de la pantalla: el inventario es de la empresa y se acota aquí, no
     // con el selector global (que sigue mandando en ventas, caja y traslados).
     const [scopeBranch, setScopeBranch] = useState('all')
@@ -392,18 +391,6 @@ const ProductManagement = () => {
         navigate(`/inventario/${product.id}`)
     }
 
-    const searchByBarcode = () => {
-        if (!scannedCode) return
-        const product = products.find(p => p.barcode === scannedCode)
-        if (product) {
-            viewProduct(product)
-            setIsScannerOpen(false)
-            setScannedCode('')
-        } else {
-            toast({ title: 'Producto No Encontrado', description: 'No se encontró un producto con ese código', variant: 'destructive' })
-        }
-    }
-
     const productActions = (product: Product) => <div className="flex w-max flex-nowrap items-center justify-end gap-2">
         <Button type="button" variant="outline" size="icon" title="Ver detalles" aria-label={'Ver detalles de ' + product.name} onClick={() => viewProduct(product)}><Eye className="h-4 w-4" aria-hidden="true" /></Button>
         {canEditProduct && <Button type="button" variant="outline" size="icon" title="Editar producto" aria-label={'Editar ' + product.name} onClick={() => navigate('/inventario/' + product.id + '?editar=1')}><Pencil className="h-4 w-4" aria-hidden="true" /></Button>}
@@ -413,47 +400,14 @@ const ProductManagement = () => {
         <div className="inventory-products-page auna-page-fluid mx-auto w-full min-w-0 p-4 sm:p-8 space-y-5">
             {/* Header */}
             <h1 className="sr-only">Inventario</h1>
-            <QuickProductScan label="Localizar por código"/>
-            <div className="flex justify-end"><Button type="button" variant="outline" onClick={()=>navigate('/inventario/unidades')}>Unidades</Button></div>
-            {inventoryServicesEnabled && <ModuleTabBar items={[{value:'goods',label:'Bienes'},{value:'services',label:'Servicios'}]} value={catalogType} ariaLabel="Tipo de catálogo" onValueChange={value=>{const next=new URLSearchParams(searchParams);next.set('tipo',value);setSearchParams(next);setCurrentPage(1);setSelectedIds([]);resetAdvancedFilters()}} />}
-
-            <Dialog open={isScannerOpen} onOpenChange={setIsScannerOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Escáner de códigos</DialogTitle>
-                        <DialogDescription>Ingrese el código de barras manualmente</DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="text-center">
-                            <QrCode className="w-24 h-24 mx-auto text-muted-foreground mb-4" />
-                        </div>
-                        <div>
-                            <Label htmlFor="scannedCode">Código de barras</Label>
-                            <Input
-                                id="scannedCode"
-                                placeholder="7501001234567"
-                                value={scannedCode}
-                                onChange={(e) => setScannedCode(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && searchByBarcode()}
-                            />
-                        </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" className="flex-1" onClick={() => setIsScannerOpen(false)}>
-                                Cancelar
-                            </Button>
-                            <Button className="flex-1" onClick={searchByBarcode}>
-                                Buscar
-                            </Button>
-                        </div>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <InventoryCatalogNav value={catalogType} servicesEnabled={inventoryServicesEnabled} onValueChange={value=>{if(value==='packages'){navigate('/inventario/paquetes');return}const next=new URLSearchParams(searchParams);next.set('tipo',value);setSearchParams(next);setCurrentPage(1);setSelectedIds([]);resetAdvancedFilters()}}/>
 
             <MetricStrip label={serviceCatalog ? 'Resumen de servicios' : 'Resumen de productos'} loading={isLoading} items={(serviceCatalog ? [['total','Servicios'],['forSale','Disponibles para venta'],['notForSale','No disponibles'],['fractional','Con cantidades fraccionadas']] : [['total', 'Productos'], ['forSale', 'Disponibles para venta'], ['kits', 'Kits'], ['tracksExpiry', 'Con caducidad']]).map(([key, label]) => ({ label, value: isError ? '—' : productsData?.summary?.[key] ?? '—' }))} />
 
             <div className="auna-list-toolbar space-y-3">
 
                 <CompactFilterPanel actions={<div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                    <QuickProductScan label="Localizar por código"/>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
@@ -545,10 +499,9 @@ const ProductManagement = () => {
                                     Movimientos internos
                                 </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => setIsScannerOpen(true)}>
-                                <ScanLine className="mr-2 h-4 w-4" />
-                                Escanear código
-                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel>Configuración del catálogo</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => navigate('/inventario/unidades')}>Unidades y presentaciones</DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                     {canCreate && (
@@ -575,12 +528,7 @@ const ProductManagement = () => {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <h2 id="inventory-results-heading" className="text-base font-semibold">{serviceCatalog ? 'Servicios' : 'Productos'} <span className="font-normal text-muted-foreground">({totalItems})</span></h2>
                     <div className="flex flex-wrap items-center gap-3">
-                        <label className="flex items-center gap-2 text-sm text-muted-foreground">Filas por página
-                            <Select value={String(pageSize)} onValueChange={(value) => { if (viewMode === 'cards') cardPagination.setCardPageSize(Number(value)); else setPageSize(Number(value)); setCurrentPage(1); }}>
-                                <SelectTrigger className="w-20" aria-label="Productos por página"><SelectValue /></SelectTrigger>
-                                <SelectContent>{pageSizeOptions.map(size => <SelectItem key={size} value={String(size)}>{size}</SelectItem>)}</SelectContent>
-                            </Select>
-                        </label>
+                        <PageSizeSelect value={pageSize} options={pageSizeOptions} label={viewMode==='cards'?'Tarjetas por página':'Filas por página'} onChange={value=>{if(viewMode==='cards')cardPagination.setCardPageSize(value);else setPageSize(value);setCurrentPage(1)}}/>
                         <ModuleTabBar items={[{ value: 'table', label: '', ariaLabel: 'Tabla', icon: Table2 }, { value: 'cards', label: '', ariaLabel: 'Tarjetas', icon: LayoutGrid }]} value={viewMode} ariaLabel="Vista de productos" onValueChange={(value) => { setViewMode(value); if (value === 'cards') setSelectedIds([]) }} />
                     </div>
                 </div>
