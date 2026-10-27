@@ -140,7 +140,7 @@ export const apiFetch = async <T>(
 ): Promise<T> => {
   const token = getAuthToken();
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(typeof FormData !== 'undefined' && options.body instanceof FormData ? {} : {"Content-Type": "application/json"}),
     ...tenantHeaders(),
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

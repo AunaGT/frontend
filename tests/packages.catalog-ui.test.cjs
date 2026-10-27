@@ -17,7 +17,7 @@ test('variant editor uses labeled system controls and progressive composition se
  const variant={id:'v',name:'Evento',price:'100.00',components:[],choices:[]}
  const html=renderToStaticMarkup(React.createElement(PackageVariantFields,{variant,index:0,scope,onChange(){},disabled:false}))
  assert.match(html,/Precio del paquete/);assert.match(html,/Productos y servicios fijos/);assert.match(html,/Elecciones del cliente/)
- assert.match(html,/auna-control/);assert.match(html,/Distribución del precio/)
+ assert.match(html,/auna-control/);assert.doesNotMatch(html,/Distribución del precio/,'No allocation controls before adding components')
  assert.doesNotMatch(html,/type="number"[^>]*style=/)
  assert.ok(nodes.some(n=>n.type?.displayName==='Input'))
 })

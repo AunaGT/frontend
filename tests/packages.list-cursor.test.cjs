@@ -1,0 +1,15 @@
+const test=require('node:test'),assert=require('node:assert/strict')
+const {loadReportModule}=require('./helpers/loadReportModule.cjs'),{hookHarness}=require('./helpers/reportHookHarness.cjs')
+test('a failed page cannot navigate using the preceding response cursor',async()=>{
+ const h=hookHarness(),nodes=[],requests=[]
+ const {PackageLibrary}=loadReportModule('../inventory/packages/PackageListPage.tsx',{react:h.hooks,'react-router-dom':{...require('react-router-dom'),useNavigate:()=>()=>{}},'@/components/scanner/QuickProductScan':{QuickProductScan:()=>null},'@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryServicesEnabled:true})},'./api':{fetchPackages:(_scope,query)=>new Promise((resolve,reject)=>requests.push({query,resolve,reject})),packageError:e=>e.message}},nodes)
+ const scope={companyId:'a',branchId:'b',userId:'u',sessionId:'s'},render=()=>{nodes.length=0;h.render(()=>PackageLibrary({scope,canEdit:true}))},wait=()=>new Promise(r=>setTimeout(r,170)),page=()=>nodes.find(n=>n.type?.name==='Pagination')
+ render();await wait();requests[0].resolve({items:[{id:'p',name:'Uno',branchIds:['b'],version:1}],nextCursor:'cursor-one'});await new Promise(setImmediate);render()
+ page().props.onPageChange(2);render();await wait();requests[1].reject(Error('Sin conexión'));await new Promise(setImmediate);render()
+ assert.equal(page().props.hasNextPage,false)
+ page().props.onPageChange(3);render();await wait();assert.equal(requests.length,2,'No query with a stale cursor after failure')
+ nodes.find(n=>n.props.id==='package-search').props.onChange({target:{value:'Sin coincidencias'}});render();await wait()
+ assert.equal(requests[2].query.cursor,undefined);assert.equal(requests[2].query.q,'Sin coincidencias')
+ requests[2].resolve({items:[],nextCursor:null});await new Promise(setImmediate);render();assert.equal(page().props.currentPage,1);assert.equal(page().props.hasPrevPage,false);assert.equal(page().props.hasNextPage,false)
+ h.unmount()
+})

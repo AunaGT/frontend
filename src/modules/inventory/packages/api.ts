@@ -12,6 +12,10 @@ export async function packageRequest<T>(scope:PackageScope,path:string,options:R
  }catch(error){assertPackageScope(scope,options.signal||undefined);throw error}
 }
 const base='/api/commercial-packages'
+export const uploadPackageImage=(scope:PackageScope,file:File,signal?:AbortSignal)=>{
+ const body=new FormData();body.append('image',file)
+ return packageRequest<{imageUrl:string}>(scope,base+'/images',{method:'POST',body,signal})
+}
 export const packageQueryKey=(scope:PackageScope)=>['commercial-packages',scope.companyId,scope.branchId,scope.userId,scope.sessionId]
 export const fetchPackages=(s:PackageScope,query:{q?:string;cursor?:string;includeArchived?:boolean;activeOnly?:boolean}={},signal?:AbortSignal)=>packageRequest<{items:PackageSummary[];nextCursor:string|null}>(s,base+'?'+new URLSearchParams({limit:'25',...Object.fromEntries(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]))}),{signal})
 export const fetchPackage=(s:PackageScope,id:string,signal?:AbortSignal)=>packageRequest<CommercialPackage>(s,base+'/'+encodeURIComponent(id),{signal})
