@@ -406,7 +406,7 @@ const ProductManagement = () => {
 
             <div className="auna-list-toolbar space-y-3">
 
-                <CompactFilterPanel actions={<div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
+                <CompactFilterPanel actions={<div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-2">
                     <QuickProductScan label="Localizar por código"/>
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
