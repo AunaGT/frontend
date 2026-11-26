@@ -2,7 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),{loadReport
 test('scans waiting for supplier are preserved and add products without registering merchandise',async()=>{
  const h=hookHarness(),nodes=[],writes=[]
  const Page=loadReportModule('../merchandise/pages/RegisterIncomingMerchandise.tsx',{
-  react:h.hooks,'react-router-dom':{useNavigate:()=>()=>{}},'@tanstack/react-query':{useQuery:()=>({data:[]}),useQueryClient:()=>({invalidateQueries(){}})},
+  react:h.hooks,'react-router-dom':{useLocation:()=>({pathname:'/inventario/registrar-ingreso',search:'',state:null}),useNavigate:()=>()=>{}},'@tanstack/react-query':{useQuery:()=>({data:[]}),useQueryClient:()=>({invalidateQueries(){}})},
   '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'},registerTenantExitGuard(){}})},'@/context/useAuth':{useAuth:()=>({user:{id:'U'}})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:()=>true})},'@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryUnitsEnabled:false,currencyCode:'GTQ',locale:'es-GT'})},'@/hooks/use-toast':{useToast:()=>({toast(){}})},'@/hooks/usePaymentMethods':{usePaymentMethods:()=>({data:[]})},'@/hooks/useSupplier':{useSupplier:()=>({data:{id:'SUP',name:'Proveedor',paymentTermsList:[]}})},'@/services/supplierService':{adaptApiSupplier:p=>p},
   '@/modules/appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,proceed:fn=>fn()})},'@/components/shared/ScannerField':{ScannerField:()=>null},
   '@/services/contextScannerService':{resolveContextScan:async code=>({product:{id:code,name:`Producto ${code}`,barcode:code,kind:'STANDARD',cost:'2',price:'5'},presentationId:null})},

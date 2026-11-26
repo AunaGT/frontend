@@ -63,13 +63,10 @@ import { ModuleTabBar } from '@/components/shared/ModuleTabs'
 import './productList.css'
 import { useCardPagination } from '@/hooks/useCardPagination'
 import { recordCardNavigation } from '@/components/shared/recordCardNavigation'
+import { CatalogImage } from '../components/CatalogImage'
 
 function ProductListImage({ product, className }: { product: Product; className?: string }) {
-    const [failedSource, setFailedSource] = useState<string | null>(null)
-    const imageSource = product.imageUrl && failedSource !== product.imageUrl ? product.imageUrl : '/placeholder.svg'
-    return <div className={'flex items-center justify-center overflow-hidden rounded-lg ' + (className || '')}>
-        <img src={imageSource} alt={imageSource === '/placeholder.svg' ? 'Sin imagen de ' + product.name : product.name} loading="lazy" className="h-full w-full object-contain" onError={imageSource !== '/placeholder.svg' ? () => setFailedSource(product.imageUrl!) : undefined} />
-    </div>
+    return <CatalogImage name={product.name} src={product.imageUrl} className={className}/>
 }
 
 // Feature imports
@@ -128,6 +125,7 @@ const ProductManagement = () => {
     const queryClient = useQueryClient()
     const { company, branches } = useTenant()
     const { hasPermission } = useAuthPermissions()
+    const canViewCosts = hasPermission('products.view_costs')
     const catalogModules = useModules()
     const { locale, currencyCode, inventoryServicesEnabled } = useSystemSettings()
     const [searchParams, setSearchParams] = useSearchParams()
@@ -170,7 +168,7 @@ const ProductManagement = () => {
         { id: 'status', label: 'Estado' },
         { id: 'description', label: 'Descripción' },
         { id:'kind',label:'Tipo' },{ id:'service_unit_label',label:'Unidad de cobro' },{ id:'quantity_decimals',label:'Decimales' },
-    ].filter(column=>!serviceCatalog || !['brand','size','cost','stock','min_stock','supplier'].includes(column.id))
+    ].filter(column=>(canViewCosts || column.id!=='cost') && (!serviceCatalog || !['brand','size','cost','stock','min_stock','supplier'].includes(column.id)))
     const [exportIncludeSummary, setExportIncludeSummary] = useState(true)
 
     // Selección para exportar (IDs de productos)
@@ -304,7 +302,8 @@ const ProductManagement = () => {
     // Permisos
     const canImport = hasPermission('products.import')
     // Exportar usa su permiso dedicado (antes exigía products.import, que es otra cosa)
-    const canExport = hasPermission('products.export', 'reports.view')
+    const canExportBase = hasPermission('products.export', 'reports.view')
+    const canExport = canExportBase && canViewCosts
     const canCreate = hasPermission('products.create')
     const canDelete = hasPermission('products.delete')
     const canRegisterIncoming = hasPermission('products.register_incoming')
@@ -330,7 +329,7 @@ const ProductManagement = () => {
         'inventory_count.create'
     )
     const canSeeStockMoves = hasPermission('stock_moves.view', 'stock_moves.create')
-    const hasFileActions = canExport || canImport
+    const hasFileActions = canExportBase || canImport
     const hasStockActions = !serviceCatalog && (canRegisterIncoming || canInventoryCount)
 
     /**
@@ -440,10 +439,10 @@ const ProductManagement = () => {
                                     <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
                                         Importar / exportar
                                     </DropdownMenuLabel>
-                                    {canExport && (
-                                        <DropdownMenuItem disabled={resultsPending} onClick={() => { if (!resultsPending) setIsExportDialogOpen(true) }}>
+                                    {canExportBase && (
+                                        <DropdownMenuItem disabled={resultsPending || !canExport} onClick={() => { if (canExport && !resultsPending) setIsExportDialogOpen(true) }}>
                                             <Download className="mr-2 h-4 w-4" />
-                                            Exportar
+                                            {canExport ? 'Exportar' : 'Exportar · requiere acceso a costos'}
                                         </DropdownMenuItem>
                                     )}
                                     {canImport && (
@@ -581,7 +580,7 @@ const ProductManagement = () => {
                                                     <ChevronDown className={expandedId === product.id ? 'h-4 w-4 rotate-180' : 'h-4 w-4'} aria-hidden="true" />
                                                 </Button>}
                                             </td>
-                                            <td className="text-right tabular-nums"><strong className="font-semibold">{priceText(product)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="mt-1 text-xs text-muted-foreground">Costo: {costText(product)}</p>}</td>
+                                            <td className="text-right tabular-nums"><strong className="font-semibold">{priceText(product)}</strong>{canViewCosts && product.kind !== 'SERVICE' && <p className="mt-1 text-xs text-muted-foreground">Costo: {costText(product)}</p>}</td>
                                             <td>{getStatusBadge(product)}</td>
                                             <td>{productActions(product)}</td>
                                         </tr>
@@ -609,7 +608,7 @@ const ProductManagement = () => {
                                                 </div>
                                                 {(product.brand || product.size) && <p className="mt-1 text-xs text-muted-foreground">{[product.brand, product.size].filter(Boolean).join(' · ')}</p>}
                                                 <div className="product-card-numbers mt-2 grid grid-cols-2 items-end gap-2">
-                                                    <div className="min-w-0 tabular-nums"><span className="sr-only">Precio</span><strong className="block text-base font-semibold">{priceText(product)}</strong>{canCreate && product.kind !== 'SERVICE' && <p className="text-xs text-muted-foreground">Costo: {costText(product)}</p>}</div>
+                                                    <div className="min-w-0 tabular-nums"><span className="sr-only">Precio</span><strong className="block text-base font-semibold">{priceText(product)}</strong>{canViewCosts && product.kind !== 'SERVICE' && <p className="text-xs text-muted-foreground">Costo: {costText(product)}</p>}</div>
                                                     <div className="text-right tabular-nums">{product.kind === 'SERVICE' ? <span className="text-xs text-muted-foreground">Por {product.serviceUnitLabel}</span> : product.inBranch === false ? <span className="text-xs text-muted-foreground">No se maneja aquí</span> : <><span className="block text-sm font-semibold">{stockText(product)} {product.unitConfiguration?.base_unit?.label??'unidades'}</span><span className="block text-xs text-muted-foreground">Mín: {stockText(product,true)}</span></>}</div>
                                                 </div>
                                                 {product.inBranch === false && canEdit && <Button variant="outline" className="mt-2 whitespace-normal" disabled={addToBranchMutation.isPending} onClick={() => addToBranchMutation.mutate(product)}><Store className="h-4 w-4 shrink-0" aria-hidden="true" />Manejar aquí</Button>}
@@ -626,7 +625,7 @@ const ProductManagement = () => {
 
             {/* Export PDF Dialog — columnas del reporte de inventario */}
             <ExportDialog
-                open={isExportDialogOpen}
+                open={isExportDialogOpen && canExport}
                 pending={resultsPending}
                 onOpenChange={setIsExportDialogOpen}
                 title="Exportar inventario"

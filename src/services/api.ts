@@ -133,11 +133,13 @@ const installApiInterceptor = () => {
 
 installApiInterceptor();
 
+export type ApiRequestOptions = RequestInit & { retryUnauthorized?: boolean };
 export const apiFetch = async <T>(
   path: string,
-  options: RequestInit = {},
+  options: ApiRequestOptions = {},
   _retried = false
 ): Promise<T> => {
+  const { retryUnauthorized = true, ...requestOptions } = options;
   const token = getAuthToken();
   const headers: HeadersInit = {
     ...(typeof FormData !== 'undefined' && options.body instanceof FormData ? {} : {"Content-Type": "application/json"}),
@@ -154,14 +156,15 @@ export const apiFetch = async <T>(
     cleanPath = '/' + cleanPath;
   }
 
-  const res = await fetch(`${VITE_API_URL}${cleanPath}`, {
-    ...options,
+  // Sensitive one-shot mutations must bypass both the interceptor and refresh replay.
+  const res = await (retryUnauthorized ? fetch : nativeFetch)(`${VITE_API_URL}${cleanPath}`, {
+    ...requestOptions,
     headers,
     credentials: "include", // manda las cookies httpOnly de sesión
   });
 
   // Access token vencido: intentar refrescar una vez y reintentar la request original.
-  if (res.status === 401 && !_retried && !isSessionPath(cleanPath)) {
+  if (res.status === 401 && retryUnauthorized && !_retried && !isSessionPath(cleanPath)) {
     if (await tryRefresh()) {
       return apiFetch<T>(path, options, true);
     }

@@ -1,3 +1,5 @@
+import {packageLineLabel,packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary'
+import {eventPaymentTermsText} from '@/services/eventPaymentTerms'
 import {documentUnitPrice} from '@/modules/inventory/units/public'
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
@@ -12,7 +14,7 @@ export function generateOrderPDF(order: Order, options: {
 } = {}) {
   const doc = new jsPDF() as jsPDFDocument
   const locale = options.locale ?? 'es-GT'
-  const currencyCode = options.currencyCode ?? 'GTQ'
+  const currencyCode = packageDocumentCurrency(order.packageGroups??order.package_groups,options.currencyCode)
   const money = (value: number | string | null | undefined) => new Intl.NumberFormat(locale, { style: 'currency', currency: currencyCode }).format(Number(value ?? 0))
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = addJsPdfCompanyHeader(doc, { companyName: options.companyName, logoDataUrl: options.logoDataUrl, pageWidth })
@@ -27,6 +29,8 @@ export function generateOrderPDF(order: Order, options: {
 
   doc.setFontSize(10)
   doc.setFont('helvetica', 'normal')
+  const eventTerms=eventPaymentTermsText(order.eventPaymentTerms??order.event_payment_terms,locale)
+  if(eventTerms)y=addDocumentText(doc,eventTerms,18,ensureDocumentSpace(doc,y,24),pageWidth-36)+6
   for (const text of [
     `Cliente: ${order.customer || order.customerContact?.name || '—'}`,
     `Fecha: ${new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(order.created_at))}`,
@@ -40,7 +44,7 @@ export function generateOrderPDF(order: Order, options: {
     head: [['Código', 'Producto', 'Cantidad', 'Entregado', 'Precio', 'Importe']],
     body: order.lines.map((line) => [
       line.product?.barcode ?? '—',
-      line.item_name ?? line.product?.name ?? line.product_id,
+      [packageLineLabel(order.packageGroups??order.package_groups,line.package_component_key),line.item_name ?? line.product?.name ?? line.product_id].filter(Boolean).join('\n'),
       `${line.qty} ${line.unit_label || ''}`.trim(),
       line.unit_metadata_version===2?`${line.base_fulfilled??'0'} ${line.unit_snapshot?.baseUnit.label??''}`:`${line.qty_fulfilled ?? 0} ${line.unit_label || ''}`.trim(),
       line.unit_metadata_version===2?documentUnitPrice(line,locale):money(line.unit_price),

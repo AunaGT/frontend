@@ -1,4 +1,8 @@
 import {useEffect,useMemo,useRef,useState} from 'react'
+import {CommercialPackageSummary} from '@/components/shared/CommercialPackageSummary'
+import {CommercialPackagesEditor} from '@/modules/inventory/packages/CommercialPackagesEditor'
+import {packageSelectionsPayload} from '@/modules/inventory/packages/selection'
+import type {PackageSelection} from '@/modules/inventory/packages/types'
 import {Link,Navigate,useNavigate,useParams,useSearchParams} from 'react-router-dom'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {ArrowLeft,Loader2,Trash2} from 'lucide-react'
@@ -30,9 +34,11 @@ import type {Product,Supplier} from '@/types'
 import {formatMoney} from '@/utils/formatters'
 
 type Line={key:string;productId:string;name:string;kind:string;qty:string;unitLabel:string;price:string;lineTotal:string;product?:Product;selection?:UnitSelection}
-type Form={customerId:string|null;customerName:string;customerNit:string;lines:Line[]}
-const emptyForm=():Form=>({customerId:null,customerName:'',customerNit:'',lines:[]})
-const fields=(form:Form)=>({customerId:form.customerId,customerName:form.customerName,customerNit:form.customerNit,items:form.lines.map(l=>({product_id:l.productId,qty:l.qty,...selectedUnitPayload(l.selection)}))})
+type Form={customerId:string|null;customerName:string;customerNit:string;lines:Line[];packages:PackageSelection[]}
+const emptyForm=():Form=>({customerId:null,customerName:'',customerNit:'',lines:[],packages:[]})
+const packagesPayload=(form:Form)=>{try{return packageSelectionsPayload(form.packages)}catch{return null}}
+// Native package drafts always resend their selections so removing the last package clears the agreement.
+const fields=(form:Form,keepPackages=false)=>({customerId:form.customerId,customerName:form.customerName,customerNit:form.customerNit,items:form.lines.map(l=>({product_id:l.productId,qty:l.qty,...selectedUnitPayload(l.selection)})),...(keepPackages||form.packages.length?{packages:packagesPayload(form)??form.packages}:{})})
 
 export default function ManualSalePage(){
  const {id}=useParams(),[search]=useSearchParams(),navigate=useNavigate(),tenant=useTenant(),{user}=useAuth(),permissions=useAuthPermissions(),{locale,currencyCode,salesAllowCredit}=useSystemSettings(),{toast}=useToast(),queries=useQueryClient()
@@ -46,16 +52,18 @@ export default function ManualSalePage(){
  const [pendingPresentation,setPendingPresentation]=useState<{product:Product;context:string}|null>(null)
  const presentationContext=useRef(''),handledPresentation=useRef<object|null>(null)
  presentationContext.current=JSON.stringify([identity,id??null])
- const formKey=JSON.stringify(fields(form)),dirty=saved?formKey!==savedKey:!!(form.lines.length||form.customerId||form.customerName||form.customerNit)
+ const keepPackages=!!saved?.packageGroups?.length&&!saved.originQuote,formKey=JSON.stringify(fields(form,keepPackages)),dirty=saved?formKey!==savedKey:!!(form.lines.length||form.packages.length||form.customerId||form.customerName||form.customerNit)
+ const hasItems=!!(form.lines.length||form.packages.length),invalidPackages=packagesPayload(form)===null
+ const packageScope=useMemo(()=>ready?{companyId:scope.companyId,branchId:scope.branchId,userId:scope.userId,sessionId:session,purpose:'sale' as const}:null,[identity,ready])
  const guard=useDraftGuard(dirty,tenant.registerTenantExitGuard,identity)
  usePageTrail([{label:'Ventas',to:'/ventas'},{label:saved?.reference||'Nueva venta'}])
  function applySaved(value:ManualSale,products:Map<string,Product>){
-  const next:Form={customerId:value.customerId,customerName:value.customerName,customerNit:value.customerNit,lines:value.items.map(l=>{
+  const next:Form={customerId:value.customerId,customerName:value.customerName,customerNit:value.customerNit,packages:value.packageGroups?.flatMap(g=>g.selection?[structuredClone(g.selection)]:[])??[],lines:value.items.filter(l=>!l.packageComponentKey).map(l=>{
    const product=products.get(l.productId),snapshot=l.unitSnapshot
    const selection:UnitSelection|undefined=l.unitMetadataVersion===2&&snapshot?{version:2,presentationId:snapshot.presentation?.id??null,revision:product?.unitConfiguration?.unit_revision??0,priceContext:'WHOLESALE',unitPrice:l.unitPrice,snapshot,acceptRounding:snapshot.roundingDelta!=='0',reviewRequired:!product?.unitConfiguration}:undefined
    return{key:String(l.id),productId:l.productId,name:l.name,kind:l.kind,qty:l.qty,unitLabel:l.unitLabel,price:l.unitPrice,lineTotal:l.lineTotal,product,selection}
   })}
-  savedRef.current=value;setSaved(value);setForm(next);setSavedKey(JSON.stringify(fields(next)))
+  savedRef.current=value;setSaved(value);setForm(next);setSavedKey(JSON.stringify(fields(next,!!value.packageGroups?.length&&!value.originQuote)))
  }
  useEffect(()=>{
   owner.active=true;busy.current=false;setPending(false);savedRef.current=null;setSaved(null);setForm(emptyForm());setSavedKey('');setError('');setLoadError('');setDueDate('');setCreditOverride(false);setDialog(null);setPendingPresentation(null)
@@ -76,21 +84,21 @@ export default function ManualSalePage(){
   })().catch(e=>{if(active&&current())setLoadError((e as Error).message)}).finally(()=>{if(active&&current())setLoading(false)})
   return()=>{active=false}
  },[id,owner,ready])
- const previewInput:ManualSaveInput={...fields(form),expectedVersion:saved?.version??0,idempotencyKey:useMemo(()=>crypto.randomUUID(),[owner])}
+ const previewInput:ManualSaveInput={...fields(form,keepPackages),...(saved&&form.packages.length?{draftId:saved.id}:{}),expectedVersion:saved?.version??0,idempotencyKey:useMemo(()=>crypto.randomUUID(),[owner])}
  const [review,setReview]=useState({key:'',input:previewInput})
  useEffect(()=>{const timer=window.setTimeout(()=>setReview({key:formKey,input:previewInput}),300);return()=>window.clearTimeout(timer)},[formKey,saved?.version,owner])
- const preview=useQuery({queryKey:['manual-sale-preview',identity,review.key],enabled:ready&&!loading&&dirty&&!!form.lines.length&&review.key===formKey&&!pending,queryFn:({signal})=>previewManualSale(scope,review.input,signal),retry:false})
- const priced=review.key===formKey&&!preview.isFetching&&!preview.isError&&preview.data?.items.length===form.lines.length
+ const preview=useQuery({queryKey:['manual-sale-preview',identity,review.key],enabled:ready&&!loading&&dirty&&hasItems&&!invalidPackages&&review.key===formKey&&!pending,queryFn:({signal})=>previewManualSale(scope,review.input,signal),retry:false})
+ const priced=review.key===formKey&&!preview.isFetching&&!preview.isError&&preview.data?.items.length===form.lines.length&&(preview.data.packageGroups?.length??0)===form.packages.length
  const actionable=ready&&!loading&&!loadError&&(!saved||saved.status==='DRAFT')&&!pending&&owner.active
  const writable=actionable&&!saved?.originQuote
  const invalidUnit=form.lines.some(l=>l.selection?.reviewRequired)
  const hasPresentationChoice=pendingPresentation?.context===presentationContext.current
- const canSave=writable&&dirty&&!!form.lines.length&&priced&&!invalidUnit&&!hasPresentationChoice
+ const canSave=writable&&dirty&&hasItems&&!invalidPackages&&priced&&!invalidUnit&&!hasPresentationChoice
  const canConfirm=actionable&&saved?.status==='DRAFT'&&!dirty&&!!saved.customerId&&salesAllowCredit!==false&&!hasPresentationChoice
  async function execute(kind:'save'|'confirm'|'cancel'){
   if(busy.current||!current())return
   if(kind==='save'&&!canSave||kind==='confirm'&&!canConfirm||kind==='cancel'&&!saved)return
-  const body=kind==='save'?{...fields(form),expectedVersion:saved?.version??0,items:fields(form).items.map((l,i)=>({...l,expected_unit_price:preview.data!.items[i].unitPrice}))}:{expectedVersion:saved!.version,...(kind==='confirm'?{dueDate:dueDate||undefined,creditOverride}:{})}
+  const body=kind==='save'?{...fields(form,keepPackages),expectedVersion:saved?.version??0,items:fields(form).items.map((l,i)=>({...l,expected_unit_price:preview.data!.items[i].unitPrice}))}:{expectedVersion:saved!.version,...(kind==='confirm'?{dueDate:dueDate||undefined,creditOverride}:{})}
   const signature=JSON.stringify([kind,saved?.id??null,body]);if(attempt.current?.signature!==signature)attempt.current={signature,key:crypto.randomUUID()}
   const input={...body,idempotencyKey:attempt.current!.key};busy.current=true;setPending(true);setError('')
   try{
@@ -141,16 +149,16 @@ export default function ManualSalePage(){
   </section>
   <div className="grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_300px]">
    <section aria-label="Partidas de la venta" className="min-w-0 space-y-4">
-    {writable&&<ScannerField scopeKey={`${identity}:${id||'new'}`} enabled={pendingPresentation?.context!==presentationContext.current} onScan={scanProduct} label="Agregar por código"/>}
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Productos y servicios <span className="text-muted-foreground">· {form.lines.length}</span></h2>{writable&&form.lines.length<100&&<div className="w-full sm:w-80"><ProductPicker companyId={scope.companyId} branchId={scope.branchId} onPick={addProduct} money={n=>money(String(n))}/></div>}</div>
-    {!form.lines.length?<CollectionEmptyState title="Dale forma a tu próxima venta" description="Agrega productos o servicios. Podrás revisarla antes de confirmarla." compact/>:<div className="auna-data-table-shell overflow-x-auto"><table className="auna-data-table min-w-[760px]"><thead><tr><th>Producto / servicio</th><th>Cantidad</th><th>Presentación</th><th className="text-right">Precio unitario</th><th className="text-right">Importe</th><th><span className="sr-only">Acciones</span></th></tr></thead><tbody>{form.lines.map((l,index)=><tr key={l.key}>
+    {writable?<CommercialPackagesEditor scope={packageScope} value={form.packages} disabled={pending} onChange={packages=>setForm(f=>({...f,packages}))} preview={{groups:dirty?priced?preview.data!.packageGroups??[]:[]:saved?.packageGroups??[],pending:dirty&&form.packages.length>0&&!priced&&!preview.isError,error:''}}/>:<CommercialPackageSummary groups={saved?.packageGroups} lines={saved?.items??[]} mode="quote"/>}
+    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-semibold">Productos y servicios <span className="text-muted-foreground">· {form.lines.length}</span></h2><div className="flex flex-wrap items-center gap-2">{writable&&<ScannerField scopeKey={`${identity}:${id||'new'}`} enabled={pendingPresentation?.context!==presentationContext.current} onScan={scanProduct} label="Agregar por código"/>}{writable&&form.lines.length<100&&<div className="w-full sm:w-80"><ProductPicker companyId={scope.companyId} branchId={scope.branchId} onPick={addProduct} money={n=>money(String(n))}/></div>}</div></div>
+    {!form.lines.length?!form.packages.length&&<CollectionEmptyState title="Dale forma a tu próxima venta" description="Agrega productos o servicios. Podrás revisarla antes de confirmarla." compact/>:<div className="auna-data-table-shell overflow-x-auto"><table className="auna-data-table min-w-[760px]"><thead><tr><th>Producto / servicio</th><th>Cantidad</th><th>Presentación</th><th className="text-right">Precio unitario</th><th className="text-right">Importe</th><th><span className="sr-only">Acciones</span></th></tr></thead><tbody>{form.lines.map((l,index)=><tr key={l.key}>
      <td><p className="font-medium">{l.name}</p>{l.kind==='SERVICE'&&<p className="text-xs text-muted-foreground">Servicio</p>}</td>
      <td className="align-top"><Input className="min-h-11 w-24" aria-label={`Cantidad de ${l.name}`} inputMode="decimal" value={l.qty} disabled={!writable} onChange={e=>changeLine(l.key,{qty:e.target.value})}/></td>
      <td className="min-w-[220px] max-w-xs align-top">{l.product&&l.selection?<UnitLineFields product={l.product} selection={l.selection} quantity={l.qty} disabled={!writable} onSelect={presentationId=>{try{changeLine(l.key,{selection:selectProductUnit(l.product!,presentationId,'WHOLESALE')})}catch(e){setError((e as Error).message)}}} onAcceptRounding={accepted=>changeLine(l.key,{selection:{...l.selection!,acceptRounding:accepted}})}/>:<span className="text-sm text-muted-foreground">{l.unitLabel}</span>}</td>
      <td className="text-right tabular-nums">{dirty?priced?`${currencyCode} ${formatUnitDecimal(preview.data!.items[index].unitPrice,locale)}`:'—':`${currencyCode} ${formatUnitDecimal(l.price,locale)}`}</td><td className="text-right font-semibold tabular-nums">{dirty?priced?money(preview.data!.items[index].lineTotal):'—':money(l.lineTotal)}</td>
      <td><Button variant="ghost" size="icon" aria-label={`Quitar ${l.name}`} disabled={!writable} onClick={()=>setForm(f=>({...f,lines:f.lines.filter(row=>row.key!==l.key)}))}><Trash2 aria-hidden className="h-4 w-4"/></Button></td>
     </tr>)}</tbody></table></div>}
-    {dirty&&form.lines.length>0&&<p role={preview.isError?'alert':'status'} className={`text-sm ${preview.isError?'text-destructive':'text-muted-foreground'}`}>{preview.isError?(preview.error as Error).message:priced?'Precios y conversiones revisados. Se comprobarán otra vez al guardar.':'Revisando precios y unidades…'}</p>}
+    {dirty&&hasItems&&<p role={preview.isError?'alert':'status'} className={`text-sm ${preview.isError?'text-destructive':'text-muted-foreground'}`}>{invalidPackages?'Revisa las cantidades de los paquetes':preview.isError?(preview.error as Error).message:priced?'Precios y conversiones revisados. Se comprobarán otra vez al guardar.':'Revisando precios y unidades…'}</p>}
    </section>
    <aside aria-label="Resumen y confirmación" className="space-y-5 border-t border-border pt-5 xl:border-l xl:border-t-0 xl:pl-6 xl:pt-0">
     <div className="flex justify-between gap-4"><span className="font-medium">{dirty?'Total revisado':'Total de la venta'}</span><output className="text-xl font-semibold tabular-nums">{dirty?priced?money(preview.data!.total):'—':money(saved?.total||'0')}</output></div>

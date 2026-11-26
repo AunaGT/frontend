@@ -38,6 +38,7 @@ export interface CreateSalePayload {
 }
 
 export interface SaleItem {
+  package_component_key?:string|null;
   unit_metadata_version?:1|2;
   unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
   base_qty?:string|null;
@@ -96,6 +97,7 @@ export interface ReturnDetail {
 }
 
 export interface Sale {
+  package_groups?:import('@/modules/inventory/packages/types').PackageGroup[];
   settlement_source?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS' | 'MANUAL_SALE';
   commercial?:SaleCommercialView;
   payment_status?: 'PENDING' | 'PARTIAL' | 'PAID';

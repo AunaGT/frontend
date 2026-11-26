@@ -6,6 +6,8 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { fetchCashSessionPaymentOptions } from '@/services/cashSessionsService';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -37,6 +39,9 @@ export function SupplierPaymentForm({
     methods = usePaymentMethods(),
     invalidate = useInvalidatePayables(),
     { money, date } = usePayableFormat();
+  const cashOptions = useQuery({ queryKey: ['cash-payment-options', context.companyId, context.branchId, context.userId], queryFn: fetchCashSessionPaymentOptions, enabled: !!context.companyId && !!context.userId && !!context.branchId && context.branchId !== 'all' });
+  const selectedTurn = cashOptions.data?.sessions?.find(session => session.id === draft.cashSession);
+  const invalidTurn = draft.cashOrigin === 'CASH_SESSION' && !draft.ambiguous && (!selectedTurn || (selectedTurn.currencyCode && selectedTurn.currencyCode !== context.currencyCode));
   usePageTrail([
     {
       label: source === "merchandise" ? "Mercancía" : "Cartera",
@@ -68,6 +73,7 @@ export function SupplierPaymentForm({
       className="space-y-5"
       onSubmit={(e) => {
         e.preventDefault();
+        if (invalidTurn) return;
         draft.review();
       }}
     >
@@ -99,8 +105,7 @@ export function SupplierPaymentForm({
         </Button>
       </div>
       <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
-        Este comprobante registra un pago administrativo. No ejecuta una
-        transferencia bancaria, un movimiento de caja ni un asiento contable.
+        Registra el pago y su distribución. Si eliges una caja, también registra el egreso en ese turno. No ejecuta transferencias bancarias ni crea otro asiento contable.
       </p>
       {draft.error && (
         <div
@@ -121,14 +126,37 @@ export function SupplierPaymentForm({
       )}
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
         <Card className="auna-surface">
-          <CardHeader>
-            <CardTitle>1. Datos del pago</CardTitle>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">1. Datos del pago</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-4 pb-4 pt-0">
             <fieldset
               disabled={draft.locked}
               className="grid gap-4 sm:grid-cols-2"
             >
+              <div className="space-y-2">
+                <Label htmlFor="supplier-cash-origin">Origen del pago</Label>
+                <Select value={draft.cashOrigin} onValueChange={value => draft.setCashOrigin(value as 'OUTSIDE_CASH' | 'CASH_SESSION')} disabled={draft.locked}>
+                  <SelectTrigger id="supplier-cash-origin" className="max-w-sm"><SelectValue>{draft.cashOrigin === 'CASH_SESSION' ? 'Desde una caja abierta' : 'Fuera de caja'}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="OUTSIDE_CASH">Fuera de caja</SelectItem>
+                    <SelectItem value="CASH_SESSION" disabled={!cashOptions.data?.available && !draft.ambiguous}>Desde una caja abierta</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{draft.cashOrigin === 'OUTSIDE_CASH' ? 'No se descontará dinero de ningún turno.' : 'El egreso quedará registrado en el turno que elijas.'}</p>
+              </div>
+              {draft.cashOrigin === 'CASH_SESSION' && <div className="space-y-2">
+                <Label htmlFor="supplier-cash-session">Tu turno abierto</Label>
+                <Select value={draft.cashSession} onValueChange={draft.setCashSession} disabled={draft.locked || cashOptions.isLoading}>
+                  <SelectTrigger id="supplier-cash-session" aria-invalid={!!invalidTurn} aria-describedby="supplier-cash-hint" className="max-w-sm"><SelectValue placeholder="Selecciona tu caja">{draft.cashSession ? selectedTurn?.name || 'Turno seleccionado anteriormente' : undefined}</SelectValue></SelectTrigger>
+                  <SelectContent>
+                    {draft.cashSession && !selectedTurn && <SelectItem value={draft.cashSession} disabled>Turno seleccionado anteriormente</SelectItem>}
+                    {cashOptions.data?.sessions?.map(session => <SelectItem key={session.id} value={session.id} disabled={!!session.currencyCode && session.currencyCode !== context.currencyCode}>{session.name} · {session.currencyCode || 'Compatibilidad'}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p id="supplier-cash-hint" className={`text-xs ${invalidTurn ? 'text-destructive' : 'text-muted-foreground'}`}>{cashOptions.isLoading ? 'Cargando tus turnos…' : draft.ambiguous ? 'Al recuperar se conserva el turno original, aunque ya esté cerrado.' : cashOptions.isError ? 'No se pudieron cargar los turnos. Actualiza la lista.' : invalidTurn ? 'Selecciona un turno abierto de la misma moneda. Si no tienes uno, ábrelo primero.' : 'Se registrará un egreso por el importe del pago.'}</p>
+                {!draft.locked && <Button type="button" variant="ghost" size="sm" onClick={() => void cashOptions.refetch()}>Actualizar turnos</Button>}
+              </div>}
               <div className="space-y-2">
                 <Label htmlFor="supplier-amount">
                   Monto total ({context.currencyCode})
@@ -220,10 +248,10 @@ export function SupplierPaymentForm({
           </CardContent>
         </Card>
         <Card className="auna-surface">
-          <CardHeader>
-            <CardTitle>Resumen de distribución</CardTitle>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Resumen de distribución</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
             <div className="flex justify-between gap-3">
               <span>Entradas seleccionadas</span>
               <strong>{draft.selected.length}</strong>
@@ -252,7 +280,7 @@ export function SupplierPaymentForm({
           <h2 className="text-lg font-semibold">
             2. Distribuir entre entradas
           </h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -311,10 +339,10 @@ export function SupplierPaymentForm({
       </section>
       {draft.reviewing && (
         <Card className="auna-surface border-brand-orange/40">
-          <CardHeader>
-            <CardTitle>3. Revisa antes de confirmar</CardTitle>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">3. Revisa antes de confirmar</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3 text-sm">
+          <CardContent className="space-y-3 px-4 pb-4 pt-0 text-sm">
             <p>
               Registrarás <strong>{money(draft.amount)}</strong> a{" "}
               <strong>{draft.selected[0]?.supplierName}</strong> en{" "}
@@ -331,16 +359,17 @@ export function SupplierPaymentForm({
               Se emitirá un solo comprobante con la distribución indicada.
               Podrás anularlo completo indicando el motivo.
             </p>
+            <p>{draft.cashOrigin === 'CASH_SESSION' ? `Se registrará un egreso en ${selectedTurn?.name || 'el turno original'} por ${money(draft.amount)}. Una anulación documental no devuelve ese dinero a caja.` : 'Origen: fuera de caja. No se afectará ningún turno.'}</p>
           </CardContent>
         </Card>
       )}
       <div className="flex flex-wrap justify-end gap-3">
-        <Button type="submit" variant="outline" disabled={draft.locked}>
+        <Button type="submit" variant="outline" disabled={draft.locked || !!invalidTurn}>
           Revisar pago
         </Button>
         <Button
           type="button"
-          disabled={draft.busy || (!draft.canConfirm && !draft.ambiguous)}
+          disabled={draft.busy || (!!invalidTurn && !draft.ambiguous) || (!draft.canConfirm && !draft.ambiguous)}
           onClick={() => draft.confirm()}
         >
           {draft.busy

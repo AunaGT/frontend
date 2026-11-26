@@ -1,7 +1,7 @@
 const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),router=require('react-router-dom')
 const {loadReportModule}=require('./loadReportModule.cjs'),{hookHarness}=require('./reportHookHarness.cjs')
 const product={id:'P',name:'Producto',price:10.25,kind:'STANDARD',quantityDecimals:0,stock:10}
-function manualPage({draft=null,save,confirm,scope={companyId:'A',branchId:'B'},permission=true,scan}={}){
+function manualPage({draft=null,save,confirm,scope={companyId:'A',branchId:'B'},permission=true,scan,preview={total:'20.50',items:[{unitPrice:'10.25',lineTotal:'20.50'}]}}={}){
  const h=hookHarness(),nodes=[],writes=[],navigations=[],notices=[]
  let tenant=scope
  const api={assertManualScope(){},readManualSale:async()=>draft,previewManualSale:async()=>({total:'20.50',items:[{unitPrice:'10.25',lineTotal:'20.50'}]}),
@@ -18,7 +18,8 @@ function manualPage({draft=null,save,confirm,scope={companyId:'A',branchId:'B'},
   '@/components/shared/ScannerField':{ScannerField:()=>null},'@/services/contextScannerService':{resolveContextScan:scan??(async()=>({product,presentationId:null,unitRevision:1}))},
   '@/services/productService':{fetchPosCatalogItems:async()=>({items:[product],missingIds:[]}),adaptApiProduct:p=>p},
   '../appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,proceed:fn=>fn(),request:fn=>fn()})},
-  '@tanstack/react-query':{useQuery:()=>({data:{total:'20.50',items:[{unitPrice:'10.25',lineTotal:'20.50'}]},isFetching:false,isError:false}),useQueryClient:()=>({invalidateQueries(){}})},
+  '@/modules/inventory/packages/CommercialPackagesEditor':{CommercialPackagesEditor:function CommercialPackagesEditor(){return null}},
+  '@tanstack/react-query':{useQuery:()=>({data:preview,isFetching:false,isError:false}),useQueryClient:()=>({invalidateQueries(){}})},
  },nodes).default
  const render=()=>{nodes.length=0;const tree=h.render(()=>Page());return{html:renderToStaticMarkup(React.createElement(router.MemoryRouter,null,tree)),nodes}}
  return{render,writes,navigations,notices,product,setTenant:s=>tenant=s,cleanup:()=>{h.unmount();global.window=originalWindow}}

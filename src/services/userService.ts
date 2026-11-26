@@ -57,6 +57,8 @@ export interface Permission {
   description?: string | null;
   /** Permisos que este otorga por sí solo (los manda el backend). */
   implies?: string[];
+  /** Requisitos de acciones específicas; no se conceden automáticamente. */
+  requirements?: { action: string; permissions: string[] }[];
 }
 
 export interface Role {

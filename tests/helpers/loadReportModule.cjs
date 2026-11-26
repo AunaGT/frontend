@@ -34,12 +34,12 @@ function loadReportModule(relative, mocks = {}, nodes = []) {
   }
   return load(path.join(root, 'modules/reports', relative))
 }
-function renderReportsPage({ prepared = null, modules = new Set(['reports', 'sales', 'inventory']), moduleError = false, allowed = true, route = '/reportes?reporte=sales&vista=preview' } = {}) {
+function renderReportsPage({ prepared = null, modules = new Set(['reports', 'sales', 'inventory']), moduleError = false, allowed = true, permissionCodes, route = '/reportes?reporte=sales&vista=preview' } = {}) {
   const nodes = [], preparationRequests = [], pdfGenerationCalls = []
   const Page = loadReportModule('pages/ReportsManagement.tsx', {
     '@/context/useTenant': { useTenant: () => ({ company: { id: 'qa-company' }, branch: { id: 'qa-branch' }, branches: [{ id: 'qa-branch', name: 'Principal' }], isConsolidated: false }) },
     '@/context/useModules': { useModules: () => ({ enabledModuleCodes: modules, isLoading: modules === null, isError: moduleError, refetch() {} }) },
-    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => allowed, permissionsReady: true }) },
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: (...codes) => permissionCodes ? codes.some(p=>permissionCodes.has(p)) : allowed, permissionsReady: true }) },
     '../hooks/usePreparedReport': { usePreparedReport: () => ({ report: prepared, pending: false, dirty: false, error: null,
       prepare: async () => { preparationRequests.push('prepare') }, clear() {} }) },
     '../documents/reportPdf': { generateReportPdf: async report => { pdfGenerationCalls.push(report); return new Blob(['%PDF-QA']) } },

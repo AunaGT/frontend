@@ -113,7 +113,7 @@ export default function SupplierPaymentReceiptPage({
         timeZone: settings.timezone,
       }),
     writable =
-      access.hasPermission("merchandise.mark_paid") &&
+      access.hasPermission("merchandise.cancel_payment") &&
       !access.tenant.isConsolidated &&
       r.status === "POSTED";
   const prepare = async () => {
@@ -141,7 +141,7 @@ export default function SupplierPaymentReceiptPage({
     }
   };
   const cancel = async () => {
-    if (cancelling || reason.trim().length < 3) return;
+    if (!writable || cancelling || reason.trim().length < 3) return;
     const scope = key;
     generation.current++;
     setPdf(null);
@@ -210,6 +210,7 @@ export default function SupplierPaymentReceiptPage({
           className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-destructive"
         >
           <strong>ANULADO · Sin efecto sobre los saldos</strong>
+          {r.cashRegisterSessionId && <p className="mt-1 text-sm">El egreso de caja se conserva. Esta anulación no confirma un retorno de dinero.</p>}
           <p className="mt-1 text-sm">
             {r.cancelReason} · {r.cancelledBy?.name}
             {r.cancelledAt ? " · " + date(r.cancelledAt) : ""}
@@ -235,6 +236,7 @@ export default function SupplierPaymentReceiptPage({
             ["Referencia", r.reference || "Sin referencia"],
             ["Registró", r.registeredBy.name],
             ["Registro", date(r.createdAt)],
+            ['Origen del pago', r.cashRegisterSessionId ? `Caja: ${r.cashRegisterName || 'Turno vinculado'}` : 'Fuera de caja'],
           ].map(([label, value]) => (
             <div key={label}>
               <p className="text-muted-foreground">{label}</p>
@@ -245,8 +247,7 @@ export default function SupplierPaymentReceiptPage({
         </CardContent>
       </Card>
       <p className="rounded-lg border bg-card p-3 text-sm text-muted-foreground">
-        Comprobante interno. No es una factura, no ejecuta transferencias
-        bancarias ni modifica caja o contabilidad.
+        Comprobante interno, no factura. {r.cashRegisterSessionId ? 'El egreso se registró en el turno vinculado.' : 'No afecta ningún turno de caja.'} No ejecuta transferencias bancarias ni crea otro asiento contable.
       </p>
       {showCancel && writable && (
         <Card className="auna-surface">
@@ -257,6 +258,7 @@ export default function SupplierPaymentReceiptPage({
             <p className="text-sm">
               Se reabrirán los importes de las {r.applications.length} entradas
               aplicadas. El pago permanecerá en el historial.
+              {r.cashRegisterSessionId && ' El egreso de caja no se revierte: documenta por separado cualquier retorno real de dinero.'}
             </p>
             <Label htmlFor="supplier-cancel-reason">Motivo de anulación</Label>
             <textarea

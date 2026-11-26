@@ -1,9 +1,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),React=require('react')
 const {renderToStaticMarkup}=require('react-dom/server'),{loadReportModule}=require('./helpers/loadReportModule.cjs')
-test('saving closure transports unidentified money separately from the user difference reason',async()=>{
+test('saving closure keeps the user reason and sends the server key instead of trusting unidentified totals',async()=>{
   let sent
   const previousFetch=global.fetch
-  global.fetch=async(_url,request)=>{sent=JSON.parse(request.body);return{ok:true,json:async()=>({closure_number:7})}}
+  global.fetch=async(_url,request)=>{sent=JSON.parse(request.body);return{ok:true,json:async()=>({id:'C7',closure_number:7})}}
   try{
     const hook=loadReportModule('../cash-closure/hooks/useCashClosureAPI.ts',{
       react:{...React,useState:initial=>[typeof initial==='function'?initial():initial,()=>{}],useCallback:fn=>fn,useEffect(){}},
@@ -12,8 +12,8 @@ test('saving closure transports unidentified money separately from the user diff
       '@/hooks/useSystemSettings':{useSystemSettings:()=>({timezone:'America/Guatemala'})},
       '@/services/api':{getApiBaseUrl:()=>'/api',getAuthToken:()=>null},
     }).useCashClosureAPI
-    const saved=await hook().saveClosure({startDate:'2026-10-15',endDate:'2026-10-16',cashierName:'QA',theoreticalData:{theoretical:{net_total:25,total_sales:0,total_returns:0},metrics:{total_transactions:0,total_customers:0,average_ticket:0},unidentified_collections_amount:25},actualTotal:0,notes:'  Recuento revisado  ',paymentBreakdown:[],denominations:[]})
-    assert.equal(saved,true);assert.equal(sent.unidentifiedCollectionsAmount,25)
+    const saved=await hook().saveClosure({startDate:'2026-10-15',endDate:'2026-10-16',cashierName:'QA',theoreticalData:{calculation_key:'server-key',theoretical:{net_total:25,total_sales:0,total_returns:0},metrics:{total_transactions:0,total_customers:0,average_ticket:0},unidentified_collections_amount:25},actualTotal:0,notes:'  Recuento revisado  ',paymentBreakdown:[],denominations:[]})
+    assert.equal(saved,'C7');assert.equal(sent.calculationKey,'server-key');assert.equal('unidentifiedCollectionsAmount' in sent,false)
     assert.equal(sent.notes,'Recuento revisado');assert.deepEqual(sent.paymentBreakdowns,[])
   }finally{global.fetch=previousFetch}
 })

@@ -17,6 +17,10 @@ export type OrderStatus =
   | "EXPIRED";
 
 export type Order = {
+  event_payment_terms?:import('./eventPaymentTerms').EventPaymentTermsSnapshot|null;
+  eventPaymentTerms?:import('./eventPaymentTerms').PublicEventPaymentTerms|null;
+  packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];
+  package_groups?:import('@/modules/inventory/packages/types').PackageGroup[];
   engagementId?:string|null;
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
@@ -138,6 +142,10 @@ export type OrderAdminDetailsPayload = {
 };
 
 export type PublicOrder = {
+  eventPaymentTerms?:import('./eventPaymentTerms').PublicEventPaymentTerms|null;
+  packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];
+  portal?:import('@/components/customer-pages/types').PublishedPortal;
+  currency_code?:string;locale?:string;timezone?:string;
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   reference?: string | null;
@@ -165,6 +173,7 @@ export type PublicOrder = {
   company_name: string;
   company_logo_url?: string;
   lines: Array<{
+    package_component_key?:string|null;
     unit_metadata_version?:1|2;
     unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
     base_qty?:string|null;

@@ -1,12 +1,13 @@
-export type PackageScope={companyId:string;branchId:string;userId:string;sessionId:string}
+export type PackageScope={companyId:string;branchId:string;activeBranchId?:string|null;userId:string;sessionId:string;purpose?:'sale'}
 export type PackageRef={productId:string|null;presentationId:string|null;unitRevision:number|null}
 export type PackageComponent=PackageRef&{id:string;quantity:string|null;weight:string|null}
 export type PackageChoice={id:string;name:string;totalQuantity:string|null;maxDistinct:number|null;weight:string|null;options:(PackageRef&{id:string})[]}
 export type PackageVariant={id:string;name:string;price:string|null;components:PackageComponent[];choices:PackageChoice[]}
 export type PackageDefinition={schemaVersion:1;name:string;description:string;imageUrl:string|null;currency:string;variants:PackageVariant[]}
-export type PackageSummary={id:string;name:string;version:number;activeVersion:number|null;archivedAt:string|null;branchIds:string[]}
+export type PackageSummary={id:string;name:string;version:number;activeVersion:number|null;archivedAt:string|null;branchIds:string[];imageUrl?:string|null;currency?:string|null;description?:string;variantCount?:number;priceFrom?:string|null;priceTo?:string|null}
 export type PackageCatalogMetrics={total:number;active:number;draft:number;archived:number}
-export type CommercialPackage=PackageSummary&{definition:PackageDefinition;activeDefinition:PackageDefinition|null}
+export type PackageProductReference={id:string;name:string;unitLabel:string;presentations:{id:string;label:string}[]}
+export type CommercialPackage=PackageSummary&{definition:PackageDefinition;activeDefinition:PackageDefinition|null;references?:PackageProductReference[]}
 export type PackageSelection={groupId:string;packageId:string;version:number;variantId:string;choices:{choiceId:string;items:{optionId:string;quantity:string}[]}[]}
 export type PackageIssue={code:string;choiceId?:string;message:string;remainingQuantity:string}
 export type PackageGroup={schemaVersion:1;groupId:string;packageId?:string;version?:number;variantId?:string;name:string;variantName:string;currency:string;state:'COMPLETE'|'INCOMPLETE';estimatedAmount:string;amount:string|null;netAmount:string|null;selection?:PackageSelection;issues:PackageIssue[];components:{key:string;productId:string;itemName:string;itemKind:string;quantity:string;unitLabel:string;quantityDecimals:number;unitPrice:string;lineTotal:string;netLineTotal:string;serviceConditions?:import('@/services/serviceConditions').PublicServiceConditions|null}[]}

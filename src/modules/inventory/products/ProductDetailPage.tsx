@@ -81,8 +81,9 @@ export default function ProductDetailPage() {
   const { toast } = useToast()
   const { hasPermission } = useAuthPermissions()
   const hasEditPermission = hasPermission('products.edit')
+  const canAdjustStock = hasPermission('stock_moves.adjust')
   const canDelete = hasPermission('products.delete')
-  const canViewCost = hasPermission('products.create')
+  const canViewCost = hasPermission('products.view_costs')
   const { locale, currencyCode, inventoryServicesEnabled,inventoryUnitsEnabled } = useSystemSettings()
   const unitCatalog=useUnitCatalog(inventoryUnitsEnabled)
   const contextKey=JSON.stringify([id,unitCatalog.scope.companyId,unitCatalog.scope.branchId]),liveContext=useRef(contextKey),loadedContext=useRef(contextKey),skipScalarReset=useRef(false),unitsInFlight=useRef(false),imageOperation=useRef(0)
@@ -635,7 +636,7 @@ export default function ProductDetailPage() {
           <h3 className="record-edit-heading" aria-hidden="true"><Boxes />{isService ? 'Condiciones del servicio' : 'Control de inventario'}</h3>
           <div className="grid items-start gap-4 sm:grid-cols-2">
             {isService ? <ServiceQuantityFields unit={editServiceUnit} decimals={editQuantityDecimals} onUnitChange={setEditServiceUnit} onDecimalsChange={setEditQuantityDecimals} disabled={isSaving||!!editUnits.baseUnitId} /> : <>
-            <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual{rawProduct?.base_unit?.label?` (${rawProduct.base_unit.label})`:''}</Label><Input id="edit-stock" type="text" inputMode="decimal" value={editStock} onChange={event => setEditStock(event.target.value)} disabled={isSaving} /></div>
+            <div className="space-y-1.5"><Label htmlFor="edit-stock">Stock actual{rawProduct?.base_unit?.label?` (${rawProduct.base_unit.label})`:''}</Label><Input id="edit-stock" type="text" inputMode="decimal" value={editStock} onChange={event => { if(canAdjustStock) setEditStock(event.target.value) }} disabled={isSaving||!canAdjustStock} aria-describedby={!canAdjustStock?'edit-stock-help':undefined} />{!canAdjustStock&&<p id="edit-stock-help" className="text-xs text-muted-foreground">Solo consulta. Para cambiarlo necesitas permiso de ajuste de existencias.</p>}</div>
             <div className="space-y-1.5"><Label htmlFor="edit-min-stock">Stock mínimo{rawProduct?.base_unit?.label?` (${rawProduct.base_unit.label})`:''}</Label><Input id="edit-min-stock" type="text" inputMode="decimal" value={editMinStock} onChange={event => setEditMinStock(event.target.value)} disabled={isSaving} /></div>
             </>}
             <div className="space-y-2">
@@ -660,7 +661,8 @@ export default function ProductDetailPage() {
                   try {
                     const unitFieldsChanged=editUnits.baseUnitId!==originalUnits.baseUnitId||editUnits.quantityDecimals!==originalUnits.quantityDecimals||editUnits.defaultPurchaseKey!==originalUnits.defaultPurchaseKey||editUnits.defaultSaleKey!==originalUnits.defaultSaleKey
                     const advanced=inventoryUnitsEnabled&&!!(product.unitConfiguration||unitFieldsChanged&&editUnits.baseUnitId)
-                    const values=productDecimalPayload({price:editPrice,priceWholesale:editPriceWholesale,pricePromotion:editPricePromotion,stock:editStock,minStock:editMinStock,cost:editCost===exactProductValues(product).cost?undefined:editCost},{kind:product.kind??'STANDARD',quantityDecimals:advanced?Number(editUnits.quantityDecimals):Number(editQuantityDecimals),advanced},locale)
+                    const values=productDecimalPayload({price:editPrice,priceWholesale:editPriceWholesale,pricePromotion:editPricePromotion,stock:editStock,minStock:editMinStock,cost:!canViewCost||editCost===exactProductValues(product).cost?undefined:editCost},{kind:product.kind??'STANDARD',quantityDecimals:advanced?Number(editUnits.quantityDecimals):Number(editQuantityDecimals),advanced},locale)
+                    if(!canAdjustStock)delete values.stock
                     if(values.price==='0')throw new Error('El precio debe ser mayor a cero')
                     const unitPayload=advanced?{unit_revision:rawProduct.unit_revision??1,...(unitFieldsChanged?{base_unit_id:editUnits.baseUnitId,quantity_decimals:Number(editUnits.quantityDecimals),default_purchase_presentation_id:editUnits.defaultPurchaseKey,default_sale_presentation_id:editUnits.defaultSaleKey}:{})}:{}
                     if (isService && (!editServiceUnit.trim() || !/^[0-4]$/.test(editQuantityDecimals))) throw new Error('Ingresa una unidad de cobro y de 0 a 4 decimales')

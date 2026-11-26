@@ -8,7 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
-import type { AccountType, JournalSourceType } from '@/services/accountingService'
+import type { AccountType, JournalSourceType, JournalEntry } from '@/services/accountingService'
 
 export const fmtQ = (n: number | string) =>
   new Intl.NumberFormat('es-GT', { style: 'currency', currency: 'GTQ', minimumFractionDigits: 2 }).format(Number(n) || 0)
@@ -30,7 +30,15 @@ export const SOURCE_LABELS: Record<JournalSourceType, string> = {
   CUSTOMER_ADVANCE: 'Anticipo de cliente',
   CUSTOMER_ADVANCE_APPLIED: 'Aplicación de anticipo',
   CUSTOMER_PAYMENT_REFUND: 'Devolución de anticipo',
+  CASH_CLOSURE: 'Arqueo de caja',
+  CASH_CLOSURE_CORRECTION: 'Corrección de arqueo',
+  CASH_SETTLEMENT: 'Liquidación bancaria',
+  CASH_DISPUTE_EFFECT: 'Movimiento de disputa',
+  CASH_DISPUTE_DISPOSITION: 'Resolución de disputa',
+  CASH_DISPUTE_ADJUSTMENT: 'Ajuste de disputa',
 }
+
+export const canReverseJournalEntry = (entry: Pick<JournalEntry,'source_type'|'reversal_of_id'|'reversals'>) => !entry.reversal_of_id && !entry.reversals?.length && !['CLOSING','CASH_CLOSURE_CORRECTION','CASH_DISPUTE_EFFECT','CASH_DISPUTE_DISPOSITION','CASH_DISPUTE_ADJUSTMENT'].includes(entry.source_type)
 
 export const TYPE_LABELS: Record<AccountType, string> = {
   ASSET: 'Activo',

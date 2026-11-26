@@ -3,6 +3,26 @@ const { renderToStaticMarkup } = require('react-dom/server')
 const { loadReportModule, renderReportsPage } = require('./helpers/loadReportModule.cjs')
 const { fixture } = require('./fixtures/reportFixtures.cjs')
 const { assertPaginationOutside } = require('./pagination-assertions.cjs')
+test('report catalog has no icons and keeps distinct accessible configuration actions', () => {
+  const { html, nodes } = renderReportsPage({ route: '/reportes' })
+  const cards = nodes.filter(n => n.type === 'article' && n.props.className === 'report-catalog-entry')
+  const actions = nodes.filter(n => n.type === 'button' && n.props['aria-label']?.startsWith('Configurar '))
+  assert.ok(cards.length > 1)
+  assert.doesNotMatch(html, /<svg\b/)
+  assert.equal(actions.length, cards.length)
+  assert.equal(new Set(actions.map(n => n.props['aria-label'])).size, cards.length)
+  for (const action of actions) assert.equal(typeof action.props.onClick, 'function')
+  assert.match(html, /Buscar reporte/)
+  assert.match(html, /Categorías de reportes/)
+})
+test('financial report pages need both base and financial access; operational sales remains available',()=>{
+ for(const permissions of [['reports.view'],['reports.financial'],[]]){
+  const page=renderReportsPage({permissionCodes:new Set(permissions),route:'/reportes?reporte=financial'})
+  assert.doesNotMatch(page.html,/Preparar datos/)
+ }
+ assert.match(renderReportsPage({permissionCodes:new Set(['reports.view','reports.financial']),route:'/reportes?reporte=financial'}).html,/Preparar datos/)
+ assert.match(renderReportsPage({permissionCodes:new Set(['reports.view']),route:'/reportes?reporte=sales'}).html,/Preparar datos/)
+})
 test('data preview uses compact metrics above real tables, 10 rows and exterior pagination', () => {
   const { ReportDataPreview } = loadReportModule('components/ReportDataPreview.tsx'), html = renderToStaticMarkup(React.createElement(ReportDataPreview, { report: fixture() }))
   assert.ok(html.indexOf('metric-strip') < html.indexOf('<table'))

@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import {formatUnitDecimal,formatUnitMoney,compareUnitDecimals} from '@/lib/unitQuantity'
 
-export const REPORT_IDS = ['sales', 'inventory', 'financial', 'alerts', 'merchandise', 'suppliers', 'products', 'inventory-counts', 'stock-by-location', 'kardex', 'internal-moves', 'replenishment', 'occupancy'] as const
+export const REPORT_IDS = ['sales', 'inventory', 'financial', 'alerts', 'merchandise', 'suppliers', 'products', 'inventory-counts', 'stock-by-location', 'kardex', 'internal-moves', 'replenishment', 'occupancy', 'disputes'] as const
 export type ReportId = typeof REPORT_IDS[number]
 const cell = z.union([z.string(), z.number().finite(), z.boolean(), z.null()])
 const cellType = z.enum(['text', 'integer', 'decimal', 'money', 'percent', 'date', 'datetime', 'boolean'])

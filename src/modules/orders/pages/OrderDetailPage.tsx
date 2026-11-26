@@ -1,6 +1,7 @@
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { TABLE_PAGE_SIZES } from '@/utils/pagination'
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
+import {EventPaymentTermsSummary} from '@/components/shared/EventPaymentTermsSummary'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -95,6 +96,7 @@ import { OrderOperations } from "../components/OrderOperations";
 import { CommercialPaymentFields, type CommercialPaymentTerms } from '@/components/shared/CommercialPaymentFields';
 import { generateOrderPDF } from "../documents/generateOrderPDF";
 import { buildOrderMailto, orderPaymentSummary, orderProgressStep, orderVisualState, paginateOrderLines } from "../ordersViewModel";
+import {CommercialPackageSummary,packageLineLabel,packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary'
 import './orderDetail.css';
 
 export default function OrderDetailPage() {
@@ -104,9 +106,8 @@ export default function OrderDetailPage() {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuthPermissions();
   const { user } = useAuth();
-  const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings();
+  const { locale, currencyCode:companyCurrencyCode, companyName, companyLogoUrl } = useSystemSettings();
   const { data: paymentMethods = [] } = usePaymentMethods();
-  const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const canManage = hasPermission("orders.manage");
   const canSell = hasPermission("sales.create");
@@ -143,6 +144,8 @@ export default function OrderDetailPage() {
     queryFn: () => fetchOrderById(id!),
     enabled: Boolean(id&&company?.id),
   });
+  const currencyCode=packageDocumentCurrency(order?.packageGroups??order?.package_groups,companyCurrencyCode);
+  const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const contactId = order?.customerContact?.id;
   const canOpenContact = Boolean(contactId && company?.id && isEnabled('contacts') && hasPermission('contacts.clients.view'));
@@ -161,8 +164,8 @@ export default function OrderDetailPage() {
   // este cajero, si no, adivina la predeterminada de la sucursal y falla en
   // silencio cuando el turno del cajero está abierto en otra caja distinta.
   const { data: cashRegisters = [], isLoading: cashRegistersLoading } = useQuery({
-    queryKey: ["cash-registers", "for-order-sale", order?.branch_id],
-    queryFn: () => listCashRegisters(),
+    queryKey: ["cash-registers", "for-order-sale", company?.id, branch?.id, user?.id, order?.branch_id],
+    queryFn: () => listCashRegisters(false, { companyId: company?.id || '', branchId: branch?.id || order?.branch_id || '', actorId: user?.id || '' }),
     enabled: Boolean(canRegisterSale && canSell),
     staleTime: 15_000,
   });
@@ -170,9 +173,8 @@ export default function OrderDetailPage() {
   const usableCashRegisters = useMemo(() => {
     // listCashRegisters() ya devuelve solo cajas activas de la sucursal activa: un
     // admin puede usar cualquiera; un cajero solo aquella donde tiene turno propio.
-    if (isAdmin) return cashRegisters;
     return cashRegisters.filter(
-      (r) => r.open_session && String(r.open_session.opened_by_id) === String(user?.id)
+      (r) => r.operation_mode === 'SHARED' ? r.open_session?.can_operate === true : isAdmin || r.open_session && String(r.open_session.opened_by_id) === String(user?.id)
     );
   }, [cashRegisters, isAdmin, user?.id]);
 
@@ -475,16 +477,16 @@ export default function OrderDetailPage() {
 
             </div>
             <div className="min-w-0">
-          <><Card className="auna-surface overflow-hidden rounded-xl">
+          <>{!!(order.packageGroups??order.package_groups)?.length&&<details className="mb-4"><summary className="cursor-pointer py-2 font-medium">Composición comercial acordada</summary><CommercialPackageSummary groups={order.packageGroups??order.package_groups} lines={order.lines} mode="order" locale={locale}/></details>}<Card className="auna-surface overflow-hidden rounded-xl">
             <CardHeader className="flex-row items-center justify-between p-4"><CardTitle className="text-lg">Partidas ({order.lines.length})</CardTitle><Button variant="outline" size="sm" className="print:hidden" onClick={() => void handlePdf()}><FileDown className="mr-2 h-4 w-4" />Descargar</Button></CardHeader>
             <CardContent className="p-0">
               <div className="order-detail-products-scroll hidden sm:block" tabIndex={0} role="region" aria-label="Partidas del pedido">
                 <Table className="auna-data-table">
                   <TableHeader><TableRow className="bg-muted/45"><TableHead className="pl-6">Código</TableHead><TableHead>Descripción</TableHead><TableHead className="text-right">Pedido</TableHead><TableHead className="text-right">Entregado</TableHead><TableHead className="text-right">Pendiente</TableHead><TableHead className="text-right">P. unitario</TableHead><TableHead className="pr-6 text-right">Importe</TableHead></TableRow></TableHeader>
-                  <TableBody>{paginatedLines.items.map((line) => <TableRow key={line.id}><TableCell className="pl-6 text-muted-foreground">{line.product?.barcode || "—"}</TableCell><TableCell className="font-medium">{line.item_name ?? line.product?.name ?? line.product_id}</TableCell><TableCell className="text-right">{line.qty} {line.unit_label}</TableCell><TableCell className="text-right text-emerald-600">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right text-brand-orange">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right">{isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(num(line.unit_price))}</TableCell><TableCell className="pr-6 text-right font-semibold">{fmt(num(line.line_total))}</TableCell></TableRow>)}</TableBody>
+                  <TableBody>{paginatedLines.items.map((line) => <TableRow key={line.id}><TableCell className="pl-6 text-muted-foreground">{line.product?.barcode || "—"}</TableCell><TableCell className="font-medium">{line.item_name ?? line.product?.name ?? line.product_id}{line.package_component_key&&<small className="block text-muted-foreground">{packageLineLabel(order.packageGroups??order.package_groups,line.package_component_key)}</small>}</TableCell><TableCell className="text-right">{line.qty} {line.unit_label}</TableCell><TableCell className="text-right text-emerald-600">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right text-brand-orange">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</TableCell><TableCell className="text-right">{isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(num(line.unit_price))}</TableCell><TableCell className="pr-6 text-right font-semibold">{fmt(num(line.line_total))}</TableCell></TableRow>)}</TableBody>
                 </Table>
               </div>
-              <div className="order-detail-mobile-lines auna-section-list px-4 sm:hidden" tabIndex={0} role="region" aria-label="Productos del pedido">{paginatedLines.items.map((line) => <article key={line.id} className="auna-section-row py-4"><div className="flex justify-between gap-3"><div><strong>{line.item_name ?? line.product?.name ?? line.product_id}</strong><p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="text-muted-foreground">Pedido<strong className="block text-sm">{line.qty} {line.unit_label}</strong></span><span className="text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span><span className="text-brand-orange">Pendiente<strong className="block text-sm">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span></div></article>)}</div>
+              <div className="order-detail-mobile-lines auna-section-list px-4 sm:hidden" tabIndex={0} role="region" aria-label="Productos del pedido">{paginatedLines.items.map((line) => <article key={line.id} className="auna-section-row py-4"><div className="flex justify-between gap-3"><div><strong>{line.item_name ?? line.product?.name ?? line.product_id}</strong>{line.package_component_key&&<small className="block text-muted-foreground">{packageLineLabel(order.packageGroups??order.package_groups,line.package_component_key)}</small>}<p className="text-xs text-muted-foreground">{line.product?.barcode || "Sin código"}</p></div><strong>{fmt(num(line.line_total))}</strong></div><div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs"><span className="text-muted-foreground">Pedido<strong className="block text-sm">{line.qty} {line.unit_label}</strong></span><span className="text-emerald-700 dark:text-emerald-300">Entregado<strong className="block text-sm">{isUnitDocumentLine(line)?line.base_fulfilled??'0':Number(line.qty_fulfilled || 0)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span><span className="text-brand-orange">Pendiente<strong className="block text-sm">{pendingQty(line)} {isUnitDocumentLine(line)?line.unit_snapshot!.baseUnit.label:line.unit_label}</strong></span></div></article>)}</div>
 
               {!order.lines.length && <CollectionEmptyState compact title="Este pedido espera sus partidas" description="Los productos registrados en el pedido aparecerán aquí con sus cantidades y entregas." />}
               <div className="ml-auto w-full max-w-sm space-y-2 border-t border-border/70 p-5 text-sm"><InfoRow label="Subtotal" value={fmt(num(order.subtotal))} />{num(order.discount_total) > 0 ? <InfoRow label="Descuento" value={`-${fmt(num(order.discount_total))}`} /> : null}<div className="flex items-center justify-between border-t pt-3 text-lg font-bold"><span>Total</span><span>{fmt(total)}</span></div></div>
@@ -501,6 +503,7 @@ export default function OrderDetailPage() {
               <InfoRow label="Folio" value={order.reference ?? order.id.slice(0, 8)} />
               <InfoRow label="Canal" value={order.sales_channel || "—"} />
               <InfoRow label="Condición de pago" value={order.payment_condition === 'CREDIT' ? `Crédito a ${order.credit_days} días desde la venta` : 'Al contado'} />
+              <EventPaymentTermsSummary value={order.eventPaymentTerms??order.event_payment_terms}/>
               <InfoRow label="Moneda" value={currencyCode} />
               <InfoRow label="Creado por" value={order.createdBy?.name || "—"} />
               <InfoRow label="Vigencia" value={order.valid_until ? formatDateTime(order.valid_until, undefined, locale) : "—"} />

@@ -21,3 +21,15 @@ test('a creator can reopen a permitted draft from the list without invoice/detai
  renderToStaticMarkup(React.createElement(SalesStatusTable,{sales:[sale],viewMode:'table',pageInfo:{page:1,totalPages:1,totalItems:1},pageSize:50,isLoading:false,updatingSaleIds:new Set(),canViewDetail:false,canViewInvoice:false,canChangeStatus:false,onEditManual:s=>opened.push(s.id),onPageChange(){}}))
  const button=nodes.find(n=>n.props['aria-label']==='Editar borrador V-001');assert.ok(button);button.props.onClick();assert.deepEqual(opened,['V'])
 })
+test('only cancellation authority enables sale status actions in the actual page',()=>{
+ for(const permissions of [['sales.create'],['sales.view'],['sales.cancel']]){
+  const nodes=[],data={filters:{searchTerm:'',statusFilter:'all',paymentFilter:'all',period:'all'},sales:[],pageInfo:{page:1,totalPages:1,totalItems:0},pageSize:50,pageSizeOptions:[25,50,100],viewMode:'table'}
+  const Page=loadReportModule('../sales/SalesManagement.tsx',{
+   './hooks':{useSalesData:()=>data},'@/context/useAuth':{useAuth:()=>({isAuthenticated:true,user:{id:'U'}})},'@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'}})},
+   '@/context/useModules':{useModules:()=>({isEnabled:()=>false})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:(...codes)=>codes.some(code=>permissions.includes(code))})},'@/hooks/useSystemSettings':{useSystemSettings:()=>({locale:'es-GT',currencyCode:'GTQ'})},
+   '@/hooks/usePaymentMethods':{usePaymentMethods:()=>({data:[]})},'@/hooks/useRealtimeSales':{useRealtimeSales(){}},'@/hooks/use-toast':{useToast:()=>({toast(){}})},'@/services/api':{getApiBaseUrl:()=>'',getAuthToken:()=>null},'./api':{getApiBaseUrl:()=>'',getAuthToken:()=>null},
+  },nodes).default
+  renderToStaticMarkup(React.createElement(router.MemoryRouter,null,React.createElement(Page)))
+  assert.equal(nodes.find(n=>n.type.name==='SalesStatusTable').props.canChangeStatus,permissions.includes('sales.cancel'))
+ }
+})

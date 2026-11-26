@@ -69,6 +69,7 @@ export const HomePage = () => {
             </header>
 
             <div className="home-toolbar flex flex-wrap items-end justify-between gap-4">
+                <div className="flex min-w-0 flex-wrap items-end gap-2">
                 {!isLoading && !isError && quickModules.length > 0 && (
                     <nav aria-label="Acciones rápidas" className="min-w-0">
                         <h2 className="mb-2 text-xs font-medium">Acciones rápidas</h2>
@@ -82,6 +83,8 @@ export const HomePage = () => {
                         </div>
                     </nav>
                 )}
+                <QuickProductScan/>
+                </div>
                 <div className="home-search w-full max-w-[420px] min-w-0">
                     <label htmlFor="home-module-search" className="mb-2 block text-xs font-medium">Buscar módulo</label>
                     <div className="relative">
@@ -96,7 +99,6 @@ export const HomePage = () => {
                 </div>
             </div>
 
-            <QuickProductScan/>
             <section aria-label="Catálogo de módulos" className="min-w-0">
                 {isLoading ? <HomeModuleLoading /> : isError ? (
                     <div role="alert" className="auna-surface rounded-lg border px-4 py-10 text-center">

@@ -179,8 +179,10 @@ test('cash picker illustrates no configured registers but preserves loading and 
     let index = 0
     const values = [[], loading, error]
     const { CashRegisterPicker } = loadReportModule('../sales/CashRegisterPicker.tsx', {
+      'react-router-dom': { useNavigate: () => () => {} },
       react: { ...React, useState: initial => [index < values.length ? values[index++] : initial, () => {}] },
       '@/context/useAuth': { useAuth: () => ({ user: { id: 'u' } }) },
+      '@/context/useTenant': { useTenant: () => ({ company: { id: 'c' }, branch: { id: 'b' } }) },
       '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => false }) },
       '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ' }) },
       '@/services/cashSessionsService': {},

@@ -82,8 +82,8 @@ const SalesManagement = (_props: SalesManagementProps) => {
 
     // Permission-based capabilities
     const canCreateSale = hasPermission('sales.create')
-    const canChangeSaleStatus = hasPermission('sales.cancel', 'sales.create')
-    const canAccessCashClosure = isEnabled('cash-closure') && hasPermission('cashclosure.view', 'cashclosure.create')
+    const canChangeSaleStatus = hasPermission('sales.cancel')
+    const canAccessCashClosure = isEnabled('cash-closure') && hasPermission('cashclosure.view', 'cashclosure.view_team', 'cashclosure.approve', 'cashclosure.validate', 'cashclosure.create', 'cashclosure.create_day', 'cashclosure.create_own')
     const canViewDetail = hasPermission('sales.view_detail')
     const canViewInvoice = hasPermission('sales.view_invoice')
 

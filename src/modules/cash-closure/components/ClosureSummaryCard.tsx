@@ -39,7 +39,7 @@ export const ClosureSummaryCard = ({
         <div className="space-y-3 tabular-nums">
             <h2 className="cash-closure-panel-heading"><Coins className="h-5 w-5 text-primary" aria-hidden="true" />Resumen contado</h2>
             {paymentBreakdown && <dl className="cash-closure-amount-list">
-                {paymentBreakdown.map(item => <div key={item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{formatCurrency(item.actual_amount, currencyCode, locale)}</dd></div>)}
+                {paymentBreakdown.map(item => <div key={item.breakdown_key ?? item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{formatCurrency(item.actual_amount, currencyCode, locale)}</dd></div>)}
             </dl>}
             <div className="space-y-3">
                 <div className="flex justify-between items-baseline gap-3 text-sm">

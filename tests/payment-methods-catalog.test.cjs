@@ -1,8 +1,10 @@
 const test=require('node:test'),assert=require('node:assert/strict'),React=require('react')
 const {renderToStaticMarkup}=require('react-dom/server'),{loadReportModule}=require('./helpers/loadReportModule.cjs')
 test('new merchandise entry exposes only actual receipt methods for a paid purchase',()=>{
-  const {MemoryRouter}=require('react-router-dom'),nodes=[]
+  const {hookHarness}=require('./helpers/reportHookHarness.cjs'),h=hookHarness(),nodes=[]
   const Page=loadReportModule('../merchandise/pages/RegisterIncomingMerchandise.tsx',{
+    react:h.hooks,'react-router-dom':{useLocation:()=>({pathname:'/inventario/registrar-ingreso',search:'',state:null}),useNavigate:()=>()=>{}},
+    '@/modules/appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,proceed:fn=>fn()})},
     '@/services/api':{apiFetch:async()=>[]},
     './api':{apiFetch:async()=>[]},
     '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'BA'}})},
@@ -16,11 +18,16 @@ test('new merchandise entry exposes only actual receipt methods for a paid purch
     '@/hooks/use-toast':{useToast:()=>({toast(){}})},
     '@tanstack/react-query':{useQuery:()=>({data:[]}),useQueryClient:()=>({invalidateQueries(){}})},
   },nodes).RegisterIncomingMerchandise
-  renderToStaticMarkup(React.createElement(MemoryRouter,null,React.createElement(Page)))
+  const render=()=>{nodes.length=0;h.render(()=>Page())}
+  try{
+  render();assert.equal(nodes.some(n=>n.props.id==='receipt-method'),false)
+  nodes.find(n=>n.props.id==='receipt-status').props.onChange({target:{value:'PAID'}});render()
   const field=nodes.find(n=>n.type==='select'&&n.props.id==='receipt-method')
-  assert.ok(field);assert.equal(field.props.disabled,true)
+  assert.ok(field);assert.equal(field.props.required,true)
   const options=nodes.filter(n=>n.type==='option'&&n.props.children==='Caja propia')
   assert.equal(options.length,1)
+  assert.equal(nodes.some(n=>n.type==='option'&&n.props.children==='Crédito'),false)
+  }finally{h.unmount()}
 })
 function screen({error=null}={}){
   const nodes=[],items=[{id:1,name:'Compartido',enabled:true,origin:'BASIC',settlement_kind:'CASH',position:0,_count:{}},{id:2,name:'Privado usado',enabled:false,origin:'COMPANY',settlement_kind:'BANK',position:1,_count:{supplier_payments:1}}]

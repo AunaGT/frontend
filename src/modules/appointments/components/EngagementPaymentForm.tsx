@@ -19,13 +19,13 @@ export function useEngagementPaymentChannel(enabled:boolean){
   const ctx=useAgendaContext(),methods=usePaymentMethods(),[methodId,setMethodId]=useState('')
   const choices=(methods.data||[]).filter(m=>!m.is_credit),method=choices.find(m=>String(m.id)===methodId)
   const cash=isCashMethod(method,name=>['cash','efectivo'].includes(name.trim().toLowerCase()))
-  const session=useQuery({queryKey:appointmentQueryKey(ctx.scope,'cash-session-current'),enabled:enabled&&ctx.writable&&cash,queryFn:async({signal})=>{
+  const session=useQuery({queryKey:appointmentQueryKey(ctx.scope,'cash-session-current',{actorId:ctx.user?.id}),enabled:enabled&&ctx.writable&&cash,queryFn:async({signal})=>{
     assertCurrentScope(ctx.scope,signal)
-    const value=await fetchCashSessionCurrent()
+    const value=await fetchCashSessionCurrent(undefined,undefined,{...ctx.scope,actorId:ctx.user?.id||''})
     assertCurrentScope(ctx.scope,signal)
     return value
   },staleTime:0})
-  const open=session.data?.ok===true&&session.data.session?.status==='OPEN'?session.data.session:null
+  const open=session.data?.ok===true&&session.data.session?.status==='OPEN'&&session.data.session.can_operate!==false?session.data.session:null
   return {methods,choices,methodId,setMethodId,cash,session,open,valid:!!method&&(!cash||!!open),
     input:()=>({paymentMethodId:Number(methodId),...(cash?{cashRegisterSessionId:open?.id}:{} )})}
 }

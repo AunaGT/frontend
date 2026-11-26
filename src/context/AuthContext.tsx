@@ -55,6 +55,8 @@ export interface AuthUser {
   role?: {
     id: number;
     name: string;
+    system_key?: string | null;
+    company_id?: string | null;
   };
   photo_url?: string | null;
   is_employee?: boolean;

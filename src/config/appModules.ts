@@ -12,6 +12,7 @@
  * App 
  * Defines all available modules with their routes, icons, and colors
  */
+import { CASH_DISPUTE_PERMISSIONS } from '@/config/cashClosurePermissions'
 import {
     AgendaIcon,
     VentasIcon,
@@ -182,7 +183,8 @@ export const appModules: AppModule[] = [
         color: 'bg-lime-100/90',
         iconColor: 'text-lime-900',
         sellerAllowed: true,
-        permissions: ['cashclosure.view']
+        // Ver movimientos propios basta para entrar al módulo; no concede el historial de arqueos.
+        permissions: ['cashclosure.view', 'cashclosure.view_team', 'cashclosure.approve', 'cashclosure.validate', 'cash.movements.view_own', 'cash.movements.view_team', 'cash.custody.view', 'cash.transfers.operate_own', 'cash.transfers.operate_team', 'cash.transfers.receive', 'cash.notices.create', 'cash.digital.confirm', 'cash.settlements.manage', 'cash.bank_methods.manage', 'cash.day.close', ...CASH_DISPUTE_PERMISSIONS]
     },
     {
         id: contactsModule.code,
@@ -326,7 +328,7 @@ export const appModules: AppModule[] = [
         color: 'bg-slate-200/80',
         iconColor: 'text-slate-800',
         adminOnly: true,
-        permissions: ['settings.view', 'settings.manage', 'catalogs.view', 'catalogs.manage']
+        permissions: ['settings.view', 'settings.manage', 'catalogs.view', 'catalogs.manage', 'integrations.view', 'integrations.manage', 'cash.registers.view', 'cash.registers.manage']
     }
 ]
 

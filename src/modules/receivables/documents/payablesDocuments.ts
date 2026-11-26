@@ -179,6 +179,7 @@ async function tablePdf(input: {
   columns: string[];
   rows: string[][];
   cancelled?: boolean;
+  cancelledLabel?: string;
 }): Promise<Blob> {
   await ensureCouponFonts(["NotoSans"]);
   const measure = await createCouponMeasure(["NotoSans"]);
@@ -237,7 +238,7 @@ async function tablePdf(input: {
         doc.setTextColor(185, 28, 28);
         doc.setFont(font, "bold");
         doc.setFontSize(13);
-        doc.text("ANULADO - SIN EFECTO", 18, 14);
+        doc.text(input.cancelledLabel || "ANULADO - SIN EFECTO", 18, 14);
       }
     },
   });
@@ -265,6 +266,7 @@ export async function generateSupplierPaymentPdf(
     title: "Comprobante interno de pago a proveedor",
     branding,
     cancelled: receipt.status === "CANCELLED",
+    cancelledLabel: receipt.cashRegisterSessionId ? 'ANULADO - APLICACIONES SIN EFECTO' : undefined,
     metadata: [
       `Comprobante: ${receipt.id}`,
       `Proveedor: ${receipt.supplierName}`,
@@ -272,6 +274,7 @@ export async function generateSupplierPaymentPdf(
       `Estado: ${receipt.status === "CANCELLED" ? "ANULADO" : "REGISTRADO"} · Pago: ${date(receipt.paidAt)}`,
       `Monto: ${money(receipt.amount)} · Medio: ${receipt.paymentMethod?.name || "No registrado"}`,
       `Referencia: ${receipt.reference || "Sin referencia"} · Registró: ${receipt.registeredBy.name}`,
+      receipt.cashRegisterSessionId ? `Origen: caja ${receipt.cashRegisterName || 'Turno vinculado'}. Egreso registrado en ese turno.` : 'Origen: fuera de caja, sin afectar turnos.',
       ...(receipt.status === "CANCELLED"
         ? [
             `Anulado: ${receipt.cancelledAt ? date(receipt.cancelledAt) : "—"} · ${receipt.cancelledBy?.name || "—"}`,
@@ -279,7 +282,8 @@ export async function generateSupplierPaymentPdf(
           ]
         : []),
       ...(receipt.notes ? [`Notas: ${receipt.notes}`] : []),
-      "Registro administrativo; no ejecuta transferencias bancarias, movimientos de caja ni asientos contables.",
+      ...(receipt.cashRegisterSessionId && receipt.status === 'CANCELLED' ? ['El egreso de caja se conserva. Esta anulación documental no confirma un retorno de dinero.'] : []),
+      'Registro administrativo; no ejecuta transferencias bancarias ni crea otro asiento contable.',
     ],
     columns: ["Entrada de mercancía", "Importe aplicado"],
     rows: receipt.applications.map((a) => [a.reference, money(a.amount)]),

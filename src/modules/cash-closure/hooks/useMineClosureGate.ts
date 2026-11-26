@@ -4,6 +4,7 @@
 
 import { useEffect, useRef, useMemo, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTenant } from '@/context/useTenant'
 import {
   fetchCashSessionCurrent,
   sessionOpenedAtToLocalInput,
@@ -66,7 +67,7 @@ function parseGateFromSession(
   const closable =
     closableRaw &&
     closableRaw.status === 'CLOSED' &&
-    (closableRaw.cash_closure_id == null || closableRaw.cash_closure_id === '')
+    (closableRaw.cash_closure_id == null || closableRaw.cash_closure_id === '' || closableRaw.recount === true)
       ? closableRaw
       : null
 
@@ -148,6 +149,7 @@ interface UseMineClosureGateOptions {
   enabled: boolean
   userId?: string
   timezone: string
+  sessionId?: string | null
   onSessionDates?: (dates: { startDate: string; endDate: string }) => void
 }
 
@@ -155,17 +157,19 @@ export function useMineClosureGate({
   enabled,
   userId,
   timezone,
+  sessionId,
   onSessionDates,
 }: UseMineClosureGateOptions) {
+  const { company, branch } = useTenant()
   const onSessionDatesRef = useRef(onSessionDates)
   onSessionDatesRef.current = onSessionDates
 
   const queryEnabled = enabled && !!userId
 
   const { data, isLoading, isPending, isFetching, error, refetch } = useQuery({
-    queryKey: CASH_SESSION_CURRENT_QUERY_KEY,
+    queryKey: [...CASH_SESSION_CURRENT_QUERY_KEY, company?.id, branch?.id, userId, sessionId],
     queryFn: async () => {
-      const r = await fetchCashSessionCurrent()
+      const r = await fetchCashSessionCurrent(undefined, sessionId || undefined, { companyId: company?.id || '', branchId: branch?.id || '', actorId: userId || '' })
       if (r.ok === false) throw new Error(r.message || 'No se pudo verificar el turno')
       return r
     },

@@ -22,7 +22,8 @@ export const generateClosurePDF = (
   companyName?: string,
   currencyCode?: string,
   locale?: string,
-  logoDataUrl?: string
+    logoDataUrl?: string,
+    correctionCount?: number
 ) => {
     const fmt = (amount: number | string) => formatCurrency(amount, currencyCode, locale)
     const doc = new jsPDF() as jsPDFDocument
@@ -39,6 +40,11 @@ export const generateClosurePDF = (
     doc.text(`Cierre #${closure.closure_number}`, pageWidth / 2, yPos, { align: 'center' })
 
     yPos += 15
+
+    if (correctionCount) {
+      doc.setFontSize(9)
+      yPos = addDocumentText(doc, `Cifras originales. Existen ${correctionCount} documentos de corrección; consulta su estado y efecto por separado en Auna.`, margin, yPos, pageWidth - margin * 2) + 7
+    }
 
     // Date and Period Info
     doc.setFontSize(10)

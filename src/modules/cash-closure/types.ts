@@ -14,6 +14,7 @@
 
 import { isCashMethod, type SettlementKind } from '@/services/paymentMethodsService'
 export interface PaymentMethodBreakdown {
+    breakdown_key?: string
     settlement_kind?: SettlementKind | null
     id?: number
     cash_closure_id?: string
@@ -42,6 +43,14 @@ export interface Denomination {
 }
 
 export interface TheoreticalData {
+    /** Conteo ciego (3C): el servidor no envía importes esperados; theoretical/metrics llegan ausentes. */
+    blind?: boolean
+    calculation_basis?: 'LEGACY' | 'EVENTS_V1' | 'MIXED'
+    calculation_basis_label?: string
+    currency_code?: string | null
+    business_timezone?: string | null
+    event_count?: number
+    calculation_key: string
     unidentified_collections_amount?: number
     period: {
         start: string
@@ -50,6 +59,14 @@ export interface TheoreticalData {
     theoretical: {
         total_sales: number
         total_returns: number
+        total_collections?: number
+        total_supplier_payments?: number
+        /** Movimientos físicos del turno (3B.1); ausentes en arqueos anteriores. */
+        total_cash_in?: number
+        total_cash_out?: number
+        /** Traslados de custodia del turno (3B.2); ausentes en arqueos anteriores. */
+        total_custody_in?: number
+        total_custody_out?: number
         net_total: number
     }
     /** Presente en «mi cierre» cuando el turno tiene fondo inicial en caja */
@@ -67,6 +84,9 @@ export interface TheoreticalData {
 }
 
 export interface CashClosure {
+    calculation_basis?: 'LEGACY' | 'EVENTS_V1' | 'MIXED'
+    currency_code?: string | null
+    calculation_snapshot?: { basis: string; basis_label?: string; event_count?: number; currency_code?: string | null; participant_breakdown?: { actor_id: string; actor_name: string; methods: { payment_method_id: number; payment_method_name: string; in_amount: string; out_amount: string }[] }[] }
     id: string
     closure_number: number
     date: string
@@ -97,7 +117,7 @@ export interface CashClosure {
     average_ticket: number | string
     notes: string | null
     /** Estados unificados: Pendiente / Aprobado / Rechazado. Validado/Cerrado solo legacy. */
-    status: 'Pendiente' | 'Aprobado' | 'Rechazado' | 'Validado' | 'Cerrado'
+    status: 'Pendiente' | 'Aprobado' | 'Rechazado' | 'Validado' | 'Cerrado' | 'Reconteo' | 'Sustituido'
     created_at: string
     updated_at: string
     payment_breakdowns: PaymentMethodBreakdown[]
@@ -128,6 +148,10 @@ export function isCashPaymentMethodName(name?: string | null): boolean {
 export function isCashPaymentMethod(item: Pick<PaymentMethodBreakdown,'payment_method_name'|'payment_method'|'settlement_kind'>): boolean {
     return isCashMethod({name:item.payment_method_name??item.payment_method?.name,settlement_kind:item.settlement_kind??item.payment_method?.settlement_kind},isCashPaymentMethodName)
 }
+export function singleCashPaymentIndex(items: PaymentMethodBreakdown[]): number {
+    const indices = items.map((item, index) => isCashPaymentMethod(item) ? index : -1).filter(index => index >= 0)
+    return indices.length === 1 ? indices[0] : -1
+}
 
 /** Nombre de la caja donde se hizo el turno, o '—' si no está ligado a una sesión */
 export function closureRegisterName(closure: CashClosure): string {
@@ -145,6 +169,14 @@ export function closureOpeningFloat(closure: CashClosure): number {
     }
     return 0
 }
+
+/** Nombre visible del estado; el flujo con política (3C) agrega reconteo y sustitución. */
+export const closureStatusLabel = (status: string) => ({ Reconteo: 'Reconteo solicitado', Sustituido: 'Sustituido por reconteo' } as Record<string, string>)[status] ?? status
+export const closureStatusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' =>
+    ({ Pendiente: 'secondary', Aprobado: 'default', Rechazado: 'destructive', Reconteo: 'secondary' } as const)[status as 'Pendiente'] ?? 'outline'
+
+/** Fecha civil (YYYY-MM-DD) en formato local, sin desplazarla por zona horaria. */
+export const civilDate = (value: string | null, locale?: string) => value ? new Intl.DateTimeFormat(locale || 'es-GT', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(value + 'T00:00:00Z')) : '—'
 
 /** Convert string/number to number */
 export const toNumber = (value: number | string): number => {
@@ -179,4 +211,10 @@ export const formatDateTime = (dateString: string) => {
     const hour12 = hourNum % 12 || 12
 
     return `${day}/${month}/${year}, ${String(hour12).padStart(2, '0')}:${minute} ${period}`
+}
+
+/** Fecha real (UTC) mostrada en la zona operativa del turno, sin reetiquetar horas locales. */
+export const formatZonedDateTime = (iso: string, timezone?: string | null, locale?: string) => {
+    try { return new Intl.DateTimeFormat(locale || 'es-GT', { dateStyle: 'medium', timeStyle: 'short', timeZone: timezone || undefined }).format(new Date(iso)) }
+    catch { return new Intl.DateTimeFormat(locale || 'es-GT', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(iso)) }
 }

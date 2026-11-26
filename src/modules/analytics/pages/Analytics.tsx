@@ -37,9 +37,9 @@ const Analytics = () => {
   const { locale, currencyCode } = useSystemSettings()
   const currentYear = new Date().getFullYear()
   const [selectedYear, setSelectedYear] = useState<number | 'all'>(currentYear)
-  const canViewAnalytics = hasPermission('analytics.view')
+  const canViewAnalytics = hasPermission('analytics.view') && hasPermission('reports.financial')
   const { data: yearMeta } = useAnalyticsFirstSaleYear()
-  const { data, isLoading, isFetching, isError, refetch } = useAnalytics(selectedYear)
+  const { data, isLoading, isFetching, isError, refetch } = useAnalytics(selectedYear,canViewAnalytics)
   const modulesReady = enabledModuleCodes !== null
   const sectionAccess = {
     inventory: modulesReady
@@ -107,7 +107,7 @@ const Analytics = () => {
           <CardContent className="p-8 text-center">
             <ChartNoAxesCombined className="mx-auto h-10 w-10 text-muted-foreground" />
             <h1 className="mt-4 text-xl font-semibold">Sin acceso al tablero</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Tu perfil no tiene permiso para consultar indicadores.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Este tablero incluye costos y márgenes. Necesitas acceso a Analítica y a reportes financieros; solicita autorización al administrador.</p>
           </CardContent>
         </Card>
       </div>

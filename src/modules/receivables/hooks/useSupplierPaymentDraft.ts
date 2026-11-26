@@ -42,6 +42,8 @@ export function useSupplierPaymentDraft(context: DraftContext) {
     [paidAt, setPaidAtState] = useState(new Date().toISOString()),
     [reference, setReferenceState] = useState(""),
     [notes, setNotesState] = useState(""),
+    [cashOrigin, setCashOriginState] = useState<'OUTSIDE_CASH' | 'CASH_SESSION'>('OUTSIDE_CASH'),
+    [cashSession, setCashSessionState] = useState(''),
     [reviewing, setReviewing] = useState(false),
     [busy, setBusy] = useState(false),
     [ambiguous, setAmbiguous] = useState(false),
@@ -57,6 +59,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
     setSelected(initialEntries.current);
     setAmountState("");
     setApplications({});
+    setCashOriginState('OUTSIDE_CASH'); setCashSessionState('');
     setReviewing(false);
     setBusy(false);
     setAmbiguous(false);
@@ -85,6 +88,8 @@ export function useSupplierPaymentDraft(context: DraftContext) {
         setPaidAtState(value.payload.paidAt);
         setReferenceState(value.payload.reference || "");
         setNotesState(value.payload.notes || "");
+        setCashOriginState(value.payload.cashRegisterSessionId ? 'CASH_SESSION' : 'OUTSIDE_CASH');
+        setCashSessionState(value.payload.cashRegisterSessionId || '');
         setApplications(
           Object.fromEntries(
             value.payload.applications.map((a) => [a.incomingId, a.amount]),
@@ -120,6 +125,8 @@ export function useSupplierPaymentDraft(context: DraftContext) {
     setPaidAt = (v: string) => edit(() => setPaidAtState(v)),
     setReference = (v: string) => edit(() => setReferenceState(v)),
     setNotes = (v: string) => edit(() => setNotesState(v)),
+    setCashOrigin = (v: 'OUTSIDE_CASH' | 'CASH_SESSION') => edit(() => { setCashOriginState(v); if (v === 'OUTSIDE_CASH') setCashSessionState('') }),
+    setCashSession = (v: string) => edit(() => setCashSessionState(v)),
     setApplication = (id: string, v: string) =>
       edit(() => setApplications((a) => ({ ...a, [id]: v })));
   const distribute = () =>
@@ -146,6 +153,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
       }
     });
   const build = (): SupplierPaymentInput => {
+    if (cashOrigin === 'CASH_SESSION' && !cashSession) throw Error('Selecciona tu turno abierto antes de revisar el pago');
     if (context.branchId === "all" || !context.branchId)
       throw Error("Selecciona una sucursal para registrar el pago");
     if (
@@ -184,6 +192,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
     if (!paidAt || Number.isNaN(new Date(paidAt).getTime()))
       throw Error("Indica una fecha válida");
     return {
+      ...(cashOrigin === 'CASH_SESSION' ? { cashRegisterSessionId: cashSession } : {}),
       requestKey: crypto.randomUUID(),
       supplierId: selected[0].supplierId,
       amount: decimal(total),
@@ -208,7 +217,8 @@ export function useSupplierPaymentDraft(context: DraftContext) {
   const confirm = async () => {
     if (flight.current || !attempt.current || receipt) return;
     const payload = attempt.current,
-      scope = key;
+      scope = key,
+      recovering = uncertain.current;
     flight.current = true;
     setBusy(true);
     setError("");
@@ -231,7 +241,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
       if (currentKey.current !== scope) return;
       const failure = e as Error & { status?: number };
       setError(failure.message);
-      if (!failure.status || failure.status < 400 || failure.status >= 500) {
+      if (recovering || !failure.status || failure.status < 400 || failure.status >= 500) {
         uncertain.current = true;
         setAmbiguous(true);
       } else {
@@ -286,6 +296,7 @@ export function useSupplierPaymentDraft(context: DraftContext) {
     paidAt,
     reference,
     notes,
+    cashOrigin, cashSession, setCashOrigin, setCashSession,
     difference,
     setAmount,
     setMethod,

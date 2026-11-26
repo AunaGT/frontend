@@ -4,6 +4,7 @@ const test = require("node:test"),
   path = require("node:path"),
   { loadReportModule } = require("./helpers/loadReportModule.cjs");
 const receipt = {
+  cashRegisterSessionId: 'qa-session', cashRegisterName: 'Caja central', cashOrigin: 'CASH_SESSION',
   id: "abcd1234",
   status: "CANCELLED",
   companyId: "c",
@@ -73,7 +74,8 @@ test("real receipt PDF is multipage and its cancelled status and last applicatio
   assert.match(text, /Empresa de prueba/);
   const pages = text.split("\f").filter((page) => page.trim());
   assert.ok(pages.length >= 3);
-  for (const page of pages) assert.match(page, /ANULADO - SIN EFECTO/);
+  for (const page of pages) assert.match(page, /ANULADO - APLICACIONES SIN EFECTO/);
+  assert.match(text, /Caja central/); assert.match(text, /egreso de caja se conserva/i);
   assert.ok(!text.includes("FEL emitida"));
   assert.match(execFileSync("pdffonts", [file]).toString(), /CouponNoto.*yes/);
 });

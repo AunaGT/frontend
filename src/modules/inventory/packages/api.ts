@@ -2,7 +2,8 @@ import {apiFetch,getActiveCompanyId,getActiveBranchId} from '@/services/api'
 import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
 import type {PackageScope,CommercialPackage,PackageDefinition,PackageSummary,PackageSelection,PackageGroup,PackageIssue,PackageCatalogMetrics} from './types'
 export function assertPackageScope(scope:PackageScope,signal?:AbortSignal){
- if(signal?.aborted||getActiveCompanyId()!==scope.companyId||getActiveBranchId()!==scope.branchId||authSessionIdentity()!==scope.sessionId||!authSessionMatches(scope.userId))throw new DOMException('Cambió la empresa o sesión','AbortError')
+ const activeBranch=scope.activeBranchId===undefined?scope.branchId:scope.activeBranchId
+ if(signal?.aborted||getActiveCompanyId()!==scope.companyId||getActiveBranchId()!==activeBranch||authSessionIdentity()!==scope.sessionId||!authSessionMatches(scope.userId))throw new DOMException('Cambió la empresa o sesión','AbortError')
 }
 export async function packageRequest<T>(scope:PackageScope,path:string,options:RequestInit={}):Promise<T>{
  assertPackageScope(scope,options.signal||undefined)
@@ -12,15 +13,16 @@ export async function packageRequest<T>(scope:PackageScope,path:string,options:R
  }catch(error){assertPackageScope(scope,options.signal||undefined);throw error}
 }
 const base='/api/commercial-packages'
+const catalogBase=(scope:PackageScope)=>scope.purpose==='sale'?'/api/sales/packages':base
 export const uploadPackageImage=(scope:PackageScope,file:File,signal?:AbortSignal)=>{
  const body=new FormData();body.append('image',file)
  return packageRequest<{imageUrl:string}>(scope,base+'/images',{method:'POST',body,signal})
 }
-export const packageQueryKey=(scope:PackageScope)=>['commercial-packages',scope.companyId,scope.branchId,scope.userId,scope.sessionId]
-export const fetchPackages=(s:PackageScope,query:{q?:string;cursor?:string;includeArchived?:boolean;activeOnly?:boolean;includeSummary?:boolean}={},signal?:AbortSignal)=>packageRequest<{items:PackageSummary[];nextCursor:string|null;summary?:PackageCatalogMetrics}>(s,base+'?'+new URLSearchParams({limit:'25',...Object.fromEntries(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]))}),{signal})
-export const fetchPackage=(s:PackageScope,id:string,signal?:AbortSignal)=>packageRequest<CommercialPackage>(s,base+'/'+encodeURIComponent(id),{signal})
+export const packageQueryKey=(scope:PackageScope)=>['commercial-packages',scope.companyId,scope.branchId,scope.activeBranchId,scope.userId,scope.sessionId,scope.purpose]
+export const fetchPackages=(s:PackageScope,query:{q?:string;cursor?:string;limit?:number;includeArchived?:boolean;activeOnly?:boolean;includeSummary?:boolean}={},signal?:AbortSignal)=>packageRequest<{items:PackageSummary[];nextCursor:string|null;totalItems?:number;summary?:PackageCatalogMetrics}>(s,catalogBase(s)+'?'+new URLSearchParams({limit:'25',...Object.fromEntries(Object.entries(query).filter(([,v])=>v!==undefined).map(([k,v])=>[k,String(v)]))}),{signal})
+export const fetchPackage=(s:PackageScope,id:string,signal?:AbortSignal)=>packageRequest<CommercialPackage>(s,catalogBase(s)+'/'+encodeURIComponent(id),{signal})
 export const savePackage=(s:PackageScope,id:string|null,input:{expectedVersion:number;definition:PackageDefinition;branchIds:string[];idempotencyKey:string},signal?:AbortSignal)=>packageRequest<PackageSummary>(s,base+(id?'/'+encodeURIComponent(id):''),{method:id?'PUT':'POST',body:JSON.stringify(input),signal})
 export const activatePackage=(s:PackageScope,id:string,expectedVersion:number,idempotencyKey:string,signal?:AbortSignal)=>packageRequest<PackageSummary>(s,base+'/'+encodeURIComponent(id)+'/activate',{method:'POST',body:JSON.stringify({expectedVersion,idempotencyKey}),signal})
 export const archivePackage=(s:PackageScope,id:string,expectedVersion:number,idempotencyKey:string,signal?:AbortSignal)=>packageRequest<PackageSummary>(s,base+'/'+encodeURIComponent(id)+'/archive',{method:'POST',body:JSON.stringify({expectedVersion,idempotencyKey}),signal})
-export const previewPackages=(s:PackageScope,packages:PackageSelection[],signal?:AbortSignal)=>packageRequest<{packageGroups:PackageGroup[];items:unknown[];subtotal:string;issues:PackageIssue[]}>(s,'/api/quotes/package-preview',{method:'POST',body:JSON.stringify({packages}),signal})
+export const previewPackages=(s:PackageScope,packages:PackageSelection[],signal?:AbortSignal,source?:{quoteId:string;expectedRevision:string})=>packageRequest<{packageGroups:PackageGroup[];items:unknown[];subtotal:string;issues:PackageIssue[]}>(s,s.purpose==='sale'?'/api/sales/packages/preview':'/api/quotes/package-preview',{method:'POST',body:JSON.stringify({packages,...source}),signal})
 export function packageError(error:unknown){const e=error as {data?:{message?:string;fields?:Record<string,string>};message?:string};return e.data?.message||e.message||'No se pudo completar la operación'}

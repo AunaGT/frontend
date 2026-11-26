@@ -6,7 +6,7 @@ function mount() {
   const h = hookHarness(),
     nodes = [],
     downloads = [];
-  let allowed = true,
+  let allowed = true, canCancel = false,
     release;
   const Preview = () => null;
   const receipt = {
@@ -45,7 +45,7 @@ function mount() {
           payable: true,
           key: ["company", "branch"],
           tenant: { isConsolidated: false },
-          hasPermission: (p) => (p === "merchandise.reports" ? allowed : true),
+          hasPermission: (p) => (p === "merchandise.reports" ? allowed : p === 'merchandise.cancel_payment' ? canCancel : true),
         }),
         useInvalidatePayables: () => async () => {},
       },
@@ -70,6 +70,7 @@ function mount() {
   };
   render();
   return {
+    setCanCancel: value => {canCancel=value;render()},
     render,
     nodes,
     Preview,
@@ -89,6 +90,12 @@ function mount() {
         .props.onClick(),
   };
 }
+test('a payment collector cannot cancel a supplier receipt without the separate permission',()=>{
+ const m=mount(),button=()=>m.nodes.find(n=>n.props.children==='Anular pago completo')
+ assert.equal(button(),undefined)
+ m.setCanCancel(true);assert.ok(button())
+ m.setCanCancel(false);assert.equal(button(),undefined)
+})
 test("revoking reports permission discards an in-flight receipt PDF", async () => {
   const m = mount();
   m.prepare();

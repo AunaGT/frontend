@@ -3,11 +3,11 @@ import {authSessionIdentity,authSessionMatches} from '@/services/authSession'
 import type {UnitSnapshot} from '@/modules/inventory/units/public'
 export type ManualScope={companyId:string;branchId:string;userId:string}
 export type ManualItemInput={product_id:string;qty:string;presentation_id?:string|null;unit_revision?:number;accept_rounding?:boolean;expected_unit_price?:string}
-export type ManualSaveInput={expectedVersion:number;idempotencyKey:string;customerId:string|null;customerName:string;customerNit:string;items:ManualItemInput[]}
+export type ManualSaveInput={expectedVersion:number;idempotencyKey:string;customerId:string|null;customerName:string;customerNit:string;items:ManualItemInput[];packages?:import('@/modules/inventory/packages/types').PackageSelection[];draftId?:string}
 export type ManualCommand={expectedVersion:number;idempotencyKey:string;dueDate?:string;creditOverride?:boolean}
-export type ManualSale={id:string;reference:string;version:number;status:'DRAFT'|'CONFIRMED'|'CANCELLED';originQuote?:{id:string;reference:string|null}|null;customerId:string|null;customerName:string;customerNit:string;total:string;dueDate:string|null;
- items:{id:number;productId:string;name:string;kind:'STANDARD'|'KIT'|'SERVICE';qty:string;unitPrice:string;lineTotal:string;unitLabel:string;quantityDecimals:number;unitSnapshot:UnitSnapshot|null;unitMetadataVersion:number;baseQty:string|null}[]}
-export type ManualPreview={total:string;items:{unitPrice:string;lineTotal:string;unitSnapshot:UnitSnapshot|null;baseQty:string}[]}
+export type ManualSale={packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];id:string;reference:string;version:number;status:'DRAFT'|'CONFIRMED'|'CANCELLED';originQuote?:{id:string;reference:string|null}|null;customerId:string|null;customerName:string;customerNit:string;total:string;dueDate:string|null;
+ items:{packageComponentKey?:string|null;id:number;productId:string;name:string;kind:'STANDARD'|'KIT'|'SERVICE';qty:string;unitPrice:string;lineTotal:string;unitLabel:string;quantityDecimals:number;unitSnapshot:UnitSnapshot|null;unitMetadataVersion:number;baseQty:string|null}[]}
+export type ManualPreview={packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];total:string;items:{unitPrice:string;lineTotal:string;unitSnapshot:UnitSnapshot|null;baseQty:string}[]}
 export function assertManualScope(scope:ManualScope,signal?:AbortSignal){
  if(signal?.aborted||!scope.companyId||!scope.branchId||scope.branchId==='all'||getActiveCompanyId()!==scope.companyId||getActiveBranchId()!==scope.branchId||!authSessionMatches(scope.userId))throw new DOMException('Cambió la empresa, sucursal o sesión','AbortError')
 }

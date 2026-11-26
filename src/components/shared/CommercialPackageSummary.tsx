@@ -2,6 +2,7 @@ import type {PackageGroup} from '@/modules/inventory/packages/types'
 import {formatMoney} from '@/utils/formatters'
 import {serviceConditionText,publicServiceConditions as publicConditions} from '@/services/serviceConditions'
 export type PackageDisplayLine={package_component_key?:string|null;packageComponentKey?:string|null;qty?:string|number;quantity?:string;unitLabel?:string|null;unit_label?:string|null;line_total?:string|number;lineTotal?:string|number;net_total?:string|number}
+export const packageDocumentCurrency=(groups:PackageGroup[]|undefined,fallback='GTQ')=>groups?.[0]?.currency||fallback
 export function publicCommercialPackageGroups(groups:PackageGroup[]):PackageGroup[]{
  return groups.map(g=>({schemaVersion:1,groupId:g.groupId,name:g.name,variantName:g.variantName,currency:g.currency,state:g.state,estimatedAmount:g.estimatedAmount,amount:g.amount,netAmount:g.netAmount,
   issues:g.issues.map(i=>({code:i.code,message:i.message,remainingQuantity:i.remainingQuantity})),
@@ -11,9 +12,9 @@ export function packageLineLabel(groups:PackageGroup[]|undefined,key?:string|nul
  const group=groups?.find(g=>g.components.some(c=>c.key===key))
  return group?`${group.name} · ${group.variantName}`:''
 }
-export function CommercialPackageSummary({groups=[],lines,mode,locale='es-GT'}:{groups?:PackageGroup[];lines:PackageDisplayLine[];mode:'quote'|'order'|'sale'|'engagement'|'public';locale?:string}){
+export function CommercialPackageSummary({groups,lines,mode,locale='es-GT'}:{groups?:PackageGroup[]|null;lines:PackageDisplayLine[];mode:'quote'|'order'|'sale'|'engagement'|'public';locale?:string}){
  const sold=mode==='sale',actual=new Map(lines.map(l=>[l.package_component_key??l.packageComponentKey,l]))
- if(!groups.length)return null
+ if(!groups?.length)return null
  return <section aria-label="Paquetes acordados" className="space-y-3">{groups.map(g=>{
   const components=sold?g.components.filter(c=>actual.has(c.key)):g.components
   if(sold&&!components.length)return null

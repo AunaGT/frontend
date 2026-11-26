@@ -621,22 +621,31 @@ test('accounting keeps the queried period and primary account visible with filte
   }
 })
 
-test('cash history keeps page size visible but no advanced filter row for sellers', () => {
+test('cash history keeps compact filters and pagination for every role name', () => {
   let isSeller = false
+  const names = ['@/context/useAuth','@/context/useTenant','@/services/cashClosureReadService','@tanstack/react-query','@/hooks/usePersistedListUiState']
+  const previous = names.map(name => overrides.get(name))
+  overrides.set('@/context/useAuth',{useAuth:()=>({user:{id:'qa',role:{name:isSeller?'vendedor':'custom'}}})})
+  overrides.set('@/context/useTenant',{useTenant:()=>({company:{id:'c'},branch:{id:'b'}})})
+  overrides.set('@/services/cashClosureReadService',{CASH_CLOSURE_READ_PERMISSIONS:['cashclosure.view','cashclosure.view_team','cashclosure.approve','cashclosure.validate']})
+  overrides.set('@tanstack/react-query',{useQuery:({queryKey})=>({isPending:false,data:queryKey[0]==='cash-closure-read-capabilities'?{viewOwn:true,viewTeam:false}:{items:[{id:'c1',closure_number:1,status:'Aprobado',start_date:'2026-10-01',end_date:'2026-10-02',actual_total:10,difference:0}],page:1,totalPages:2}})})
+  overrides.set('@/hooks/usePersistedListUiState',{usePersistedListUiState:()=>({page:1,pageSize:10,setPage(){},setPageSize(){}}),useResetPageOnFilterChange(){}})
   overrides.set('./hooks', { useCashClosureForm: () => ({ isSeller }), useCashClosureAPI: () => ({ closures: [{ id: 'closure-1', closure_number: 1, status: 'Aprobado', start_date: '2026-10-01', end_date: '2026-10-02', actual_total: 10, difference: 0 }], isLoadingClosures: false, currentPage: 1, totalPages: 2, pageSize: 10, fetchClosures: () => {}, setPageSize: () => {} }), useMineClosureGate: () => ({ gate: { loading: false } }), canRegisterMineClosure: () => false, mineClosureBlockedHint: () => '' })
   overrides.set('./CashClosureCreatePage', { CASH_CLOSURE_CREATE_PATH: '/cierre-caja/nuevo' })
-  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'cashclosure.view' }) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: (...codes) => codes.includes('cashclosure.view') }) })
   const { default: CashClosure } = load(path.join(__dirname, '../src/modules/cash-closure/CashClosureManagement.tsx'))
-  const html = renderToStaticMarkup(React.createElement(CashClosure))
+  const html = renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter,null,React.createElement(CashClosure)))
   assert.match(html, /^<div class="[^"]*auna-page-fluid\b/)
-  assert.match(html, /aria-label="Filtros de cierres"/)
+  assert.match(html, /aria-label="Filtros de arqueos"/)
   assert.equal((html.match(/role="combobox"/g) || []).length, 1)
   assert.doesNotMatch(html, /type="date"/)
   assertPaginationOutside(html)
   isSeller = true
-  const seller = renderToStaticMarkup(React.createElement(CashClosure))
-  assert.match(seller, /Último cierre de caja/)
-  assert.doesNotMatch(seller, /aria-label="Filtros de cierres"/)
+  const seller = renderToStaticMarkup(React.createElement(require('react-router-dom').MemoryRouter,null,React.createElement(CashClosure)))
+  assert.match(seller, /Mis arqueos/)
+  assert.match(seller, /aria-label="Filtros de arqueos"/)
+  assertPaginationOutside(seller)
+  names.forEach((name,index)=>{if(previous[index]===undefined)overrides.delete(name);else overrides.set(name,previous[index])})
 })
 
 let lotQueryResult
@@ -801,7 +810,7 @@ test('product details separate tasks into tabs and keep the initial view free of
     return React.useState(index === 0 ? apiProduct : index === 4 ? editing : index === 5 ? tab ?? initial : index === 30 && tab ? {owner:JSON.stringify(['product','qa-company','branch']),tabs:[tab]} : initial)
   } })
   overrides.set('react-router-dom', { ...require('react-router-dom'), useParams: () => ({ id: 'product' }), useNavigate: () => () => {} })
-  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'products.create' ? allowCost : allowEdit && ['products.edit', 'products.delete'].includes(permission) }) })
+  overrides.set('@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: permission => permission === 'products.view_costs' ? allowCost : allowEdit && ['products.edit', 'products.delete'].includes(permission) }) })
   overrides.set('@/hooks/useSuppliers', { useSuppliers: () => ({ data: { items: [] } }) })
   overrides.set('@/hooks/useCategories', { useCategories: () => ({ data: [] }) })
   overrides.set('@/hooks/useUpdateProduct', { __esModule: true, default: () => ({ mutateAsync: () => {}, isPending: false }) })

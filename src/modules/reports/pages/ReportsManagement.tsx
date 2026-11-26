@@ -1,7 +1,6 @@
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, FileText, Search } from 'lucide-react'
 import { useTenant } from '@/context/useTenant'
 import { useModules } from '@/context/useModules'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
@@ -30,11 +29,11 @@ function PdfPreview({ report, getPdf }: { report: PreparedReport; getPdf: () => 
   return error ? <div role="alert" className="report-panel"><p>{error}</p><Button variant="outline" onClick={() => setRetry(v => v + 1)}>Reintentar PDF</Button><p className="report-help">La vista Datos y las exportaciones Excel/CSV siguen disponibles.</p></div> : pdf && Viewer ? <Viewer pdf={pdf} onDownload={() => downloadReportBlob(pdf, `${report.id}.pdf`)} /> : <LoadingState message="Preparando documento…" variant="page" />
 }
 
-function ReportWorkspace({ definition, companyId, branchId, available, onBack }: { definition: ReportDefinition; companyId: string; branchId: string; available: ReportDefinition[]; onBack: () => void }) {
+function ReportWorkspace({ definition, companyId, branchId, available, onBack, accessKey }: { definition: ReportDefinition; companyId: string; branchId: string; available: ReportDefinition[]; onBack: () => void; accessKey: string }) {
   const now = new Date(), [params, setParams] = useSearchParams()
   const [filters, setFilters] = useState<ReportFilters>({ branchId, period: 'month', year: now.getFullYear(), month: now.getMonth() + 1, quarter: Math.ceil((now.getMonth() + 1) / 3), semester: now.getMonth() < 6 ? 1 : 2 })
   const errorSummary = useRef<HTMLParagraphElement>(null)
-  const prepared = usePreparedReport(companyId, definition.id, filters)
+  const prepared = usePreparedReport(companyId, definition.id, filters, accessKey)
   const [selection, setSelection] = useState<ReportSelection | null>(null)
   useEffect(() => setSelection(null), [prepared.report])
   const selected = useMemo(() => selection || (prepared.report ? allReportColumns(prepared.report) : { sections: [], columns: {} }), [selection, prepared.report])
@@ -45,7 +44,7 @@ function ReportWorkspace({ definition, companyId, branchId, available, onBack }:
   const changeTab = (value: string) => setParams({ reporte: definition.id, vista: value === 'configurar' ? 'configurar' : 'preview' })
   const reset = () => { prepared.clear(); setSelection(null); setFilters({ branchId, period: 'month', year: now.getFullYear(), month: now.getMonth() + 1, quarter: Math.ceil((now.getMonth() + 1) / 3), semester: now.getMonth() < 6 ? 1 : 2 }); changeTab('configurar') }
   useEffect(() => { if (prepared.error || projection.error) errorSummary.current?.focus() }, [prepared.error, projection.error])
-  return <div className="space-y-5"><div className="report-workspace-toolbar"><Button variant="ghost" onClick={onBack}><ArrowLeft className="h-4 w-4" /> Catálogo</Button><div className="report-type-select"><Select value={definition.id} onValueChange={reporte => setParams({ reporte, vista: 'configurar' })}><SelectTrigger aria-label="Elegir reporte"><SelectValue /></SelectTrigger><SelectContent>{available.map(r => <SelectItem value={r.id} key={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div><div className="ml-auto flex flex-wrap gap-2"><Button variant="ghost" disabled={prepared.pending} onClick={reset}>Restablecer</Button><Button variant="outline" disabled={prepared.pending} onClick={() => prepared.prepare()}>{prepared.report ? 'Actualizar datos' : 'Preparar datos'}</Button><Button variant="outline" disabled={!projection.report} onClick={() => setExportOpen(true)}>Exportar</Button><Button disabled={!projection.report} onClick={() => changeTab('datos')}>Vista previa <ArrowRight className="h-4 w-4" /></Button></div></div>
+  return <div className="space-y-5"><div className="report-workspace-toolbar"><Button variant="ghost" onClick={onBack}>Catálogo</Button><div className="report-type-select"><Select value={definition.id} onValueChange={reporte => setParams({ reporte, vista: 'configurar' })}><SelectTrigger aria-label="Elegir reporte"><SelectValue /></SelectTrigger><SelectContent>{available.map(r => <SelectItem value={r.id} key={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div><div className="ml-auto flex flex-wrap gap-2"><Button variant="ghost" disabled={prepared.pending} onClick={reset}>Restablecer</Button><Button variant="outline" disabled={prepared.pending} onClick={() => prepared.prepare()}>{prepared.report ? 'Actualizar datos' : 'Preparar datos'}</Button><Button variant="outline" disabled={!projection.report} onClick={() => setExportOpen(true)}>Exportar</Button><Button disabled={!projection.report} onClick={() => changeTab('datos')}>Vista previa</Button></div></div>
     {projection.report && <ReportExportDialog key={`${projection.report.generatedAt}:${JSON.stringify(selected)}`} open={exportOpen} onOpenChange={setExportOpen} report={projection.report} getPdf={getPdf} />}
     <p className="report-help">{prepared.report ? `${prepared.report.scope.label} · ${prepared.report.period.label} · ${prepared.report.sections.reduce((n, s) => n + s.rows.length, 0)} filas preparadas` : definition.description}</p>
     {(prepared.error || projection.error) && <p ref={errorSummary} tabIndex={-1} role="alert" className="text-sm text-destructive">{prepared.error?.message || projection.error}</p>}{prepared.dirty && <p role="status" className="report-help">Los filtros cambiaron. Prepara los datos nuevamente.</p>}
@@ -59,18 +58,24 @@ export default function ReportsManagement() {
   const { company, branch, isConsolidated } = useTenant(), modules = useModules(), permissions = useAuthPermissions()
   const [params, setParams] = useSearchParams(), [search, setSearch] = useState(''), [category, setCategory] = useState('Todos')
   usePageTrail(params.has('reporte') ? null : [{ label: 'Reportes' }])
-  const visible = !modules.enabledModuleCodes || modules.isError || !permissions.permissionsReady ? [] : REPORT_CATALOG.filter(r => r.modules.every(code => modules.enabledModuleCodes!.has(code)) && permissions.hasPermission(...r.permissions))
+  const visible = !modules.enabledModuleCodes || modules.isError || !permissions.permissionsReady ? [] : REPORT_CATALOG.filter(r => r.modules.every(code => modules.enabledModuleCodes!.has(code)) && permissions.hasPermission(...r.permissions) && (!r.alsoPermissions || permissions.hasPermission(...r.alsoPermissions)) && (!r.financial || permissions.hasPermission('reports.financial')))
   const definition = visible.find(r => r.id === params.get('reporte'))
   if (modules.isError) return <div role="alert" className="p-6">No se pudo cargar el catálogo de reportes. <Button variant="outline" onClick={() => modules.refetch()}>Reintentar</Button></div>
   if (modules.isLoading || !modules.enabledModuleCodes || !permissions.permissionsReady) return <LoadingState message="Cargando reportes…" variant="cards" />
   if (!company) return <p role="status" className="p-6">Selecciona una empresa para consultar sus reportes.</p>
   const branchId = isConsolidated ? 'all' : branch?.id || ''
-  if (definition && branchId) return <main className={`reports-page${params.get('vista') === 'preview' ? ' auna-page-fluid' : ''}`}><h1 className="sr-only">{definition.name}</h1><ReportWorkspace key={`${company.id}:${branchId}:${definition.id}`} definition={definition} companyId={company.id} branchId={branchId} available={visible} onBack={() => setParams({})} /></main>
+  if (definition && branchId) return <main className={`reports-page${params.get('vista') === 'preview' ? ' auna-page-fluid' : ''}`}><h1 className="sr-only">{definition.name}</h1><ReportWorkspace key={`${company.id}:${branchId}:${definition.id}`} definition={definition} accessKey={permissions.hasPermission('reports.financial')?'financial':'operational'} companyId={company.id} branchId={branchId} available={visible} onBack={() => setParams({})} /></main>
   const filtered = visible.filter(r => (category === 'Todos' || r.category === category) && `${r.name} ${r.description}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')))
   return <main className="reports-page auna-page-fluid"><h1 className="sr-only">Reportes</h1>{params.has('reporte') && <p role="alert" className="text-sm text-destructive">Este reporte no está disponible para tus módulos o permisos.</p>}
-    <div className="report-catalog-toolbar"><div className="max-w-xl flex-1 space-y-2"><Label htmlFor="report-search">Buscar reporte</Label><div className="relative"><Search aria-hidden="true" className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="report-search" className="pl-10" placeholder="Buscar un reporte…" value={search} onChange={e => setSearch(e.target.value)} /></div></div><span className="text-sm text-muted-foreground">{visible.length} reportes disponibles</span></div>
+    <div className="report-catalog-toolbar"><div className="report-catalog-search space-y-2"><Label htmlFor="report-search">Buscar reporte</Label><Input id="report-search" placeholder="Nombre o contenido del reporte" value={search} onChange={e => setSearch(e.target.value)} /></div><span className="text-sm text-muted-foreground">{visible.length} reportes disponibles</span></div>
     <Tabs value={category} onValueChange={setCategory}><div className="overflow-x-auto"><ModuleTabsList aria-label="Categorías de reportes">{REPORT_CATEGORIES.filter(c => c === 'Todos' || visible.some(r => r.category === c)).map(c => <ModuleTabsTrigger key={c} value={c}>{c}</ModuleTabsTrigger>)}</ModuleTabsList></div>
-      <TabsContent value={category}><div className="report-catalog-grid">{filtered.map(report => <article key={report.id} className="report-catalog-entry"><FileText className="h-6 w-6 text-brand-orange" aria-hidden="true" /><div><span className="text-xs text-muted-foreground">{report.category}</span><h2 className="font-semibold">{report.name}</h2><p className="report-help mt-1">{report.description}</p></div><Button variant="outline" onClick={() => setParams({ reporte: report.id, vista: 'configurar' })}>Configurar <ArrowRight className="h-4 w-4" /></Button></article>)}</div>{!filtered.length && <CollectionEmptyState title="Tus reportes tendrán su lugar aquí" description="Los reportes disponibles dependen de los módulos habilitados y de tus permisos. Consulta al administrador para revisarlos." filtered={!!search.trim() || category !== 'Todos'} onReset={() => { setSearch(''); setCategory('Todos') }} />}</TabsContent>
+      <TabsContent value={category}>
+        <div className="report-catalog-grid">{filtered.map(report => <article key={report.id} className="report-catalog-entry">
+          <div><h2>{report.name}</h2><p className="report-help">{report.description}</p></div>
+          <div className="report-catalog-footer"><span className="report-catalog-category">{report.category}</span><Button variant="outline" size="sm" aria-label={`Configurar ${report.name}`} onClick={() => setParams({ reporte: report.id, vista: 'configurar' })}>Configurar</Button></div>
+        </article>)}</div>
+        {!filtered.length && <CollectionEmptyState title="Tus reportes tendrán su lugar aquí" description="Los reportes disponibles dependen de los módulos habilitados y de tus permisos. Consulta al administrador para revisarlos." filtered={!!search.trim() || category !== 'Todos'} onReset={() => { setSearch(''); setCategory('Todos') }} />}
+      </TabsContent>
     </Tabs>
   </main>
 }

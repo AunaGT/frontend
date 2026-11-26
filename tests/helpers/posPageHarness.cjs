@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '../../src')
 const target = path.join(root, 'modules/sales/NewSalePage.tsx')
 const product = { id: 'p-1', name: 'Producto QA', category: 'Bebidas', brand: 'QA', barcode: '740001', imageUrl: '/qa.png', stock: 20, price: 5, minStock: 0 }
 
-function render({ categories = [], refs = {}, cartOverrides = {}, methods = [{ id: 1, name: 'Efectivo', is_credit: false }, { id: 2, name: 'Crédito', is_credit: true }], state = {}, productsError = false, permissions = ['sales.create'], items = [{ ...product, qty: '2' }], products = [product],pricingReady=true,realCart,unitPreview,unitBatchPreview,checkoutOverrides={},downloadTicket=async()=>{},warehouses=[],posAvailability,stockLocations=async()=>[],inventoryUnitsEnabled=false,scanProduct=async()=>{throw Error('Unexpected scan')},catalog,loadOrder,enabledModules=[],resolveCode } = {}) {
+function render({ categories = [], refs = {}, cartOverrides = {}, methods = [{ id: 1, name: 'Efectivo', is_credit: false }, { id: 2, name: 'Crédito', is_credit: true }], state = {}, productsError = false, permissions = ['sales.create'], items = [{ ...product, qty: '2' }], products = [product],pricingReady=true,realCart,unitPreview,unitBatchPreview,checkoutOverrides={},downloadTicket=async()=>{},warehouses=[],posAvailability,stockLocations=async()=>[],inventoryUnitsEnabled=false,scanProduct=async()=>{throw Error('Unexpected scan')},catalog,loadOrder,enabledModules=[],resolveCode,moduleOverrides={} } = {}) {
   const tree = ts.createSourceFile(target, fs.readFileSync(target, 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
   const page = tree.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'NewSalePage')
   const names = page.body.statements.flatMap(node => ts.isVariableStatement(node) ? node.declarationList.declarations.filter(d => ts.isCallExpression(d.initializer) && d.initializer.expression.getText(tree) === 'useState').map(d => d.name.elements[0].name?.text??d.name.elements[1].name.text) : [])
@@ -63,6 +63,7 @@ function render({ categories = [], refs = {}, cartOverrides = {}, methods = [{ i
     './CashRegisterPicker': { CashRegisterPicker: () => React.createElement('p', null, 'Seleccionar caja') },
     './OpenCashRegisterPrompt': { OpenCashRegisterPrompt: () => React.createElement('p', null, 'Abrir caja') },
   }
+  Object.assign(overrides,moduleOverrides)
   if(loadOrder)overrides['@/services/orderService']={...load(path.join(root,'services/orderService.ts')),fetchOrderById:loadOrder}
   if(resolveCode)overrides['@/services/productService']={...load(path.join(root,'services/productService.ts')),resolvePosCatalogCode:resolveCode}
   if(unitPreview||unitBatchPreview)overrides['@/modules/inventory/units/public']={...require('./loadReportModule.cjs').loadReportModule('../inventory/units/public.ts',{'@/services/api':{}}),previewUnitLine:unitPreview,previewUnitLines:unitBatchPreview??(async(scope,lines,signal)=>({items:await Promise.all(lines.map(async({client_line_key,product_id,...input})=>({client_line_key,preview:await unitPreview(scope,product_id,input,signal)})))}))}

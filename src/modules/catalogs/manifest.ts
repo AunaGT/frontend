@@ -12,12 +12,16 @@ export const catalogsModule = {
     categories: '/inventario/categorias',
     categoriesImport: '/inventario/categorias/importar',
     cashRegisters: '/configuracion/cajas',
+    cashRegisterCreate: '/configuracion/cajas/nueva',
+    cashRegisterDetail: '/configuracion/cajas/:id',
+    cashRegisterEdit: '/configuracion/cajas/:id/editar',
     paymentMethods: '/configuracion/metodos-de-pago',
     paymentTerms: '/configuracion/condiciones-de-pago',
     paymentTermsImport: '/configuracion/condiciones-de-pago/importar',
   },
   routePrefixes: ['/catalogos'] as const,
   pages: {
+    CashRegisterForm: lazy(() => import('./pages/CashRegisterFormPage')),
     Panel: lazy(() => import('./pages/CatalogPanelPage')),
     Management: lazy(() => import('./pages/CatalogsManagement')
       .then((module) => ({ default: module.CatalogsManagement }))),

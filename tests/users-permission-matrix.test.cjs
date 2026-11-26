@@ -12,3 +12,15 @@ test('dependencies terminate through cycles and disabled switches cannot mutate'
  PermissionMatrix({catalog:p,selected:[],onChange:v=>selected=v});nodes.find(n=>n.props?.['aria-label']==='Ver empleados').props.onCheckedChange();assert.deepEqual(selected,['hr.employees.view','hr.documents.view'])
  nodes.length=0;selected=null;PermissionMatrix({catalog:p,selected:[],disabled:true,onChange:v=>selected=v});nodes.find(n=>n.props?.['aria-label']==='Ver empleados').props.onCheckedChange();assert.equal(selected,null)
 })
+test('compound action requirements are explained without automatically granting money permissions',()=>{
+ const nodes=[],{PermissionMatrix}=loadReportModule('../users/PermissionMatrix.tsx',{},nodes)
+ const catalog=[{id:1,code:'appointments.collect',name:'Cobrar en Agenda',requirements:[{action:'Cobrar en Agenda',permissions:['receivables.manage']}]},{id:2,code:'receivables.manage',name:'Registrar cobros'}]
+ let selected
+ const html=renderToStaticMarkup(React.createElement(PermissionMatrix,{catalog,selected:['appointments.collect'],onChange:v=>selected=v}))
+ assert.match(html,/Requiere además/);assert.match(html,/Registrar cobros/)
+ const enabled=renderToStaticMarkup(React.createElement(PermissionMatrix,{catalog,selected:['appointments.collect','receivables.manage'],onChange(){}}))
+ assert.doesNotMatch(enabled,/Requiere además/)
+ nodes.length=0;PermissionMatrix({catalog,selected:[],onChange:v=>selected=v})
+ nodes.find(n=>n.props?.['aria-label']==='Cobrar en Agenda').props.onCheckedChange()
+ assert.deepEqual(selected,['appointments.collect'])
+})

@@ -62,9 +62,11 @@ export interface SalePromotion {
 
 // Interfaz principal de venta
 export interface Sale extends BaseEntity {
+  eventPaymentTerms?:import('@/services/eventPaymentTerms').PublicEventPaymentTerms|null;
+  packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];
   settlementSource?: 'LEGACY' | 'ENGAGEMENT_RECEIPTS' | 'MANUAL_SALE';
   commercial?:SaleCommercialView;
-  capabilities?:{confirm:boolean;requestInvoice:boolean;collect:boolean;reason:string;editManual?:boolean;confirmManual?:boolean;cancelManual?:boolean};
+  capabilities?:{viewDocument?:boolean;confirm:boolean;requestInvoice:boolean;collect:boolean;reason:string;editManual?:boolean;confirmManual?:boolean;cancelManual?:boolean};
   isCredit?: boolean;
   dueDate?: string;
   creditPaid?: number;

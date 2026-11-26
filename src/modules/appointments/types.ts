@@ -33,8 +33,9 @@ export type CreateBookingInput = LocationInput & {
 }
 export type CreateSessionInput = Omit<CreateBookingInput, 'contactId' | 'quantity'> & { capacity: number }
 export type EnrollInput = Pick<CreateBookingInput, 'contactId' | 'quantity' | 'notes' | 'idempotencyKey'>
-export type MoveInput = LocationInput & Pick<CreateBookingInput, 'startsAt' | 'endsAt' | 'timezone' | 'providerIds' | 'resourceIds' | 'idempotencyKey'> & { expectedVersion: number; reason: string }
+export type MoveInput = {acknowledgedPaymentReviewHash?:string} & LocationInput & Pick<CreateBookingInput, 'startsAt' | 'endsAt' | 'timezone' | 'providerIds' | 'resourceIds' | 'idempotencyKey'> & { expectedVersion: number; reason: string }
 export type TransitionInput = {
+  exception?:{reason:string;reviewHash:string};
   action: 'CONFIRM' | 'ARRIVE' | 'START' | 'COMPLETE' | 'NO_SHOW' | 'CANCEL' | 'CONFIRM_COMPLETION'; expectedVersion: number; idempotencyKey: string; reason: string;
 }
 export type SessionTransitionInput = Omit<TransitionInput, 'action'> & { action: 'START' | 'COMPLETE' | 'CANCEL' }

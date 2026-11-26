@@ -2,12 +2,19 @@
 @media(min-width:640px) { .reports-page { padding: 2rem; } }
 .report-catalog-toolbar,.report-workspace-toolbar { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
 .report-type-select { width: min(300px,100%); }
-.report-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,320px),1fr)); gap: 1rem; margin-top: 1.25rem; }
-.report-catalog-entry { width: 100%; max-width: 420px; }
+.report-catalog-search { width: min(100%, 22rem); }
+.report-catalog-toolbar { align-items: end; margin-bottom: 1rem; }
+.report-catalog-toolbar>span { padding-bottom: .6rem; font-size: .8125rem; }
+.report-catalog-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,18rem),18rem)); gap: .75rem; margin-top: 1rem; }
 .report-catalog-entry,.report-panel { border: 1px solid hsl(var(--auna-surface-border)); background: hsl(var(--auna-surface-card)); color: hsl(var(--foreground)); border-radius: .65rem; padding: 1rem; min-width: 0; }
 .report-catalog-entry .report-help,.report-panel .report-help,.report-catalog-entry .text-muted-foreground,.report-panel .text-muted-foreground { color: hsl(var(--auna-surface-muted)); }
-.report-catalog-entry { display: grid; grid-template-columns: auto 1fr; gap: .75rem; align-items: start; }
-.report-catalog-entry>button { grid-column: 2; justify-self: start; margin-top: .5rem; }
+.report-catalog-entry { display: flex; flex-direction: column; justify-content: space-between; gap: .75rem; padding: .875rem; overflow-wrap: anywhere; }
+.report-catalog-entry h2 { font-size: .9375rem; line-height: 1.4; font-weight: 600; }
+.report-catalog-entry .report-help { margin-top: .35rem; font-size: .8125rem; line-height: 1.45; }
+.report-catalog-footer { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.report-catalog-category { color: hsl(var(--auna-surface-muted)); font-size: .75rem; line-height: 1.4; }
+.report-catalog-footer>button { flex-shrink: 0; }
+@media(pointer:coarse) { .report-catalog-footer>button { min-height: 44px; } }
 .report-panel h2 { font-size: .95rem; font-weight: 600; margin-bottom: 1rem; }
 .report-help { color: hsl(var(--muted-foreground)); font-size: .875rem; line-height: 1.5; }
 /* A reloaded preview can return to configuration before its data is prepared. */

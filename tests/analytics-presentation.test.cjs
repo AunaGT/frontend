@@ -45,8 +45,8 @@ const data = {
   initialInventory: {total: 1000, units: 10, count: 1},
 }
 
-function setup({inventory = true} = {}) {
-  overrides.set('@/hooks/useAuthPermissions', {useAuthPermissions: () => ({hasPermission: () => true})})
+function setup({inventory = true,financial = true} = {}) {
+  overrides.set('@/hooks/useAuthPermissions', {useAuthPermissions: () => ({hasPermission: p => p!=='reports.financial'||financial})})
   overrides.set('@/hooks/useSystemSettings', {useSystemSettings: () => ({locale: 'es-GT', currencyCode: 'GTQ'})})
   overrides.set('@/context/useModules', {useModules: () => ({enabledModuleCodes: ['sales'], isEnabled: code => code !== 'inventory' || inventory})})
   overrides.set('@/modules/analytics/hooks/useAnalytics', {useAnalytics: () => ({data, isLoading: false, isFetching: false, isError: false, refetch() {}}), useAnalyticsFirstSaleYear: () => ({data: {firstSaleYear: 2025}})})
@@ -61,6 +61,11 @@ const renderPage = options => {
   const Page = load(path.join(root, 'modules/analytics/pages/Analytics.tsx')).default
   return renderToStaticMarkup(React.createElement(MemoryRouter, null, React.createElement(Page)))
 }
+test('analytics access alone never presents costs or fabricated financial indicators',()=>{
+ const html=renderPage({financial:false})
+ assert.match(html,/Sin acceso al tablero/)
+ assert.doesNotMatch(html,/Rentabilidad \(margen\)/)
+})
 // Radix only mounts the active tab; this stub mounts every tab so each one can be inspected.
 const renderAllTabs = () => {
   setup()

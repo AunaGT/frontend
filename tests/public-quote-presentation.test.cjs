@@ -17,6 +17,12 @@ const quote = {
   notes: 'Entrega en recepción', company_name: 'Empresa QA', company_logo_url: '/logo-qa.svg',
   lines: [{ product_name: 'Producto QA', barcode: 'CODE-1', image_url: '/qa-product.svg', qty: 10, unit_price: '10.00', line_total: '90.00' }],
 }
+test('a published portal uses trusted quote callbacks and never executes design code',()=>{
+ const design=require('../../deposito-backend/src/modules/config/customerPages/bases').resolveBase('QUOTE');design.nodes.push({id:'custom-title',type:'Heading',props:{text:'Una propuesta a tu medida'},styles:{desktop:{},tablet:{},mobile:{}},visibility:{},children:[]})
+ const view=render({data:{...quote,portal:{versionId:'published',rendererVersion:1,designHash:'hash',design,customArtifacts:{},customCodeEnabled:false}}})
+ assert.match(view.html,/Una propuesta a tu medida/);assert.match(view.html,/90\.00/)
+ const portal=view.nodes.find(n=>n.props?.actions?.onQuoteDecision);assert.ok(portal);portal.props.actions.onQuoteDecision('ACCEPTED');assert.ok(view.states.some(s=>s.value==='ACCEPTED'))
+})
 test('public and private quotation rows retain the service unit with all quantity digits', () => {
   const data={...quote,lines:[{...quote.lines[0],product_name:'Asesoría original',qty:'0.125',unit_label:'Hora'}]}
   for(const privateLines of [false,true]) {

@@ -1,1 +1,11 @@
 .merchandise-page .bg-card:not(.auna-surface-flat) { background: hsl(var(--auna-table-surface)); border-radius: 1rem; }
+
+.merchandise-receipt .receipt-production-grid { display: grid; gap: .75rem; align-items: start; }
+.merchandise-receipt .receipt-extra > summary { min-height: 2.75rem; display: list-item; align-content: center; }
+.merchandise-receipt .receipt-extra > summary:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; border-radius: .25rem; }
+.merchandise-receipt input:not([type="checkbox"]):not([type="radio"]),
+.merchandise-receipt select { min-height: 2.75rem; }
+.merchandise-receipt button { min-height: 2.75rem; }
+@media (min-width: 1200px) {
+  .merchandise-receipt .receipt-production-grid { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+}

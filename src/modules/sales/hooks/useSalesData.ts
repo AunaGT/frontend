@@ -1,4 +1,5 @@
 import { TABLE_PAGE_SIZES } from '@/utils/pagination'
+import {safeEventPaymentTerms} from '@/services/eventPaymentTerms'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -44,6 +45,7 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         const qty = (s.qty ?? s.quantity ?? s.amount ?? 1) as number | string
         return {
             id: String(id), name: String(name), price, qty,
+            packageComponentKey:typeof s.package_component_key==='string'?s.package_component_key:undefined,
             ...(s.unit_metadata_version===2?{unitMetadataVersion:2 as const,unitSnapshot:s.unit_snapshot as import('@/modules/inventory/units/public').UnitSnapshot,priceExact:String(priceRaw),lineTotalExact:s.net_total==null?undefined:String(s.net_total),baseQty:String(s.base_qty)}:{}),
             itemKind: s.item_kind as 'STANDARD' | 'KIT' | 'SERVICE' | undefined,
             unitLabel: typeof s.unit_label === 'string' ? s.unit_label : undefined,
@@ -176,6 +178,8 @@ export const normalizeRawSale = (raw: unknown): Sale => {
         settlementSource: r.settlement_source === 'ENGAGEMENT_RECEIPTS' ? 'ENGAGEMENT_RECEIPTS' : r.settlement_source==='MANUAL_SALE'?'MANUAL_SALE':'LEGACY',
         commercial:r.commercial as Sale['commercial']??{state:({draft:'DRAFT',completed:'CONFIRMED',cancelled:'CANCELLED'} as const)[status as 'draft'|'completed'|'cancelled']||'LEGACY',originEngagementId:typeof r.origin_engagement_id==='string'?r.origin_engagement_id:null,version:Number(r.version)||1,confirmedAt:r.confirmed_at?String(r.confirmed_at):null,fiscalState:sale_dtes.length?'REVIEW_REQUIRED':'UNRECORDED'},
         capabilities:r.capabilities as Sale['capabilities'],
+        packageGroups:(r.packageGroups??r.package_groups??[]) as Sale['packageGroups'],
+        eventPaymentTerms:safeEventPaymentTerms(r.eventPaymentTerms as Sale['eventPaymentTerms']),
         isCredit: paymentObj?.is_credit === true,
         paymentStatus: ['PENDING', 'PARTIAL', 'PAID'].includes(String(r.payment_status)) ? r.payment_status : undefined,
         dueDate: r.due_date ? String(r.due_date) : undefined,

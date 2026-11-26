@@ -1,0 +1,28 @@
+import {useEffect,useState} from 'react'
+import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
+import {Label} from '@/components/ui/label'
+import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from '@/components/ui/select'
+import {getCustomerPaymentTerms,integrationError} from './api'
+import {withCustomerPolicy} from './model'
+import type {CredentialInput,IntegrationScope} from './types'
+export function CustomerCreationPolicy({scope,input,onChange,onTermName,disabled,canCreate,replace,termName,inheritedTerm}:{scope:IntegrationScope;input:CredentialInput;onChange:(input:CredentialInput)=>void;onTermName:(name:string)=>void;disabled:boolean;canCreate:boolean;replace:boolean;termName:string;inheritedTerm?:{id:number;name:string}}){
+ const [items,setItems]=useState<{id:number;name:string}[]>([]),[query,setQuery]=useState(''),[search,setSearch]=useState(''),[page,setPage]=useState(1),[hasMore,setHasMore]=useState(false),[loading,setLoading]=useState(false),[error,setError]=useState(''),[reload,setReload]=useState(0)
+ useEffect(()=>{
+  if(!canCreate||replace)return
+  const abort=new AbortController();setItems([]);setLoading(true);setError('')
+  void getCustomerPaymentTerms(scope,{page,q:search},abort.signal).then(r=>{if(!abort.signal.aborted){setItems(r.items);setHasMore(r.hasMore)}}).catch(e=>{if(e.name!=='AbortError')setError(integrationError(e))}).finally(()=>{if(!abort.signal.aborted)setLoading(false)})
+  return()=>abort.abort()
+ },[scope,page,search,reload,canCreate,replace])
+ return <fieldset disabled={disabled} className="integration-customer-policy"><legend>Clientes al recibir un borrador</legend>
+  <label className="integration-check"><input className="auna-radio" type="radio" name="customer-policy" checked={input.customerPolicy==='EXISTING_ONLY'} onChange={()=>{onChange(withCustomerPolicy(input,'EXISTING_ONLY'));onTermName('')}}/>Solo clientes registrados</label>
+  <p className="integration-help">Predeterminado. Si el cliente no está registrado o vinculado, la solicitud se rechaza sin crear nada.</p>
+  <label className="integration-check"><input className="auna-radio" type="radio" name="customer-policy" checked={input.customerPolicy==='CREATE_IF_MISSING'} disabled={disabled||!canCreate||!replace&&!items.length} onChange={()=>{onChange(withCustomerPolicy({...input,...(replace&&inheritedTerm?{customerPaymentTermId:inheritedTerm.id}:{})},'CREATE_IF_MISSING'));if(replace&&inheritedTerm)onTermName(inheritedTerm.name)}}/>Permitir crear clientes al recibir un borrador</label>
+  <p className="integration-help">Si el cliente no existe, esta integración podrá registrarlo al crear una cotización o pedido. No podrá modificar clientes existentes.</p>
+  {!canCreate&&<p className="integration-help">Tu alcance actual o el de la clave anterior no permite registrar clientes.</p>}
+  {canCreate&&!replace&&<><div className="integration-actions"><div className="integration-field"><Label htmlFor="integration-term-search">Buscar término de pago</Label><Input id="integration-term-search" maxLength={100} value={query} onChange={e=>setQuery(e.target.value)}/></div><Button type="button" variant="outline" onClick={()=>{setPage(1);setSearch(query.trim())}}>Buscar</Button></div>{loading?<p role="status">Cargando términos de pago…</p>:error?<p role="alert">{error}<Button type="button" variant="outline" onClick={()=>setReload(n=>n+1)}>Reintentar</Button></p>:!items.length&&<p>No hay términos disponibles. Configura uno en los datos maestros para habilitar esta opción.</p>}</>}
+  {input.customerPolicy==='CREATE_IF_MISSING'&&<><label className="integration-check"><input className="auna-checkbox" type="checkbox" checked={input.scopes.includes('customers.create')} disabled={disabled} onChange={e=>{onChange({...input,scopes:e.target.checked?[...input.scopes,'customers.create']:input.scopes.filter(s=>s!=='customers.create')})}}/>Autorizar registro de clientes · customers.create</label><div className="integration-field"><Label htmlFor="integration-payment-term">Término de pago para clientes nuevos</Label><Select required disabled={disabled||replace||loading} value={input.customerPaymentTermId?String(input.customerPaymentTermId):'__none__'} onValueChange={value=>{const id=value==='__none__'?null:Number(value);onChange({...input,customerPaymentTermId:id});onTermName(items.find(i=>i.id===id)?.name||'')}}><SelectTrigger id="integration-payment-term" disabled={disabled||replace||loading}><SelectValue>{input.customerPaymentTermId?(items.find(i=>i.id===input.customerPaymentTermId)?.name||termName||'Término configurado'):'Selecciona un término'}</SelectValue></SelectTrigger><SelectContent><SelectItem value="__none__">Selecciona un término</SelectItem>{input.customerPaymentTermId&&!items.some(i=>i.id===input.customerPaymentTermId)&&<SelectItem value={String(input.customerPaymentTermId)}>{termName||'Término configurado'}</SelectItem>}{items.map(i=><SelectItem key={i.id} value={String(i.id)}>{i.name}</SelectItem>)}</SelectContent></Select></div><p className="integration-help">No concede crédito: los borradores se preparan al contado y sin cobros.</p></>}
+  {canCreate&&!replace&&<div className="integration-actions"><Button type="button" variant="ghost" disabled={disabled||page===1||loading} onClick={()=>setPage(p=>p-1)}>Anterior</Button><span>Página {page}</span><Button type="button" variant="ghost" disabled={disabled||!hasMore||loading} onClick={()=>setPage(p=>p+1)}>Siguiente</Button></div>}
+  {replace&&<p className="integration-help">Un reemplazo solo conserva o reduce el alcance. Para cambiar el término o habilitar una capacidad superior, crea otra integración.</p>}
+ </fieldset>
+}

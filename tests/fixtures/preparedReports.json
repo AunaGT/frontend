@@ -8899,5 +8899,991 @@
         "Ocupación por presencia de productos activos, no porcentaje de capacidad física."
       ]
     }
+  },
+  "disputes": {
+    "0": {
+      "generatedAt": "2026-10-09T12:00:00Z",
+      "generatedBy": "Operador QA",
+      "timezone": "America/Guatemala",
+      "currency": "GTQ",
+      "scope": {
+        "companyId": "qa-company",
+        "label": "Principal",
+        "branches": [
+          {
+            "id": "qa-branch",
+            "name": "Principal"
+          }
+        ],
+        "warehouse": null,
+        "location": null
+      },
+      "period": {
+        "mode": "period",
+        "start": "2026-10-01T06:00:00Z",
+        "endExclusive": "2026-11-01T06:00:00Z",
+        "label": "1 al 30 de septiembre de 2026"
+      },
+      "branding": {
+        "companyName": "Comercial del Norte, S. A.",
+        "logoDataUrl": null
+      },
+      "id": "disputes",
+      "title": "Disputas de cobros digitales",
+      "summary": [
+        {
+          "id": "cases",
+          "label": "Expedientes",
+          "type": "integer",
+          "value": 0
+        },
+        {
+          "id": "claimed",
+          "label": "Reclamado",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "withdrawn",
+          "label": "Retirado por el proveedor",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "recovered",
+          "label": "Recuperado",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "loss",
+          "label": "Pérdida asumida",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "charged",
+          "label": "Cargo al cliente",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "credited",
+          "label": "Crédito al cliente",
+          "type": "money",
+          "value": 0
+        }
+      ],
+      "sections": [
+        {
+          "id": "detail",
+          "title": "Expedientes del período",
+          "columns": [
+            {
+              "id": "date",
+              "label": "Apertura",
+              "type": "datetime",
+              "align": "left"
+            },
+            {
+              "id": "case",
+              "label": "Expediente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "providerReference",
+              "label": "Referencia del proveedor",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "customer",
+              "label": "Cliente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "method",
+              "label": "Medio",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [],
+          "totals": {
+            "claimed": 0,
+            "withdrawn": 0,
+            "recovered": 0,
+            "loss": 0,
+            "charged": 0,
+            "credited": 0,
+            "fees": 0
+          }
+        },
+        {
+          "id": "by-status",
+          "title": "Por estado",
+          "columns": [
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "count",
+              "label": "Expedientes",
+              "type": "integer",
+              "align": "right"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [],
+          "totals": null
+        }
+      ],
+      "charts": [
+        {
+          "id": "by-status",
+          "sectionId": "by-status",
+          "title": "Principal reclamado por estado",
+          "kind": "bar",
+          "valueType": "money",
+          "points": []
+        }
+      ],
+      "notes": [
+        "Reclamado, retirado, recuperado, pérdida, cargo y crédito son dimensiones distintas: no se suman como un gasto total.",
+        "Importes vigentes al preparar el reporte para los expedientes abiertos en el período. «Ganada» no afirma que el banco devolvió el dinero."
+      ]
+    },
+    "2": {
+      "generatedAt": "2026-10-09T12:00:00Z",
+      "generatedBy": "Operador QA",
+      "timezone": "America/Guatemala",
+      "currency": "GTQ",
+      "scope": {
+        "companyId": "qa-company",
+        "label": "Principal",
+        "branches": [
+          {
+            "id": "qa-branch",
+            "name": "Principal"
+          }
+        ],
+        "warehouse": null,
+        "location": null
+      },
+      "period": {
+        "mode": "period",
+        "start": "2026-10-01T06:00:00Z",
+        "endExclusive": "2026-11-01T06:00:00Z",
+        "label": "1 al 30 de septiembre de 2026"
+      },
+      "branding": {
+        "companyName": "Comercial del Norte, S. A.",
+        "logoDataUrl": null
+      },
+      "id": "disputes",
+      "title": "Disputas de cobros digitales",
+      "summary": [
+        {
+          "id": "cases",
+          "label": "Expedientes",
+          "type": "integer",
+          "value": 2
+        },
+        {
+          "id": "claimed",
+          "label": "Reclamado",
+          "type": "money",
+          "value": 200
+        },
+        {
+          "id": "withdrawn",
+          "label": "Retirado por el proveedor",
+          "type": "money",
+          "value": 100
+        },
+        {
+          "id": "recovered",
+          "label": "Recuperado",
+          "type": "money",
+          "value": 0
+        },
+        {
+          "id": "loss",
+          "label": "Pérdida asumida",
+          "type": "money",
+          "value": 40
+        },
+        {
+          "id": "charged",
+          "label": "Cargo al cliente",
+          "type": "money",
+          "value": 60
+        },
+        {
+          "id": "credited",
+          "label": "Crédito al cliente",
+          "type": "money",
+          "value": 0
+        }
+      ],
+      "sections": [
+        {
+          "id": "detail",
+          "title": "Expedientes del período",
+          "columns": [
+            {
+              "id": "date",
+              "label": "Apertura",
+              "type": "datetime",
+              "align": "left"
+            },
+            {
+              "id": "case",
+              "label": "Expediente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "providerReference",
+              "label": "Referencia del proveedor",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "customer",
+              "label": "Cliente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "method",
+              "label": "Medio",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [
+            {
+              "date": "2026-09-01T15:00:00Z",
+              "case": "00000000",
+              "providerReference": "CB-QA-1",
+              "status": "Perdida",
+              "customer": "Cliente QA 1",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-02T15:00:00Z",
+              "case": "00000001",
+              "providerReference": "CB-QA-2",
+              "status": "Ganada",
+              "customer": "Cliente QA 2",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            }
+          ],
+          "totals": {
+            "claimed": 200,
+            "withdrawn": 100,
+            "recovered": 0,
+            "loss": 40,
+            "charged": 60,
+            "credited": 0,
+            "fees": 0
+          }
+        },
+        {
+          "id": "by-status",
+          "title": "Por estado",
+          "columns": [
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "count",
+              "label": "Expedientes",
+              "type": "integer",
+              "align": "right"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [
+            {
+              "status": "Ganada",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Perdida",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            }
+          ],
+          "totals": null
+        }
+      ],
+      "charts": [
+        {
+          "id": "by-status",
+          "sectionId": "by-status",
+          "title": "Principal reclamado por estado",
+          "kind": "bar",
+          "valueType": "money",
+          "points": [
+            {
+              "label": "Ganada",
+              "value": 100
+            },
+            {
+              "label": "Perdida",
+              "value": 100
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Reclamado, retirado, recuperado, pérdida, cargo y crédito son dimensiones distintas: no se suman como un gasto total.",
+        "Importes vigentes al preparar el reporte para los expedientes abiertos en el período. «Ganada» no afirma que el banco devolvió el dinero."
+      ]
+    },
+    "6": {
+      "generatedAt": "2026-10-09T12:00:00Z",
+      "generatedBy": "Operador QA",
+      "timezone": "America/Guatemala",
+      "currency": "GTQ",
+      "scope": {
+        "companyId": "qa-company",
+        "label": "Principal",
+        "branches": [
+          {
+            "id": "qa-branch",
+            "name": "Principal"
+          }
+        ],
+        "warehouse": null,
+        "location": null
+      },
+      "period": {
+        "mode": "period",
+        "start": "2026-10-01T06:00:00Z",
+        "endExclusive": "2026-11-01T06:00:00Z",
+        "label": "1 al 30 de septiembre de 2026"
+      },
+      "branding": {
+        "companyName": "Comercial del Norte, S. A.",
+        "logoDataUrl": null
+      },
+      "id": "disputes",
+      "title": "Disputas de cobros digitales",
+      "summary": [
+        {
+          "id": "cases",
+          "label": "Expedientes",
+          "type": "integer",
+          "value": 6
+        },
+        {
+          "id": "claimed",
+          "label": "Reclamado",
+          "type": "money",
+          "value": 600
+        },
+        {
+          "id": "withdrawn",
+          "label": "Retirado por el proveedor",
+          "type": "money",
+          "value": 300
+        },
+        {
+          "id": "recovered",
+          "label": "Recuperado",
+          "type": "money",
+          "value": 30
+        },
+        {
+          "id": "loss",
+          "label": "Pérdida asumida",
+          "type": "money",
+          "value": 120
+        },
+        {
+          "id": "charged",
+          "label": "Cargo al cliente",
+          "type": "money",
+          "value": 180
+        },
+        {
+          "id": "credited",
+          "label": "Crédito al cliente",
+          "type": "money",
+          "value": 0
+        }
+      ],
+      "sections": [
+        {
+          "id": "detail",
+          "title": "Expedientes del período",
+          "columns": [
+            {
+              "id": "date",
+              "label": "Apertura",
+              "type": "datetime",
+              "align": "left"
+            },
+            {
+              "id": "case",
+              "label": "Expediente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "providerReference",
+              "label": "Referencia del proveedor",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "customer",
+              "label": "Cliente",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "method",
+              "label": "Medio",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [
+            {
+              "date": "2026-09-01T15:00:00Z",
+              "case": "00000000",
+              "providerReference": "CB-QA-1",
+              "status": "Perdida",
+              "customer": "Cliente QA 1",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-02T15:00:00Z",
+              "case": "00000001",
+              "providerReference": "CB-QA-2",
+              "status": "Ganada",
+              "customer": "Cliente QA 2",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-03T15:00:00Z",
+              "case": "00000002",
+              "providerReference": "CB-QA-3",
+              "status": "Pérdida parcial",
+              "customer": "Cliente QA 3",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 30,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-04T15:00:00Z",
+              "case": "00000003",
+              "providerReference": "CB-QA-4",
+              "status": "Respuesta presentada",
+              "customer": "Cliente QA 4",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-05T15:00:00Z",
+              "case": "00000004",
+              "providerReference": "CB-QA-5",
+              "status": "En preparación",
+              "customer": "Cliente QA 5",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "date": "2026-09-06T15:00:00Z",
+              "case": "00000005",
+              "providerReference": "CB-QA-6",
+              "status": "Cancelada",
+              "customer": "Cliente QA 6",
+              "method": "Tarjeta",
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            }
+          ],
+          "totals": {
+            "claimed": 600,
+            "withdrawn": 300,
+            "recovered": 30,
+            "loss": 120,
+            "charged": 180,
+            "credited": 0,
+            "fees": 0
+          }
+        },
+        {
+          "id": "by-status",
+          "title": "Por estado",
+          "columns": [
+            {
+              "id": "status",
+              "label": "Estado",
+              "type": "text",
+              "align": "left"
+            },
+            {
+              "id": "count",
+              "label": "Expedientes",
+              "type": "integer",
+              "align": "right"
+            },
+            {
+              "id": "claimed",
+              "label": "Reclamado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "withdrawn",
+              "label": "Retirado por el proveedor",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "recovered",
+              "label": "Recuperado",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "loss",
+              "label": "Pérdida asumida",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "charged",
+              "label": "Cargo al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "credited",
+              "label": "Crédito al cliente",
+              "type": "money",
+              "align": "right"
+            },
+            {
+              "id": "fees",
+              "label": "Comisiones",
+              "type": "money",
+              "align": "right"
+            }
+          ],
+          "rows": [
+            {
+              "status": "En preparación",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Respuesta presentada",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Ganada",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Pérdida parcial",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 30,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Perdida",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 100,
+              "recovered": 0,
+              "loss": 40,
+              "charged": 60,
+              "credited": 0,
+              "fees": 0
+            },
+            {
+              "status": "Cancelada",
+              "count": 1,
+              "claimed": 100,
+              "withdrawn": 0,
+              "recovered": 0,
+              "loss": 0,
+              "charged": 0,
+              "credited": 0,
+              "fees": 0
+            }
+          ],
+          "totals": null
+        }
+      ],
+      "charts": [
+        {
+          "id": "by-status",
+          "sectionId": "by-status",
+          "title": "Principal reclamado por estado",
+          "kind": "bar",
+          "valueType": "money",
+          "points": [
+            {
+              "label": "En preparación",
+              "value": 100
+            },
+            {
+              "label": "Respuesta presentada",
+              "value": 100
+            },
+            {
+              "label": "Ganada",
+              "value": 100
+            },
+            {
+              "label": "Pérdida parcial",
+              "value": 100
+            },
+            {
+              "label": "Perdida",
+              "value": 100
+            },
+            {
+              "label": "Cancelada",
+              "value": 100
+            }
+          ]
+        }
+      ],
+      "notes": [
+        "Reclamado, retirado, recuperado, pérdida, cargo y crédito son dimensiones distintas: no se suman como un gasto total.",
+        "Importes vigentes al preparar el reporte para los expedientes abiertos en el período. «Ganada» no afirma que el banco devolvió el dinero."
+      ]
+    }
   }
 }

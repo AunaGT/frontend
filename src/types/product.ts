@@ -97,6 +97,7 @@ export interface NewProductForm {
 
 // Interfaz para producto en carrito de ventas
 export interface CartProduct {
+  packageComponentKey?:string|null;
   unitMetadataVersion?:1|2;
   unitSnapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
   priceExact?:string;

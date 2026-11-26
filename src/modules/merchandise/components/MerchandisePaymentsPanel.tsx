@@ -57,6 +57,8 @@ export function MerchandisePaymentsPanel({
       hasPermission("merchandise.mark_paid") &&
       !isConsolidated &&
       (record.source || 'PURCHASE') === "PURCHASE",
+    canCancel = hasPermission('merchandise.cancel_payment') && !isConsolidated && (record.source || 'PURCHASE') === 'PURCHASE',
+    canCorrect = hasPermission('merchandise.correct_payment') && !isConsolidated && (record.source || 'PURCHASE') === 'PURCHASE',
     entries = record.payment_entries || [],
     money = (v: number|string) =>
       new Intl.NumberFormat(settings.locale || "es-GT", {
@@ -134,7 +136,7 @@ export function MerchandisePaymentsPanel({
               Registrar pago / abono
             </Button>
           )}
-        {writable &&
+        {canCorrect &&
           (record.payment_balance_review_required ||
             Number(record.legacy_settled_amount) > 0) && (
             <Button
@@ -236,7 +238,7 @@ export function MerchandisePaymentsPanel({
           </form>
         </CardContent>
       </Card>
-      {(correction || oldEntry) && (
+      {(correction && canCorrect || oldEntry && canCancel) && (
         <Card className="auna-surface">
           <CardHeader>
             <CardTitle>
@@ -355,7 +357,7 @@ export function MerchandisePaymentsPanel({
                       >
                         Ver comprobante
                       </Button>
-                    ) : writable && !r.cancelled_at ? (
+                    ) : canCancel && !r.cancelled_at ? (
                       <Button
                         variant="outline"
                         size="sm"

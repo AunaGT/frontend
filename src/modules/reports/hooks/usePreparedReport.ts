@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { fetchPreparedReport } from '../api/reportService'
 import { reportFiltersKey } from '../reportCatalog'
 import type { PreparedReport, ReportFilters, ReportId } from '../reportModel'
-export function usePreparedReport(companyId: string, id: ReportId, filters: ReportFilters) {
-  const key = reportFiltersKey(companyId, id, filters)
+export function usePreparedReport(companyId: string, id: ReportId, filters: ReportFilters, accessKey = '') {
+  const key = JSON.stringify([reportFiltersKey(companyId, id, filters), accessKey])
   const current = useRef(key)
   current.current = key
   const request = useRef<{ key: string; controller: AbortController } | null>(null)

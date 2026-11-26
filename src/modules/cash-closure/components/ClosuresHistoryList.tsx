@@ -18,12 +18,12 @@ import { Badge } from '@/components/ui/badge'
 import { ChevronLeft, ChevronRight, Eye } from 'lucide-react'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import type { CashClosure } from '../types'
-import { formatCurrency, formatDateTime, toNumber, closureRegisterName } from '../types'
+import { formatCurrency, formatDateTime, toNumber, closureRegisterName, closureStatusLabel, closureStatusVariant } from '../types'
 
 interface ClosuresHistoryListProps {
     closures: CashClosure[]
     isLoading: boolean
-    isSeller: boolean
+    scope?: 'mine' | 'team'
     currentPage: number
     totalPages: number
     onViewClosure: (closureId: string) => void
@@ -32,21 +32,12 @@ interface ClosuresHistoryListProps {
     onReset?: () => void
 }
 
-const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-        'Pendiente': 'secondary',
-        'Aprobado': 'default',
-        'Rechazado': 'destructive',
-        'Validado': 'outline',  // legacy
-        'Cerrado': 'outline'    // legacy
-    }
-    return <Badge variant={variants[status] || 'outline'}>{status}</Badge>
-}
+const getStatusBadge = (status: string) => <Badge variant={closureStatusVariant(status)}>{closureStatusLabel(status)}</Badge>
 
 export const ClosuresHistoryList = ({
     closures,
     isLoading,
-    isSeller,
+    scope = 'mine',
     currentPage,
     totalPages,
     onViewClosure,
@@ -56,27 +47,27 @@ export const ClosuresHistoryList = ({
 }: ClosuresHistoryListProps) => {
     const { currencyCode, locale } = useSystemSettings()
     if (isLoading) {
-        return <LoadingState variant="table" message="Cargando cierres…" />
+        return <LoadingState variant="table" message="Cargando arqueos…" />
     }
 
     if (!Array.isArray(closures) || closures.length === 0) {
-        return <CollectionEmptyState compact title="Cada cierre deja su registro" description="Los cierres registrados aparecerán aquí para consultar sus montos y revisiones." filtered={filtered} onReset={onReset} />
+        return <CollectionEmptyState compact title={scope === 'mine' ? 'Aún no tienes arqueos' : 'Aún no hay arqueos del equipo'} description="Los arqueos registrados aparecerán aquí para consultar sus montos y revisiones." filtered={filtered} onReset={onReset} />
     }
 
     return (
         <>
-            <div className="auna-data-table-shell auna-surface rounded-xl border overflow-x-auto" role="region" aria-label="Cierres registrados" tabIndex={0}>
+            <div className="auna-data-table-shell auna-surface rounded-xl border overflow-x-auto" role="region" aria-label="Arqueos registrados" tabIndex={0}>
               <table className="auna-data-table cash-closure-history-table">
-                <caption className="sr-only">Historial de cierres de caja</caption>
+                <caption className="sr-only">Historial de arqueos de caja</caption>
                 <thead><tr>
-                  <th scope="col">Cierre</th><th scope="col">Período</th><th scope="col">Caja</th><th scope="col">Cajero</th>
+                  <th scope="col">Arqueo</th><th scope="col">Período</th><th scope="col">Caja</th><th scope="col">Cajero</th>
                   <th scope="col" className="cash-closure-money">Total esperado</th><th scope="col" className="cash-closure-money">Total contado</th>
                   <th scope="col" className="cash-closure-money">Diferencia</th><th scope="col">Estado</th><th scope="col" className="text-right">Acciones</th>
                 </tr></thead>
                 <tbody>
                 {closures.map((closure) => (
                     <tr key={closure.id}>
-                      <th scope="row"><Button variant="link" className="h-auto p-0 font-semibold" onClick={() => onViewClosure(closure.id)}>Cierre #{closure.closure_number}</Button></th>
+                      <th scope="row"><Button variant="link" className="h-auto p-0 font-semibold" onClick={() => onViewClosure(closure.id)}>Arqueo #{closure.closure_number}</Button></th>
                       <td><span className="block whitespace-nowrap">{formatDateTime(closure.start_date)}</span><span className="block whitespace-nowrap text-xs text-muted-foreground">Hasta {formatDateTime(closure.end_date)}</span></td>
                       <td>{closureRegisterName(closure)}</td>
                       <td>{closure.cashier_name}</td>
@@ -86,20 +77,20 @@ export const ClosuresHistoryList = ({
                         {toNumber(closure.difference) > 0 ? '+' : ''}{formatCurrency(closure.difference, currencyCode, locale)}
                       </td>
                       <td>{getStatusBadge(closure.status)}</td>
-                      <td className="text-right"><Button variant="outline" size="icon" aria-label={`Ver cierre #${closure.closure_number}`} onClick={() => onViewClosure(closure.id)}><Eye className="h-4 w-4" aria-hidden="true" /></Button></td>
+                      <td className="text-right"><Button variant="outline" size="icon" aria-label={`Ver arqueo #${closure.closure_number}`} onClick={() => onViewClosure(closure.id)}><Eye className="h-4 w-4" aria-hidden="true" /></Button></td>
                     </tr>
                 ))}
                 </tbody>
               </table>
             </div>
 
-            {!isSeller && totalPages > 1 && (
+            {totalPages > 1 && (
                 <div className="auna-pagination-outside">
                     <div className="auna-data-table-pagination">
                         <span className="text-sm text-muted-foreground mr-2">
                             Página {currentPage} de {totalPages}
                         </span>
-                        <nav className="flex items-center gap-2" aria-label="Paginación de cierres">
+                        <nav className="flex items-center gap-2" aria-label="Paginación de arqueos">
                             <Button
                                 variant="outline"
                                 size="sm"

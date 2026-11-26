@@ -45,11 +45,20 @@ test('ajuste de duración propone confirmación y no abre creación de fondo',()
   assert.equal(resizes.length,1);assert.equal(resizes[0][2],'2030-01-01T17:00:00.000Z')
 })
 test('márgenes nocturnos se segmentan sin desplazar el horario real',()=>{
-  const nodes=[],{AgendaCalendar}=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes)
+  const nodes=[],opened=[],{AgendaCalendar}=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes)
   const row={id:'n',recordType:'ACTIVITY',serviceName:'Show nocturno',mode:'INDIVIDUAL',status:'SCHEDULED',startsAt:'2030-01-02T05:45Z',endsAt:'2030-01-02T06:15Z',occupiedFrom:'2030-01-02T05:30Z',occupiedUntil:'2030-01-02T06:30Z',conflicts:[],providerIds:[],resourceIds:[]}
-  renderToStaticMarkup(React.createElement(AgendaCalendar,{sessions:[row],view:'week',date:'2030-01-01',timezone:'America/Guatemala',onOpen(){},onDay(){}}))
-  const spans=nodes.filter(n=>n.props.className==='agenda-work-window')
-  assert.deepEqual(spans.map(n=>n.props.style),[{top:'50%',height:'50%'},{top:'0%',height:'50%'}])
+  renderToStaticMarkup(React.createElement(AgendaCalendar,{sessions:[row],view:'week',date:'2030-01-01',timezone:'America/Guatemala',onOpen:id=>opened.push(id),onDay(){}}))
+  const events=nodes.filter(n=>n.type==='button'&&n.props['data-agenda-event'])
+  assert.equal(events.length,2)
+  // The service begins at 23:45, not at its 23:30 preparation time.
+  assert.ok(Math.abs(parseFloat(events[0].props.style.top)-98.95833333333333)<0.000001)
+  assert.equal(events[1].props.style.top,'0%')
+  for(const event of events){
+    assert.match(event.props['aria-label'],/11:45.*12:15/)
+    assert.match(event.props['aria-label'],/traslado y preparación:.*11:30.*12:30/)
+    event.props.onClick({stopPropagation(){}})
+  }
+  assert.deepEqual(opened,['n','n'])
 })
 test('arrastrar continuación mueve todo el evento solo15min y muestra un único ajuste',()=>{
   const nodes=[],moves=[],{AgendaCalendar}=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes)

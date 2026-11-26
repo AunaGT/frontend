@@ -24,6 +24,11 @@ const order = {
   lines: [{ product_name: 'Producto QA', barcode: '740001', qty: 10, qty_fulfilled: 4, unit_price: '10.00', line_total: '90.00' }],
   sales: [{ reference: 'V-QA-001', total: '36.00', date: '2026-10-08T12:00:00Z', status: 'Completada' }],
 }
+test('a published order uses company currency and exact fulfilled quantities',()=>{
+ const design=require('../../deposito-backend/src/modules/config/customerPages/bases').resolveBase('ORDER')
+ const view=render({data:{...order,currency_code:'USD',locale:'en-US',portal:{versionId:'published',rendererVersion:1,designHash:'hash',design,customArtifacts:{},customCodeEnabled:false}}})
+ assert.match(view.html,/USD 90\.00/);assert.match(view.html,/Entrega parcial/);assert.match(view.html,/Producto QA/)
+})
 
 // Keep the real presentation and controls; isolate only remote query/branding effects.
 function render({ data = order, token = 'public-qa-token', page = 1, ...queryState } = {}) {

@@ -44,6 +44,9 @@ test('reopening an incomplete package preserves selection and blocks send while 
  const render=()=>{nodes.length=0;return h.render(()=>Page({mode:'edit',initialQuote:quote}))}
  try{
   render();assert.equal(dirty.at(-1),false,'opening a saved draft is not an unsaved edit');const send=nodes.find(n=>n.props.title==='Completa las cantidades de los paquetes antes de enviar');assert.equal(send.props.disabled,true)
+  assert.equal(nodes.find(n=>n.type?.name==='QuoteSummary').props.pending,true,'incomplete agreement must not show a final zero total')
+  const packageEditor=nodes.find(n=>n.type?.name==='CommercialPackagesEditor')
+  assert.equal(packageEditor.props.scope.activeBranchId,'b')
   const save=nodes.find(n=>n.props.children?.includes?.('Guardar borrador'));assert.equal(save.props.disabled,false)
   await save.props.onClick();assert.deepEqual(writes[0].packages,[partial]);assert.deepEqual(writes[0].items,[]);assert.equal(writes[0].expectedRevision,'revision')
  }finally{h.unmount()}

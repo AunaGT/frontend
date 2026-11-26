@@ -23,7 +23,7 @@ const overrides = new Map([
   ['./hooks', { useCashClosureForm: () => ({ isSeller: false }), useCashClosureAPI: () => ({ closures: [], closureSummary: state.isError ? undefined : state.data?.summary, isLoadingClosures: state.isLoading, currentPage: 1, totalPages: 10, fetchClosures() {} }), useMineClosureGate: () => ({ gate: {} }), canRegisterMineClosure: () => true, mineClosureBlockedHint: () => '' }],
   ['./components', { ClosuresHistoryList: () => null }],
   ['./CashClosureCreatePage', { CASH_CLOSURE_CREATE_PATH: '/cierre-caja/nuevo' }],
-  ['@tanstack/react-query', { useQuery: options => { calls.push(options); return options.queryKey[0] === 'stock-replenishment' ? { data: replenishmentRows } : ['users-role-options', 'warehouses'].includes(options.queryKey[0]) ? { data: [] } : state }, useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) }],
+  ['@tanstack/react-query', { useQuery: options => { calls.push(options); return options.queryKey[0] === 'cash-closure-read-capabilities' ? {data:{viewOwn:true,viewTeam:true},isPending:false} : options.queryKey[0] === 'cash-closure-history' ? {...state,isPending:state.isLoading===true} : options.queryKey[0] === 'stock-replenishment' ? { data: replenishmentRows } : ['users-role-options', 'warehouses'].includes(options.queryKey[0]) ? { data: [] } : state }, useMutation: () => ({ isPending: false }), useQueryClient: () => ({}) }],
   ['react-router-dom', { ...require('react-router-dom'), useNavigate: () => () => {},useLocation:()=>({state:null}) }],
   ['@/context/useTenant', { useTenant: () => ({ branch: { id: 'branch' }, company: { id: 'company' }, branches: [], companies: [] }) }],
   ['@/hooks/useAuthPermissions', { useAuthPermissions: () => ({ hasPermission: () => true }) }],
@@ -68,32 +68,22 @@ test('replenishment summary counts the full filtered list before its ten-row pag
   } finally { replenishmentMode = false; replenishmentRows = [] }
 })
 
-test('cash history hook requests filtered totals and clears stale summary on request failure', async t => {
-  const hookFile = path.join(root, 'modules/cash-closure/hooks/useCashClosureAPI.ts')
-  const oldReact = overrides.get('react'), oldApi = overrides.get('@/services/api'), oldPersisted = overrides.get('@/hooks/usePersistedListUiState')
-  const values = []; let cursor = 0
-  overrides.set('react', { useState: initial => { const index = cursor++; if (!(index in values)) values[index] = typeof initial === 'function' ? initial() : initial; return [values[index], value => { values[index] = value }] }, useCallback: callback => callback, useEffect() {} })
+test('cash history request carries its own scope and filtered totals, while denied responses stay errors', async t => {
+  const serviceFile = path.join(root, 'services/cashClosureReadService.ts'), oldApi = overrides.get('@/services/api')
   overrides.set('@/services/api', { getApiBaseUrl: () => '/api', getAuthToken: () => 'test' })
-  overrides.set('@/hooks/usePersistedListUiState', { readListUiPersisted: () => ({}), writeListUiPersisted() {} })
   let requested, fail = false
   const fixture = { total: 91, Pendiente: 80, Aprobado: 10, Rechazado: 1 }
-  t.mock.method(globalThis, 'fetch', async url => { requested = url; return { ok: !fail, status: 500, json: async () => ({ items: [], page: 2, totalPages: 10, summary: fixture }) } })
-  t.mock.method(console, 'error', () => {})
+  t.mock.method(globalThis, 'fetch', async url => { requested = url; return { ok: !fail, status: 403, json: async () => ({ items: [], page: 2, totalPages: 10, summary: fixture }) } })
   try {
-    cache.delete(hookFile)
-    const useHook = load(hookFile).useCashClosureAPI
-    const renderHook = () => { cursor = 0; return useHook() }
-    await renderHook().fetchClosures(2, false, 10, { status: 'Pendiente', startDate: '2026-10-01' })
-    assert.deepEqual(renderHook().closureSummary, fixture)
-    const query = new URL(requested, 'https://example.test').searchParams
-    assert.equal(query.get('includeSummary'), 'true')
-    assert.equal(query.get('status'), 'Pendiente')
-    assert.equal(query.get('startDate'), '2026-10-01')
-    assert.equal(query.get('pageSize'), '10')
-    fail = true
-    await renderHook().fetchClosures(2, false)
-    assert.equal(renderHook().closureSummary, undefined)
-  } finally { overrides.set('react', oldReact); overrides.set('@/services/api', oldApi); overrides.set('@/hooks/usePersistedListUiState', oldPersisted); cache.delete(hookFile) }
+    cache.delete(serviceFile)
+    const {fetchCashClosurePage} = load(serviceFile), context={companyId:'c',branchId:'b',actorId:'u'}
+    const result=await fetchCashClosurePage(context,{scope:'mine',page:2,pageSize:10,status:'Pendiente',startDate:'2026-10-01'})
+    assert.deepEqual(result.summary,fixture)
+    const query=new URL(requested,'https://example.test').searchParams
+    for(const [key,value] of Object.entries({scope:'mine',includeSummary:'true',status:'Pendiente',startDate:'2026-10-01',pageSize:'10'}))assert.equal(query.get(key),value)
+    fail=true
+    await assert.rejects(fetchCashClosurePage(context,{scope:'mine',page:2,pageSize:10}),e=>e.status===403)
+  } finally {overrides.set('@/services/api',oldApi);cache.delete(serviceFile)}
 })
 for (const [file, exported, label] of [
   ['modules/users/UserManagement.tsx', 'default', 'Resumen de usuarios'],
@@ -103,7 +93,7 @@ for (const [file, exported, label] of [
   ['modules/hr/pages/AdvancesManagement.tsx', 'AdvancesManagement', 'Resumen de anticipos'],
   ['modules/hr/pages/AttendanceSheet.tsx', 'AttendanceSheet', 'Marcas del período'],
   ['modules/contacts/pages/SuppliersManagement.tsx', 'default', 'Resumen de contactos'],
-  ['modules/cash-closure/CashClosureManagement.tsx', 'default', 'Resumen de cierres'],
+  ['modules/cash-closure/CashClosureHistory.tsx', 'default', 'Resumen del equipo'],
 ]) {
   test(`${file}: renders full-query totals and unavailable states`, () => {
     const Component = load(path.join(root, file))[exported]

@@ -72,6 +72,22 @@ function ready(m) {
   m.render();
   assert.equal(m.state.reviewing, true);
 }
+test('cash origin is explicit, preserves original selected turn on uncertain retry and clears on context change', async () => {
+  const m = mount(() => { throw Error('Lost response') })
+  ready(m); m.state.setCashOrigin('CASH_SESSION'); m.render(); m.state.setCashSession('session-original'); m.render(); m.state.review(); m.render()
+  await m.state.confirm(); m.render()
+  assert.equal(m.posts[0].cashRegisterSessionId, 'session-original')
+  m.state.setCashSession('different'); m.render(); await m.state.confirm()
+  assert.equal(m.posts[1].cashRegisterSessionId, 'session-original'); assert.equal(m.posts[1].requestKey, m.posts[0].requestKey)
+  m.context({ branchId: 'another' }); m.render(); assert.equal(m.state.cashSession, ''); assert.equal(m.state.cashOrigin, 'OUTSIDE_CASH')
+})
+test('selecting cash origin without a turn cannot be reviewed, outside cash omits the field entirely', async () => {
+  const m = mount(() => ({ id: 'receipt' }))
+  ready(m); m.state.setCashOrigin('CASH_SESSION'); m.render(); m.state.review(); m.render()
+  assert.equal(m.state.reviewing, false); assert.match(m.state.error, /turno/)
+  m.state.setCashOrigin('OUTSIDE_CASH'); m.render(); m.state.review(); m.render(); await m.state.confirm()
+  assert.equal('cashRegisterSessionId' in m.posts[0], false)
+})
 test("exact distribution, review and double click produce one grouped request", async () => {
   let release;
   const m = mount(() => new Promise((r) => (release = r)));
@@ -108,6 +124,15 @@ test("ambiguous network result retries the identical key and blocks editing", as
   assert.equal(m.posts[0].requestKey, m.posts[1].requestKey);
   assert.deepEqual(m.posts[0], m.posts[1]);
 });
+test('a forbidden recovery cannot discard a supplier payment whose first result was uncertain', async () => {
+  let calls = 0
+  const m = mount(() => { calls++; if (calls === 1) throw Error('Respuesta perdida'); if (calls === 2) throw Object.assign(Error('Permiso retirado'), { status: 403 }); return { id: 'original' } })
+  ready(m); await m.state.confirm(); m.render(); await m.state.confirm(); m.render()
+  assert.equal(m.state.ambiguous, true)
+  m.state.setAmount('1.00'); m.render(); assert.equal(m.state.amount, '100.00')
+  await m.state.confirm(); m.render(); assert.equal(m.state.receipt.id, 'original')
+  assert.deepEqual(m.posts[1], m.posts[0]); assert.deepEqual(m.posts[2], m.posts[0])
+})
 test("409 preserves user amounts and removes confirmation until balances are reviewed", async () => {
   const m = mount(async () => {
     throw Object.assign(Error("El saldo cambió"), {

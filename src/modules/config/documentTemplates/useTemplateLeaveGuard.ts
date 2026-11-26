@@ -3,14 +3,14 @@ import {UNSAFE_NavigationContext} from 'react-router-dom'
 import {registerDraftNavigation} from '@/lib/draftNavigation'
 import type {useTemplateConfirmation} from './useTemplateConfirmation'
 export type TemplateExitGuard=(proceed?:()=>void)=>boolean
-export function useTemplateLeaveGuard(activity:MutableRefObject<{dirty:boolean;pending:boolean}>,register:(guard:TemplateExitGuard)=>()=>void,onMessage:(message:string)=>void,confirm:ReturnType<typeof useTemplateConfirmation>['confirm']){
+export function useTemplateLeaveGuard(activity:MutableRefObject<{dirty:boolean;pending:boolean}>,register:(guard:TemplateExitGuard)=>()=>void,onMessage:(message:string)=>void,confirm:ReturnType<typeof useTemplateConfirmation>['confirm'],subject='el diseño'){
   const context=useContext(UNSAFE_NavigationContext),approved=useRef(false),unloadApproved=useRef(false),message=useRef(onMessage),confirmation=useRef(confirm);message.current=onMessage;confirmation.current=confirm
   const requestLeave=(proceed?:()=>void,unloads=false)=>{
     if(approved.current)return true
     unloadApproved.current=false
-    if(activity.current.pending){message.current('Espera a que termine la operación del documento antes de salir.');return false}
+    if(activity.current.pending){message.current('Espera a que termine la operación actual antes de salir.');return false}
     if(!activity.current.dirty)return true
-    void confirmation.current({title:'¿Salir sin guardar?',description:'Hay cambios sin guardar en el diseño. Si sales, se descartarán.',confirmText:'Descartar y salir'}).then(accepted=>{
+    void confirmation.current({title:'¿Salir sin guardar?',description:`Hay cambios sin guardar en ${subject}. Si sales, se descartarán.`,confirmText:'Descartar y salir'}).then(accepted=>{
       if(!accepted||activity.current.pending)return
       approved.current=true;unloadApproved.current=unloads
       try{proceed?.()}finally{approved.current=false}

@@ -1,6 +1,16 @@
 const test=require('node:test'),assert=require('node:assert/strict')
 const {loadReportModule}=require('./helpers/loadReportModule.cjs')
 const {hookHarness}=require('./helpers/reportHookHarness.cjs')
+test('direct service billing keeps canonical decimal input independent of the browser locale',()=>{
+  const native=Intl.NumberFormat
+  try{
+    Intl.NumberFormat=function(locale,options){return new native(locale??'de-DE',options)}
+    const {directServiceEngagementLine}=loadReportModule('../appointments/commercialApi.ts',{'./api':{}})
+    const product={id:'service',kind:'SERVICE',quantityDecimals:2}
+    assert.deepEqual(directServiceEngagementLine(product,'1.25'),{productId:'service',quantity:'1.25'})
+    assert.throws(()=>directServiceEngagementLine(product,'1,25'),/Cantidad inválida/)
+  }finally{Intl.NumberFormat=native}
+})
 test('billing preview and prepare have separate scoped endpoints and forward abort signals',async()=>{
   const calls=[],api=loadReportModule('../appointments/commercialApi.ts',{'./api':{mutateAgenda:async(...args)=>{calls.push(args);return {}}}})
   assert.equal(typeof api.previewSourceBilling,'function');assert.equal(typeof api.prepareSourceBilling,'function')

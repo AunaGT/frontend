@@ -6,8 +6,20 @@ function editor(id){
  const {PackageEditor}=loadReportModule('../inventory/packages/PackageEditorPage.tsx',{react:h.hooks,'react-router-dom':{useNavigate:()=>()=>{}},'@tanstack/react-query':{useQueryClient:()=>({invalidateQueries:async()=>{}})},'@/hooks/use-toast':{useToast:()=>({toast(){}})},'@/hooks/useSystemSettings':{useSystemSettings:()=>({currencyCode:'GTQ'})},'@/modules/appointments/components/DraftGuard':{useDraftGuard:dirty=>{guards.push(dirty);return{dialog:null,request:fn=>fn(),proceed:fn=>fn()}}},'./api':{fetchPackage:async()=>structuredClone(row),packageQueryKey:()=>[],packageError:e=>e.message,savePackage:async(...args)=>{saves.push(args);return{id:'p'}},uploadPackageImage:(_scope,file,signal)=>new Promise((resolve,reject)=>uploads.push({file,signal,resolve,reject}))}},nodes)
  const context={scope,key:'a/b',canEdit:true,canRead:true,branches:[{id:'b',name:'Principal'},{id:'c',name:'Otra'}]}
  const render=()=>{nodes.length=0;h.render(()=>PackageEditor({context,id}));return nodes}
- return{h,nodes,render,guards,uploads,saves,row}
+ return{h,nodes,render,guards,uploads,saves,row,context}
 }
+test('editing drafts does not enable publication and publishers can activate without editing',async()=>{
+ const f=editor('p');f.context.canPublish=false;f.context.canArchive=false
+ f.render();await flush();f.render()
+ const activate=()=>f.nodes.find(n=>n.props.children==='Activar versión')
+ assert.equal(activate().props.disabled,true)
+ assert.ok(!f.nodes.some(n=>n.props.children?.includes?.('Archivar')))
+ f.context.canEdit=false;f.context.canPublish=true;f.render()
+ assert.equal(activate().props.disabled,false)
+ assert.equal(f.nodes.find(n=>n.type==='fieldset'&&n.props.disabled!==undefined).props.disabled,true)
+ activate().props.onClick();f.render()
+ assert.equal(f.nodes.find(n=>n.type?.name==='ConfirmDialog').props.open,true)
+})
 test('new and edit share photo controls and edit only one variant without losing another',async()=>{
  for(const id of [undefined,'p']){
   const f=editor(id);f.render();await flush();f.render()
@@ -15,10 +27,35 @@ test('new and edit share photo controls and edit only one variant without losing
   if(id){
    const fields=()=>f.nodes.find(n=>n.type?.name==='PackageVariantFields'),first=fields();assert.equal(first.props.variant.id,'v1')
    first.props.onChange({...first.props.variant,name:'Modificado',price:'125'});f.render()
-   f.nodes.find(n=>n.props.value==='v1'&&n.props.onValueChange).props.onValueChange('v2');f.render();assert.equal(fields().props.variant.id,'v2')
-   f.nodes.find(n=>n.props.value==='v2'&&n.props.onValueChange).props.onValueChange('v1');f.render();assert.equal(fields().props.variant.name,'Modificado');assert.equal(fields().props.variant.price,'125')
+   f.nodes.find(n=>n.props['aria-label']==='Editar opción Grande').props.onClick();f.render();assert.equal(fields().props.variant.id,'v2')
+   f.nodes.find(n=>n.props['aria-label']==='Editar opción Modificado').props.onClick();f.render();assert.equal(fields().props.variant.name,'Modificado');assert.equal(fields().props.variant.price,'125')
   }
  }
+})
+test('adding an option visibly selects a blank option and preserves the previous composition',()=>{
+ const f=editor(),fields=()=>f.nodes.find(n=>n.type?.name==='PackageVariantFields');f.render()
+ const first={...fields().props.variant,name:'80 unidades',price:'500',components:[{id:'c',productId:'service',presentationId:null,unitRevision:1,quantity:'1',weight:'1'}],choices:[{id:'q',name:'Sabores',totalQuantity:'80',maxDistinct:2,weight:'1',options:[]}]}
+ fields().props.onChange(first);f.render()
+ const add=()=>f.nodes.find(n=>n.props.children?.some?.(c=>c==='Agregar otra opción'))
+ assert.ok(add(),'La acción debe decir qué agrega');add().props.onClick();f.render()
+ const next=fields().props.variant;assert.notEqual(next.id,first.id);assert.equal(next.name,'');assert.equal(next.price,null);assert.deepEqual(next.components,[]);assert.deepEqual(next.choices,[])
+ assert.equal(f.nodes.filter(n=>n.type?.name==='PackageVariantFields').length,1)
+ assert.equal(f.nodes.find(n=>n.props['aria-label']==='Editar opción Opción 2').props['aria-pressed'],true)
+ assert.match(f.nodes.find(n=>n.props.role==='status'&&n.props['aria-live']==='polite').props.children,/Opción 2 creada/)
+ f.nodes.find(n=>n.props['aria-label']==='Editar opción 80 unidades').props.onClick();f.render();assert.deepEqual(fields().props.variant,first)
+ assert.equal(f.nodes.find(n=>n.props['aria-label']==='Editar opción Opción 2').props['aria-pressed'],false)
+ assert.equal(f.saves.length,0)
+})
+test('option creation stops at twenty and removing the selected option keeps the others',()=>{
+ const f=editor();f.render()
+ const add=()=>f.nodes.find(n=>n.props.children?.some?.(c=>c==='Agregar otra opción'))
+ assert.ok(add())
+ for(let i=1;i<20;i++){assert.equal(add().props.disabled,false);add().props.onClick();f.render()}
+ assert.equal(add().props.disabled,true)
+ f.nodes.find(n=>n.props['aria-label']==='Quitar opción seleccionada').props.onClick();f.render()
+ assert.equal(add().props.disabled,false)
+ assert.equal(f.nodes.filter(n=>n.props['aria-pressed']!==undefined&&n.props['aria-label']?.startsWith('Editar opción ')).length,19)
+ assert.equal(f.nodes.filter(n=>n.props['aria-pressed']===true).length,1)
 })
 test('photo upload blocks saving, ignores replaced requests, recovers and guards photo-only drafts',async()=>{
  const f=editor('p');f.render();await flush();f.render()

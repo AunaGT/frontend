@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {EventPaymentTermsSummary} from '@/components/shared/EventPaymentTermsSummary'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { CalendarDays, Check, FileDown, FileText, Loader2, User, X } from 'lucide-react'
@@ -15,6 +16,8 @@ import { QuoteLines, QuoteStatusBadge, QuoteSummary } from './QuotePresentation'
 import { generateQuotePDF } from './documents/generateQuotePDF'
 import { canRespondToQuote } from './quoteViewModel.mjs'
 import './publicQuote.css'
+import {PortalRenderer} from '@/components/customer-pages/PortalRenderer'
+import {quoteContext,publicPortalAssetUrl} from '@/components/customer-pages/documentAdapters'
 
 export default function PublicQuotePage() {
   const { token } = useParams<{ token: string }>()
@@ -55,13 +58,13 @@ export default function PublicQuotePage() {
     setPdfError(null)
     try {
       const logoDataUrl = await resolvePdfLogoDataUrl(data.company_logo_url).catch(() => undefined)
-      generateQuotePDF({ id: data.reference || '', reference: data.reference, created_at: data.created_at, customer: data.customer, customer_nit: data.customer_nit, is_final_consumer: data.is_final_consumer, valid_until: data.valid_until, payment_condition: data.payment_condition, credit_days: data.credit_days, total: data.total, notes: data.notes, lines: data.lines.map((line, i) => ({ id: String(i), product_id: '', sort_order: i, ...line, product: { id: '', name: line.product_name || 'Producto', barcode: line.barcode } })) }, { companyName: data.company_name, logoDataUrl, locale, currencyCode })
+      generateQuotePDF({ eventPaymentTerms:data.eventPaymentTerms,id: data.reference || '', reference: data.reference, created_at: data.created_at, customer: data.customer, customer_nit: data.customer_nit, is_final_consumer: data.is_final_consumer, valid_until: data.valid_until, payment_condition: data.payment_condition, credit_days: data.credit_days, packageGroups:data.packageGroups,total: data.total, notes: data.notes, lines: data.lines.map((line, i) => ({ id: String(i), product_id: '', sort_order: i, ...line, product: { id: '', name: line.product_name || 'Producto', barcode: line.barcode } })) }, { companyName: data.company_name, logoDataUrl, locale, currencyCode })
     } catch {
       setPdfError('No se pudo generar el PDF. Intenta de nuevo.')
     } finally { setPdfBusy(false) }
   }
 
-  return <div className="public-quote-page">
+  return <>{data.portal?<PortalRenderer portal={data.portal} context={quoteContext(data)} mode="public" assetUrl={key=>publicPortalAssetUrl('QUOTE',token!,key,data.portal!.versionId)} actions={{onDownloadPdf:()=>{void downloadPdf()},onQuoteDecision:status=>{if(canRespond)setDecision(status)},busy:response.isPending||query.isFetching||pdfBusy,error:response.isError?response.error.message:pdfError||undefined}}/>:<div className="public-quote-page">
     <header className="public-quote-brand">
       <div className="public-quote-container flex items-center gap-3">
         <CompanyLogo src={data.company_logo_url} alt={'Logo de ' + data.company_name} size="md" fallback={data.company_name.slice(0, 2) || 'A'} />
@@ -82,13 +85,14 @@ export default function PublicQuotePage() {
       </section>
 
       <div className="public-quote-layout">
-        <div className="min-w-0"><QuoteLines compact locale={locale} currencyCode={currencyCode} lines={data.lines.map(line => ({ ...line, name: line.product_name || 'Producto', code: line.barcode, image: line.image_url }))} money={money} /></div>
+        <div className="min-w-0"><QuoteLines groups={data.packageGroups} compact locale={locale} currencyCode={currencyCode} lines={data.lines.map(line => ({ ...line, name: line.product_name || 'Producto', code: line.barcode, image: line.image_url }))} money={money} /></div>
         <aside className="public-quote-sidebar" aria-label="Resumen y condiciones">
           <QuoteSummary subtotal={data.subtotal ?? num(data.total) + num(data.discount_total)} discount={data.discount_total} total={data.total} money={money} />
           <section className="auna-surface public-quote-section">
             <header className="public-quote-section-heading"><FileText aria-hidden="true" /><h2>Condiciones comerciales</h2></header>
             <div className="public-quote-section-body">
               <p className="text-sm font-medium">{data.payment_condition === 'CREDIT' ? creditTerm : 'Al contado'}</p>
+              <EventPaymentTermsSummary value={data.eventPaymentTerms} locale={locale}/>
               <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{data.notes || 'Consulta con tu asesor cualquier duda sobre esta cotización.'}</p>
               <Button variant="outline" className="mt-4 w-full" disabled={pdfBusy} onClick={downloadPdf}>
                 {pdfBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" /> : <FileDown className="mr-2 h-4 w-4" aria-hidden="true" />}Descargar PDF
@@ -111,6 +115,7 @@ export default function PublicQuotePage() {
       <footer className="public-quote-footer"><strong>{data.company_name}</strong><span>Documento informativo · Precios en {currencyCode}</span></footer>
     </main>
 
+    </div>}
     <AlertDialog open={Boolean(decision)} onOpenChange={open => { if (!open && !response.isPending) setDecision(null) }}>
       <AlertDialogContent variant="auna">
         <AlertDialogHeader><AlertDialogTitle>{decision === 'ACCEPTED' ? '¿Aceptar esta cotización?' : '¿Rechazar esta cotización?'}</AlertDialogTitle><AlertDialogDescription>Se registrará tu respuesta y no podrás cambiarla desde este enlace. Si tienes dudas, consulta primero con tu asesor.</AlertDialogDescription></AlertDialogHeader>
@@ -124,5 +129,5 @@ export default function PublicQuotePage() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  </div>
+  </>
 }

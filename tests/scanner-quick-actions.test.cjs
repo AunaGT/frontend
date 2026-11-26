@@ -9,7 +9,10 @@ test('home scan opens permission-based actions without writing inventory and nav
  const render=()=>{nodes.length=0;h.render(()=>Page())};render()
  await nodes.find(n=>n.type.name==='ScannerField').props.onScan('00123',new AbortController().signal);render()
  assert.ok(nodes.find(n=>n.type.name==='Dialog'&&n.props.open));assert.deepEqual(reads,[{code:'00123',operation:'LOOKUP'}])
+ const actions=nodes.filter(n=>n.type?.displayName==='Button'||n.type?.name==='Button')
+ assert.ok(actions.length);assert.ok(actions.every(n=>n.props.variant==='outline'))
  nodes.find(n=>n.props.children==='Preparar ingreso').props.onClick();assert.match(destinations[0].path,/^\/inventario\/registrar-ingreso\?/);assert.match(destinations[0].path,/codigo=00123/)
+ assert.deepEqual(destinations[0].options.state.receiptScan,{code:'00123',productId:'P',identity:'same'})
  h.unmount()
 })
 test('scanner transport discards an old session response and never truncates a code',async()=>{

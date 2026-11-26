@@ -10,10 +10,10 @@ const listPermissions: Record<string, readonly string[]> = {
   'inventory-count': ['inventory_count.view'], merchandise: ['merchandise.view'], returns: ['returns.view'],
   contacts: ['contacts.suppliers.view', 'contacts.clients.view'], users: ['users.view', 'roles.manage'],
   hr: ['hr.employees.view', 'hr.attendance.view', 'hr.advances.view', 'hr.deductions.view'], payroll: ['payroll.view'],
-  receivables: ['receivables.view'], 'cash-closure': ['cashclosure.view'], transfers: ['transfers.view'],
+  receivables: ['receivables.view'], 'cash-closure': ['cashclosure.view', 'cashclosure.view_team', 'cashclosure.approve', 'cashclosure.validate'], transfers: ['transfers.view'],
   promotions: ['promotions.view', 'promotions.manage'], branches: ['branches.manage', 'companies.manage'],
   catalogs: ['catalogs.view', 'catalogs.manage'], alerts: ['alerts.view', 'alerts.manage'],
-  config: ['settings.view', 'settings.manage'], analytics: ['analytics.view'], reports: ['reports.view'], accounting: ['accounting.view'],
+  config: ['settings.view', 'settings.manage', 'integrations.view', 'integrations.manage', 'cash.registers.view', 'cash.registers.manage'], analytics: ['analytics.view'], reports: ['reports.view'], accounting: ['accounting.view'],
 }
 const createLabels: Record<string, string> = {
   inventory: 'Nuevo producto', 'inventory-count': 'Nueva sesión', users: 'Nuevo usuario',
@@ -49,6 +49,10 @@ export function getRouteTrail(pathname: string, search: string, module?: ModuleO
     trail.push(roles)
     if (matches(usersModule.paths.roleCreate)) trail.push({ label: 'Nuevo rol' })
     else if (matches(usersModule.paths.roleDetail)) trail.push({ label: 'Detalle' })
+  } else if (module.code==='inventory'&&(matches(paths.packages)||matches(paths.packageCreate)||matches(paths.packageEdit))){
+    trail.push({label:'Paquetes',to:paths.packages,permissions:['products.view']})
+    if(matches(paths.packageCreate))trail.push({label:'Nuevo paquete'})
+    else if(matches(paths.packageEdit))trail.push({label:'Editar paquete'})
   } else if (matches(paths.create) || matches(paths.legacyCreate)) {
     if (module.code === 'hr') trail.push({ label: 'Empleados', to: hrModule.paths.list, permissions: ['hr.employees.view'] })
     trail.push({ label: createLabels[module.code] || 'Nuevo registro' })

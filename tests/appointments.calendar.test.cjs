@@ -14,6 +14,41 @@ test('horarios ambiguos se distinguen por offset en picker y nombre accesible de
   const labels=nodes.filter(n=>n.type==='button'&&n.props.className?.startsWith('agenda-event')).map(n=>n.props['aria-label'])
   assert.ok(labels.some(s=>s.includes('GMT-4')));assert.ok(labels.some(s=>s.includes('GMT-5')))
 })
+test('la tarjeta diaria muestra modalidad y horas limpias; conserva la zona horaria en su nombre accesible',()=>{
+  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),nodes=[]
+  const Calendar=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes).AgendaCalendar
+  const row={id:'meeting',recordType:'ACTIVITY',purpose:'MEETING',venue:{kind:'ONLINE'},serviceName:'Reunión de producto',mode:'INDIVIDUAL',startsAt:'2030-01-01T15:00:00Z',endsAt:'2030-01-01T16:00:00Z',status:'SCHEDULED',conflicts:[],providerIds:[],resourceIds:[]}
+  renderToStaticMarkup(React.createElement(Calendar,{sessions:[row],view:'day',date:'2030-01-01',timezone:'America/Guatemala',onOpen(){},onDay(){}}))
+  const event=nodes.find(n=>n.type==='button'&&n.props.className?.startsWith('agenda-event'))
+  const visible=renderToStaticMarkup(React.createElement('div',{},event.props.children))
+  assert.match(visible,/virtual/i);assert.doesNotMatch(visible,/GMT-/)
+  assert.match(event.props['aria-label'],/GMT-6/)
+})
+test('la semana ubica la tarjeta en el horario real y conserva los márgenes en su descripción',()=>{
+  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),nodes=[]
+  const {AgendaCalendar}=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes)
+  const row={id:'event',recordType:'ACTIVITY',purpose:'EVENT',serviceName:'Show de carreta de 80 shots',mode:'INDIVIDUAL',startsAt:'2030-01-02T01:00:00Z',endsAt:'2030-01-02T01:45:00Z',occupiedFrom:'2030-01-02T00:30:00Z',occupiedUntil:'2030-01-02T02:00:00Z',status:'SCHEDULED',conflicts:[],providerIds:[],resourceIds:[]}
+  renderToStaticMarkup(React.createElement(AgendaCalendar,{sessions:[row],view:'week',date:'2030-01-01',timezone:'America/Guatemala',onOpen(){},onDay(){},onCreate(){},onSelect(){}}))
+  const event=nodes.find(n=>n.type==='button'&&n.props['data-agenda-event']===true)
+  assert.equal(event.props.style.top,`${(19*60-8*60)/(12*60)*100}%`)
+  assert.equal(event.props.style.height,'6.25%')
+  const visible=renderToStaticMarkup(React.createElement('div',{},event.props.children))
+  assert.doesNotMatch(visible,/Traslado|preparación|Evento/)
+  assert.match(event.props['aria-label'],/reserva con traslado y preparación/)
+  assert.equal(nodes.some(n=>n.props.className==='agenda-new-slot'),false)
+})
+test('arrastrar desde el horario real conserva los márgenes y la duración del evento',()=>{
+  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),nodes=[],moves=[]
+  const {AgendaCalendar}=loadReportModule('../appointments/components/AgendaCalendar.tsx',{},nodes)
+  const row={id:'event',recordType:'ACTIVITY',purpose:'EVENT',serviceName:'Show',mode:'INDIVIDUAL',startsAt:'2030-01-02T01:00:00Z',endsAt:'2030-01-02T01:45:00Z',occupiedFrom:'2030-01-02T00:30:00Z',occupiedUntil:'2030-01-02T02:00:00Z',status:'SCHEDULED',conflicts:[],providerIds:[],resourceIds:[]}
+  renderToStaticMarkup(React.createElement(AgendaCalendar,{sessions:[row],view:'day',date:'2030-01-01',timezone:'America/Guatemala',onOpen(){},onDay(){},onMove:(...args)=>moves.push(args)}))
+  nodes.find(n=>n.props.className==='agenda-day-columns').props.ref.current={getBoundingClientRect:()=>({top:100,left:0,right:800,bottom:820,width:800,height:720})}
+  const button=nodes.find(n=>n.type==='button'&&n.props.onPointerDown),target={dataset:{},getBoundingClientRect:()=>({top:760}),setPointerCapture(){}}
+  const e={pointerType:'mouse',button:0,pointerId:1,clientX:100,clientY:760,currentTarget:target}
+  button.props.onPointerDown(e);button.props.onPointerMove({...e,clientY:700});button.props.onPointerUp({...e,clientY:700})
+  assert.equal(moves[0][1],'2030-01-02T00:00:00.000Z')
+  assert.equal(moves[0][2],'2030-01-02T00:45:00.000Z')
+})
 test('rangos en zona de empresa cruzan año y respetan DST; mes tiene42 días', () => {
   assert.deepEqual(model.agendaRange('2026-12-31', 'week', 'America/Guatemala'), { from: '2026-12-28T06:00:00.000Z', to: '2027-01-04T06:00:00.000Z' })
   assert.deepEqual(model.agendaRange('2026-03-08', 'day', 'America/New_York'), { from: '2026-03-08T05:00:00.000Z', to: '2026-03-09T04:00:00.000Z' })

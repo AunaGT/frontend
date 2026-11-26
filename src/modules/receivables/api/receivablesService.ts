@@ -49,8 +49,15 @@ export interface ReceivableRow {
   saldo: number;
   vencido: number;
   facturas: number;
+  /** Cargos por contracargo abiertos; no se cuentan como facturas. */
+  cargos?: number;
+  cargos_vencidos?: number;
+  documentos?: number;
   vence_primero: string | null;
   credito_disponible: number;
+  credito_en_revision?: number;
+  /** Saldo a favor por recuperación de contracargo: solo cubre cargos, no ventas. */
+  credito_recuperacion?: number;
   saldo_neto: number;
 }
 
@@ -59,6 +66,7 @@ export interface ReceivablesList {
   total_por_cobrar: number;
   total_vencido: number;
   total_credito: number;
+  total_credito_en_revision?: number;
 }
 
 export type AgingRow = {
@@ -85,7 +93,27 @@ export interface StatementSale {
   dias_vencida: number;
 }
 
-export interface ReceivableInvoice extends StatementSale { customer_id: string; customer_name: string }
+/** Cargo por contracargo: documento por cobrar propio, sin ítems ni factura fiscal. */
+export interface StatementCharge {
+  id: string;
+  tipo: "CARGO_CONTRACARGO";
+  reference: string;
+  date: string;
+  due_date: string;
+  total: number;
+  abonado: number;
+  /** Lo devuelto por el banco o condonado; baja el cargo sin ser un abono del cliente. */
+  recuperado: number;
+  saldo: number;
+  vencido: boolean;
+  dias_vencido: number;
+  dispute_id: string;
+  referencia_proveedor: string;
+  motivo: string;
+}
+export interface RecoveryCredit { id: string; origen: string; disponible: number; created_at: string }
+
+export interface ReceivableInvoice extends StatementSale { customer_id: string; customer_name: string; documentType?: "DISPUTE_CHARGE" }
 export interface InvoicePage { items: ReceivableInvoice[]; page: number; pageSize: number; totalItems: number; totalPages: number }
 export const fetchReceivableInvoices = (params: Record<string, string | number>) => {
   const query = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== '').map(([key, value]) => [key, String(value)]))
@@ -93,6 +121,9 @@ export const fetchReceivableInvoices = (params: Record<string, string | number>)
 }
 
 export interface StatementPayment {
+  tiene_disputa?:boolean;
+  retenido?:number;
+  saldo_cancelado?:number;
   engagementId?:string|null;
   comprometido?:number;
   devuelto?:number;
@@ -106,7 +137,7 @@ export interface StatementPayment {
   registered_by: { id: string; name: string } | null;
   aplicado: number;
   no_aplicado: number;
-  aplicaciones: { sale_id?: string; reference?: string | null; amount: number }[];
+  aplicaciones: { sale_id?: string; charge_id?: string; documentType?: "DISPUTE_CHARGE"; reference?: string | null; amount: number }[];
 }
 
 export interface CustomerStatement {
@@ -128,12 +159,21 @@ export interface CustomerStatement {
     vencido_30_mas?: number;
     facturas_abiertas: number;
     facturas_vencidas: number;
+    cargos_abiertos?: number;
+    cargos_vencidos?: number;
+    cargos_saldo?: number;
+    documentos_abiertos?: number;
+    documentos_vencidos?: number;
     credito_disponible: number;
+    credito_en_revision?: number;
+    credito_recuperacion?: number;
     saldo_neto: number;
     disponible: number | null;
   };
   ventas: StatementSale[];
   cobros: StatementPayment[];
+  cargos?: StatementCharge[];
+  creditos_recuperacion?: RecoveryCredit[];
 }
 
 export interface CreditCheck {
@@ -154,12 +194,12 @@ export interface CreditCheck {
   motivo: string | null;
 }
 
-export interface PaymentApplication {
-  sale_id: string;
-  amount: number;
-}
+export type PaymentApplication =
+  | { sale_id: string; amount: number }
+  | { documentType: "DISPUTE_CHARGE"; documentId: string; amount: number };
 
 export interface CreatePaymentPayload {
+  request_key?: string;
   customer_id: string;
   amount: number;
   payment_method_id: number;
@@ -188,6 +228,8 @@ export interface CreatedPayment {
   amount: number;
   aplicaciones: {
     sale_id?: string;
+    charge_id?: string;
+    documentType?: "DISPUTE_CHARGE";
     reference?: string | null;
     payment_status?: SalePaymentStatus;
     amount: number;
@@ -198,6 +240,9 @@ export interface CreatedPayment {
 }
 
 export interface PaymentReceipt {
+  tiene_disputa?:boolean;
+  retenido?:number;
+  saldo_cancelado?:number;
   comprometido?:number;
   devuelto?:number;
   id: string;
@@ -220,6 +265,8 @@ export interface PaymentReceipt {
   no_aplicado: number;
   aplicaciones: {
     sale_id?: string;
+    charge_id?: string;
+    documentType?: "DISPUTE_CHARGE";
     reference?: string | null;
     date?: string;
     due_date?: string | null;
@@ -234,7 +281,7 @@ export const fetchReceivables = () => apiFetch<ReceivablesList>("/api/receivable
 export const fetchAging = () => apiFetch<AgingReport>("/api/receivables/aging");
 
 export const fetchOverdueCount = () =>
-  apiFetch<{ count: number; monto: number }>("/api/receivables/overdue-count");
+  apiFetch<{ count: number; monto: number; facturas?: number; cargos?: number }>("/api/receivables/overdue-count");
 
 export const fetchCustomerStatement = (customerId: string, page = 1, pageSize = 500) =>
   apiFetch<CustomerStatement>(`/api/receivables/customers/${customerId}?page=${page}&pageSize=${pageSize}`);
@@ -278,7 +325,7 @@ export const createCustomerAdjustment = (payload: CreateAdjustmentPayload) =>
 
 /** Imputa el saldo a favor del cliente a sus facturas abiertas. */
 export const applyCustomerCredit = (customerId: string) =>
-  apiFetch<{ aplicado: number; ventas_afectadas: number; resumen: CustomerStatement["resumen"] }>(
+  apiFetch<{ aplicado: number; ventas_afectadas: number; cargos_afectados?: number; resumen: CustomerStatement["resumen"] }>(
     `/api/receivables/customers/${customerId}/apply-credit`,
     { method: "POST" }
   );

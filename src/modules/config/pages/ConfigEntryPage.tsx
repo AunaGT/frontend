@@ -12,7 +12,8 @@ export default function ConfigEntryPage() {
   usePageTrail(auth.hasPermission('settings.view', 'settings.manage') ? null : [])
   if (auth.isLoading || !auth.permissionsReady) return <BrandLoading message="Preparando Configuración…" />
   if (auth.hasPermission('settings.view', 'settings.manage')) return <ConfigManagement />
-  if (!auth.hasPermission('catalogs.view', 'catalogs.manage')) return <Navigate to="/404" replace />
+  if (auth.hasPermission('integrations.view', 'integrations.manage')) return <Navigate to="/configuracion/integraciones" replace />
+  if (!auth.hasPermission('catalogs.view', 'catalogs.manage', 'cash.registers.view', 'cash.registers.manage')) return <Navigate to="/404" replace />
   return <div className="config-page"><div className="mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Configuración</h1>
     <p className="text-sm text-muted-foreground">Catálogos disponibles con tus permisos. Los ajustes generales de empresa requieren un acceso adicional.</p>

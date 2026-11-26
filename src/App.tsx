@@ -8,6 +8,7 @@
  * For licensing inquiries: GitHub @dpatzan2
  */
 
+import { CASH_DISPUTE_PERMISSIONS,CASH_CLOSURE_WORKSPACE_PERMISSIONS,CASH_DAY_READ_PERMISSIONS } from '@/config/cashClosurePermissions'
 import { Toaster } from "@/components/ui/toaster";
 import { lazy } from 'react';
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -84,6 +85,33 @@ const NewReturn = returnsModule.pages.Create;
 const CashClosureManagement = cashClosureModule.pages.Management;
 const CashClosureCreatePage = cashClosureModule.pages.Create;
 const ClosureDetailPage = cashClosureModule.pages.Detail;
+const CashMovementsPage = cashClosureModule.pages.Movements;
+const CashMovementFormPage = cashClosureModule.pages.MovementForm;
+const CASH_MOVEMENT_VIEW = ["cash.movements.view_own", "cash.movements.view_team"];
+const CashTransfersPage = cashClosureModule.pages.Transfers;
+const CashTransferPage = cashClosureModule.pages.Transfer;
+const CashHandoverPage = cashClosureModule.pages.Handover;
+const CashCustodiesPage = cashClosureModule.pages.Custodies;
+const CashPolicyPage = cashClosureModule.pages.Policy;
+const CashNoticesPage = cashClosureModule.pages.Notices;
+const CashNoticeFormPage = cashClosureModule.pages.NoticeForm;
+const CashNoticePage = cashClosureModule.pages.Notice;
+const CASH_NOTICES_ANY = ["cash.notices.create", "cash.digital.confirm"];
+const CashSettlementsPage = cashClosureModule.pages.Settlements;
+const CashSettlementFormPage = cashClosureModule.pages.SettlementForm;
+const CashSettlementPage = cashClosureModule.pages.Settlement;
+const CashBankMethodsPage = cashClosureModule.pages.BankMethods;
+const CASH_SETTLEMENTS_ANY = ["cash.settlements.manage", "cash.bank_methods.manage"];
+const CashDailyPage = cashClosureModule.pages.Daily;
+const CashCorrectionFormPage = cashClosureModule.pages.CorrectionForm;
+const CashCorrectionPage = cashClosureModule.pages.Correction;
+const CashMyTurnPage = cashClosureModule.pages.MyTurn;
+const CashDisputesPage = cashClosureModule.pages.Disputes;
+const CashDisputeFormPage = cashClosureModule.pages.DisputeForm;
+const CashDisputePage = cashClosureModule.pages.Dispute;
+const CashDisputeActionPage = cashClosureModule.pages.DisputeAction;
+const CASH_DISPUTES_ANY = [...CASH_DISPUTE_PERMISSIONS];
+const CASH_CUSTODY_ANY = ["cash.custody.view", "cash.custody.manage", "cash.transfers.operate_own", "cash.transfers.operate_team", "cash.transfers.receive"];
 const RegisterIncomingMerchandise = merchandiseModule.pages.Create;
 const IncomingMerchandiseManagement = merchandiseModule.pages.Management;
 const IncomingMerchandiseDetailPage = merchandiseModule.pages.Detail;
@@ -117,10 +145,15 @@ const RolePermissionsDetail = usersModule.pages.RoleDetail;
 const RoleCreatePage = usersModule.pages.RoleCreate;
 const ConfigManagement = configModule.pages.Management;
 const DocumentTemplatesPage=configModule.pages.DocumentTemplates;
+const ConnectorsPage=configModule.pages.Connectors;
+const FiscalPreparationPage=configModule.pages.FiscalPreparation;
 const DocumentTemplateEditorPage=configModule.pages.DocumentTemplateEditor;
+import {customerPageRoutes} from './modules/config/customerPages/pageRoutes';
+import {integrationRoutes} from './modules/config/integrations/pageRoutes';
 const CategoryManagementPage = inventoryModule.pages.Categories;
 const CategoryImportPage = inventoryModule.pages.CategoriesImport;
 const CatalogSettingsPage = configModule.pages.Catalog;
+const CashRegisterFormPage = catalogsModule.pages.CashRegisterForm;
 const PaymentTermsImportPage = configModule.pages.PaymentTermsImport;
 const PromotionsManagement = promotionsModule.pages.Management;
 const PromotionCreatePage = promotionsModule.pages.Create;
@@ -136,6 +169,10 @@ const SupplierCreatePage = contactsModule.pages.Create;
 const SupplierImportPage = contactsModule.pages.Import;
 const SupplierDetailPage = contactsModule.pages.Detail;
 const ProductManagement = inventoryModule.pages.Management;
+const PackageListPage = inventoryModule.pages.Packages;
+const PackageEditorPage = inventoryModule.pages.PackageEditor;
+const PackageDetailPage = inventoryModule.pages.PackageDetail;
+const EditQuotePage = quotesModule.pages.Edit;
 const UnitsPage=inventoryModule.pages.Units;
 const BarcodePrintPage = inventoryModule.pages.BarcodePrint;
 const ShelfPricePrintPage = inventoryModule.pages.ShelfPricePrint;
@@ -228,7 +265,7 @@ const App = () => (
                 <Route
                   path={salesModule.paths.invoice}
                   element={
-                    <PermissionRoute any={["sales.view_invoice", "sales.view_detail"]}>
+                    <PermissionRoute any={["sales.view_invoice", "sales.view_detail", "sales.create"]}>
                       <SaleInvoicePage />
                     </PermissionRoute>
                   }
@@ -292,6 +329,11 @@ const App = () => (
                 />
 
                 {/* Products & Inventory */}
+                <Route path={quotesModule.paths.edit} element={<PermissionRoute any={['quotes.create']}><EditQuotePage /></PermissionRoute>} />
+                <Route path={inventoryModule.paths.packages} element={<PermissionRoute any={['products.view']}><PackageListPage /></PermissionRoute>} />
+                <Route path={inventoryModule.paths.packageCreate} element={<PermissionRoute any={['products.edit']}><PackageEditorPage /></PermissionRoute>} />
+                <Route path={inventoryModule.paths.packageEdit} element={<PermissionRoute any={['products.view']}><PackageEditorPage /></PermissionRoute>} />
+                <Route path={inventoryModule.paths.packageDetail} element={<PermissionRoute any={['products.view']}><PackageDetailPage /></PermissionRoute>} />
                 <Route path={inventoryModule.paths.units} element={<PermissionRoute any={['products.view']}><UnitsPage /></PermissionRoute>} />
                 <Route
                   path={inventoryModule.paths.legacyList}
@@ -453,7 +495,7 @@ const App = () => (
                 <Route
                   path={cashClosureModule.paths.list}
                   element={
-                    <PermissionRoute any={["cashclosure.view", "cashclosure.create"]}>
+                    <PermissionRoute any={[...CASH_CLOSURE_WORKSPACE_PERMISSIONS,...CASH_MOVEMENT_VIEW,...CASH_CUSTODY_ANY,...CASH_NOTICES_ANY,...CASH_SETTLEMENTS_ANY,...CASH_DISPUTES_ANY]}>
                       <CashClosureManagement />
                     </PermissionRoute>
                   }
@@ -466,10 +508,36 @@ const App = () => (
                     </PermissionRoute>
                   }
                 />
+                {/* Movimientos físicos de efectivo: rutas estáticas antes de /cierre-caja/:id */}
+                <Route path={cashClosureModule.paths.correctionCreate} element={<PermissionRoute any={["cashclosure.correct"]}><CashCorrectionFormPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.correctionDetail} element={<PermissionRoute any={["cashclosure.view","cashclosure.view_team","cashclosure.correct","cashclosure.approve","cashclosure.validate"]}><CashCorrectionPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.disputes} element={<PermissionRoute any={CASH_DISPUTES_ANY}><CashDisputesPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.disputeCreate} element={<PermissionRoute any={['cash.disputes.manage']}><CashDisputeFormPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.disputeDetail} element={<PermissionRoute any={CASH_DISPUTES_ANY}><CashDisputePage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.disputeAction} element={<PermissionRoute any={CASH_DISPUTES_ANY}><CashDisputeActionPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.myTurn} element={<PermissionRoute any={["sales.create", "cashclosure.create", "cashclosure.create_day", "cashclosure.create_own", "cashclosure.view", "cash.transfers.operate_own", "cash.movements.create_own", "cash.movements.create_team", "cash.transfers.operate_team", "receivables.manage", "appointments.collect", "returns.complete", "merchandise.mark_paid"]}><CashMyTurnPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.movements} element={<PermissionRoute any={CASH_MOVEMENT_VIEW}><CashMovementsPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.movementCreate} element={<PermissionRoute any={["cash.movements.create_own", "cash.movements.create_team"]}><CashMovementFormPage mode="create" /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.movementCorrect} element={<PermissionRoute any={["cash.movements.correct"]}><CashMovementFormPage mode="correct" /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.transfers} element={<PermissionRoute any={CASH_CUSTODY_ANY}><CashTransfersPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.transferCreate} element={<PermissionRoute any={["cash.transfers.operate_own", "cash.transfers.operate_team"]}><CashTransferPage mode="create" /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.transferDetail} element={<PermissionRoute any={CASH_CUSTODY_ANY}><CashTransferPage mode="detail" /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.handover} element={<PermissionRoute any={CASH_CUSTODY_ANY}><CashHandoverPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.custodies} element={<PermissionRoute any={["cash.custody.view", "cash.custody.manage"]}><CashCustodiesPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.day} element={<PermissionRoute any={[...CASH_DAY_READ_PERMISSIONS]}><CashDailyPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.settlements} element={<PermissionRoute any={CASH_SETTLEMENTS_ANY}><CashSettlementsPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.settlementCreate} element={<PermissionRoute any={["cash.settlements.manage"]}><CashSettlementFormPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.settlementDetail} element={<PermissionRoute any={["cash.settlements.manage"]}><CashSettlementPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.bankMethods} element={<PermissionRoute any={CASH_SETTLEMENTS_ANY}><CashBankMethodsPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.notices} element={<PermissionRoute any={CASH_NOTICES_ANY}><CashNoticesPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.noticeCreate} element={<PermissionRoute any={["cash.notices.create"]}><CashNoticeFormPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.noticeDetail} element={<PermissionRoute any={CASH_NOTICES_ANY}><CashNoticePage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.policy} element={<PermissionRoute any={["cash.policies.manage", "cashclosure.approve", "cashclosure.validate"]}><CashPolicyPage /></PermissionRoute>} />
+                <Route path={cashClosureModule.paths.movementDetail} element={<PermissionRoute any={CASH_MOVEMENT_VIEW}><CashMovementFormPage mode="detail" /></PermissionRoute>} />
                 <Route
                   path={cashClosureModule.paths.detail}
                   element={
-                    <PermissionRoute any={["cashclosure.view", "cashclosure.create"]}>
+                    <PermissionRoute any={["cashclosure.view", "cashclosure.view_team", "cashclosure.approve", "cashclosure.validate", "cashclosure.correct"]}>
                       <ClosureDetailPage />
                     </PermissionRoute>
                   }
@@ -654,7 +722,10 @@ const App = () => (
                 />
                 <Route path={catalogsModule.paths.legacyList} element={<CatalogsManagement />} />
                 <Route path={catalogsModule.paths.legacyImport} element={<CatalogsManagement />} />
-                <Route path={configModule.paths.cashRegisters} element={<PermissionRoute any={["catalogs.view", "catalogs.manage", "settings.manage"]}><CatalogSettingsPage kind="cash-registers" /></PermissionRoute>} />
+                <Route path={configModule.paths.cashRegisters} element={<PermissionRoute any={["cash.registers.view", "cash.registers.manage", "catalogs.view", "catalogs.manage", "settings.manage"]}><CatalogSettingsPage kind="cash-registers" /></PermissionRoute>} />
+                <Route path={catalogsModule.paths.cashRegisterCreate} element={<PermissionRoute any={["cash.registers.manage"]}><CashRegisterFormPage mode="create" /></PermissionRoute>} />
+                <Route path={catalogsModule.paths.cashRegisterDetail} element={<PermissionRoute any={["cash.registers.view", "cash.registers.manage"]}><CashRegisterFormPage mode="view" /></PermissionRoute>} />
+                <Route path={catalogsModule.paths.cashRegisterEdit} element={<PermissionRoute any={["cash.registers.manage"]}><CashRegisterFormPage mode="edit" /></PermissionRoute>} />
                 <Route path={configModule.paths.paymentMethods} element={<PermissionRoute any={["catalogs.view", "catalogs.manage"]}><CatalogSettingsPage kind="payment-methods" /></PermissionRoute>} />
                 <Route path={configModule.paths.paymentTerms} element={<PermissionRoute any={["catalogs.view", "catalogs.manage"]}><CatalogSettingsPage kind="payment-terms" /></PermissionRoute>} />
                 <Route path={configModule.paths.paymentTermsImport} element={<PermissionRoute any={["catalogs.manage"]}><PaymentTermsImportPage /></PermissionRoute>} />
@@ -783,13 +854,17 @@ const App = () => (
                 />
 
                 {/* Configuración del sistema */}
+                {customerPageRoutes.map(({path,Page,permissions})=><Route key={path} path={path} element={<PermissionRoute any={[...permissions]}><Page/></PermissionRoute>}/>)}
+                {integrationRoutes.map(({path,Page,permissions})=><Route key={path} path={path} element={<PermissionRoute any={[...permissions]}><Page/></PermissionRoute>}/>)}
+                <Route path={configModule.paths.fiscalPreparation} element={<PermissionRoute any={['fiscal.view','fiscal.manage','fiscal.test','fiscal.activate','fiscal.retry','fiscal.cancel','fiscal.download']}><FiscalPreparationPage/></PermissionRoute>}/>
+                <Route path={configModule.paths.connectors} element={<PermissionRoute any={['fiscal.view','fiscal.manage','fiscal.test','fiscal.activate','fiscal.retry','fiscal.cancel','fiscal.download']}><ConnectorsPage/></PermissionRoute>}/>
                 <Route path={configModule.paths.templates} element={<PermissionRoute any={['document_templates.view','document_templates.manage','document_templates.publish']}><DocumentTemplatesPage/></PermissionRoute>}/>
                 <Route path={configModule.paths.templateCreate} element={<PermissionRoute any={['document_templates.manage']}><DocumentTemplateEditorPage/></PermissionRoute>}/>
                 <Route path={configModule.paths.templateEdit} element={<PermissionRoute any={['document_templates.view','document_templates.manage','document_templates.publish']}><DocumentTemplateEditorPage/></PermissionRoute>}/>
                 <Route
                   path={configModule.paths.list}
                   element={
-                    <PermissionRoute any={["settings.view", "settings.manage", "catalogs.view", "catalogs.manage"]}>
+                    <PermissionRoute any={["settings.view", "settings.manage", "catalogs.view", "catalogs.manage", "integrations.view", "integrations.manage", "cash.registers.view", "cash.registers.manage"]}>
                       <ConfigManagement />
                     </PermissionRoute>
                   }

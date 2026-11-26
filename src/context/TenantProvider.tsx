@@ -52,7 +52,7 @@ export const TenantProvider = ({ children }: { children: React.ReactNode }) => {
     // quitaron (o que heredó el valor guardado) mandaba X-Branch-Id: all en cada
     // request y el backend le respondía 403 en TODA la aplicación.
     const canConsolidate =
-      user.role?.name?.toLowerCase() === "admin" ||
+      (user.role?.name === 'admin' && user.role.system_key === 'ADMIN' && user.role.company_id == null) ||
       (Array.isArray(user.permissions) &&
         user.permissions.some((p) => {
           const code = typeof p === "string" ? p : String((p as { code?: unknown } | null)?.code ?? "");

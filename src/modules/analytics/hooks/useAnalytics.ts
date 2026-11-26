@@ -12,10 +12,11 @@ import { useQuery } from '@tanstack/react-query'
 import { getAnalytics, getAnalyticsFirstSaleYear, AnalyticsResponse } from '../api/analyticsService'
 
 // Hook para obtener analítica por año específico o 'all' (desde la primera venta hasta el año actual)
-export function useAnalytics(year: number | 'all') {
+export function useAnalytics(year: number | 'all', enabled = true) {
   return useQuery<AnalyticsResponse>({
     queryKey: ['analytics', year],
     queryFn: () => getAnalytics(year),
+    enabled,
     staleTime: 5 * 60 * 1000,
   })
 }

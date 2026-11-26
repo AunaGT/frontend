@@ -3,8 +3,8 @@
  */
 
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
-import { useState, useEffect, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -33,24 +33,31 @@ import {
   DenominationsCounter,
   ClosureSummaryCard,
 } from './components'
-import { isCashPaymentMethod } from './types'
+import { isCashPaymentMethod, singleCashPaymentIndex } from './types'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { useExperienceProfile } from '@/hooks/useExperienceProfile'
+import { Notice } from './components/CashPageParts'
 import './cash-closure-workflow.css'
 
 export const CASH_CLOSURE_CREATE_PATH = '/cierre-caja/nuevo'
 
 export function CashClosureCreatePage() {
-  usePageTrail([{ label: 'Cierre de caja', to: '/cierre-caja' }, { label: 'Nuevo cierre' }])
+  usePageTrail([{ label: 'Cierre de caja', to: '/cierre-caja' }, { label: 'Nuevo arqueo' }])
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user } = useAuth()
   const { hasPermission } = useAuthPermissions()
   const { showAdvancedByDefault } = useExperienceProfile()
-  const { currencyCode, locale, cashClosureMaxDiffPct, timezone } = useSystemSettings()
+  const { currencyCode: currentCurrency, locale, cashClosureMaxDiffPct, timezone } = useSystemSettings()
 
   const form = useCashClosureForm()
   const api = useCashClosureAPI()
+  // 3C: «Contar efectivo» del POS llega con ?turno=; el conteo ciego llega sin importes esperados.
+  const [searchParams] = useSearchParams()
+  const requestedTurn = searchParams.get('turno')
+  const blind = api.theoreticalData?.blind === true
+  const netTotal = api.theoreticalData?.theoretical?.net_total ?? 0
+  const currencyCode = api.theoreticalData?.currency_code || currentCurrency
 
   const canCreateDay = hasPermission('cashclosure.create') || hasPermission('cashclosure.create_day')
   const canCreateOwn = hasPermission('cashclosure.create') || hasPermission('cashclosure.create_own')
@@ -75,13 +82,14 @@ export function CashClosureCreatePage() {
     enabled: effectiveScope === 'mine',
     userId: user?.id,
     timezone,
+    sessionId: requestedTurn,
     onSessionDates,
   })
 
   const [showConfirmSaveDialog, setShowConfirmSaveDialog] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(showAdvancedByDefault)
   const [showDifferenceReason, setShowDifferenceReason] = useState(false)
-  const [countedPaymentMethodIds, setCountedPaymentMethodIds] = useState<Set<number>>(new Set())
+  const [countedPaymentMethodIds, setCountedPaymentMethodIds] = useState<Set<string | number>>(new Set())
 
   useEffect(() => {
     if (effectiveScope !== 'day') return
@@ -106,7 +114,7 @@ export function CashClosureCreatePage() {
         })
         return
       }
-      const r = await fetchCashSessionCurrent()
+      const r = await fetchCashSessionCurrent(undefined, requestedTurn || undefined)
       if (r.ok === false) {
         toast({ title: 'No se pudo verificar el turno', description: r.message, variant: 'destructive' })
         refreshMineClosureGate()
@@ -123,7 +131,7 @@ export function CashClosureCreatePage() {
         return
       }
       const cs = r.closableSession
-      if (!cs?.id || cs.status !== 'CLOSED' || cs.cash_closure_id) {
+      if (!cs?.id || cs.status !== 'CLOSED' || cs.cash_closure_id && !cs.recount) {
         toast({
           title: 'Sin turno listo para arqueo',
           description: 'No hay turno cerrado pendiente de cierre contable, o ya fue arqueado.',
@@ -132,7 +140,7 @@ export function CashClosureCreatePage() {
         refreshMineClosureGate()
         return
       }
-      if (String(cs.opened_by_id) !== String(user?.id)) {
+      if (String(cs.opened_by_id) !== String(user?.id) && !cs.can_declare) {
         toast({
           title: 'Sesión no válida',
           description: 'Solo puede arquear su propio turno en esta caja.',
@@ -151,11 +159,20 @@ export function CashClosureCreatePage() {
     }
   }
 
+  // Desde el POS el turno ya viene elegido: se calcula una vez sin pedir fechas.
+  const autoCalculated = useRef(false)
+  useEffect(() => {
+    if (autoCalculated.current || !requestedTurn || effectiveScope !== 'mine' || api.theoreticalData || mineClosureGate.loading || mineClosureGate.closableSessionId !== requestedTurn) return
+    autoCalculated.current = true
+    void handleCalculateTheoretical()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedTurn, effectiveScope, mineClosureGate.loading, mineClosureGate.closableSessionId])
+
   const performSaveClosure = async () => {
     if (!api.theoreticalData) return false
     let cashRegisterSessionId: string | undefined
     if (effectiveScope === 'mine') {
-      const r = await fetchCashSessionCurrent()
+      const r = await fetchCashSessionCurrent(undefined, requestedTurn || undefined)
       if (r.ok === false) {
         toast({ title: 'No se pudo verificar el turno', description: r.message, variant: 'destructive' })
         return false
@@ -170,7 +187,7 @@ export function CashClosureCreatePage() {
         return false
       }
       const cs = r.closableSession
-      if (!cs?.id || cs.status !== 'CLOSED' || cs.cash_closure_id) {
+      if (!cs?.id || cs.status !== 'CLOSED' || cs.cash_closure_id && !cs.recount) {
         toast({
           title: 'No hay turno para vincular',
           description: 'El turno ya no está disponible para este cierre. Recalcule o actualice.',
@@ -179,13 +196,13 @@ export function CashClosureCreatePage() {
         refreshMineClosureGate()
         return false
       }
-      if (String(cs.opened_by_id) !== String(user?.id)) {
+      if (String(cs.opened_by_id) !== String(user?.id) && !cs.can_declare) {
         toast({ title: 'Sesión no válida', description: 'Solo puede guardar el cierre de su turno.', variant: 'destructive' })
         return false
       }
       cashRegisterSessionId = cs.id
     }
-    const success = await api.saveClosure({
+    const savedId = await api.saveClosure({
       startDate: form.startDate,
       endDate: form.endDate,
       cashierName: form.cashierName,
@@ -197,11 +214,12 @@ export function CashClosureCreatePage() {
       paymentBreakdown: form.paymentBreakdown,
       denominations: form.denominations,
     })
-    if (success) {
+    if (savedId) {
       form.resetForm()
-      navigate('/cierre-caja')
+      // El arqueo propio abre su detalle: ahí se ven las diferencias (también tras un conteo ciego).
+      navigate(effectiveScope === 'mine' ? `/cierre-caja/${savedId}` : '/cierre-caja')
     }
-    return success
+    return !!savedId
   }
 
   const handleSaveClosure = async () => {
@@ -209,9 +227,9 @@ export function CashClosureCreatePage() {
       toast({ title: 'Error', description: 'Primero debes calcular el cierre teórico', variant: 'destructive' })
       return
     }
-    const theoreticalTotal = api.theoreticalData.theoretical.net_total
+    const theoreticalTotal = netTotal
     const missingCount = form.paymentBreakdown.filter(
-      (item) => !countedPaymentMethodIds.has(item.payment_method_id)
+      (item) => !countedPaymentMethodIds.has(item.breakdown_key ?? item.payment_method_id)
     ).length
     if (missingCount > 0) {
       toast({
@@ -221,18 +239,22 @@ export function CashClosureCreatePage() {
       })
       return
     }
-    const difference = form.getTotalDifference(theoreticalTotal)
-    if (Math.abs(difference) >= 0.005 && !form.notes.trim()) {
+    const missingReason = !blind && form.paymentBreakdown.find(item => Math.abs(Number(item.actual_amount) - Number(item.theoretical_amount)) >= 0.005 && !item.notes?.trim())
+    if (missingReason) {
+      toast({ title: 'Explica la diferencia', description: `Escribe el motivo en ${missingReason.payment_method_name || 'cada medio con diferencia'}.`, variant: 'destructive' })
+      return
+    }
+    if ((api.theoreticalData.unidentified_collections_amount || 0) > 0 && !form.notes.trim()) {
       setShowDifferenceReason(true)
       toast({
         title: 'Explica la diferencia',
-        description: 'Escribe el motivo del faltante o sobrante antes de guardar.',
+        description: 'Explica el importe histórico que no tiene un medio de pago registrado.',
         variant: 'destructive',
       })
       return
     }
     const differencePct = form.getDifferencePercentage(theoreticalTotal)
-    const isLargeDifference = theoreticalTotal > 0 && Math.abs(differencePct) > cashClosureMaxDiffPct
+    const isLargeDifference = !blind && theoreticalTotal > 0 && Math.abs(differencePct) > cashClosureMaxDiffPct
     if (isLargeDifference) {
       setShowConfirmSaveDialog(true)
       return
@@ -244,9 +266,7 @@ export function CashClosureCreatePage() {
   const openingFloat = cashSession?.opening_float ?? 0
   const hasCashPayment =
     openingFloat > 0 || form.paymentBreakdown.some((p) => isCashPaymentMethod(p))
-  const closureDifference = api.theoreticalData
-    ? form.getTotalDifference(api.theoreticalData.theoretical.net_total)
-    : 0
+  const closureDifference = api.theoreticalData && !blind ? form.getTotalDifference(netTotal) : 0
   const hasDifference = Math.abs(closureDifference) >= 0.005
 
   const fmtSessionDt = (iso: string | null | undefined) =>
@@ -256,16 +276,14 @@ export function CashClosureCreatePage() {
     form.updateDenomination(index, quantity)
     const countedCash = form.denominations.reduce((sum, denomination, denominationIndex) => {
       const nextQuantity = denominationIndex === index ? quantity : denomination.quantity
-      return sum + Number(denomination.denomination) * nextQuantity
-    }, 0)
-    const cashIndex = form.paymentBreakdown.findIndex((item) =>
-      isCashPaymentMethod(item)
-    )
+      return sum + Math.round(Number(denomination.denomination) * 100) * nextQuantity
+    }, 0) / 100
+    const cashIndex = singleCashPaymentIndex(form.paymentBreakdown)
     if (cashIndex >= 0) {
       form.updateActualAmount(cashIndex, 'actual_amount', countedCash)
       setCountedPaymentMethodIds((current) => {
         const next = new Set(current)
-        next.add(form.paymentBreakdown[cashIndex].payment_method_id)
+        next.add(form.paymentBreakdown[cashIndex].breakdown_key ?? form.paymentBreakdown[cashIndex].payment_method_id)
         return next
       })
     }
@@ -280,7 +298,7 @@ export function CashClosureCreatePage() {
     if (field === 'actual_amount') {
       setCountedPaymentMethodIds((current) => {
         const next = new Set(current)
-        const methodId = form.paymentBreakdown[index].payment_method_id
+        const methodId = form.paymentBreakdown[index].breakdown_key ?? form.paymentBreakdown[index].payment_method_id
         if (String(value).trim() === '') next.delete(methodId)
         else next.add(methodId)
         return next
@@ -290,7 +308,7 @@ export function CashClosureCreatePage() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] min-w-0 space-y-5 p-4 sm:p-8">
-      <h1 className="sr-only">Registrar cierre de caja</h1>
+      <h1 className="sr-only">Registrar arqueo de caja</h1>
       <section className="space-y-3" aria-label="Turno y período del cierre">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -316,6 +334,9 @@ export function CashClosureCreatePage() {
             <Calculator className="h-4 w-4" aria-hidden="true" />
             {api.isCalculating ? 'Calculando...' : effectiveScope === 'mine' ? 'Calcular mi cierre' : 'Calcular cierre del día'}
           </Button>
+          {effectiveScope === 'mine' && mineClosureGate.closableSessionId && hasPermission('cash.transfers.operate_own', 'cash.transfers.operate_team') && (
+            <Button asChild variant="ghost"><Link to={`/cierre-caja/turnos/${encodeURIComponent(mineClosureGate.closableSessionId)}/entregar`}>Entregar efectivo</Link></Button>
+          )}
           </div>
         </div>
         <div>
@@ -437,6 +458,9 @@ export function CashClosureCreatePage() {
               </div>
             )}
 
+            {effectiveScope === 'mine' && mineClosureGate.reason === 'ok' && mineClosureGate.closableSession?.recount && (
+              <Notice><span><span className="font-medium">Reconteo solicitado:</span> vuelve a contar este turno. Tu conteo anterior queda guardado y el nuevo lo sustituye.</span></Notice>
+            )}
             {effectiveScope === 'mine' && (mineClosureGate.loading || mineClosureGate.reason !== 'ok') && (
               <p
                 className={`text-sm rounded-md border px-3 py-2 ${
@@ -494,7 +518,9 @@ export function CashClosureCreatePage() {
                   onUpdateQuantity={handleDenominationUpdate}
                   cashTotal={form.getCashTotal()}
                   openingFloat={openingFloat}
-                  expectedCashInDrawer={cashSession?.expected_cash_in_drawer}
+                  currencyCode={currencyCode}
+                  autoAllocate={singleCashPaymentIndex(form.paymentBreakdown) >= 0}
+                  expectedCashInDrawer={blind ? undefined : cashSession?.expected_cash_in_drawer}
                 />
               </CardContent>
             </Card>
@@ -502,15 +528,18 @@ export function CashClosureCreatePage() {
           <Card className="auna-surface cash-closure-panel">
             <CardContent className="p-4">
                 <PaymentMethodsForm
+                  currencyCode={currencyCode}
                   paymentBreakdown={form.paymentBreakdown}
                   cashSession={cashSession}
                   showAdvancedDetails={advancedOpen}
                   countedPaymentMethodIds={countedPaymentMethodIds}
+                  blind={blind}
                   onUpdateAmount={handlePaymentAmountUpdate}
                 />
             </CardContent>
           </Card>
           <aside className="cash-closure-summary-stack space-y-4" aria-label="Resumen y confirmación del cierre">
+            {blind ? <Notice>Conteo ciego: cuenta lo que hay sin ver lo esperado. Al guardar verás las diferencias de cada medio.</Notice> : <>
             <Card className="auna-surface cash-closure-panel">
               <CardContent className="p-4">
                 <TheoreticalSummary data={api.theoreticalData} showAdvancedDetails={advancedOpen} />
@@ -519,16 +548,16 @@ export function CashClosureCreatePage() {
             <Card className="auna-surface cash-closure-panel">
               <CardContent className="p-4">
               <ClosureSummaryCard
-                theoreticalTotal={api.theoreticalData.theoretical.net_total}
+                theoreticalTotal={netTotal}
                 actualTotal={form.getActualTotal()}
-                difference={form.getTotalDifference(api.theoreticalData.theoretical.net_total)}
-                differencePercentage={form.getDifferencePercentage(api.theoreticalData.theoretical.net_total)}
+                difference={form.getTotalDifference(netTotal)}
+                differencePercentage={form.getDifferencePercentage(netTotal)}
                 currencyCode={currencyCode}
                 locale={locale}
                 paymentBreakdown={form.paymentBreakdown}
               />
               </CardContent>
-            </Card>
+            </Card></>}
 
               <div className="space-y-2">
                 <Label htmlFor="notes">
@@ -577,16 +606,16 @@ export function CashClosureCreatePage() {
             <AlertDialogTitle>Diferencia significativa</AlertDialogTitle>
             <AlertDialogDescription>
               La diferencia supera el {cashClosureMaxDiffPct}% configurado.
-              {api.theoreticalData && (
+              {api.theoreticalData && !blind && (
                 <>
                   {' '}
                   Diferencia:{' '}
-                  {form.getTotalDifference(api.theoreticalData.theoretical.net_total) >= 0 ? '+' : ''}
+                  {form.getTotalDifference(netTotal) >= 0 ? '+' : ''}
                   {new Intl.NumberFormat(locale || 'es-GT', {
                     style: 'currency',
                     currency: currencyCode || 'GTQ',
-                  }).format(form.getTotalDifference(api.theoreticalData.theoretical.net_total))}{' '}
-                  ({form.getDifferencePercentage(api.theoreticalData.theoretical.net_total).toFixed(1)}%).
+                  }).format(form.getTotalDifference(netTotal))}{' '}
+                  ({form.getDifferencePercentage(netTotal).toFixed(1)}%).
                 </>
               )}{' '}
               ¿Deseas guardar el cierre de todas formas?

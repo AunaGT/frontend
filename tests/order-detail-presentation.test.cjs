@@ -23,7 +23,7 @@ const order = {
   deliveries: [], stock_reservations: [],
 }
 
-function renderOrder({ data = order, permissions = ['orders.manage', 'sales.create', 'contacts.clients.view'], contactsEnabled = true, photoError = false, photo = '/qa-contact.png', page = 1, loading = false, saleQtys = {} } = {}) {
+function renderOrder({ data = order, permissions = ['orders.manage', 'sales.create', 'contacts.clients.view'], contactsEnabled = true, photoError = false, photo = '/qa-contact.png', page = 1, loading = false, saleQtys = {}, cashRegisters, cashUser = { id: 'qa-user', role: { name: 'admin' } } } = {}) {
   let stateIndex = 0
   const nodes = [], changes = [], queries = [], reads = [], navigations = [], mutations = [], mutationOptions = [], requests = []
   const Page = loadReportModule('../orders/pages/OrderDetailPage.tsx', {
@@ -34,7 +34,7 @@ function renderOrder({ data = order, permissions = ['orders.manage', 'sales.crea
     } },
     'react-router-dom': { useParams: () => ({ id: 'qa-order' }), useNavigate: () => target => navigations.push(target) },
     '@/context/useTenant': { useTenant: () => ({ company: { id: 'qa-company' }, branches: [{ id: 'qa-branch', name: 'Principal' }] }) },
-    '@/context/useAuth': { useAuth: () => ({ user: { id: 'qa-user', role: { name: 'admin' } } }) },
+    '@/context/useAuth': { useAuth: () => ({ user: cashUser }) },
     '@/context/useModules': { useModules: () => ({ isEnabled: code => code !== 'contacts' || contactsEnabled }) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: code => permissions.includes(code) }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ companyName: 'Empresa QA', companyLogoUrl: null, currencyCode: 'GTQ', locale: 'es-GT' }) },
@@ -53,7 +53,7 @@ function renderOrder({ data = order, permissions = ['orders.manage', 'sales.crea
         queries.push(options)
         if (options.queryKey[0] === 'order') return { data, isLoading: loading, isFetching: false, isError: false }
         if (options.queryKey[0] === 'order-contact-photo') return { data: { id: 'qa-contact', image_url: photo }, isError: photoError }
-        return { data: [{ id: 'qa-register', name: 'Caja QA', open_session: { opened_by_id: 'qa-user' } }], isLoading: false }
+        return { data: cashRegisters || [{ id: 'qa-register', name: 'Caja QA', open_session: { opened_by_id: 'qa-user' } }], isLoading: false }
       },
       useMutation: options => {mutationOptions.push(options);return { isPending: false, mutate: value => mutations.push({ options, value }) }},
     },
@@ -68,6 +68,13 @@ test('private order groups overview and products in the main column, administrat
   assert.match(html, /order-detail-sidebar/)
   assert.ok(html.indexOf('Partidas (') < html.indexOf('Información del pedido'))
   for (const value of ['Cumplimiento del pedido', 'Transportista QA', 'TRACK-QA', 'V-QA-001', 'Entregar en recepción']) assert.ok(html.includes(value), value)
+})
+test('registering an order sale accepts only a shared turn with current effective operation capability',()=>{
+ for(const can_operate of [true,false]){
+  const view=renderOrder({cashUser:{id:'qa-user',role:{name:'Cajero'}},cashRegisters:[{id:'shared',name:'Compartida QA',operation_mode:'SHARED',open_session:{opened_by_id:'another',can_operate}}]})
+  const button=view.nodes.find(n=>Array.isArray(n.props?.children)&&n.props.children.includes('Registrar venta'))
+  assert.ok(button);assert.equal(Boolean(button.props.disabled),!can_operate)
+ }
 })
 for(const example of [
   {qty:'0.123456',fulfilled:'0',base:'0.123456',baseFulfilled:'0',pending:'0.123456',factor:'1',label:'kg',decimals:6},

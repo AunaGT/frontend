@@ -1,19 +1,25 @@
 const test=require('node:test'),assert=require('node:assert/strict')
 const {loadReportModule}=require('./helpers/loadReportModule.cjs'),{hookHarness}=require('./helpers/reportHookHarness.cjs')
-function page(extra={}){
+function page(extra={},permissions=null){
  const h=hookHarness(),nodes=[],navigations=[],mutations=[]
  const quote={id:'q',branch_id:'B',doc_type:'QUOTE',status:'ACCEPTED',created_at:'2026-10-22T12:00Z',total:'20.50',lines:[],convertedChildren:[],...extra}
  const Page=loadReportModule('../quotes/QuoteDetailPage.tsx',{
   react:h.hooks,'react-router-dom':{useParams:()=>({id:'q'}),useNavigate:()=>path=>navigations.push(path),useLocation:()=>({hash:''})},
   '@tanstack/react-query':{useQuery:()=>({data:quote}),useMutation:options=>{const m={options,mutate:variables=>{m.variables=variables;mutations.push(m)},isPending:false};return m},useQueryClient:()=>({setQueryData(){},invalidateQueries(){}})},
   '@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'},isConsolidated:false})},
-  '@/context/useModules':{useModules:()=>({isEnabled:()=>true})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:()=>true})},
+  '@/context/useModules':{useModules:()=>({isEnabled:()=>true})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:code=>permissions===null||permissions.includes(code)})},
   '@/hooks/useSystemSettings':{useSystemSettings:()=>({locale:'es-GT',currencyCode:'GTQ'})},'@/hooks/use-toast':{useToast:()=>({toast(){}})},
   '@/services/authSession':{authSessionIdentity:()=> 'session'},
   '@/services/api':{apiFetch(){throw Error('Unexpected request')},getApiBaseUrl:()=>''},'./api':{apiFetch(){throw Error('Unexpected request')},getApiBaseUrl:()=>''},
  },nodes).default
  h.render(()=>Page());return{nodes,navigations,mutations}
 }
+test('converting a quote to an order is offered only with destination creation permission',()=>{
+  for(const permissions of [['quotes.manage'],['orders.create'],['quotes.manage','orders.create']]){
+    const h=page({},permissions)
+    assert.equal(h.nodes.some(n=>n.props.children?.includes?.('Convertir a pedido')),permissions.length===2)
+  }
+})
 test('accepted quotation offers explicit draft conversion and opens the returned stable draft',()=>{
  const h=page();assert.equal(h.mutations.length,0)
  const action=h.nodes.find(n=>n.props['aria-label']==='Crear borrador de venta');assert.ok(action);action.props.onClick()
@@ -25,6 +31,11 @@ test('linked direct sale hides duplicate conversion, scheduling and quotation ca
  assert(!h.nodes.some(n=>n.props['aria-label']==='Crear borrador de venta'))
  assert(!h.nodes.some(n=>n.props['aria-label']==='Agendar servicios'))
  const action=h.nodes.find(n=>n.props['aria-label']==='Ver venta vinculada');assert.ok(action);action.props.onClick();assert.deepEqual(h.navigations,['/ventas/v/editar'])
+})
+test('detail cannot send a saved incomplete package and explains why',()=>{
+ const h=page({status:'DRAFT',package_groups:[{state:'INCOMPLETE'}]})
+ const send=h.nodes.find(n=>n.props.children==='Generar cotización');assert.ok(send);assert.equal(send.props.disabled,true);assert.match(send.props.title,/Completa/)
+ const summary=h.nodes.find(n=>n.props.money&&Object.hasOwn(n.props,'total'));assert.equal(summary.props.pending,true)
 })
 test('quote sale transport freezes tenant headers and refuses responses after a session change',async()=>{
  let session='session';const calls=[]

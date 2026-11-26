@@ -1,5 +1,6 @@
 import {isUnitDocumentLine,remainingDocumentQuantity,compareUnitQuantities,formatUnitDecimal,documentUnitPrice} from '@/modules/inventory/units/public'
 import { useEffect, useState } from 'react'
+import {EventPaymentTermsSummary} from '@/components/shared/EventPaymentTermsSummary'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 import { Building2, Check, Clock3, FileText, Mail, MapPin, Package, PackageCheck, Phone, Truck, UserRound } from 'lucide-react'
@@ -17,10 +18,11 @@ import { fetchPublicOrder, num } from '@/services/orderService'
 import { formatQuantity, remainingQuantity } from '@/lib/commercialQuantity'
 import { OrderStatusBadge } from '../components/OrderStatusBadge'
 import { orderProgressStep, paginateOrderLines } from '../ordersViewModel'
+import {CommercialPackageSummary,packageLineLabel} from '@/components/shared/CommercialPackageSummary'
 import './publicOrder.css'
+import {PortalRenderer} from '@/components/customer-pages/PortalRenderer'
+import {orderContext,publicPortalAssetUrl} from '@/components/customer-pages/documentAdapters'
 
-const locale = 'es-GT'
-const currencyCode = 'GTQ'
 const progressLabels = ['Creado', 'Confirmado', 'Preparación', 'Entrega', 'Completado']
 const progressShortLabels = ['Creado', 'Conf.', 'Prepar.', 'Entrega', 'Completo']
 const statusMessages = {
@@ -55,6 +57,7 @@ export default function PublicOrderPage() {
   if (isLoading) return <main className="public-order-page"><div className="public-order-container"><h1 className="mb-5 text-xl font-semibold">Seguimiento de pedido</h1><LoadingState variant="detail" message="Cargando seguimiento del pedido…" /></div></main>
   if (isError || !data) return <PublicState onRetry={() => { void refetch() }} />
 
+  const locale=data.locale||'es-GT',currencyCode=data.currency_code||'GTQ'
   const fmt = (value: number | string | null | undefined) => formatMoney(num(value), locale, currencyCode)
   const step = orderProgressStep(data.status)
   const hasServices = data.lines.some(line => line.item_kind === 'SERVICE'||isUnitDocumentLine(line))
@@ -64,6 +67,7 @@ export default function PublicOrderPage() {
   const creditTerm = num(data.credit_days) > 0 ? 'Crédito a ' + data.credit_days + ' días desde la venta' : 'Crédito · Plazo según lo acordado'
   const subtotal = data.subtotal ?? num(data.total) + num(data.discount_total)
 
+  if(data.portal)return <PortalRenderer portal={data.portal} context={orderContext(data)} mode="public" assetUrl={key=>publicPortalAssetUrl('ORDER',token!,key,data.portal!.versionId)} actions={{}}/>
   return <div className="public-order-page">
     <header className="public-order-brand">
       <div className="public-order-container flex items-center gap-3">
@@ -103,6 +107,7 @@ export default function PublicOrderPage() {
           </section>
 
           <div className="min-w-0">
+            {!!data.packageGroups?.length&&<details className="mb-4"><summary className="cursor-pointer py-2 font-medium">Composición comercial acordada</summary><CommercialPackageSummary groups={data.packageGroups} lines={data.lines} mode="order" locale={locale}/></details>}
             <section className="auna-surface public-order-section" aria-label="Productos del pedido">
               <header className="public-order-section-heading"><Package aria-hidden="true" /><h2>Productos</h2><span className="ml-auto text-xs text-muted-foreground">{data.lines.length} partidas</span></header>
               {!data.lines.length ? <CollectionEmptyState compact title="Tu pedido espera sus partidas" description="Los productos aparecerán aquí cuando la empresa los agregue al pedido." /> : <>
@@ -110,7 +115,7 @@ export default function PublicOrderPage() {
                   <Table className="auna-data-table min-w-[640px]">
                     <TableHeader><TableRow><TableHead>Producto / código</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead className="text-right">Entregado</TableHead><TableHead className="text-right">P. unitario</TableHead><TableHead className="text-right">Importe</TableHead></TableRow></TableHeader>
                     <TableBody>{lines.items.map((line, index) => <TableRow key={index}>
-                      <TableCell><strong className="block font-medium">{line.product_name || 'Producto'}</strong><span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></TableCell>
+                      <TableCell><strong className="block font-medium">{line.product_name || 'Producto'}</strong>{line.package_component_key&&<small className="block text-muted-foreground">{packageLineLabel(data.packageGroups,line.package_component_key)}</small>}<span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></TableCell>
                       <TableCell className="text-right tabular-nums">{isUnitDocumentLine(line)?formatUnitDecimal(String(line.qty),locale):formatQuantity(String(line.qty), locale)} {line.unit_label}</TableCell><TableCell className="text-right tabular-nums">{isUnitDocumentLine(line)?`${line.base_fulfilled??'0'} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(String(line.qty_fulfilled),locale)} ${line.unit_label??''}`}</TableCell>
                       <TableCell className="whitespace-nowrap text-right tabular-nums">{isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(line.unit_price)}</TableCell><TableCell className="whitespace-nowrap text-right font-semibold tabular-nums">{fmt(line.line_total)}</TableCell>
                     </TableRow>)}</TableBody>
@@ -118,7 +123,7 @@ export default function PublicOrderPage() {
                 </div>
                 <ul className="auna-section-list public-order-mobile-products sm:hidden" tabIndex={0} aria-label="Partidas del pedido">
                   {lines.items.map((line, index) => <li key={index} className="auna-section-row">
-                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block font-medium">{line.product_name || 'Producto'}</strong><span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></div><strong className="shrink-0 tabular-nums">{fmt(line.line_total)}</strong></div>
+                    <div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block font-medium">{line.product_name || 'Producto'}</strong>{line.package_component_key&&<small className="block text-muted-foreground">{packageLineLabel(data.packageGroups,line.package_component_key)}</small>}<span className="text-xs text-muted-foreground">{line.barcode || 'Sin código'}</span></div><strong className="shrink-0 tabular-nums">{fmt(line.line_total)}</strong></div>
                     <dl className="public-order-mobile-quantities"><InfoRow label="Cantidad" value={`${isUnitDocumentLine(line)?formatUnitDecimal(String(line.qty),locale):formatQuantity(String(line.qty),locale)} ${line.unit_label||''}`} /><InfoRow label="Entregado" value={isUnitDocumentLine(line)?`${line.base_fulfilled??'0'} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(String(line.qty_fulfilled),locale)} ${line.unit_label||''}`} /><InfoRow label="Pendiente" value={isUnitDocumentLine(line)?`${remainingDocumentQuantity(line)} ${line.unit_snapshot!.baseUnit.label}`:`${formatQuantity(remainingQuantity(String(line.qty),String(line.qty_fulfilled)),locale)} ${line.unit_label||''}`} /></dl>
                     <p className="text-xs text-muted-foreground">Precio unitario: {isUnitDocumentLine(line)?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(line.unit_price)}</p>
                   </li>)}
@@ -128,6 +133,7 @@ export default function PublicOrderPage() {
             {lines.totalPages > 1 && <div className="auna-pagination-outside"><Pagination currentPage={lines.page} totalPages={lines.totalPages} onPageChange={setPage} totalItems={lines.totalItems} pageSize={lines.pageSize} count={lines.items.length} itemLabel="partidas" /></div>}
           </div>
 
+          <EventPaymentTermsSummary value={data.eventPaymentTerms} locale={locale}/>
           {data.notes && <section className="auna-surface public-order-section">
             <header className="public-order-section-heading"><FileText aria-hidden="true" /><h2>Notas</h2></header>
             <p className="public-order-section-body whitespace-pre-wrap break-words text-sm">{data.notes}</p>

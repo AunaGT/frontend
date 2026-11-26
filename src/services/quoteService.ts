@@ -7,6 +7,7 @@
 import { apiFetch,getActiveCompanyId,getActiveBranchId } from "./api";
 import {authSessionIdentity} from './authSession';
 import type { PublicServiceConditions } from './serviceConditions';
+export const fetchQuotePaymentTermsCapability=(signal?:AbortSignal)=>apiFetch<{enabled:boolean}>('/api/quotes/payment-terms-capability',{signal});
 export async function previewQuoteServiceConditions(productIds:string[],signal?:AbortSignal):Promise<{conditions:Record<string,PublicServiceConditions|null>}>{
   return apiFetch('/api/quotes/service-conditions',{method:'POST',body:JSON.stringify({productIds}),signal});
 }
@@ -14,6 +15,7 @@ export async function previewQuoteServiceConditions(productIds:string[],signal?:
 export type QuoteStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "EXPIRED";
 
 export type QuoteLine = {
+  package_component_key?:string|null;
   unit_metadata_version?:1|2;
   unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
   base_qty?:string|null;
@@ -41,6 +43,11 @@ export type QuoteLine = {
 };
 
 export type Quote = {
+  eventPaymentTerms?:import('./eventPaymentTerms').PublicEventPaymentTerms|null;
+  event_payment_terms?:import('./eventPaymentTerms').EventPaymentTermsSnapshot|null;
+  packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];
+  package_groups?:import('@/modules/inventory/packages/types').PackageGroup[];
+  integration_revision?:string;
   hasDirectSale?:boolean;
   directSale?:{id:string;reference:string|null;status:'DRAFT'|'CONFIRMED'|'CANCELLED'}|null;
   engagementId?:string|null;
@@ -93,6 +100,7 @@ export type Quote = {
 };
 
 export type QuoteLinePayload = {
+  source_line_id?:string;
   product_id: string;
   qty: string | number;
   unit_price?: number|string;
@@ -102,6 +110,9 @@ export type QuoteLinePayload = {
 };
 
 export type CreateQuotePayload = {
+  eventPaymentTerms?:import('./eventPaymentTerms').EventPaymentTermsInput|null;
+  expectedRevision?:string;
+  packages?:import('@/modules/inventory/packages/types').PackageSelection[];
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   /** Sucursal a la que pertenece; por defecto la activa */
@@ -176,8 +187,10 @@ export async function createQuote(payload: CreateQuotePayload,options:RequestIni
   });
 }
 
-export async function updateQuote(id: string, payload: CreateQuotePayload | Pick<CreateQuotePayload, 'payment_condition' | 'credit_days'>): Promise<Quote> {
+export type UpdateQuotePayload=Partial<CreateQuotePayload>&{expectedRevision?:string};
+export async function updateQuote(id: string, payload:UpdateQuotePayload,options:RequestInit={}): Promise<Quote> {
   return apiFetch<Quote>(`/api/quotes/${encodeURIComponent(id)}`, {
+    ...options,
     method: "PUT",
     body: JSON.stringify(payload),
   });
@@ -213,6 +226,9 @@ export async function convertQuoteToSale(id:string,scope:{companyId:string;branc
 }
 
 export type PublicQuote = {
+  eventPaymentTerms?:import('./eventPaymentTerms').PublicEventPaymentTerms|null;
+  packageGroups?:import('@/modules/inventory/packages/types').PackageGroup[];
+  portal?:import('@/components/customer-pages/types').PublishedPortal;
   payment_condition?: 'CASH' | 'CREDIT';
   credit_days?: number | null;
   created_at: string;
@@ -232,6 +248,7 @@ export type PublicQuote = {
   company_name: string;
   company_logo_url?: string;
   lines: Array<{
+    package_component_key?:string|null;
     unit_metadata_version?:1|2;
     unit_snapshot?:import('@/modules/inventory/units/public').UnitSnapshot|null;
     base_qty?:string|null;

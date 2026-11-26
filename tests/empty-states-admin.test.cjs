@@ -70,9 +70,9 @@ test('tenant branch load failure displays its error and retry before empty colle
 })
 
 test('cash assignment picker renders a compact search state and reset callback', () => {
-  const { nodes } = render('catalogs/components/CashRegistersTab.tsx', 'CashRegistersTab', {}, { states: { 7: { id: 'register', name: 'Caja', branch: { id: 'branch' } }, 9: 'Ana', 10: 'Ana' }, query: ({ queryKey }) => ({ data: queryKey[0] === 'users' ? empty : [], isLoading: false, isFetching: false, error: null }) })
+  const { nodes } = render('catalogs/components/CashRegisterAccessFields.tsx', 'CashRegisterAccessFields', { scope: { companyId: 'company', branchId: 'branch', actorId: 'user' }, selected: [], known: [], disabled: false, readOnly: false, onChange: noop }, { states: { 0: 'Ana' }, query: () => ({ data: empty, isLoading: false, isFetching: false, error: null }) })
   const collection = nodes.find(n => n.props.title === 'El equipo de esta caja aparecerá aquí')
-  assert.ok(collection, 'assignment dialog has its own collection empty state')
+  assert.ok(collection, 'dedicated access picker has its own collection empty state')
   assert.equal(collection.props.compact, true)
   assert.equal(collection.props.filtered, true)
   assert.equal(typeof collection.props.onReset, 'function')

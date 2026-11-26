@@ -27,6 +27,7 @@ export interface SystemSettings {
   cash_closure_denominations?: { denomination: number; type: string }[]
   // Datos fiscales (FEL)
   company_nit?: string
+  company_legal_name?: string
   fel_enabled?: string
   company_address?: string
   company_municipality?: string

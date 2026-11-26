@@ -66,6 +66,7 @@ for(const name of ['ProductPicker','SupplierPicker'])test(name+' illustrates onl
     '@/components/ui/command':Object.fromEntries(['Command','CommandEmpty','CommandGroup','CommandInput','CommandItem','CommandList'].map(k=>[k,boundary])),
     '@/components/ui/scroll-area':{ScrollArea:boundary},
     '@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryServicesEnabled:false})},
+    '@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:()=>true})},
     '@/services/productService':{fetchProducts(){},adaptApiProduct:v=>v},
     '@/services/api':{apiFetch(){throw Error('No network in picker presentation test')}},
     '@/services/supplierService':{fetchSuppliers(){}},

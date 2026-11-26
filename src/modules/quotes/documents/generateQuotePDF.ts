@@ -1,3 +1,5 @@
+import {packageLineLabel,packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary'
+import {eventPaymentTermsText} from '@/services/eventPaymentTerms'
 import {documentUnitPrice} from '@/modules/inventory/units/public'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
@@ -21,9 +23,10 @@ export interface QuotePDFOptions {
   currencyCode?: string;
 }
 
-type QuoteDocument = Pick<Quote, 'id' | 'reference' | 'created_at' | 'customer' | 'customerContact' | 'is_final_consumer' | 'customer_nit' | 'valid_until' | 'createdBy' | 'lines' | 'total' | 'notes' | 'payment_condition' | 'credit_days'>;
+type QuoteDocument = Pick<Quote, 'eventPaymentTerms' | 'event_payment_terms' | 'id' | 'reference' | 'created_at' | 'customer' | 'customerContact' | 'is_final_consumer' | 'customer_nit' | 'valid_until' | 'createdBy' | 'lines' | 'packageGroups' | 'package_groups' | 'total' | 'notes' | 'payment_condition' | 'credit_days'>;
 export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions = {}): void {
-  const { companyName, logoDataUrl, locale = "es-GT", currencyCode = "GTQ" } = options;
+  const { companyName, logoDataUrl, locale = "es-GT" } = options;
+  const currencyCode=packageDocumentCurrency(quote.packageGroups??quote.package_groups,options.currencyCode);
   const doc = new jsPDF() as jsPDFDocument;
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
   let y = addJsPdfCompanyHeader(doc, { companyName, logoDataUrl, pageWidth: PAGE_WIDTH, startY: 20 });
@@ -59,6 +62,8 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   ) + 2;
 
   y = addDocumentText(doc, quote.payment_condition === 'CREDIT' ? `Condición: crédito a ${quote.credit_days} días desde la venta` : 'Condición: al contado', MARGIN, y, CONTENT_WIDTH) + 2;
+  const eventTerms=eventPaymentTermsText(quote.eventPaymentTerms??quote.event_payment_terms,locale);
+  if(eventTerms)y=addDocumentText(doc,eventTerms,MARGIN,ensureDocumentSpace(doc,y,24),CONTENT_WIDTH)+4;
   if (quote.valid_until) {
     y = ensureDocumentSpace(doc, y, 6);
     doc.setFont("helvetica", "bold");
@@ -79,7 +84,7 @@ export function generateQuotePDF(quote: QuoteDocument, options: QuotePDFOptions 
   }
 
   const tableBody = (quote.lines || []).map((line) => [
-    [line.item_name ?? line.product?.name ?? line.product_id,serviceConditionText(line.service_schedule_snapshot)].filter(Boolean).join('\n'),
+    [packageLineLabel(quote.packageGroups??quote.package_groups,line.package_component_key),line.item_name ?? line.product?.name ?? line.product_id,serviceConditionText(line.service_schedule_snapshot)].filter(Boolean).join('\n'),
     `${line.qty} ${line.unit_label || ''}`.trim(),
     line.unit_metadata_version===2?`${currencyCode} ${documentUnitPrice(line,locale)}`:fmt(num(line.unit_price)),
     fmt(num(line.line_total)),

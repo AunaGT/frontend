@@ -40,7 +40,7 @@ export const ProductDetailDialog = ({
     product
 }: ProductDetailDialogProps) => {
     const { hasPermission } = useAuthPermissions()
-    const canCreateProducts = hasPermission('products.create')
+    const canCreateProducts = hasPermission('products.view_costs')
 
     if (!product) return null
 

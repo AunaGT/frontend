@@ -6,6 +6,7 @@ export const quotesModule = {
   paths: {
     list: '/cotizaciones',
     create: '/cotizaciones/nueva',
+    edit:'/cotizaciones/:id/editar',
     detail: '/cotizaciones/:id',
     public: '/q/:token',
   },
@@ -13,6 +14,7 @@ export const quotesModule = {
   pages: {
     Management: lazy(() => import('./QuotesManagement')),
     Create: lazy(() => import('./NewQuotePage')),
+    Edit:lazy(()=>import('./EditQuotePage')),
     Detail: lazy(() => import('./QuoteDetailPage')),
     Public: lazy(() => import('./PublicQuotePage')),
   },

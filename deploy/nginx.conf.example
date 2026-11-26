@@ -7,6 +7,8 @@ server {
 
     root /var/www/deposito-frontend/dist;
     index index.html;
+    # Share tokens and editor paths must not reach external links via Referer.
+    add_header Referrer-Policy "no-referrer" always;
 
     # Assets con hash (Vite) — cache largo
     location /assets/ {

@@ -22,9 +22,7 @@ export const useAuthPermissions = () => {
   const { user, isLoading } = useAuth();
 
   const { isAdmin, permissionsSet, permissionsReady } = useMemo(() => {
-    const roleName = user?.role?.name ?? undefined;
-    const isAdminRole =
-      typeof roleName === "string" && roleName.toLowerCase() === "admin";
+    const isAdminRole = user?.role?.name === 'admin' && user.role.system_key === 'ADMIN' && user.role.company_id == null;
 
     const rawPerms = Array.isArray(user?.permissions)
       ? user!.permissions!
@@ -89,4 +87,3 @@ export const useAuthPermissions = () => {
     permissionsReady,
   };
 };
-

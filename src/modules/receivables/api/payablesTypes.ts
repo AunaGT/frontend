@@ -75,6 +75,7 @@ export type PaymentApplication = {
   expectedRevision: number;
 };
 export type SupplierPaymentInput = {
+  cashRegisterSessionId?: string | null;
   requestKey: string;
   supplierId: string;
   amount: string;
@@ -86,6 +87,9 @@ export type SupplierPaymentInput = {
   applications: PaymentApplication[];
 };
 export type SupplierReceipt = {
+  cashRegisterSessionId?: string | null;
+  cashRegisterName?: string | null;
+  cashOrigin?: 'OUTSIDE_CASH' | 'CASH_SESSION';
   id: string;
   status: "POSTED" | "CANCELLED";
   companyId: string;

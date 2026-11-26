@@ -13,6 +13,7 @@ function render(relative, props = {}, extraMocks = {}) {
   const nodes = []
   const mod = loadReportModule('../cash-closure/' + relative, {
     '@/hooks/useSystemSettings': { useSystemSettings: () => settings },
+    '@/services/cashClosureReadService': { CASH_CLOSURE_READ_PERMISSIONS: ['cashclosure.view','cashclosure.view_team','cashclosure.approve','cashclosure.validate'] },
     ...extraMocks,
   }, nodes)
   const Component = mod.default || Object.values(mod).find(value => typeof value === 'function')
@@ -39,6 +40,32 @@ test('verified zero stays visible and payment editing keeps its original callbac
   assert.deepEqual(changed, [0, 'actual_amount', '12.5'])
   assert.match(html, /Fondo/)
 })
+test('cash and bank slices of the same method keep independent verified-zero state', () => {
+  const { html } = render('components/PaymentMethodsForm.tsx', { paymentBreakdown: [{ ...payments[0], breakdown_key: '1:CASH', settlement_kind: 'CASH', actual_amount: 0 }, { ...payments[0], breakdown_key: '1:BANK', settlement_kind: 'BANK', actual_amount: 0 }], countedPaymentMethodIds: new Set(['1:CASH']), onUpdateAmount() {} })
+  assert.match(html, /id="actual-0"[^>]*value="0"/)
+  assert.match(html, /id="actual-1"[^>]*value=""/)
+})
+test('bank net outflows accept a signed verified amount and explain it without allowing negative cash', () => {
+  let changed
+  const { html, nodes } = render('components/PaymentMethodsForm.tsx', { paymentBreakdown: [
+    { ...payments[0], breakdown_key: '1:CASH', settlement_kind: 'CASH' },
+    { ...payments[0], breakdown_key: '1:BANK', settlement_kind: 'BANK', theoretical_amount: -30, actual_amount: -30, difference: 0 }],
+    countedPaymentMethodIds: new Set(['1:CASH', '1:BANK']), onUpdateAmount: (...args) => { changed = args } })
+  assert.equal(nodes.find(n => n.props?.id === 'actual-0').props.min, '0')
+  const bank = nodes.find(n => n.props?.id === 'actual-1')
+  assert.equal(bank.props.min, undefined); assert.equal(bank.props.value, -30)
+  assert.match(html, /Movimiento neto verificado/); assert.match(html, /Ingresos menos egresos/)
+  bank.props.onChange({ target: { value: '-30.00' } }); assert.deepEqual(changed, [1, 'actual_amount', '-30.00'])
+})
+test('theoretical summary explains calculation basis and shows collections and supplier outflows using frozen currency', () => {
+  const { html } = render('components/TheoreticalSummary.tsx', { data: { ...theory, currency_code: 'USD', calculation_basis_label: 'Consulta mixta, no cierre diario', theoretical: { ...theory.theoretical, total_collections: 50, total_supplier_payments: 30 } } })
+  assert.match(html, /Consulta mixta, no cierre diario/); assert.match(html, /Cobros y anticipos/); assert.match(html, /Pagos a proveedores/)
+  assert.match(html, /USD/); assert.doesNotMatch(html, /GTQ|Q\s/)
+})
+test('denominations honor the turn currency and do not claim automatic allocation across multiple cash methods', () => {
+  const { html } = render('components/DenominationsCounter.tsx', { denominations, cashTotal: 90, currencyCode: 'USD', autoAllocate: false, onUpdateQuantity() {} })
+  assert.match(html, /USD/); assert.match(html, /distribúyelo/); assert.doesNotMatch(html, /actualiza automáticamente/)
+})
 
 test('difference includes a meaningful label, not only a color', () => {
   const { html } = render('components/ClosureSummaryCard.tsx', { theoreticalTotal: 100, actualTotal: 90, difference: -10, differencePercentage: -10, ...settings })
@@ -47,21 +74,27 @@ test('difference includes a meaningful label, not only a color', () => {
   assert.match(html, /Total contado/)
 })
 
-function createPage({ counted = new Set([1]), notes = 'Recuento', advanced = true, difference = -10, differencePct = -10, scope = 'day', canCalculate = true } = {}) {
+test('a verified discrepancy exposes its own required reason without advanced mode', () => {
+  const { html } = render('components/PaymentMethodsForm.tsx', { paymentBreakdown: payments, countedPaymentMethodIds: new Set([1]), onUpdateAmount() {} })
+  assert.match(html, /id="notes-0"/)
+  assert.match(html, /Motivo de la diferencia/)
+})
+
+function createPage({ counted = new Set([1]), notes = 'Recuento', paymentNotes = 'Recuento', advanced = true, difference = -10, differencePct = -10, scope = 'day', canCalculate = true, data = theory, recount = false } = {}) {
   let stateIndex = 0
   const toasts = [], saves = [], updates = [], navigations = []
-  const form = { paymentBreakdown: payments, denominations, cashierName: 'Cajero QA', startDate: '2026-10-09T08:00:00', endDate: '2026-10-09T17:00:00', notes,
+  const form = { paymentBreakdown: payments.map(p => ({ ...p, notes: paymentNotes })), denominations, cashierName: 'Cajero QA', startDate: '2026-10-09T08:00:00', endDate: '2026-10-09T17:00:00', notes,
     setStartDate() {}, setEndDate() {}, setNotes() {}, getCashTotal: () => 90, getActualTotal: () => 90, getTotalDifference: () => difference, getDifferencePercentage: () => differencePct, resetForm() {}, updateActualAmount() {}, updateDenomination() {}, initializeFromTheoretical() {} }
   const states = [scope, false, advanced, false, counted]
   const mocks = {
     react: { ...React, useState: initial => { const i = stateIndex++; const [value, setValue] = React.useState(i < states.length ? states[i] : initial); return [value, next => { updates.push({ index: i, value: typeof next === 'function' ? next(value) : next }); setValue(next) }] }, useEffect() {} },
-    'react-router-dom': { useNavigate: () => path => navigations.push(path) },
+    'react-router-dom': { useNavigate: () => path => navigations.push(path), useSearchParams: () => [new URLSearchParams()], Link: 'a' },
     '@/context/useAuth': { useAuth: () => ({ user: { id: 'qa', name: 'Cajero QA' } }) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => true }) },
     '@/hooks/useExperienceProfile': { useExperienceProfile: () => ({ showAdvancedByDefault: advanced }) },
     '@/hooks/use-toast': { useToast: () => ({ toast: data => toasts.push(data) }) },
     '@/services/cashSessionsService': { fetchCashSessionCurrent() { throw new Error('Unexpected session request') } },
-    './hooks': { useCashClosureForm: () => form, useCashClosureAPI: () => ({ theoreticalData: theory, isSaving: false, isCalculating: false, saveClosure: async payload => { saves.push(payload); return true } }), useMineClosureGate: () => ({ gate: { loading: false, canCalculate, closableSessionId: canCalculate ? 'session-qa' : null, reason: canCalculate ? 'ok' : 'no-pending' }, refresh() {} }), mineClosureBlockedHint() {} },
+    './hooks': { useCashClosureForm: () => form, useCashClosureAPI: () => ({ theoreticalData: data, isSaving: false, isCalculating: false, saveClosure: async payload => { saves.push(payload); return 'C1' } }), useMineClosureGate: () => ({ gate: { loading: false, canCalculate, closableSessionId: canCalculate ? 'session-qa' : null, closableSession: canCalculate ? { id: 'session-qa', recount } : null, reason: canCalculate ? 'ok' : 'no-pending' }, refresh() {} }), mineClosureBlockedHint() {} },
   }
   const result = render('CashClosureCreatePage.tsx', {}, mocks)
   return { ...result, toasts, saves, updates, navigations }
@@ -83,7 +116,7 @@ test('creation uses the bounded module width and shows the reference count layou
   assert.match(html, /Resumen teórico/)
   assert.match(html, /Resumen contado/)
   assert.match(html, /cash-closure-summary-stack/)
-  assert.doesNotMatch(html, /id="notes-0"/)
+  assert.match(html, /id="notes-0"/)
 })
 
 test('history follows the reference table with an accessible detail action and outside pagination', () => {
@@ -93,7 +126,7 @@ test('history follows the reference table with an accessible detail action and o
   assert.match(html, /Total esperado/)
   assert.match(html, /Total contado/)
   assert.match(html, /<th[^>]*scope="col"[^>]*>Cajero/)
-  nodes.find(n => n.props?.['aria-label'] === 'Ver cierre #12').props.onClick()
+  nodes.find(n => n.props?.['aria-label'] === 'Ver arqueo #12').props.onClick()
   assert.equal(viewed, 'qa-closure')
   nodes.find(n => n.props?.['aria-label'] === 'Página siguiente').props.onClick()
   assert.equal(page, 2)
@@ -102,9 +135,11 @@ test('history follows the reference table with an accessible detail action and o
 
 test('session-check error offers retry without enabling creation or claiming the shift is open', () => {
   let retried = 0
-  const { html, nodes } = render('CashClosureManagement.tsx', {}, {
-    'react-router-dom': { useNavigate: () => () => {}, Link: ({ children, to }) => React.createElement('a', { href: to }, children) },
+  const { html, nodes } = render('CashClosureHistory.tsx', {}, {
+    'react-router-dom': { useSearchParams:()=>[new URLSearchParams(),()=>{}], useNavigate: () => () => {}, Link: ({ children, to }) => React.createElement('a', { href: to }, children) },
     '@/context/useAuth': { useAuth: () => ({ user: { id: 'qa' } }) },
+    '@/context/useTenant': { useTenant: () => ({ company:{id:'c'},branch:{id:'b'} }) },
+    '@tanstack/react-query': { useQuery: ({queryKey}) => ({ data:queryKey[0]==='cash-closure-read-capabilities'?{viewOwn:true,viewTeam:true}:{items:[],page:1,totalPages:1},isPending:false }) },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => true }) },
     './CashClosureCreatePage': { CASH_CLOSURE_CREATE_PATH: '/cierre-caja/nuevo' },
     './hooks': { useCashClosureForm: () => ({ isSeller: false }), useCashClosureAPI: () => ({ closures: [], isLoadingClosures: false, currentPage: 1, totalPages: 1, pageSize: 10, fetchClosures() {}, setPageSize() {} }), useMineClosureGate: () => ({ gate: { loading: false, reason: 'error', canCalculate: false, closableSessionId: null, errorMessage: 'Servicio temporalmente no disponible' }, refresh: () => { retried++ } }), canRegisterMineClosure: () => false, mineClosureBlockedHint: () => 'No se pudo verificar el turno' },
@@ -113,7 +148,7 @@ test('session-check error offers retry without enabling creation or claiming the
   assert.ok(retry, 'The failed check must have an explicit retry')
   retry.props.onClick()
   assert.equal(retried, 1)
-  assert.equal(nodes.find(n => n.props?.children?.props?.children?.includes?.('Registrar cierre'))?.props.disabled ?? nodes.find(n => n.props?.disabled === true)?.props.disabled, true)
+  assert.equal(nodes.find(n => n.props?.children?.props?.children?.includes?.('Registrar arqueo'))?.props.disabled ?? nodes.find(n => n.props?.disabled === true)?.props.disabled, true)
   assert.match(html, /No se pudo verificar/)
   assert.doesNotMatch(html, /finaliza primero el turno/)
 })
@@ -123,6 +158,7 @@ test('a closed shift becomes available only after a successful session lookup, n
   const data = { ok: true, register: { id: 'register' }, session: null, closableSession: session }
   let state, result
   const { useMineClosureGate, canRegisterMineClosure } = loadReportModule('../cash-closure/hooks/useMineClosureGate.ts', {
+    '@/context/useTenant': { useTenant: () => ({ company: { id: 'c' }, branch: { id: 'b' } }) },
     '@tanstack/react-query': { useQuery: () => state },
     '@/services/cashSessionsService': { fetchCashSessionCurrent() { throw new Error('No real requests allowed') }, sessionOpenedAtToLocalInput: value => value },
   })
@@ -151,7 +187,7 @@ test('save still requires explicit verification of every payment method', async 
 })
 
 test('save still requires a reason for differences', async () => {
-  const { nodes, toasts, saves } = createPage({ notes: '' })
+  const { nodes, toasts, saves } = createPage({ notes: '', paymentNotes: '' })
   await nodes.find(n => n.props?.children?.includes?.('Guardar cierre de caja')).props.onClick()
   assert.equal(saves.length, 0)
   assert.ok(toasts.some(t => /motivo|explica|diferencia/i.test(t.description)))
@@ -208,7 +244,10 @@ test('detail shows compact sibling surfaces and real payment and denomination ta
   const closure = { id: 1, closure_number: 12, status: 'Aprobado', start_date: '2026-10-09T08:00:00', end_date: '2026-10-09T17:00:00', cashier_name: 'Cajero QA', supervisor_name: 'Supervisor QA', theoretical_total: 100, actual_total: 90, difference: -10, difference_percentage: -10, opening_float: 20, payment_breakdowns: payments, denominations, notes: 'Recuento' }
   const { html } = render('ClosureDetailPage.tsx', {}, {
     react: { ...React, useState: initial => React.useState(stateIndex++ === 0 ? closure : initial === true ? false : initial), useEffect() {} },
-    'react-router-dom': { useParams: () => ({ id: '1' }), useNavigate: () => () => {} },
+    'react-router-dom': { useParams: () => ({ id: '1' }), useNavigate: () => () => {}, Link: 'a' },
+    '@tanstack/react-query': { useQuery: ({queryKey}) => ({ data: queryKey[0] === 'cash-closure-detail' ? closure : null, isLoading: false, isPending:false }), useQueryClient: () => ({ invalidateQueries() {},setQueryData() {} }) },
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ user:{id:'qa'},hasPermission:()=>true }) },
+    '@/context/useTenant': { useTenant: () => ({ company: { id: 'c' }, branch: { id: 'b' } }) }, '@/services/cashReviewService': {}, '@/services/cashCorrectionService': {},
     '@/context/useAuth': { useAuth: () => ({ user: { name: 'QA' } }) },
     '@/hooks/use-toast': { useToast: () => ({ toast() {} }) },
     './hooks': { useCashClosureAPI: () => ({}), useCashClosureForm: () => ({ isSeller: false }) },
@@ -222,4 +261,17 @@ test('detail shows compact sibling surfaces and real payment and denomination ta
   assert.match(html, /Supervisor QA/)
   assert.match(html, /Faltante/)
   assert.doesNotMatch(html, /bg-card|bg-background\/80|border rounded p-3/)
+})
+
+test('a blind count hides expected totals and saves without asking reasons the cashier cannot know', async () => {
+  const blindData = { blind: true, calculation_key: 'k', period: { start: '2026-10-09T08:00:00Z', end: '2026-10-09T17:00:00Z' }, cash_session: { id: 'session-qa' }, payment_breakdown: [] }
+  const { html, nodes, saves, toasts } = createPage({ data: blindData, paymentNotes: '', notes: '', difference: -50, differencePct: -50 })
+  assert.ok(html.includes('Conteo ciego')); assert.equal(html.includes('Total esperado'), false)
+  await nodes.find(n => n.props?.children?.includes?.('Guardar cierre de caja')).props.onClick()
+  assert.equal(saves.length, 1, JSON.stringify(toasts)); assert.equal(toasts.some(t => /motivo|diferencia/i.test(t.title + t.description)), false)
+})
+
+test('a turn in recount tells the cashier their earlier count stays saved', () => {
+  assert.ok(createPage({ scope: 'mine', recount: true }).html.includes('Reconteo solicitado'))
+  assert.equal(createPage({ scope: 'mine' }).html.includes('Reconteo solicitado'), false)
 })

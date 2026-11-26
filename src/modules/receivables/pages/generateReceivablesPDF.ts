@@ -15,6 +15,7 @@
  */
 import jsPDF from 'jspdf'
 import autoTable, { type jsPDFDocument } from 'jspdf-autotable'
+import { chargeDocuments } from './statementViewModel.mjs'
 import { addJsPdfCompanyHeader, addDocumentFooter, addDocumentText, documentTableStyles, ensureDocumentSpace } from '@/utils/pdfBranding'
 import {
   PAYMENT_KIND_LABELS, SALE_PAYMENT_STATUS_LABELS,
@@ -80,10 +81,13 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
     ['Saldo pendiente', money(data.resumen.saldo)],
     ['Vencido', money(data.resumen.vencido)],
   ]
+  if ((data.resumen.cargos_saldo ?? 0) > 0) resumen.push(['Incluye cargos por contracargo', money(data.resumen.cargos_saldo!)])
+  if ((data.resumen.credito_recuperacion ?? 0) > 0) resumen.push(['Crédito por recuperación (solo cargos)', money(data.resumen.credito_recuperacion!)])
   if (data.resumen.credito_disponible > 0) {
     resumen.push(['Saldo a favor', money(data.resumen.credito_disponible)])
     resumen.push(['Saldo neto', money(data.resumen.saldo_neto)])
   }
+  if ((data.resumen.credito_en_revision ?? 0) > 0) resumen.push(['Saldo en revisión (no disponible)', money(data.resumen.credito_en_revision!)])
   if (data.customer.credit_limit != null) {
     resumen.push(['Límite de crédito', money(data.customer.credit_limit)])
     resumen.push(['Disponible', money(data.resumen.disponible ?? 0)])
@@ -100,14 +104,15 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
   })
   y = (doc.lastAutoTable?.finalY ?? y) + 8
 
-  const abiertas = data.ventas.filter((v) => v.saldo > 0.005)
+  // Un cargo por contracargo no es factura: se identifica como tal en la misma tabla de documentos.
+  const abiertas = [...data.ventas, ...chargeDocuments(data)].filter((v) => v.saldo > 0.005)
   autoTable(doc, {
     ...documentTableStyles,
     startY: y,
-    head: [['Factura', 'Fecha', 'Vence', 'Total', 'Abonado', 'Saldo', 'Estado']],
+    head: [['Documento', 'Fecha', 'Vence', 'Total', 'Abonado', 'Saldo', 'Estado']],
     body: abiertas.length
       ? abiertas.map((v) => [
-          v.reference || v.id.slice(0, 8),
+          (v.reference || v.id.slice(0, 8)) + ('documentType' in v ? '\nCargo por contracargo' : ''),
           fecha(v.date),
           v.vencida ? `${fecha(v.due_date)} (${v.dias_vencida}d)` : fecha(v.due_date),
           money(v.total),
@@ -115,7 +120,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
           money(v.saldo),
           SALE_PAYMENT_STATUS_LABELS[v.payment_status],
         ])
-      : [['Sin facturas pendientes', '', '', '', '', '', '']],
+      : [['Sin documentos pendientes', '', '', '', '', '', '']],
     theme: 'striped',
     columnStyles: {
       3: { halign: 'right' }, 4: { halign: 'right' }, 5: { halign: 'right', fontStyle: 'bold' },
@@ -135,7 +140,7 @@ export const generateStatementPDF = (data: CustomerStatement, o: PdfOptions = {}
         money(c.amount),
         c.payment_method?.name || '—',
         c.reference || '—',
-        c.aplicaciones.map((a) => a.reference || a.sale_id?.slice(0, 8)).join(', ') || 'Sin aplicar',
+        c.aplicaciones.map((a) => a.reference || (a.sale_id ?? a.charge_id)?.slice(0, 8)).join(', ') || 'Sin aplicar',
       ]),
       theme: 'striped',
       columnStyles: { 2: { halign: 'right' } },
@@ -204,23 +209,23 @@ export const generateReceiptPDF = (r: PaymentReceipt, o: PdfOptions = {}) => {
   autoTable(doc, {
     ...documentTableStyles,
     startY: y,
-    head: [['Factura', 'Fecha', 'Vence', 'Total', 'Aplicado']],
+    head: [['Documento', 'Fecha', 'Vence', 'Total', 'Aplicado']],
     body: r.aplicaciones.length
       ? r.aplicaciones.map((a) => [
-          a.reference || a.sale_id?.slice(0, 8) || '—',
+          (a.reference || (a.sale_id ?? a.charge_id)?.slice(0, 8) || '—') + (a.documentType ? '\nCargo por contracargo' : ''),
           fecha(a.date),
           fecha(a.due_date),
           money(a.total),
           money(a.amount),
         ])
-      : [['Sin aplicación vigente a facturas', '', '', '', money(0)]],
+      : [['Sin aplicación vigente a documentos', '', '', '', money(0)]],
     theme: 'striped',
     columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right', fontStyle: 'bold' } },
     margin: { left: margin, right: margin, top: 20, bottom: 20 },
   })
   y = ensureDocumentSpace(doc, (doc.lastAutoTable?.finalY ?? y) + 6, 22)
 
-  for(const [label,value] of [['Comprometido con contrataciones',r.comprometido||0],['Devuelto',r.devuelto||0]] as const){
+  for(const [label,value] of [['Comprometido con contrataciones',r.comprometido||0],['En revisión (no disponible)',r.retenido||0],['Saldo cancelado por contracargo',r.saldo_cancelado||0],['Devuelto',r.devuelto||0]] as const){
     if(value<=0)continue
     y=ensureDocumentSpace(doc,y,12)
     doc.setFontSize(9);doc.setFont('helvetica','normal');doc.text(`${label}: ${money(value)}`,margin,y);y+=6

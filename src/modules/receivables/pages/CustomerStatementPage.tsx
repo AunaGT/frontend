@@ -1,3 +1,4 @@
+import { CustomerCreditBalance } from '../components/CustomerCreditBalance'
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { usePersistedListUiState } from '@/hooks/usePersistedListUiState'
 import { TABLE_PAGE_SIZES } from '@/utils/pagination'
@@ -47,7 +48,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { fetchCashSessionCurrent } from '@/services/cashSessionsService'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
 import {
-  fetchCustomerStatement, fetchCompleteCustomerStatement, createCustomerPayment, deleteCustomerPayment,
+  fetchCustomerStatement, fetchCompleteCustomerStatement, deleteCustomerPayment,
   createCustomerAdjustment, applyCustomerCredit, updateSaleDueDate, fetchPaymentReceipt,
   SALE_PAYMENT_STATUS_LABELS, PAYMENT_KIND_LABELS,
   type PaymentApplication,
@@ -58,12 +59,19 @@ import { usePageTrail } from '@/components/layout/PageNavigation'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 import { SavedCustomerMany2One } from '@/modules/sales/components/SavedCustomerMany2One'
 import { useTenant } from '@/context/useTenant'
+import { useAuth } from '@/context/useAuth'
+import { useCustomerPaymentAttempt } from '../hooks/useCustomerPaymentAttempt'
 import { ReceivableMetrics, ReceivableStatus } from './ReceivablesPresentation'
-import { downloadReceivablesCsv, matchesStatementRow, statementMovements, statementDate, paymentAllocationLabel } from './statementViewModel.mjs'
+import { downloadReceivablesCsv, matchesStatementRow, statementMovements, statementDate, paymentAllocationLabel, chargeDocuments, documentKindLabel, CHARGE_KIND } from './statementViewModel.mjs'
 import './customerStatement.css'
 import {DrawerSimulationAction} from '@/modules/config/hardware/public'
 
 const EPS = 0.005
+function movementDescription(row: { kind: string; payment?: { notes: string | null; payment_method: { name: string } | null }; sale?: { charge?: { referencia_proveedor: string } } }) {
+  if (row.kind === CHARGE_KIND) return `Contracargo ${row.sale?.charge?.referencia_proveedor ?? ''}`.trim()
+  if (row.kind === 'RECOVERY_CREDIT') return 'Saldo a favor; solo cubre cargos por contracargo'
+  return row.payment?.notes || row.payment?.payment_method?.name || 'Venta al crédito'
+}
 
 export const CustomerStatementPage = () => {
   const { id } = useParams<{ id: string }>()
@@ -72,12 +80,15 @@ export const CustomerStatementPage = () => {
   const { company, branch, isConsolidated } = useTenant()
   const companyId = company?.id
   const branchId = isConsolidated ? 'all' : branch?.id
+  const { user } = useAuth()
+  const paymentAttempt = useCustomerPaymentAttempt({ companyId, branchId, userId: user?.id, customerId: id })
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { hasPermission } = useAuthPermissions()
   const { companyName, companyLogoUrl, currencyCode, locale, timezone } = useSystemSettings()
   const isoDay = (iso?: string | null) => statementDate(iso, timezone)
   const puedeCobrar = hasPermission('receivables.manage') && branchId !== 'all'
+  const puedeAnular = hasPermission('receivables.cancel_payment') && branchId !== 'all'
   const puedeAjustar = hasPermission('receivables.adjust') && branchId !== 'all'
 
   const [cobroAbierto, setCobroAbierto] = useState(puedeCobrar && params.get('cobrar') === '1')
@@ -134,7 +145,7 @@ export const CustomerStatementPage = () => {
   useEffect(() => {
     const invoiceId = params.get('factura')
     if (!invoiceId || preparedInvoice === invoiceId || !data || !cobroAbierto) return
-    const invoice = data.ventas.find(sale => sale.id === invoiceId)
+    const invoice = [...data.ventas, ...chargeDocuments(data)].find(sale => sale.id === invoiceId)
     if (invoice) {
       setManual(true)
       setMonto(String(invoice.saldo))
@@ -152,13 +163,13 @@ export const CustomerStatementPage = () => {
   // El turno abierto del cajero. Sin esto el efectivo cobrado no queda atado a
   // ningún turno y el arqueo tiene que adivinarlo por usuario y hora.
   const { data: sesion } = useQuery({
-    queryKey: ['cash-session', 'current'],
-    queryFn: () => fetchCashSessionCurrent(),
+    queryKey: ['cash-session', 'current', companyId, branchId, user?.id],
+    queryFn: () => fetchCashSessionCurrent(undefined, undefined, { companyId: companyId || '', branchId: branchId || '', actorId: user?.id || '' }),
     enabled: puedeCobrar,
     staleTime: 60_000,
   })
   const sesionAbierta =
-    sesion?.ok && sesion.session?.status === 'OPEN' ? sesion.session.id : undefined
+    sesion?.ok && sesion.session?.status === 'OPEN' && sesion.session.can_operate !== false ? sesion.session.id : undefined
 
   const refrescar = async () => {
     await Promise.all([
@@ -180,12 +191,14 @@ export const CustomerStatementPage = () => {
     setConfirmaAnticipo(false)
   }
 
-  const abiertas = (data?.ventas ?? []).filter((v) => v.saldo > EPS)
+  // Ventas y cargos por contracargo comparten el cobro; cada aplicación conserva su tipo de documento.
+  const abiertas = [...(data?.ventas ?? []), ...(data ? chargeDocuments(data) : [])].filter((v) => v.saldo > EPS)
+    .sort((a, b) => new Date(a.due_date || a.date).getTime() - new Date(b.due_date || b.date).getTime())
   const montoNum = Number(monto)
   const saldo = data?.resumen.saldo ?? 0
 
   const repartoLista: PaymentApplication[] = abiertas
-    .map((v) => ({ sale_id: v.id, amount: Number(reparto[v.id]) }))
+    .map((v): PaymentApplication => 'documentType' in v && v.documentType === CHARGE_KIND ? { documentType: CHARGE_KIND, documentId: v.id, amount: Number(reparto[v.id]) } : { sale_id: v.id, amount: Number(reparto[v.id]) })
     .filter((a) => Number.isFinite(a.amount) && a.amount > 0)
   const repartoTotal = repartoLista.reduce((s, a) => s + a.amount, 0)
   const repartoExcedeFactura = abiertas.some((v) => Number(reparto[v.id]) > v.saldo + EPS)
@@ -199,7 +212,7 @@ export const CustomerStatementPage = () => {
 
   const cobrar = useMutation({
     mutationFn: () =>
-      createCustomerPayment({
+      paymentAttempt.send({
         customer_id: id!,
         amount: montoNum,
         payment_method_id: Number(metodo),
@@ -216,7 +229,7 @@ export const CustomerStatementPage = () => {
       toast({
         title: 'Cobro registrado',
         description:
-          `${money(res.amount)} aplicado a ${n} factura${n === 1 ? '' : 's'}.${extra}` +
+          `${money(res.amount)} aplicado a ${n} documento${n === 1 ? '' : 's'}.${extra}` +
           ` Saldo: ${money(res.resumen.saldo)}`,
       })
       cerrarCobro()
@@ -253,7 +266,7 @@ export const CustomerStatementPage = () => {
     onSuccess: (res) => {
       toast({
         title: 'Saldo a favor aplicado',
-        description: `${money(res.aplicado)} imputados a ${res.ventas_afectadas} factura(s).`,
+        description: `${money(res.aplicado)} imputados a ${res.ventas_afectadas + (res.cargos_afectados ?? 0)} documento(s).`,
       })
       refrescar()
     },
@@ -273,7 +286,7 @@ export const CustomerStatementPage = () => {
   })
 
   const borrar = useMutation({
-    mutationFn: (paymentId: string) => deleteCustomerPayment(paymentId),
+    mutationFn: (paymentId: string) => { if (!puedeAnular) throw new Error('Necesitas permiso para anular cobros'); return deleteCustomerPayment(paymentId) },
     onSuccess: (res) => {
       toast({
         title: 'Movimiento eliminado',
@@ -336,22 +349,23 @@ export const CustomerStatementPage = () => {
 
   const movements = statementMovements(data)
   const filteredMovements = movements.filter(row => matchesStatementRow(row, filters, timezone))
-  const filteredSales = ventas.filter(sale => matchesStatementRow({ date: sale.date, kind: 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
+  const documentos = [...ventas, ...chargeDocuments(data)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+  const filteredSales = documentos.filter(sale => matchesStatementRow({ date: sale.date, kind: 'documentType' in sale ? sale.documentType : 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
   const totalRows = tab === 'MOVEMENTS' ? filteredMovements.length : filteredSales.length
   const totalPages = Math.max(1, Math.ceil(totalRows / pageSize))
   const safePage = Math.min(page, totalPages)
   const visibleMovements = filteredMovements.slice((safePage - 1) * pageSize, safePage * pageSize)
   const visibleSales = filteredSales.slice((safePage - 1) * pageSize, safePage * pageSize)
   const oldOverdue = resumen.vencido_30_mas ?? 0
-  const exportColumns = (tab === 'MOVEMENTS' ? ['Fecha', 'Documento', 'Tipo', 'Descripción', 'Cargo', 'Abono', 'Saldo', 'Estado'] : ['Factura', 'Fecha', 'Vencimiento', 'Total', 'Abonado', 'Saldo', 'Estado']).map((label, index) => ({ id: String(index), label }))
+  const exportColumns = (tab === 'MOVEMENTS' ? ['Fecha', 'Documento', 'Tipo', 'Descripción', 'Cargo', 'Abono', 'Saldo', 'Estado'] : ['Documento', 'Fecha', 'Vencimiento', 'Total', 'Abonado', 'Saldo', 'Estado']).map((label, index) => ({ id: String(index), label }))
   const exportCsv = async (selected: string[], fileName?: string) => {
     setExportPending(true)
     try {
     const complete = await fetchCompleteCustomerStatement(id!)
     const filteredMovements = statementMovements(complete).filter(row => matchesStatementRow(row, filters, timezone))
-    const filteredSales = complete.ventas.filter(sale => matchesStatementRow({ date: sale.date, kind: 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
+    const filteredSales = [...complete.ventas, ...chargeDocuments(complete)].filter(sale => matchesStatementRow({ date: sale.date, kind: 'documentType' in sale ? sale.documentType : 'SALE', sale }, filters, timezone) && (tab !== 'DUE' || sale.saldo > EPS))
     const rows = tab === 'MOVEMENTS'
-      ? filteredMovements.map(row => [fecha(row.date), row.reference, row.kind === 'SALE' ? 'Factura' : PAYMENT_KIND_LABELS[row.kind], row.payment?.notes || row.payment?.payment_method?.name || 'Venta al crédito', row.charge, row.credit, row.balance, row.sale ? SALE_PAYMENT_STATUS_LABELS[row.sale.payment_status] : paymentAllocationLabel(row.payment)])
+      ? filteredMovements.map(row => [fecha(row.date), row.reference, documentKindLabel(row.kind, PAYMENT_KIND_LABELS), movementDescription(row), row.charge, row.credit, row.balance, row.sale ? SALE_PAYMENT_STATUS_LABELS[row.sale.payment_status] : row.payment ? paymentAllocationLabel(row.payment) : 'Disponible'])
       : filteredSales.map(sale => [sale.reference || sale.id.slice(0, 8), fecha(sale.date), fecha(sale.due_date), sale.total, sale.abonado, sale.saldo, SALE_PAYMENT_STATUS_LABELS[sale.payment_status]])
     const columns = exportColumns.filter(column => selected.includes(column.id))
     downloadReceivablesCsv(fileName || 'estado-de-cuenta.csv', [columns.map(column => column.label), ...rows.map(row => columns.map(column => row[Number(column.id)]))])
@@ -370,37 +384,41 @@ export const CustomerStatementPage = () => {
         <Button variant="outline" disabled={pdfPending} onClick={descargarEstado}>{pdfPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}Estado de cuenta PDF</Button>
         {puedeAjustar && resumen.saldo > 0 && <Button variant="outline" onClick={() => setAjusteAbierto(true)}><Scissors className="mr-2 h-4 w-4" />Ajustar deuda</Button>}
         {puedeCobrar && <Button className="bg-brand-orange text-white hover:bg-brand-orange/90" onClick={() => setCobroAbierto(true)}><Plus className="mr-2 h-4 w-4" />Registrar cobro</Button>}
-      </div>} title="Filtros del estado de cuenta" activeCount={Number(Boolean(filters.from))+Number(Boolean(filters.to))+Number(filters.kind !== 'ALL')+Number(filters.state !== 'ALL')} onApply={() => {setFilters({from,to,kind,state});setPage(1)}} applyDisabled={Boolean(from && to && from > to)} onClear={() => {setFrom('');setTo('');setKind('ALL');setState('ALL');setFilters({from:'',to:'',kind:'ALL',state:'ALL'});setPage(1)}} appliedFilters={Object.entries(filters).filter(([key,value]) => ['kind','state'].includes(key) ? value !== 'ALL' : Boolean(value)).map(([key,value]) => ({label: `${({from:'Desde',to:'Hasta',kind:'Documento',state:'Estado'} as Record<string,string>)[key]}: ${key === 'kind' ? value === 'SALE' ? 'Facturas' : PAYMENT_KIND_LABELS[value as keyof typeof PAYMENT_KIND_LABELS] || value : key === 'state' ? value === 'OVERDUE' ? 'Vencidas' : SALE_PAYMENT_STATUS_LABELS[value as keyof typeof SALE_PAYMENT_STATUS_LABELS] || value : value}`,onRemove: () => {setFilters(current=>({...current,[key]:['kind','state'].includes(key)?'ALL':''}));if(key==='from')setFrom('');if(key==='to')setTo('');if(key==='kind')setKind('ALL');if(key==='state')setState('ALL');setPage(1)}}))} search={<div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customer.id} linkedDisplayName={customer.name} onPick={c => navigate('/cartera/' + c.id)} onClear={() => navigate('/cartera')} /></div>}>
+      </div>} title="Filtros del estado de cuenta" activeCount={Number(Boolean(filters.from))+Number(Boolean(filters.to))+Number(filters.kind !== 'ALL')+Number(filters.state !== 'ALL')} onApply={() => {setFilters({from,to,kind,state});setPage(1)}} applyDisabled={Boolean(from && to && from > to)} onClear={() => {setFrom('');setTo('');setKind('ALL');setState('ALL');setFilters({from:'',to:'',kind:'ALL',state:'ALL'});setPage(1)}} appliedFilters={Object.entries(filters).filter(([key,value]) => ['kind','state'].includes(key) ? value !== 'ALL' : Boolean(value)).map(([key,value]) => ({label: `${({from:'Desde',to:'Hasta',kind:'Documento',state:'Estado'} as Record<string,string>)[key]}: ${key === 'kind' ? value === 'SALE' ? 'Facturas' : value === CHARGE_KIND ? 'Cargos por contracargo' : PAYMENT_KIND_LABELS[value as keyof typeof PAYMENT_KIND_LABELS] || value : key === 'state' ? value === 'OVERDUE' ? 'Vencidas' : SALE_PAYMENT_STATUS_LABELS[value as keyof typeof SALE_PAYMENT_STATUS_LABELS] || value : value}`,onRemove: () => {setFilters(current=>({...current,[key]:['kind','state'].includes(key)?'ALL':''}));if(key==='from')setFrom('');if(key==='to')setTo('');if(key==='kind')setKind('ALL');if(key==='state')setState('ALL');setPage(1)}}))} search={<div className="space-y-2"><Label>Cliente</Label><SavedCustomerMany2One mode="filter" valueId={customer.id} linkedDisplayName={customer.name} onPick={c => navigate('/cartera/' + c.id)} onClear={() => navigate('/cartera')} /></div>}>
           <div className="space-y-2"><Label htmlFor="statement-from">Desde</Label><Input id="statement-from" type="date" value={from} onChange={e => setFrom(e.target.value)} /></div>
           <div className="space-y-2"><Label htmlFor="statement-to">Hasta</Label><Input id="statement-to" type="date" min={from} value={to} onChange={e => setTo(e.target.value)} /></div>
-          <div className="space-y-2"><Label>Documento</Label><Select value={kind} onValueChange={setKind}><SelectTrigger aria-label="Tipo de documento"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="SALE">Facturas</SelectItem>{Object.entries(PAYMENT_KIND_LABELS).map(([value, label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Documento</Label><Select value={kind} onValueChange={setKind}><SelectTrigger aria-label="Tipo de documento"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="SALE">Facturas</SelectItem><SelectItem value={CHARGE_KIND}>Cargos por contracargo</SelectItem>{Object.entries(PAYMENT_KIND_LABELS).map(([value, label]) => <SelectItem value={value} key={value}>{label}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-2"><Label>Estado</Label><Select value={state} onValueChange={setState}><SelectTrigger aria-label="Estado de factura"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">Todos</SelectItem><SelectItem value="OVERDUE">Vencidas</SelectItem>{Object.entries(SALE_PAYMENT_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
         </CompactFilterPanel>
         {from && to && from > to && <p role="alert" className="text-sm text-destructive">La fecha final debe ser posterior a la inicial.</p>}
         <section aria-label="Información del cliente" className="auna-surface grid min-w-0 gap-4 rounded-xl border p-4 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr]"><div><h2 className="font-bold">{customer.name}</h2><p className="mt-1 text-sm text-muted-foreground">{[customer.tax_id && 'NIT ' + customer.tax_id, customer.contact, customer.phone].filter(Boolean).join(' · ') || 'Sin datos de contacto'}</p>{customer.address && <p className="mt-1 text-sm text-muted-foreground">{customer.address}</p>}</div><div><p className="text-sm text-muted-foreground">Límite de crédito</p><strong>{customer.credit_limit == null ? 'Sin límite' : money(customer.credit_limit)}</strong><p className="text-xs text-muted-foreground">{resumen.disponible == null ? '' : 'Disponible: ' + money(resumen.disponible)}</p></div><div><p className="text-sm text-muted-foreground">Días de crédito</p><strong>{customer.payment_term?.net_days ?? 'Sin plazo definido'}</strong></div><div><p className="text-sm text-muted-foreground">Condición de pago</p><strong>{customer.payment_term?.name || 'Sin condición definida'}</strong></div></section>
-      {resumen.credito_disponible > EPS && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4"><p className="text-sm">Saldo a favor sin aplicar: <strong>{money(resumen.credito_disponible)}</strong>. Saldo neto: <strong>{money(resumen.saldo_neto)}</strong>.</p>{puedeCobrar && resumen.saldo > EPS && <Button variant="outline" disabled={aplicarSaldoFavor.isPending} onClick={() => aplicarSaldoFavor.mutate()}>{aplicarSaldoFavor.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Aplicar a facturas abiertas</Button>}</div>}
+      {(resumen.credito_disponible > EPS || (resumen.credito_en_revision ?? 0) > EPS || (resumen.credito_recuperacion ?? 0) > EPS) && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm"><span>Saldo a favor disponible: <strong><CustomerCreditBalance available={resumen.credito_disponible} held={resumen.credito_en_revision} money={money} /></strong></span>{(resumen.credito_recuperacion ?? 0) > EPS && <span title="Solo cubre cargos por contracargo">Crédito por recuperación: <strong>{money(resumen.credito_recuperacion ?? 0)}</strong></span>}<span>Saldo neto: <strong>{money(resumen.saldo_neto)}</strong></span></div>
+        {puedeCobrar && resumen.saldo > EPS && (resumen.credito_disponible > EPS || (resumen.credito_recuperacion ?? 0) > EPS && (resumen.cargos_abiertos ?? 0) > 0) && <Button variant="outline" disabled={aplicarSaldoFavor.isPending} onClick={() => aplicarSaldoFavor.mutate()}>{aplicarSaldoFavor.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Aplicar a documentos abiertos</Button>}
+      </div>}
         {history.hasNextPage && <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4 text-sm text-muted-foreground"><p>Historial parcial: {ventas.length + data.cobros.length} de {(data.history?.total_sales ?? 0) + (data.history?.total_payments ?? 0)} movimientos. Carga el historial completo para ver el saldo acumulado y consultar todas las fechas.</p><Button variant="outline" disabled={history.isFetchingNextPage} onClick={() => void history.fetchNextPage()}>{history.isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cargar más movimientos</Button></div>}
         {history.isFetchNextPageError && <p role="alert" className="p-4 text-sm text-destructive">No se pudieron cargar más movimientos. Reintenta con el botón anterior.</p>}
         <div className="flex flex-wrap items-center justify-between gap-3"><ModuleTabBar items={[{ value: 'MOVEMENTS', label: 'Movimientos' }, { value: 'DUE', label: 'Vencimientos' }, { value: 'DOCS', label: 'Documentos' }]} value={tab} ariaLabel="Estado de cuenta" onValueChange={(value) => { setTab(value); setPage(1) }} /><div className="flex flex-wrap items-center gap-3"><div className="flex items-center gap-3 text-sm"><Label htmlFor="statement-page-size">Filas por página</Label><Select value={String(pageSize)} onValueChange={value => { setPageSize(Number(value)); setPage(1) }}><SelectTrigger id="statement-page-size" className="w-20"><SelectValue /></SelectTrigger><SelectContent>{TABLE_PAGE_SIZES.map(n => <SelectItem value={String(n)} key={n}>{n}</SelectItem>)}</SelectContent></Select></div><Button variant="outline" disabled={!totalRows && !history.hasNextPage} onClick={() => setExportOpen(true)}><FileDown className="mr-2 h-4 w-4" />Exportar</Button></div></div>
       <section className="auna-data-table-shell">
         <div className="statement-table-scroll" role="region" tabIndex={0} aria-label="Movimientos y documentos del estado de cuenta"><table className="auna-data-table statement-table min-w-[1000px]"><thead><tr>{[...exportColumns.map(column => column.label), 'Acciones'].map(label => <th key={label}>{label}</th>)}</tr></thead><tbody>
           {!totalRows && <tr><td colSpan={exportColumns.length + 1} className="text-center text-muted-foreground"><CollectionEmptyState compact filtered={!!filters.from || !!filters.to || filters.kind !== 'ALL' || filters.state !== 'ALL'} onReset={() => {setFrom('');setTo('');setKind('ALL');setState('ALL');setFilters({from:'',to:'',kind:'ALL',state:'ALL'});setPage(1)}} title="Cada movimiento quedará a la vista" description="Aquí aparecerán los documentos y pagos del cliente para el período consultado." /></td></tr>}
-          {tab === 'MOVEMENTS' ? visibleMovements.map(row => <tr key={row.kind + row.id}><td data-label="Fecha">{fecha(row.date)}</td><td data-label="Documento" className="font-semibold text-brand-orange">{row.reference}</td><td data-label="Tipo">{row.kind === 'SALE' ? 'Factura' : PAYMENT_KIND_LABELS[row.kind]}</td><td data-label="Descripción"><p className="max-w-60 truncate" title={row.payment?.notes || ''}>{row.payment?.notes || row.payment?.payment_method?.name || 'Venta al crédito'}</p>{row.payment?.aplicaciones.length > 0 && <p className="text-xs text-muted-foreground">{row.payment.aplicaciones.map(a => a.reference || a.sale_id?.slice(0, 8)).join(', ')}</p>}</td><td data-label="Cargo" className="whitespace-nowrap tabular-nums">{money(row.charge)}</td><td data-label="Abono" className="whitespace-nowrap tabular-nums">{money(row.credit)}</td><td data-label="Saldo" className="whitespace-nowrap font-semibold tabular-nums">{history.hasNextPage ? '—' : money(row.balance)}</td><td data-label="Estado">{row.sale ? <ReceivableStatus sale={row.sale} /> : <span className="whitespace-nowrap rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">{paymentAllocationLabel(row.payment)}</span>}</td><td data-label="Acciones"><div className="flex gap-2">{row.payment && <><DrawerSimulationAction source={{sourceType:'CUSTOMER_PAYMENT',sourceId:row.id}}/>{row.payment.engagementId&&<Button asChild variant="outline" size="sm"><Link to={`/agenda/contrataciones/${row.payment.engagementId}`}>Agenda</Link></Button>}<Button variant="outline" size="icon" aria-label="Descargar recibo" disabled={Boolean(receiptPending)} onClick={() => imprimirRecibo(row.id)}>{receiptPending === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}</Button>{puedeCobrar && <Button variant="outline" size="icon" aria-label="Eliminar movimiento" onClick={() => setPorBorrar(row.id)}><Trash2 className="h-4 w-4" /></Button>}</>}{row.sale && puedeCobrar && row.sale.saldo > EPS && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: row.id, ref: row.reference, due: isoDay(row.sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</div></td></tr>) : visibleSales.map(sale => <tr key={sale.id}><td data-label="Factura" className="font-semibold text-brand-orange">{sale.reference || sale.id.slice(0, 8)}</td><td data-label="Fecha">{fecha(sale.date)}</td><td data-label="Vencimiento" className={sale.vencida ? 'text-destructive' : ''}>{fecha(sale.due_date)}{sale.vencida && <span className="ml-2 text-xs">({sale.dias_vencida} días)</span>}</td><td data-label="Total">{money(sale.total)}</td><td data-label="Abonado">{money(sale.abonado)}</td><td data-label="Saldo" className="font-semibold">{money(sale.saldo)}</td><td data-label="Estado"><ReceivableStatus sale={sale} /></td><td data-label="Acciones">{puedeCobrar && sale.saldo > EPS && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: sale.id, ref: sale.reference || sale.id.slice(0, 8), due: isoDay(sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</td></tr>)}
+          {tab === 'MOVEMENTS' ? visibleMovements.map(row => <tr key={row.kind + row.id}><td data-label="Fecha">{fecha(row.date)}</td><td data-label="Documento" className="font-semibold text-brand-orange">{row.reference}</td><td data-label="Tipo">{documentKindLabel(row.kind, PAYMENT_KIND_LABELS)}</td><td data-label="Descripción"><p className="max-w-60 truncate" title={row.payment?.notes || row.sale?.charge?.motivo || ''}>{movementDescription(row)}</p>{row.payment && Math.abs(row.payment.amount - row.credit) > EPS && <p className="text-xs text-muted-foreground">Importe del recibo: {money(row.payment.amount)}</p>}{row.payment?.aplicaciones.length > 0 && <p className="text-xs text-muted-foreground">{row.payment.aplicaciones.map(a => a.reference || (a.sale_id ?? a.charge_id)?.slice(0, 8)).join(', ')}</p>}</td><td data-label="Cargo" className="whitespace-nowrap tabular-nums">{money(row.charge)}</td><td data-label="Abono" className="whitespace-nowrap tabular-nums">{money(row.credit)}</td><td data-label="Saldo" className="whitespace-nowrap font-semibold tabular-nums">{history.hasNextPage ? '—' : money(row.balance)}</td><td data-label="Estado">{row.sale ? <ReceivableStatus sale={row.sale} /> : !row.payment ? <span className="whitespace-nowrap rounded-full bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-700 dark:text-emerald-300">Disponible</span> : <span className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs ${(row.payment?.retenido ?? 0) > EPS ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : (row.payment?.saldo_cancelado ?? 0) > EPS ? 'bg-muted text-muted-foreground' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'}`}>{paymentAllocationLabel(row.payment)}</span>}</td><td data-label="Acciones"><div className="flex gap-2">{row.payment && <><DrawerSimulationAction source={{sourceType:'CUSTOMER_PAYMENT',sourceId:row.id}}/>{row.payment.engagementId&&<Button asChild variant="outline" size="sm"><Link to={`/agenda/contrataciones/${row.payment.engagementId}`}>Agenda</Link></Button>}<Button variant="outline" size="icon" aria-label="Descargar recibo" disabled={Boolean(receiptPending)} onClick={() => imprimirRecibo(row.id)}>{receiptPending === row.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}</Button>{puedeAnular && !row.payment.tiene_disputa && !(row.payment.retenido > EPS) && !(row.payment.saldo_cancelado > EPS) && <Button variant="outline" size="icon" aria-label="Eliminar movimiento" onClick={() => setPorBorrar(row.id)}><Trash2 className="h-4 w-4" /></Button>}</>}{row.sale && !('documentType' in row.sale) && puedeCobrar && row.sale.saldo > EPS && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: row.id, ref: row.reference, due: isoDay(row.sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</div></td></tr>) : visibleSales.map(sale => <tr key={sale.id}><td data-label="Documento" className="font-semibold text-brand-orange">{sale.reference || sale.id.slice(0, 8)}{'documentType' in sale && <span className="mt-1 block text-xs font-normal text-muted-foreground">Cargo por contracargo</span>}</td><td data-label="Fecha">{fecha(sale.date)}</td><td data-label="Vencimiento" className={sale.vencida ? 'text-destructive' : ''}>{fecha(sale.due_date)}{sale.vencida && <span className="ml-2 text-xs">({sale.dias_vencida} días)</span>}</td><td data-label="Total">{money(sale.total)}</td><td data-label="Abonado">{money(sale.abonado)}</td><td data-label="Saldo" className="font-semibold">{money(sale.saldo)}</td><td data-label="Estado"><ReceivableStatus sale={sale} /></td><td data-label="Acciones">{puedeCobrar && sale.saldo > EPS && !('documentType' in sale) && <Button variant="outline" size="icon" aria-label="Prorrogar vencimiento" onClick={() => setProrroga({ id: sale.id, ref: sale.reference || sale.id.slice(0, 8), due: isoDay(sale.due_date) })}><CalendarClock className="h-4 w-4" /></Button>}</td></tr>)}
         </tbody></table></div>
 
       </section>
       <div className="auna-pagination-outside"><Pagination currentPage={safePage} totalPages={totalPages} totalItems={totalRows} pageSize={pageSize} count={tab === 'MOVEMENTS' ? visibleMovements.length : visibleSales.length} itemLabel={tab === 'MOVEMENTS' ? 'movimientos' : 'documentos'} onPageChange={setPage} /></div>
-      <p className="text-sm text-muted-foreground">Los cargos muestran el importe neto de devoluciones.</p>
+      <p className="text-sm text-muted-foreground">Las facturas muestran el importe neto de devoluciones y los cargos por contracargo, el neto de lo recuperado o condonado. Los abonos excluyen los importes comprometidos, devueltos o en revisión; cada recibo conserva su importe original.</p>
       <ExportDialog open={exportOpen} onOpenChange={open => { if (!exportPending) setExportOpen(open) }} title="Exportar estado de cuenta" columns={exportColumns} summary="Se exporta el historial completo con los filtros aplicados." pending={exportPending} formats={['csv']} fileName="estado-de-cuenta" onExport={options => void exportCsv(options.columns ?? [], options.fileName)} />
       <Dialog open={cobroAbierto} onOpenChange={(o) => { if (cobrar.isPending) return; if (o) setCobroAbierto(true); else cerrarCobro() }}>
         <DialogContent variant="auna" className='max-h-[90vh] overflow-y-auto'>
           <DialogHeader>
             <DialogTitle>Registrar cobro</DialogTitle>
             <DialogDescription>
-              {manual ? 'Se aplica únicamente a las facturas seleccionadas.' : 'Se aplica a las facturas más antiguas primero.'} Saldo actual: {money(resumen.saldo)}.
+              {manual ? 'Se aplica únicamente a los documentos seleccionados.' : 'Se aplica primero a lo que vence antes.'} Saldo actual: {money(resumen.saldo)}.
             </DialogDescription>
           </DialogHeader>
-          <div className='space-y-3'>
+          {paymentAttempt.error && <p role='alert' className='rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm'>{paymentAttempt.error}{paymentAttempt.pendingPayload && <span className='mt-1 block font-semibold'>Cobro original: {money(paymentAttempt.pendingPayload.amount)} · {metodosCobro.find(m => m.id === paymentAttempt.pendingPayload?.payment_method_id)?.name || 'Medio seleccionado al enviar'}</span>}</p>}
+          <fieldset disabled={cobrar.isPending || paymentAttempt.recoveryBlocked || Boolean(paymentAttempt.pendingPayload)} className='space-y-3 min-w-0'>
             <div>
               <Label htmlFor='monto'>Monto</Label>
               <Input
@@ -440,12 +458,12 @@ export const CustomerStatementPage = () => {
             </div>
 
             {history.hasNextPage && <Button variant="outline" disabled={history.isFetchingNextPage || cobrar.isPending} onClick={() => void history.fetchNextPage()}>{history.isFetchingNextPage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Cargar facturas anteriores</Button>}
-            {resumen.facturas_abiertas > 1 && (
+            {(resumen.documentos_abiertos ?? resumen.facturas_abiertas) > 1 && (
               <div className='flex items-center justify-between rounded-md border px-3 py-2'>
                 <div>
-                  <Label htmlFor='manual' className='cursor-pointer'>Elegir facturas</Label>
+                  <Label htmlFor='manual' className='cursor-pointer'>Elegir documentos</Label>
                   <p className='text-xs text-muted-foreground'>
-                    {manual ? 'Revisa los importes que deseas aplicar a cada factura.' : 'Por defecto se paga de la más vieja a la más nueva.'}
+                    {manual ? 'Revisa los importes que deseas aplicar a cada documento.' : 'Por defecto se paga primero lo que vence antes.'}
                   </p>
                 </div>
                 <Switch id='manual' checked={manual} onCheckedChange={setManual} />
@@ -457,7 +475,7 @@ export const CustomerStatementPage = () => {
                 {abiertas.map((v) => (
                   <div key={v.id} className='flex items-center gap-2'>
                     <div className='min-w-0 flex-1'>
-                      <p className='truncate font-mono text-xs'>{v.reference || v.id.slice(0, 8)}</p>
+                      <p className='truncate font-mono text-xs'>{v.reference || v.id.slice(0, 8)}{'documentType' in v && <span className='ml-2 font-sans text-muted-foreground'>Cargo por contracargo</span>}</p>
                       <p className='text-xs text-muted-foreground'>
                         saldo {money(v.saldo)} · vence {fecha(v.due_date)}
                       </p>
@@ -470,7 +488,7 @@ export const CustomerStatementPage = () => {
                       className="w-28"
                       placeholder='0.00'
                       value={reparto[v.id] ?? ''}
-                      aria-label={`Aplicar a factura ${v.reference || v.id.slice(0, 8)}`}
+                      aria-label={`Aplicar a ${'documentType' in v ? 'cargo' : 'factura'} ${v.reference || v.id.slice(0, 8)}`}
                       onChange={(e) => setReparto((r) => ({ ...r, [v.id]: e.target.value }))}
                     />
                   </div>
@@ -487,7 +505,7 @@ export const CustomerStatementPage = () => {
                 </div>
                 {repartoExcedeFactura && (
                   <p className='text-xs text-destructive'>
-                    Hay facturas con más de su saldo asignado.
+                    Hay documentos con más de su saldo asignado.
                   </p>
                 )}
               </div>
@@ -507,17 +525,17 @@ export const CustomerStatementPage = () => {
                 </Label>
               </div>
             )}
-          </div>
+          </fieldset>
           <DialogFooter>
             <Button variant='outline' disabled={cobrar.isPending} onClick={cerrarCobro}>Cancelar</Button>
             <Button
               onClick={() => cobrar.mutate()}
               disabled={
-                montoInvalido || !metodo || repartoInvalido || faltaConfirmar || cobrar.isPending
+                paymentAttempt.recoveryBlocked || cobrar.isPending || (!paymentAttempt.pendingPayload && (montoInvalido || !metodo || repartoInvalido || faltaConfirmar))
               }
             >
               {cobrar.isPending && <Loader2 className='mr-1.5 h-4 w-4 animate-spin' />}
-              Registrar
+              {paymentAttempt.pendingPayload ? 'Recuperar cobro' : 'Registrar'}
             </Button>
           </DialogFooter>
         </DialogContent>

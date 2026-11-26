@@ -27,7 +27,7 @@ function ServiceEditor({ service, onClose }: { service: AgendaService; onClose: 
   const draft = useServiceScheduleDraft(true, service.id), ctx = useAgendaContext(), mutation = useAgendaMutation(ctx.scope)
   const guard = useDraftGuard(draft.dirty)
   return <section className="agenda-panel space-y-5">{guard.dialog}<div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">{service.name}</h2><p className="text-sm text-muted-foreground">{service.price == null ? 'Precio restringido' : service.price} por {service.unit} · La duración no cambia este precio.</p></div><Button variant="outline" onClick={() => guard.request(onClose)}>Cerrar configuración</Button></div>
-    <FormFeedback error={mutation.error || (draft.error ? 'No se pudo cargar el servicio' : null)} fields={mutation.fields} />
+    <FormFeedback error={mutation.error || (draft.error ? 'No se pudo cargar el servicio' : null)} fields={mutation.fields} focusOnError={!!mutation.error} />
     {!draft.ready ? <LoadingState message="Cargando configuración…" variant="detail" /> : <ServiceScheduleFields value={draft.value} onChange={draft.change} disabled={mutation.pending} directory={draft.directory} errors={mutation.fields} />}
     <div className="agenda-actions"><Button disabled={!draft.ready || !draft.dirty || mutation.pending} onClick={async () => { if (await mutation.submit(`/services/${service.id}/profile`, draft.value, 'PUT')) { await draft.reload(); onClose() } }}>{mutation.pending ? 'Guardando…' : 'Guardar configuración'}</Button></div>
   </section>

@@ -22,20 +22,28 @@ interface TheoreticalSummaryProps {
 }
 
 export const TheoreticalSummary = ({ data, showAdvancedDetails = false }: TheoreticalSummaryProps) => {
-    const { currencyCode, locale } = useSystemSettings()
+    const { currencyCode: currentCurrency, locale } = useSystemSettings()
+    const currencyCode = data.currency_code || currentCurrency
     const cashSession = data.cash_session
     return (
         <div className="space-y-3">
             <h2 className="cash-closure-panel-heading"><Calculator className="h-5 w-5 text-primary" aria-hidden="true" />Resumen teórico</h2>
+            {data.calculation_basis_label && <p className="text-xs text-muted-foreground">{data.calculation_basis_label}</p>}
             <dl className="cash-closure-amount-list">
                 {cashSession && cashSession.opening_float > 0 && <div><dt>Fondo inicial</dt><dd>{formatCurrency(cashSession.opening_float, currencyCode, locale)}</dd></div>}
                 <div><dt>Ventas brutas</dt><dd>{formatCurrency(data.theoretical.total_sales, currencyCode, locale)}</dd></div>
+                {Number(data.theoretical.total_collections) > 0 && <div><dt>Cobros y anticipos</dt><dd>{formatCurrency(data.theoretical.total_collections!, currencyCode, locale)}</dd></div>}
                 <div><dt>Devoluciones</dt><dd>-{formatCurrency(data.theoretical.total_returns, currencyCode, locale)}</dd></div>
+                {Number(data.theoretical.total_cash_in) > 0 && <div><dt>Ingresos de fondo</dt><dd>{formatCurrency(data.theoretical.total_cash_in!, currencyCode, locale)}</dd></div>}
+                {Number(data.theoretical.total_cash_out) > 0 && <div><dt>Retiros de efectivo</dt><dd>-{formatCurrency(data.theoretical.total_cash_out!, currencyCode, locale)}</dd></div>}
+                {Number(data.theoretical.total_custody_in) > 0 && <div><dt>Recibido de custodia</dt><dd>{formatCurrency(data.theoretical.total_custody_in!, currencyCode, locale)}</dd></div>}
+                {Number(data.theoretical.total_custody_out) > 0 && <div><dt>Enviado a custodia</dt><dd>-{formatCurrency(data.theoretical.total_custody_out!, currencyCode, locale)}</dd></div>}
+                {Number(data.theoretical.total_supplier_payments) > 0 && <div><dt>Pagos a proveedores</dt><dd>-{formatCurrency(data.theoretical.total_supplier_payments!, currencyCode, locale)}</dd></div>}
                 <div className="cash-closure-amount-total"><dt>Total esperado</dt><dd>{formatCurrency(data.theoretical.net_total, currencyCode, locale)}</dd></div>
             </dl>
             {Number(data.unidentified_collections_amount)>0 && <p role="status" className="rounded-md border p-3 text-sm text-muted-foreground"><strong>Medio no registrado: {formatCurrency(data.unidentified_collections_amount!,currencyCode,locale)}.</strong> Este importe está incluido en el total esperado, pero no se atribuye a efectivo ni a otro medio. Comprueba su origen antes de justificar cualquier diferencia; quedará registrado en las notas del cierre.</p>}
             {showAdvancedDetails && <div className="border-t pt-3">
-                {cashSession && <p className="mb-3 text-xs text-muted-foreground">Ventas en efectivo: {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)} · Esperado en caja: {formatCurrency(cashSession.expected_cash_in_drawer, currencyCode, locale)}</p>}
+                {cashSession && (cashSession.opening_float > 0 || data.payment_breakdown?.some(m => m.settlement_kind === 'CASH')) && <p className="mb-3 text-xs text-muted-foreground">Movimientos netos en efectivo: {formatCurrency(cashSession.cash_sales_amount, currencyCode, locale)} · Esperado en caja: {formatCurrency(cashSession.expected_cash_in_drawer, currencyCode, locale)}</p>}
                 <dl className="grid grid-cols-2 gap-3 text-xs">
                     <div><dt className="text-muted-foreground">Transacciones</dt><dd className="mt-1 font-semibold">{data.metrics.total_transactions}</dd></div>
                     <div><dt className="text-muted-foreground">Clientes</dt><dd className="mt-1 font-semibold">{data.metrics.total_customers}</dd></div>

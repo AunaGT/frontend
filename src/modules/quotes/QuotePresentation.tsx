@@ -8,6 +8,8 @@ import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { num, quoteStatusLabel, type QuoteStatus } from '@/services/quoteService'
 import { serviceConditionText, type PublicServiceConditions } from '@/services/serviceConditions'
 import {documentUnitPrice,type UnitDocumentLine} from '@/modules/inventory/units/public'
+import {CommercialPackageSummary,type PackageDisplayLine} from '@/components/shared/CommercialPackageSummary'
+import type {PackageGroup} from '@/modules/inventory/packages/types'
 
 export function QuoteStatusBadge({ status }: { status: QuoteStatus }) {
   const color = status === 'ACCEPTED' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
@@ -23,7 +25,8 @@ export function QuoteProductImage({ src, name }: { src?: string | null; name: st
     : <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" aria-hidden="true" /></span>
 }
 
-export function QuoteSummary({ subtotal, discount, total, money }: { subtotal?: number | string | null; discount?: number | string | null; total: number | string; money: (value: number) => string }) {
+export function QuoteSummary({ subtotal, discount, total, money,pending=false }: { subtotal?: number | string | null; discount?: number | string | null; total: number | string; money: (value: number) => string;pending?:boolean }) {
+  if(pending)return <Card className="auna-surface"><CardHeader><CardTitle className="text-lg">Total pendiente de completar</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">Completa las cantidades de los paquetes antes de generar, compartir o descargar la propuesta.</p></CardContent></Card>
   return <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><ReceiptText className="h-5 w-5 text-brand-orange" />Resumen de cotización</CardTitle></CardHeader><CardContent className="space-y-4">
     <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Subtotal</span><output className="auna-field-value-inline">{money(num(subtotal ?? total))}</output></div>
     {num(discount) > 0 && <div className="flex justify-between gap-4 text-sm"><span className="text-muted-foreground">Descuento total</span><output className="auna-field-value-inline text-emerald-600 dark:text-emerald-300">− {money(num(discount))}</output></div>}
@@ -32,8 +35,10 @@ export function QuoteSummary({ subtotal, discount, total, money }: { subtotal?: 
   </CardContent></Card>
 }
 
-type DisplayLine = UnitDocumentLine & { name: string; code?: string | null; image?: string | null; qty: string | number;unit_label?:string | null; unit_price: number | string; line_total: number | string;service_schedule_snapshot?:PublicServiceConditions|null;item_kind?:string }
-export function QuoteLines({ lines, money, compact = false,locale='es-GT',currencyCode='' }: { lines: DisplayLine[]; money: (value: number) => string; compact?: boolean;locale?:string;currencyCode?:string }) {
+type DisplayLine = UnitDocumentLine & PackageDisplayLine & { name: string; code?: string | null; image?: string | null; qty: string | number;unit_label?:string | null; unit_price: number | string; line_total: number | string;service_schedule_snapshot?:PublicServiceConditions|null;item_kind?:string }
+export function QuoteLines({ lines:allLines,groups:packageGroups, money, compact = false,locale='es-GT',currencyCode='' }: { lines: DisplayLine[];groups?:PackageGroup[]|null; money: (value: number) => string; compact?: boolean;locale?:string;currencyCode?:string }) {
+  const groups=packageGroups??[]
+  const keys=new Set(groups.flatMap(g=>g.components.map(c=>c.key))),lines=allLines.filter(l=>!keys.has(l.package_component_key??''))
   const price=(line:DisplayLine)=>line.unit_metadata_version===2?`${currencyCode} ${documentUnitPrice(line,locale)}`.trim():money(num(line.unit_price))
   const [page, setPage] = useState(1)
   const pages = Math.max(1, Math.ceil(lines.length / 10))
@@ -41,7 +46,7 @@ export function QuoteLines({ lines, money, compact = false,locale='es-GT',curren
   const shown = lines.slice((current - 1) * 10, current * 10)
   const conditions=(line:DisplayLine)=><QuoteServiceConditions snapshot={line.service_schedule_snapshot} missing={!compact&&line.item_kind==='SERVICE'}/>
   const table = <Table className={'auna-data-table min-w-[650px]'}><TableHeader><TableRow><TableHead>#</TableHead><TableHead>Producto</TableHead><TableHead className="text-right">Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Importe</TableHead></TableRow></TableHeader><TableBody>{shown.map((line, i) => <TableRow key={`${line.code}-${i}`}><TableCell>{(current - 1) * 10 + i + 1}</TableCell><TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.image} name={line.name} /><div className="min-w-0"><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.code || 'Sin código'}</p>{conditions(line)}</div></div></TableCell><TableCell className="text-right">{line.qty} {line.unit_label}</TableCell><TableCell className="whitespace-nowrap text-right">{price(line)}</TableCell><TableCell className="whitespace-nowrap text-right font-medium">{money(num(line.line_total))}</TableCell></TableRow>)}</TableBody></Table>
-  return <><section className={compact ? 'auna-data-table-shell public-quote-products' : 'auna-data-table-shell'}>
+  return <><CommercialPackageSummary groups={groups} lines={allLines} mode="quote" locale={locale}/>{(lines.length>0||!groups.length)&&<section className={compact ? 'auna-data-table-shell public-quote-products' : 'auna-data-table-shell'}>
     {compact ? <header className="public-quote-section-heading"><Package aria-hidden="true" /><h2>Partidas de la cotización</h2><span className="ml-auto shrink-0 text-xs text-muted-foreground">{lines.length} partidas</span></header> : <div className="px-5 py-4 text-lg font-semibold">Partidas ({lines.length})</div>}
     {!lines.length ? <>{!compact && <div className="quote-lines-scroll">{table}</div>}<CollectionEmptyState compact title="Esta propuesta espera sus partidas" description="Consulta con tu asesor el detalle de esta cotización." /></> : compact ? <>
       <div className="public-quote-products-scroll hidden sm:block" tabIndex={0} role="region" aria-label="Lista de partidas">{table}</div>
@@ -52,8 +57,8 @@ export function QuoteLines({ lines, money, compact = false,locale='es-GT',curren
         </li>)}
       </ul>
     </> : <div className="quote-lines-scroll" tabIndex={0} role="region" aria-label="Partidas de la cotización">{table}</div>}
-  </section>
-  {(!compact || pages > 1) && <div className="auna-pagination-outside"><Pagination currentPage={current} totalPages={pages} onPageChange={setPage} totalItems={lines.length} count={shown.length} itemLabel="partidas" /></div>}</>
+  </section>}
+  {!!lines.length&&(!compact || pages > 1) && <div className="auna-pagination-outside"><Pagination currentPage={current} totalPages={pages} onPageChange={setPage} totalItems={lines.length} count={shown.length} itemLabel="partidas" /></div>}</>
 }
 
 export function QuoteServiceConditions({snapshot,missing=false}:{snapshot?:PublicServiceConditions|null;missing?:boolean}){

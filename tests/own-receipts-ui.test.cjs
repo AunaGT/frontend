@@ -38,3 +38,14 @@ test('failed receipt retry preserves its key and switching company aborts the ol
   resolve({incomingMerchandise:{id:'old'}});await pending;assert.deepEqual(f.paths,[]);assert.equal(JSON.parse(f.requests[0].options.body).request_key,JSON.parse(f.requests[1].options.body).request_key)
  }finally{f.h.unmount()}
 })
+test('production explains one finished product per batch while keeping quantity and required expiry directly available',()=>{
+ const f=fixture();try{
+  f.render();const text=()=>f.nodes.map(n=>typeof n.props.children==='string'?n.props.children:'').join(' ')
+  assert.match(text(),/Un producto terminado por lote/)
+  f.nodes.find(n=>n.type?.name==='ProductPicker'&&n.props.purchase).props.onPick({...product,tracksExpiry:true});f.render()
+  assert.ok(field(f,'Cantidad de Producto terminado'))
+  const date=f.nodes.find(n=>n.props.type==='date');assert.equal(date.props.required,true)
+  const contains=(n,id)=>n&&typeof n==='object'&&(n.props?.id===id||[n.props?.children].flat(Infinity).some(c=>contains(c,id)))
+  assert.ok(f.nodes.some(n=>n.type==='details'&&contains(n,'own-receipt-notes')))
+ }finally{f.h.unmount()}
+})

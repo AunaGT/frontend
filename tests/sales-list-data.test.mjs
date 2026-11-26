@@ -55,6 +55,13 @@ test('sale normalization retains product image/barcode from the detail API witho
   assert.equal(service.products[0].qty,'0.125')
   assert.equal(service.lineCount,1)
 })
+test('sale normalization treats null or absent package agreements as an empty list and preserves existing agreements',()=>{
+  const {normalizeRawSale}=loader({'@/hooks/useSales':{}})('src/modules/sales/hooks/useSalesData.ts')
+  for(const raw of [{},{package_groups:null},{packageGroups:null},{packageGroups:null,package_groups:null}])assert.deepEqual(normalizeRawSale(raw).packageGroups,[])
+  const groups=[{groupId:'g',name:'Acuerdo original'}]
+  assert.deepEqual(normalizeRawSale({package_groups:groups}).packageGroups,groups)
+  assert.deepEqual(normalizeRawSale({packageGroups:groups,package_groups:null}).packageGroups,groups)
+})
 test('persisted draft and unknown legacy status do not become completed sales or cash payments',()=>{
   const {normalizeRawSale}=loader({'@/hooks/useSales':{}})('src/modules/sales/hooks/useSalesData.ts')
   const draft=normalizeRawSale({status:{name:'Borrador'},payment_method:null,origin_engagement_id:'e',commercial:{state:'DRAFT',originEngagementId:'e',version:2,confirmedAt:null,fiscalState:'UNRECORDED'},capabilities:{confirm:false,requestInvoice:false,collect:false,reason:''}})

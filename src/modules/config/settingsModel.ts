@@ -6,7 +6,7 @@ import {DEFAULT_EXPIRY_ALERT_POLICY,expiryPolicyPayload,validateExpiryPolicyDraf
 export const SECTION_KEYS = {
   empresa: ['company_name'],
   regional: ['currency_code', 'currency_name', 'timezone', 'date_format', 'locale'],
-  fiscal: ['fel_enabled', 'company_nit', 'company_address', 'company_municipality', 'company_department', 'company_postal_code', 'establishment_code', 'vat_affiliation'],
+  fiscal: ['fel_enabled', 'company_legal_name', 'company_nit', 'company_address', 'company_municipality', 'company_department', 'company_postal_code', 'establishment_code', 'vat_affiliation', 'iva_rate', 'pequeno_rate'],
   inventario: ['inventory_services_enabled','inventory_units_enabled','inventory.expiry_alert_policy'],
   ventas: ['default_experience_profile', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels'],
   cotizaciones: ['quote_validity_days', 'quote_soft_hold_hours'],
@@ -15,14 +15,17 @@ export const SECTION_KEYS = {
   caja: ['cash_closure_max_diff_pct', 'cash_closure_denominations'],
 } as const satisfies Record<string, readonly (keyof SystemSettings)[]>
 export type EditableSection = keyof typeof SECTION_KEYS
-export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial' | 'hardware' | 'plantillas'
+export type SettingsSection = EditableSection | 'rrhh' | 'nomina' | 'modulos' | 'accesos' | 'historial' | 'hardware' | 'plantillas' | 'conectores' | 'paginas-clientes' | 'integraciones'
 export type SectionValues = Partial<SystemSettings>
 export type FieldErrors = Partial<Record<keyof SystemSettings | ReturnPolicyFieldPath | ExpiryPolicyFieldPath, string>>
 export const SETTINGS_SECTIONS: readonly { id: SettingsSection; group: string; label: string; keywords: readonly string[] }[] = [
+  {id:'integraciones',group:'Administración',label:'API y claves',keywords:['integraciones','api','claves','aplicaciones','tokens']},
+  {id:'paginas-clientes',group:'Experiencia del cliente',label:'Páginas para clientes',keywords:['páginas clientes','portal','diseño','enlaces','cotizaciones','pedidos']},
   { id: 'empresa', group: 'Empresa', label: 'Identidad', keywords: ['nombre', 'logo', 'empresa'] },
   { id: 'regional', group: 'Empresa', label: 'Región y formatos', keywords: ['moneda', 'zona horaria', 'idioma', 'fecha'] },
   { id: 'fiscal', group: 'Facturación', label: 'Datos fiscales', keywords: ['NIT', 'FEL', 'facturas', 'impuestos', 'dirección'] },
   { id:'plantillas',group:'Facturación',label:'Plantillas de documentos',keywords:['diseño','factura','comprobante','ticket','XML','apariencia'] },
+  { id:'conectores',group:'Facturación',label:'Conectores',keywords:['Infile','FEL','conexión','credenciales','certificador'] },
   { id: 'inventario', group: 'Operación', label: 'Inventario', keywords: ['bienes', 'servicios', 'impresión', 'etiquetas', 'códigos de barras','vencimientos','lotes','anticipación','prioridad'] },
   { id: 'ventas', group: 'Operación', label: 'Ventas y POS', keywords: ['experiencia', 'crédito', 'canales', 'caja', 'fiscal'] },
   { id: 'cotizaciones', group: 'Operación', label: 'Cotizaciones', keywords: ['vigencia', 'reserva temporal', 'horas'] },
@@ -43,7 +46,7 @@ const defaults: SystemSettings = {
   company_name: '', currency_code: 'GTQ', currency_name: 'Quetzal', timezone: 'America/Guatemala', date_format: 'dd/MM/yyyy', locale: 'es-GT',
   cash_closure_max_diff_pct: '5', cash_closure_denominations: [], quote_validity_days: '30', order_validity_days: '7', quote_soft_hold_hours: '48',
   inventory_services_enabled: 'false', inventory_units_enabled:'false', default_experience_profile: 'CASHIER', sales_allow_credit: 'true', sales_show_fiscal_fields: 'true', sales_show_channels: 'true',
-  fel_enabled: 'false', company_nit: '', company_address: '', company_municipality: '', company_department: '', company_postal_code: '', establishment_code: '', vat_affiliation: '',
+  fel_enabled: 'false', company_legal_name: '', company_nit: '', company_address: '', company_municipality: '', company_department: '', company_postal_code: '', establishment_code: '', vat_affiliation: '',
 }
 const days = new Set(['quote_validity_days', 'order_validity_days', 'quote_soft_hold_hours'])
 const booleans = new Set(['inventory_services_enabled', 'inventory_units_enabled', 'sales_allow_credit', 'sales_show_fiscal_fields', 'sales_show_channels', 'fel_enabled'])
@@ -80,6 +83,10 @@ export function validateSection(id: EditableSection, draft: SectionValues): Fiel
   }
   if (id === 'ventas' && !['CASHIER', 'MANAGER', 'OWNER', 'ADVANCED'].includes(String(draft.default_experience_profile))) errors.default_experience_profile = 'Selecciona un perfil de la lista.'
   if (id === 'fiscal' && !['', 'general', 'pequeno_contribuyente', 'no_obligado', 'exento', 'otro'].includes(draft.vat_affiliation || '')) errors.vat_affiliation = 'Selecciona una afiliación de la lista.'
+  if (id === 'fiscal') for (const key of ['iva_rate', 'pequeno_rate'] as const) {
+    const value = draft[key]
+    if (value !== undefined && (typeof value !== 'string' || !/^\d{1,2}(?:\.\d{1,4})?$/.test(value.trim()))) errors[key] = 'Ingresa un porcentaje de 0 a menos de 100, con hasta 4 decimales.'
+  }
   if (id === 'caja') {
     const pct = draft.cash_closure_max_diff_pct
     if (typeof pct !== 'string' || !pct.trim() || !Number.isFinite(Number(pct)) || Number(pct) < 0) errors.cash_closure_max_diff_pct = 'Ingresa un porcentaje mayor o igual a 0.'

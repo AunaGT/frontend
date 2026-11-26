@@ -1,20 +1,23 @@
 import type { ReportFilters, ReportId } from './reportModel'
-export type ReportDefinition = { id: ReportId; name: string; description: string; category: string; modules: string[]; permissions: string[]; period: boolean; locations?: boolean }
-export const REPORT_CATEGORIES = ['Todos', 'Ventas y resultados', 'Compras y proveedores', 'Inventario y ubicaciones']
+export type ReportDefinition = { id: ReportId; name: string; description: string; category: string; modules: string[]; permissions: string[]; period: boolean; locations?: boolean; financial?: boolean;
+  /** Permiso adicional que también debe tener (cualquiera de la lista), además de `permissions`. */
+  alsoPermissions?: string[] }
+export const REPORT_CATEGORIES = ['Todos', 'Ventas y resultados', 'Compras y proveedores', 'Inventario y ubicaciones', 'Caja y cobros']
 const stockPermissions = ['reports.view', 'stock_moves.view']
 export const REPORT_CATALOG: ReportDefinition[] = [
   { id: 'sales', name: 'Ventas', description: 'Ingresos, devoluciones, tickets y métodos de pago.', category: REPORT_CATEGORIES[1], modules: ['sales'], permissions: ['reports.view'], period: true },
-  { id: 'financial', name: 'Resultado del negocio', description: 'Ventas netas, costo y margen bruto. No es un estado contable.', category: REPORT_CATEGORIES[1], modules: ['sales', 'inventory'], permissions: ['reports.view'], period: true },
-  { id: 'merchandise', name: 'Ingresos de mercadería', description: 'Costo recibido y estado de pago por proveedor.', category: REPORT_CATEGORIES[2], modules: ['merchandise'], permissions: ['merchandise.reports', 'reports.view'], period: true },
-  { id: 'suppliers', name: 'Proveedores', description: 'Contactos, productos e inventario asociado actualmente.', category: REPORT_CATEGORIES[2], modules: ['contacts'], permissions: ['reports.view'], period: false },
-  { id: 'inventory', name: 'Inventario actual', description: 'Existencias y valor a costo por sucursal y almacén.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: ['reports.view'], period: false },
-  { id: 'products', name: 'Análisis de productos', description: 'Precios, márgenes y valor de las existencias actuales.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: ['reports.view'], period: false },
-  { id: 'alerts', name: 'Pendientes y alertas', description: 'Reposición priorizada y alertas abiertas.', category: REPORT_CATEGORIES[3], modules: ['alerts'], permissions: ['reports.view'], period: false },
-  { id: 'inventory-counts', name: 'Historial de inventariados', description: 'Conteos físicos, diferencias y merma.', category: REPORT_CATEGORIES[3], modules: ['inventory-count'], permissions: ['inventory_count.export', 'reports.view', 'inventory_count.view'], period: true },
-  { id: 'stock-by-location', name: 'Existencias por almacén', description: 'Unidades y valor por almacén y ubicación.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: false, locations: true },
+  { id: 'financial', financial: true, name: 'Resultado del negocio', description: 'Ventas netas, costo y margen bruto. No es un estado contable.', category: REPORT_CATEGORIES[1], modules: ['sales', 'inventory'], permissions: ['reports.view'], period: true },
+  { id: 'merchandise', financial: true, name: 'Ingresos de mercadería', description: 'Costo recibido y estado de pago por proveedor.', category: REPORT_CATEGORIES[2], modules: ['merchandise'], permissions: ['merchandise.reports', 'reports.view'], period: true },
+  { id: 'suppliers', financial: true, name: 'Proveedores', description: 'Contactos, productos e inventario asociado actualmente.', category: REPORT_CATEGORIES[2], modules: ['contacts'], permissions: ['reports.view'], period: false },
+  { id: 'inventory', financial: true, name: 'Inventario actual', description: 'Existencias y valor a costo por sucursal y almacén.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: ['reports.view'], period: false },
+  { id: 'products', financial: true, name: 'Análisis de productos', description: 'Precios, márgenes y valor de las existencias actuales.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: ['reports.view'], period: false },
+  { id: 'alerts', financial: true, name: 'Pendientes y alertas', description: 'Reposición priorizada y alertas abiertas.', category: REPORT_CATEGORIES[3], modules: ['alerts'], permissions: ['reports.view'], period: false },
+  { id: 'inventory-counts', financial: true, name: 'Historial de inventariados', description: 'Conteos físicos, diferencias y merma.', category: REPORT_CATEGORIES[3], modules: ['inventory-count'], permissions: ['inventory_count.export', 'reports.view', 'inventory_count.view'], period: true },
+  { id: 'stock-by-location', financial: true, name: 'Existencias por almacén', description: 'Unidades y valor por almacén y ubicación.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: false, locations: true },
   { id: 'kardex', name: 'Kardex por ubicación', description: 'Entradas, salidas y saldo registrado por ubicación.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: true, locations: true },
   { id: 'internal-moves', name: 'Movimientos internos', description: 'Origen, destino y responsable; cada movimiento una vez.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: true, locations: true },
   { id: 'replenishment', name: 'Reposición interna', description: 'Ubicaciones bajo mínimo y origen sugerido.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: false, locations: true },
+  { id: 'disputes', financial: true, name: 'Disputas de cobros digitales', description: 'Reclamado, retirado, recuperado, pérdida, cargos y créditos por expediente.', category: REPORT_CATEGORIES[4], modules: ['cash-closure'], permissions: ['reports.view'], alsoPermissions: ['cash.disputes.view', 'cash.disputes.manage', 'cash.disputes.movements', 'cash.disputes.resolve'], period: true },
   { id: 'occupancy', name: 'Ocupación de ubicaciones', description: 'Ubicaciones vacías y productos almacenados.', category: REPORT_CATEGORIES[3], modules: ['inventory'], permissions: stockPermissions, period: false, locations: true },
 ]
 export function applicableReportFilters(id: ReportId, filters: ReportFilters): ReportFilters {

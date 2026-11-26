@@ -13,6 +13,17 @@ const statement = {
   cobros: [{ id: 'qa-payment', reference: 'REC-QA', paid_at: '2026-09-02T12:00:00Z', amount: 25, notes: 'Abono de prueba', kind: 'PAYMENT', payment_method: { id: 1, name: 'Efectivo' }, registered_by: { id: 'qa-user', name: 'Responsable' }, aplicado: 25, no_aplicado: 0, aplicaciones: [{ sale_id: 'qa-sale', reference: 'FAC-QA', amount: 25 }] }],
 }
 
+test('a fully held advance remains visible in the statement but cannot be applied as available money',()=>{
+  const data={...statement,resumen:{...statement.resumen,saldo:100,saldo_neto:100,credito_disponible:0,credito_en_revision:25},
+    ventas:statement.ventas.map(s=>({...s,abonado:0,saldo:100,payment_status:'PENDING'})),
+    cobros:statement.cobros.map(p=>({...p,aplicado:0,aplicaciones:[],retenido:25,tiene_disputa:true}))}
+  const {html}=renderStatement({data})
+  assert.ok(html.includes('En revisión'))
+  assert.ok(html.includes('25.00'))
+  assert.equal(html.includes('Aplicar a facturas abiertas'),false)
+  assert.equal(html.includes('Eliminar movimiento'),false)
+})
+
 function renderStatement({ tab = 'MOVEMENTS', allowed = true, consolidated = false, loading = false, error = false, partial = false, data = statement, filters } = {}) {
   let stateIndex = 0
   const nodes = [], changes = [], navigations = [], requests = []
@@ -24,6 +35,8 @@ function renderStatement({ tab = 'MOVEMENTS', allowed = true, consolidated = fal
     } },
     'react-router-dom': { useParams: () => ({ id: 'qa-customer' }), useNavigate: () => target => navigations.push(target), useSearchParams: () => [new URLSearchParams(), () => {}] },
     '@/context/useTenant': { useTenant: () => ({ company: { id: 'qa-company' }, branch: { id: 'qa-branch' }, isConsolidated: consolidated }) },
+    '@/context/useAuth': { useAuth: () => ({ user: { id: 'qa-user' } }) },
+    '../hooks/useCustomerPaymentAttempt': { useCustomerPaymentAttempt: () => ({ send() { throw Error('No real payments') }, pendingPayload: null, error: '', recoveryBlocked: false }) },
     '@/components/layout/PageNavigation': { usePageTrail() {} },
     '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => allowed }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ companyName: 'Empresa de prueba', companyLogoUrl: null, currencyCode: 'GTQ', locale: 'es-GT', timezone: 'America/Guatemala' }) },

@@ -97,7 +97,7 @@ async function detail(options={}){
   const api={apiFetch:async(path,requestOptions={})=>{requests.push({path,options:requestOptions});if(options.respond&&requestOptions.method&&requestOptions.method!=='GET')return options.respond(path,requestOptions,product);return path.includes('/presentations')?{items:product.presentations,unit_revision:4,base_unit_locked:true}:product},getApiBaseUrl:()=>'/api'}
   const service=loadReportModule('../../services/productService.ts',{'./api':api})
   const realUnitApi={'../units/public':loadReportModule('../inventory/units/public.ts',{'@/services/api':api})}
-  const Page=loadReportModule('../inventory/products/ProductDetailPage.tsx',{...realUnitApi,react:h.hooks,'react-router-dom':{useParams:()=>({id:'p'}),useNavigate:()=>()=>{},useSearchParams:()=>[new URLSearchParams('editar=1'),()=>{}]},'@/components/layout/PageNavigation':{usePageTrail(){}},'@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryUnitsEnabled:true,inventoryServicesEnabled:true,locale:'es-GT',currencyCode:'GTQ'})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:()=>true})},'../units/useUnitCatalog':{useUnitCatalog:()=>({scope:{companyId:'A',branchId:'B'},units:[product.base_unit],canWrite:true,isLoading:false,isError:false})},'@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'},branches:[]})},'@/modules/appointments/useServiceScheduleDraft':{useServiceScheduleDraft:()=>({ready:true,allowed:false,dirty:false,payload:{},reload:async()=>{},reset(){}})},'@/modules/appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,request:fn=>fn(),proceed:fn=>fn()})},'@/hooks/useSuppliers':{useSuppliers:()=>({data:{items:[]}})},'@/hooks/useCategories':{useCategories:()=>({data:[]})},'@/hooks/use-toast':{useToast:()=>({toast})},'@/hooks/useDeleteProduct':{useDeleteProduct:()=>({}),useRemoveProductFromBranch:()=>({})},'@/hooks/useUpdateProduct':{__esModule:true,default:()=>({mutateAsync:({id,payload})=>service.updateProduct(id,payload),isPending:false})},'@/services/api':api,'./api':api},nodes).default
+  const Page=loadReportModule('../inventory/products/ProductDetailPage.tsx',{...realUnitApi,react:h.hooks,'react-router-dom':{useParams:()=>({id:'p'}),useNavigate:()=>()=>{},useSearchParams:()=>[new URLSearchParams('editar=1'),()=>{}]},'@/components/layout/PageNavigation':{usePageTrail(){}},'@/hooks/useSystemSettings':{useSystemSettings:()=>({inventoryUnitsEnabled:true,inventoryServicesEnabled:true,locale:'es-GT',currencyCode:'GTQ'})},'@/hooks/useAuthPermissions':{useAuthPermissions:()=>({hasPermission:options.hasPermission??(()=>true)})},'../units/useUnitCatalog':{useUnitCatalog:()=>({scope:{companyId:'A',branchId:'B'},units:[product.base_unit],canWrite:true,isLoading:false,isError:false})},'@/context/useTenant':{useTenant:()=>({company:{id:'A'},branch:{id:'B'},branches:[]})},'@/modules/appointments/useServiceScheduleDraft':{useServiceScheduleDraft:()=>({ready:true,allowed:false,dirty:false,payload:{},reload:async()=>{},reset(){}})},'@/modules/appointments/components/DraftGuard':{useDraftGuard:()=>({dialog:null,request:fn=>fn(),proceed:fn=>fn()})},'@/hooks/useSuppliers':{useSuppliers:()=>({data:{items:[]}})},'@/hooks/useCategories':{useCategories:()=>({data:[]})},'@/hooks/use-toast':{useToast:()=>({toast})},'@/hooks/useDeleteProduct':{useDeleteProduct:()=>({}),useRemoveProductFromBranch:()=>({})},'@/hooks/useUpdateProduct':{__esModule:true,default:()=>({mutateAsync:({id,payload})=>service.updateProduct(id,payload),isPending:false})},'@/services/api':api,'./api':api},nodes).default
   const render=()=>{nodes.length=0;h.render(()=>Page())};render();await flush();render();await flush();render();render()
   return {nodes,requests,toasts,render,unmount:h.unmount}
 }
@@ -108,6 +108,17 @@ test('real detail name edit omits an unchanged derived12 cost and writes exact b
     const request=d.requests.find(r=>r.options.method==='PUT');assert.ok(request)
     const payload=JSON.parse(request.options.body)
     assert.equal(payload.cost,undefined);assert.equal(payload.stock,'0.123456');assert.equal(payload.min_stock,'0.000001');assert.equal(payload.unit_revision,4)
+  }finally{d.unmount()}
+})
+test('product editors without stock adjustment see read-only stock and never submit a stale balance',async()=>{
+  const d=await detail({hasPermission:code=>code!=='stock_moves.adjust'});try{
+    const field=d.nodes.find(n=>n.props.id==='edit-stock')
+    assert.equal(field.props.disabled,true)
+    assert.equal(field.props['aria-describedby'],'edit-stock-help')
+    field.props.onChange({target:{value:'99'}});d.render()
+    await d.nodes.find(n=>n.props.children==='Guardar cambios').props.onClick()
+    const request=d.requests.find(r=>r.options.method==='PUT');assert.ok(request)
+    assert.equal(JSON.parse(request.options.body).stock,undefined)
   }finally{d.unmount()}
 })
 test('clearing the habitual supplier updates its visible selection and saves an explicit null',async()=>{

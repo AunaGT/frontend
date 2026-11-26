@@ -114,7 +114,7 @@ test('new order displays server-resolved wholesale prices and never allows savin
 
 test('new quote keeps all draft lines in a bounded scroller and preserves quantity edits', () => {
   const cart = lines.map(line => ({ id: line.product_id, name: line.name, qty: line.qty, price: 10, product: { id: line.product_id, name: line.name, barcode: line.barcode, stock: 20 } }))
-  const result = renderPage('../quotes/NewQuotePage.tsx', {}, { 7: cart })
+  const result = renderPage('../quotes/NewQuotePage.tsx', {}, { 11: cart })
   region(result, 'quote-lines-scroll')
   assert.match(result.html, /SKU14/)
   result.nodes.find(n => n.props['aria-label'] === 'Cantidad de Producto 14').props.onChange({ target: { value: '3' } })

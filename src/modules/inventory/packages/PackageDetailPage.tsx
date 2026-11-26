@@ -1,0 +1,32 @@
+import {useEffect,useState} from 'react'
+import {useNavigate,useParams,Link} from 'react-router-dom'
+import {ArrowLeft,Pencil} from 'lucide-react'
+import {Button} from '@/components/ui/button'
+import {ModuleTabBar} from '@/components/shared/ModuleTabs'
+import {LoadingState} from '@/components/shared/LoadingState'
+import {CatalogImage} from '../components/CatalogImage'
+import {useSystemSettings} from '@/hooks/useSystemSettings'
+import {usePageTrail} from '@/components/layout/PageNavigation'
+import {usePackageScope} from './usePackageScope'
+import {fetchPackage,packageError} from './api'
+import {PackageStatus,packageMoney} from './PackageCatalogViews'
+import type {CommercialPackage,PackageScope,PackageRef} from './types'
+
+export function PackagePreview({row,canEdit,onEdit}:{row:CommercialPackage;canEdit:boolean;onEdit:()=>void}){
+ const [version,setVersion]=useState('saved'),{locale='es-GT'}=useSystemSettings()
+ const definition=version==='active'&&row.activeDefinition?row.activeDefinition:row.definition
+ const reference=(ref:PackageRef)=>{const product=row.references?.find(p=>p.id===ref.productId);return {name:product?.name||'Artículo no disponible',unit:ref.presentationId?product?.presentations.find(p=>p.id===ref.presentationId)?.label||'presentación':product?.unitLabel||'unidad'}}
+ return <div className="space-y-5">
+  <header className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h1 className="text-xl font-semibold break-words">{definition.name||'Paquete sin nombre'}</h1><PackageStatus row={row}/></div><p className="mt-1 text-sm text-muted-foreground">Vista previa · {row.branchIds.length} {row.branchIds.length===1?'sucursal':'sucursales'}</p></div>{canEdit&&!row.archivedAt&&<Button onClick={onEdit}><Pencil className="h-4 w-4" aria-hidden="true"/>Editar paquete</Button>}</header>
+  {row.activeDefinition&&<ModuleTabBar value={version} items={[{value:'saved',label:'Guardado'},{value:'active',label:row.archivedAt?'Última versión activa':'Disponible al cotizar'}]} ariaLabel="Versión del paquete" onValueChange={setVersion}/>}
+  <section className="auna-surface flex flex-wrap items-start gap-5 rounded-xl border p-4"><CatalogImage name={definition.name} src={definition.imageUrl} className="h-32 w-32 shrink-0"/><div className="min-w-0 flex-1 space-y-2"><h2 className="text-sm font-semibold">Sobre este paquete</h2><p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{definition.description||'Sin descripción.'}</p><p className="text-sm">{definition.variants.length} opciones · {definition.currency}</p><p className="text-xs text-muted-foreground">{row.archivedAt?'Paquete archivado: se conserva para consulta y no se ofrece en cotizaciones nuevas.':version==='active'?'Esta es la versión disponible para acuerdos nuevos al cotizar.':'Composición guardada. La versión disponible al cotizar cambia cuando activas el paquete.'}</p></div></section>
+  <section className="space-y-3" aria-label="Opciones del paquete"><h2 className="text-base font-semibold">Opciones del paquete</h2><div className="grid items-start gap-3 lg:grid-cols-2">{definition.variants.map((variant,index)=><article key={variant.id} className="auna-surface min-w-0 space-y-4 rounded-xl border p-4"><div className="flex flex-wrap items-start justify-between gap-2"><h3 className="font-semibold">{variant.name||'Opción '+(index+1)}</h3><strong className="whitespace-nowrap tabular-nums">{packageMoney(variant.price,definition.currency,locale)}</strong></div><div><h4 className="mb-2 text-sm font-medium">Siempre incluye</h4>{variant.components.length?<ul className="divide-y divide-border text-sm">{variant.components.map(c=>{const r=reference(c);return <li key={c.id} className="flex justify-between gap-3 py-2"><span className="min-w-0 break-words">{r.name}</span><span className="shrink-0 text-muted-foreground">{c.quantity??'Por definir'} {r.unit}</span></li>})}</ul>:<p className="text-sm text-muted-foreground">Sin artículos fijos.</p>}</div>{variant.choices.length>0&&<div className="space-y-3"><h4 className="text-sm font-medium">El cliente puede elegir</h4>{variant.choices.map(choice=><div key={choice.id} className="rounded-lg bg-muted/40 p-3"><p className="text-sm font-medium">{choice.name||'Elección sin nombre'}</p><p className="mt-1 text-xs text-muted-foreground">Cantidad: {choice.totalQuantity??'Por definir'}{choice.maxDistinct?' · Hasta '+choice.maxDistinct+' opciones distintas':''}</p><ul className="mt-2 list-inside list-disc space-y-1 text-sm">{choice.options.map(option=><li key={option.id}>{reference(option).name} <span className="text-muted-foreground">· {reference(option).unit}</span></li>)}</ul></div>)}</div>}</article>)}</div></section>
+ </div>
+}
+function PackageDetail({scope,id,canEdit}:{scope:PackageScope;id:string;canEdit:boolean}){
+ const navigate=useNavigate(),[row,setRow]=useState<CommercialPackage|null>(null),[error,setError]=useState(''),[reload,setReload]=useState(0)
+ usePageTrail([{label:'Inventario',to:'/inventario'},{label:'Paquetes',to:'/inventario/paquetes'},{label:row?.name||'Vista previa'}])
+ useEffect(()=>{const abort=new AbortController();setRow(null);setError('');void fetchPackage(scope,id,abort.signal).then(data=>{if(!abort.signal.aborted)setRow(data)}).catch(e=>{if(!abort.signal.aborted)setError(packageError(e))});return()=>abort.abort()},[scope,id,reload])
+ return <main className="auna-page-fluid mx-auto w-full min-w-0 max-w-[1440px] space-y-4 p-4 sm:p-8"><Button variant="ghost" size="sm" asChild><Link to="/inventario/paquetes"><ArrowLeft className="h-4 w-4" aria-hidden="true"/>Paquetes</Link></Button>{error?<div role="alert" className="space-y-3 rounded-lg border p-4"><p>{error}</p><Button variant="outline" onClick={()=>setReload(v=>v+1)}>Reintentar</Button></div>:!row?<LoadingState variant="detail" message="Cargando paquete…"/>:<PackagePreview row={row} canEdit={canEdit} onEdit={()=>navigate('/inventario/paquetes/'+id+'/editar')}/>}</main>
+}
+export default function PackageDetailPage(){const context=usePackageScope(),{id}=useParams<{id:string}>();if(!context.scope||!context.canRead||!id)return <p className="p-6" role="status">Selecciona una empresa y sucursal con permiso para consultar Inventario.</p>;return <PackageDetail key={context.key+id+context.canEdit} scope={context.scope} id={id} canEdit={context.canEdit}/>}

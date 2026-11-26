@@ -21,6 +21,23 @@ test('trabajo fijo recalcula fin al editar inicio y conserva marcador de reglas'
   nodes.find(n=>n.type.name==='ActivityDateTime'&&n.props.id==='activity-startsAt').props.onChange('2030-01-01T16:00:00Z')
   assert.equal(changed.endsAt,'2030-01-01T16:45:00.000Z');assert.equal(changed.serviceScheduling,'CONFIGURED')
 })
+test('reunión permite elegir presencial o virtual desde el formulario principal',()=>{
+  const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{loadReportModule}=require('./helpers/loadReportModule.cjs'),nodes=[]
+  const {ActivityFields}=loadReportModule('../appointments/components/ActivityFields.tsx',{'@/services/api':{},'@tanstack/react-query':{useQuery:()=>({isSuccess:false})}},nodes)
+  const value={...valid,purpose:'MEETING',organizerId:'u',timezone:'America/Guatemala',venue:{kind:'BRANCH'},userIds:[],resourceIds:[],providerIds:[],guests:[],productId:null,estimatedAttendance:null,outboundMinutes:20,setupMinutes:10,teardownMinutes:5,returnMinutes:15,notes:''}
+  let changed
+  const html=renderToStaticMarkup(React.createElement(ActivityFields,{scope:{companyId:'a',branchId:'b'},value,onChange:v=>{changed=v},pending:false,errors:{},capabilities:{catalog:false,contacts:false,notes:false},directory:{providers:[],resources:[],branches:[],employeeCandidates:[]}}))
+  const mode=nodes.find(n=>n.props['aria-label']==='Modalidad de la reunión')
+  assert.ok(mode)
+  assert.match(html,/Presencial/);assert.match(html,/Virtual/);assert.match(html,/Día y horario/)
+  assert.equal(mode.props.value,'PRESENCIAL');mode.props.onValueChange('VIRTUAL')
+  assert.equal(changed.venue.kind,'ONLINE');assert.equal(changed.outboundMinutes,0);assert.equal(changed.returnMinutes,0)
+  nodes.length=0
+  const virtualHtml=renderToStaticMarkup(React.createElement(ActivityFields,{scope:{companyId:'a',branchId:'b'},value:changed,onChange(){},pending:false,errors:{},capabilities:{catalog:false,contacts:false,notes:false},directory:{providers:[],resources:[],branches:[],employeeCandidates:[]}}))
+  const venue=nodes.find(n=>n.type.name==='AgendaVenueFields')
+  assert.deepEqual(venue.props.allowedKinds,['ONLINE']);assert.equal(venue.props.showTravel,false)
+  assert.match(virtualHtml,/Enlace de reunión/);assert.doesNotMatch(virtualHtml,/Traslado de ida/)
+})
 test('reunión sin servicio ni cliente guarda una actividad, no una reserva',async()=>{
   const page=renderActivityForm({api:async()=>({id:'created'})});page.change(valid)
   await page.submit()

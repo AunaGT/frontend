@@ -12,8 +12,12 @@
  * ClosureDetailPage - Vista dedicada (full page) del detalle de un cierre de caja.
  * Reemplaza al antiguo ClosureDetailDialog. Ruta: /cierre-caja/:id
  */
-import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useTenant } from '@/context/useTenant'
+import { fetchClosureReview, finalizeClosure, requestRecount, type ReviewScope } from '@/services/cashReviewService'
+import { CASH_CLOSURE_READ_PERMISSIONS, fetchCashClosureDetail } from '@/services/cashClosureReadService'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -21,26 +25,22 @@ import { LoadingState } from '@/components/shared/LoadingState'
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { ArrowLeft, Download, ThumbsUp, ThumbsDown, ClipboardCheck, Scale, Clock, CreditCard, Banknote } from 'lucide-react'
 import { usePageTrail } from '@/components/layout/PageNavigation'
-import { useAuth } from '@/context/useAuth'
+import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { useToast } from '@/hooks/use-toast'
 import { resolvePdfLogoDataUrl } from '@/utils/pdfBranding'
-import { useCashClosureAPI, useCashClosureForm } from './hooks'
+import { useCashClosureAPI } from './hooks'
 import { RejectClosureDialog } from './components'
+import { ReviewPanel } from './components/ReviewPanel'
+import { CorrectionHistory } from './components/CorrectionHistory'
+import { fetchCorrectionContext, fetchCorrections } from '@/services/cashCorrectionService'
 import { generateClosurePDF } from './generatePDF'
 import type { CashClosure } from './types'
-import { formatCurrency, formatDateTime, toNumber, closureOpeningFloat, closureRegisterName, isCashPaymentMethodName } from './types'
+import { formatCurrency, formatDateTime, toNumber, closureOpeningFloat, closureRegisterName, isCashPaymentMethodName, closureStatusLabel, closureStatusVariant } from './types'
 import './cash-closure-workflow.css'
 
 export const CASH_CLOSURE_DETAIL_PATH = '/cierre-caja/:id'
 
-const statusVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => ({
-  Pendiente: 'secondary',
-  Aprobado: 'default',
-  Rechazado: 'destructive',
-  Validado: 'outline',
-  Cerrado: 'outline',
-} as const)[status] ?? 'outline'
 
 const Section = ({ title, children, icon, className = '' }: { title: string; children: React.ReactNode; icon?: React.ReactNode; className?: string }) => (
   <section className={`auna-surface cash-closure-panel rounded-lg border p-4 ${className}`}>
@@ -50,47 +50,55 @@ const Section = ({ title, children, icon, className = '' }: { title: string; chi
 )
 
 export const ClosureDetailPage = () => {
+  const { company, branch, isConsolidated } = useTenant(), { user, hasPermission } = useAuthPermissions()
+  const { id } = useParams<{ id: string }>()
+  const permissions = [...CASH_CLOSURE_READ_PERMISSIONS, 'cashclosure.create'].filter(code => hasPermission(code)).join(',')
+  return <ClosureDetailContent key={[company?.id, isConsolidated ? 'all' : branch?.id, user?.id, id, permissions].join(':')} />
+}
+
+const ClosureDetailContent = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { user } = useAuth()
-  const { companyName, companyLogoUrl, currencyCode, locale } = useSystemSettings()
+  const { hasPermission, user } = useAuthPermissions()
+  const { company, branch, isConsolidated } = useTenant(), cache = useQueryClient()
+  const scope: ReviewScope = { companyId: company?.id || '', branchId: isConsolidated ? 'all' : branch?.id || '', actorId: user?.id || '' }
+  const permissionKey = CASH_CLOSURE_READ_PERMISSIONS.filter(code => hasPermission(code)).join(',')
+  const detailKey = ['cash-closure-detail', id, scope.companyId, scope.branchId, scope.actorId, permissionKey]
+  const detail = useQuery({ queryKey: detailKey, queryFn: ({ signal }) => fetchCashClosureDetail(id || '', scope, signal),
+    enabled: !!id && !!scope.companyId && !!scope.branchId && !!scope.actorId && !!permissionKey, retry: false, gcTime: 0 })
+  // Arqueos del flujo con política (3C): el panel de revisión reemplaza Aprobar/Rechazar. 404 = flujo anterior.
+  const review = useQuery({ queryKey: ['cash-closure-review', id, scope.companyId, scope.branchId, scope.actorId, permissionKey], queryFn: ({ signal }) => fetchClosureReview(id || '', scope, signal),
+    enabled: !!detail.data && !detail.isError && scope.branchId !== 'all', retry: false, gcTime: 0 })
+  const canReview = hasPermission('cashclosure.approve', 'cashclosure.validate')
+  const { companyName, companyLogoUrl, currencyCode: currentCurrency, locale } = useSystemSettings()
   const { toast } = useToast()
   const api = useCashClosureAPI()
-  const { isSeller } = useCashClosureForm()
 
-  const [closure, setClosure] = useState<CashClosure | null>(null)
-  const [loading, setLoading] = useState(true)
+  const closure = detail.isError ? null : detail.data || null
+  const setClosure = (value: CashClosure) => cache.setQueryData(detailKey, value)
+  const currencyCode = closure?.currency_code || currentCurrency
+  const loading = detail.isPending && !!permissionKey
   const [isRejectOpen, setIsRejectOpen] = useState(false)
   const [rejectionReason, setRejectionReason] = useState('')
-  const supervisorName = user?.name || user?.email || ''
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [correctionPage, setCorrectionPage] = useState(1)
+  const corrections = useQuery({queryKey:['cash-corrections',id,scope.companyId,scope.branchId,scope.actorId,permissionKey,correctionPage],queryFn:({signal})=>fetchCorrections(id||'',scope,correctionPage,signal),enabled:!!closure,retry:false,gcTime:0})
+  const correctionContext = useQuery({queryKey:['cash-correction-context',id,scope.companyId,scope.branchId,scope.actorId,permissionKey,hasPermission('cashclosure.correct')],queryFn:({signal})=>fetchCorrectionContext(id||'',scope,signal),enabled:!!closure&&scope.branchId!=='all'&&hasPermission('cashclosure.correct'),retry:false,gcTime:0})
   usePageTrail([{ label: 'Cierre de caja', to: '/cierre-caja' }, { label: closure ? `Cierre #${closure.closure_number}` : 'Detalle' }])
 
-  useEffect(() => {
-    if (!id) return
-    let active = true
-    setLoading(true)
-    api.fetchClosureDetail(id).then((data) => {
-      if (active) {
-        setClosure(data)
-        setLoading(false)
-      }
-    })
-    return () => { active = false }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id])
-
   const handleApprove = async () => {
-    if (!closure) return
-    const updated = await api.approveClosure(closure.id, supervisorName)
+    if (!closure || !canReview || closure.status !== 'Pendiente') return
+    const updated = await api.approveClosure(closure.id, closure.updated_at)
     if (updated) setClosure(updated)
   }
 
   const handleReject = async () => {
-    if (!closure || !rejectionReason.trim()) {
+    if (!canReview || closure?.status !== 'Pendiente') return
+    if (!rejectionReason.trim()) {
       toast({ title: 'Error', description: 'Debes proporcionar una razón', variant: 'destructive' })
       return
     }
-    const updated = await api.rejectClosure(closure.id, rejectionReason)
+    const updated = await api.rejectClosure(closure.id, rejectionReason, closure.updated_at)
     if (updated) {
       setClosure(updated)
       setIsRejectOpen(false)
@@ -98,10 +106,25 @@ export const ClosureDetailPage = () => {
     }
   }
 
+  const runReview = async (action: () => Promise<unknown>, done: string) => {
+    setReviewBusy(true)
+    try {
+      await action()
+      toast({ title: done })
+    } catch (e) {
+      toast({ title: 'No se pudo completar la revisión', description: e instanceof Error ? e.message : 'Recarga el arqueo e intenta de nuevo.', variant: 'destructive' })
+    } finally {
+      // Recarga siempre: tras un 409 el encargado ve el estado real, no el que abrió.
+      await cache.invalidateQueries({ queryKey: ['cash-closure-review', id] })
+      await cache.invalidateQueries({ queryKey: detailKey })
+      setReviewBusy(false)
+    }
+  }
+
   const handleDownloadPDF = async () => {
     if (!closure) return
     const logoDataUrl = await resolvePdfLogoDataUrl(companyLogoUrl)
-    generateClosurePDF(closure, companyName, currencyCode, locale, logoDataUrl)
+    generateClosurePDF(closure, companyName, currencyCode, locale, logoDataUrl, !corrections.isError ? corrections.data?.totalItems : undefined)
     toast({ title: 'PDF generado', description: `Cierre #${closure.closure_number} descargado` })
   }
 
@@ -133,10 +156,12 @@ export const ClosureDetailPage = () => {
         <div className="flex flex-wrap items-center gap-3">
           <Button variant="ghost" onClick={() => navigate('/cierre-caja')}><ArrowLeft className="h-4 w-4" />Cierres</Button>
           <h1 className="sr-only">Cierre #{closure.closure_number}</h1>
-          <Badge variant={statusVariant(closure.status)}>{closure.status}</Badge>
+          <Badge variant={closureStatusVariant(closure.status)}>{closureStatusLabel(closure.status)}</Badge>
+          {review.data?.superseded_by_id && <Link className="text-sm underline" to={`/cierre-caja/${review.data.superseded_by_id}`}>Ver el reconteo</Link>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {closure.status === 'Pendiente' && !isSeller && (
+          {!correctionContext.isError && correctionContext.data?.can.propose && <Button variant="outline" asChild><Link to={`/cierre-caja/${closure.id}/corregir`}>Proponer corrección</Link></Button>}
+          {scope.branchId !== 'all' && closure.status === 'Pendiente' && canReview && !review.isLoading && !review.isError && !review.data && (
             <>
               <Button onClick={handleApprove}>
                 <ThumbsUp className="h-4 w-4 mr-2" />Aprobar
@@ -168,8 +193,15 @@ export const ClosureDetailPage = () => {
           </div>
         </div>
 
+      {review.data && <ReviewPanel review={review.data} currencyCode={currencyCode} busy={reviewBusy}
+        onFinalize={reason => runReview(() => finalizeClosure(review.data!.id, { expectedUpdatedAt: review.data!.updated_at, ...(reason ? { reason } : {}) }, scope), 'Arqueo finalizado')}
+        onRecount={reason => runReview(() => requestRecount(review.data!.id, { expectedUpdatedAt: review.data!.updated_at, reason }, scope), 'Reconteo solicitado')} />}
+
+      {!corrections.isError && corrections.data && <CorrectionHistory closureId={closure.id} list={corrections.data} page={correctionPage} onPage={setCorrectionPage} />}
+      {corrections.isError && <p role="alert" className="text-sm text-destructive">No se pudo consultar el historial de correcciones. <Button variant="link" onClick={()=>corrections.refetch()}>Reintentar</Button></p>}
       <div className="cash-closure-detail-grid">
       <Section title="Resumen del cierre" icon={<ClipboardCheck className="h-5 w-5 text-primary" aria-hidden="true" />}>
+        {closure.calculation_snapshot?.basis_label && <p className="mb-3 text-xs text-muted-foreground">{closure.calculation_snapshot.basis_label}</p>}
         {openingFloat > 0 && (
           <div className="mb-3 border-b pb-3 text-sm">
             <p className="text-muted-foreground">Fondo inicial del turno</p>
@@ -183,14 +215,14 @@ export const ClosureDetailPage = () => {
           <div>
             <h3>Importes esperados</h3>
             <dl className="cash-closure-amount-list">
-              {closure.payment_breakdowns?.map(item => <div key={item.payment_method_id}><dt>{item.payment_method?.name || item.payment_method_name || 'Método de pago'}</dt><dd>{formatCurrency(item.theoretical_amount, currencyCode, locale)}</dd></div>)}
+              {closure.payment_breakdowns?.map(item => <div key={item.breakdown_key ?? item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{formatCurrency(item.theoretical_amount, currencyCode, locale)}</dd></div>)}
               <div className="cash-closure-amount-total"><dt>Total esperado</dt><dd>{formatCurrency(closure.theoretical_total, currencyCode, locale)}</dd></div>
             </dl>
           </div>
           <div>
             <h3>Importes contados</h3>
             <dl className="cash-closure-amount-list">
-              {closure.payment_breakdowns?.map(item => <div key={item.payment_method_id}><dt>{item.payment_method?.name || item.payment_method_name || 'Método de pago'}</dt><dd>{formatCurrency(item.actual_amount, currencyCode, locale)}</dd></div>)}
+              {closure.payment_breakdowns?.map(item => <div key={item.breakdown_key ?? item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{formatCurrency(item.actual_amount, currencyCode, locale)}</dd></div>)}
               <div className="cash-closure-amount-total"><dt>Total contado</dt><dd>{formatCurrency(closure.actual_total, currencyCode, locale)}</dd></div>
             </dl>
           </div>
@@ -199,13 +231,13 @@ export const ClosureDetailPage = () => {
 
       <Section title="Diferencias" icon={<Scale className="h-5 w-5 text-primary" aria-hidden="true" />}>
         <dl className="cash-closure-amount-list mb-3">
-          {closure.payment_breakdowns?.map(item => <div key={item.payment_method_id}><dt>{item.payment_method?.name || item.payment_method_name || 'Método de pago'}</dt><dd>{toNumber(item.difference) > 0 ? '+' : ''}{formatCurrency(item.difference, currencyCode, locale)}</dd></div>)}
+          {closure.payment_breakdowns?.map(item => <div key={item.breakdown_key ?? item.payment_method_id}><dt>{item.payment_method_name || item.payment_method?.name || 'Método de pago'}</dt><dd>{toNumber(item.difference) > 0 ? '+' : ''}{formatCurrency(item.difference, currencyCode, locale)}</dd></div>)}
         </dl>
         <p className="text-sm font-medium">{Math.abs(diff) < 0.005 ? 'Cuadrado' : diff > 0 ? 'Sobrante' : 'Faltante'}</p>
         <p className={`mt-1 text-2xl font-semibold tabular-nums ${Math.abs(diff) < 0.005 ? 'text-emerald-700 dark:text-emerald-300' : diff > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-red-700 dark:text-red-300'}`}>
           {diff >= 0 ? '+' : ''}{formatCurrency(closure.difference, currencyCode, locale)}
         </p>
-        <p className="mt-1 text-xs text-muted-foreground">{toNumber(closure.difference_percentage).toFixed(2)}% del importe esperado</p>
+        <p className="mt-1 text-xs text-muted-foreground">{closure.difference_percentage == null ? 'Porcentaje no disponible' : toNumber(closure.difference_percentage).toFixed(2) + '% del importe esperado'}</p>
         <div className="mt-3 border-t pt-3 text-sm">
           <p className="text-muted-foreground">Observaciones del cierre</p>
           <p className="mt-1 whitespace-pre-wrap">{closure.notes || 'Sin observaciones registradas.'}</p>
@@ -234,6 +266,7 @@ export const ClosureDetailPage = () => {
 
       <div className="cash-closure-detail-breakdown">
       <Section title="Desglose por método de pago" icon={<CreditCard className="h-5 w-5 text-primary" aria-hidden="true" />}>
+        {!!closure.calculation_snapshot?.participant_breakdown?.length && <details className="mb-4 rounded-lg border p-3 text-sm"><summary className="cursor-pointer font-medium">Operaciones por participante</summary><p className="mt-2 text-muted-foreground">Entradas y salidas registradas por cada persona. El fondo inicial y las diferencias pertenecen al turno; este detalle no reparte faltantes.</p><ul className="mt-3 grid gap-3 sm:grid-cols-2">{closure.calculation_snapshot.participant_breakdown.map(actor => <li key={actor.actor_id} className="min-w-0 rounded-lg bg-muted/40 p-3"><p className="font-medium">{actor.actor_name}</p>{actor.methods.map(m => <p key={m.payment_method_id} className="mt-1 text-muted-foreground">{m.payment_method_name}: entradas {formatCurrency(m.in_amount, currencyCode, locale)} · salidas {formatCurrency(m.out_amount, currencyCode, locale)}</p>)}</li>)}</ul></details>}
         <div className="overflow-x-auto" role="region" aria-label="Desglose por método de pago" tabIndex={0}>
           <table>
             <caption className="sr-only">Importes esperados, contados y diferencias por método</caption>
@@ -245,7 +278,7 @@ export const ClosureDetailPage = () => {
             const theory = toNumber(item.theoretical_amount)
             const cashSales = isCash && openingFloat > 0 ? (theory >= openingFloat ? theory - openingFloat : theory) : null
             return (
-              <tr key={item.payment_method_id}>
+              <tr key={item.breakdown_key ?? item.payment_method_id}>
                 <th scope="row" className="!bg-transparent !text-foreground">
                     <span className="font-medium">{methodName}</span>
                     {cashSales != null && (

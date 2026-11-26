@@ -27,6 +27,7 @@ interface PaginationProps {
   count?: number
   itemLabel?: string
   onPageSizeChange?: (size: number) => void
+  showPageNumbers?: boolean
 }
 
 export const Pagination = ({
@@ -41,6 +42,7 @@ export const Pagination = ({
   count = 0,
   itemLabel = 'registros',
   onPageSizeChange,
+  showPageNumbers = true,
 }: PaginationProps) => {
   const canGoPrev = hasPrevPage !== undefined ? hasPrevPage : currentPage > 1
   const canGoNext = hasNextPage !== undefined ? hasNextPage : totalPages !== undefined && currentPage < totalPages
@@ -64,7 +66,7 @@ export const Pagination = ({
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>
-      {totalItems !== undefined && pages.map((page) => <Button key={page} variant="outline" size="sm" aria-current={page === currentPage ? 'page' : undefined} disabled={loading} onClick={() => onPageChange(page)}>{page}</Button>)}
+      {showPageNumbers && totalItems !== undefined && pages.map((page) => <Button key={page} variant="outline" size="sm" aria-current={page === currentPage ? 'page' : undefined} disabled={loading} onClick={() => onPageChange(page)}>{page}</Button>)}
       <Button
         variant="outline"
         size="sm"

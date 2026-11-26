@@ -48,7 +48,7 @@ export const SaleInvoicePage = () => {
   const [ticketPending,setTicketPending]=useState(false)
   const [ticketError,setTicketError]=useState<string|null>(null)
   const printScope={companyId:tenant.company?.id||'',branchId:tenant.branch?.id||'',userId:user?.id||''}
-  const printDestination=usePrintDestination(printScope,'RECEIPT')
+  const printDestination=usePrintDestination({...printScope,branchId:sale?.capabilities?.viewDocument?printScope.branchId:''},'RECEIPT')
   const [documentFormat,setDocumentFormat]=useState<''|'LETTER'|'A4'>('')
   const generatedDocument=useSaleDocument({scope:printScope,saleId:id||'',format:documentFormat||undefined})
   useEffect(()=>{setTicketPending(false);setTicketError(null)},[ownerKey])
@@ -97,11 +97,12 @@ export const SaleInvoicePage = () => {
   }
 
   const handlePrint = async () => {
+    if(!sale?.capabilities?.viewDocument)return
     await generatedDocument.prepare()
   }
 
   const handleTicket=async()=>{
-    if(ticketPending)return
+    if(ticketPending||!sale?.capabilities?.viewDocument)return
     const captured=documentOwner,token=getAuthToken(),session=authSessionIdentity(),current=()=>mounted.current&&owner.current===captured&&getAuthToken()===token&&authSessionIdentity()===session&&authSessionMatches(user?.id??'')
     setTicketPending(true);setTicketError(null)
     try{await downloadSavedSaleTicket(sale.id,{companyName,logoUrl:companyLogoUrl||undefined,locale,currencyCode},current,{headers:{'X-Company-Id':tenant.company?.id??'','X-Branch-Id':tenant.branch?.id??''}},{scope:printScope,options:printDestination.options,notice:message=>{if(current())setTicketError(message)}})}
@@ -123,7 +124,7 @@ export const SaleInvoicePage = () => {
         {sale.capabilities?.confirm&&<Button onClick={()=>navigate(`/ventas/${sale.id}/confirmar`)}>Confirmar venta</Button>}
         {sale.capabilities?.editManual&&<Button onClick={()=>navigate(`/ventas/${sale.id}/editar`)}>Editar / confirmar borrador</Button>}
         <SaleFiscalAction sale={sale} onRequested={commercial=>setSale(current=>current?.id===sale.id?{...current,commercial,capabilities:current.capabilities?{...current.capabilities,requestInvoice:false}:undefined}:current)}/>
-        <Button variant="outline" onClick={handlePrint} disabled={generatedDocument.pending||sale.status==='draft'||sale.commercial?.state==='DRAFT'}>
+        {sale.capabilities?.viewDocument&&<><Button variant="outline" onClick={handlePrint} disabled={generatedDocument.pending||sale.status==='draft'||sale.commercial?.state==='DRAFT'}>
           <Printer aria-hidden /> {generatedDocument.pending?'Preparando documento…':'Ver / descargar comprobante'}
         </Button>
         <Button variant="outline" onClick={handleTicket} disabled={ticketPending||sale.status==='draft'||sale.commercial?.state==='DRAFT'}><Printer aria-hidden />{ticketPending?'Preparando ticket…':'Descargar ticket (80 mm)'}</Button>
@@ -135,7 +136,7 @@ export const SaleInvoicePage = () => {
             <p className="text-xs text-muted-foreground">El comprobante interno no constituye factura fiscal. El ticket se genera en 80 mm.</p>
             {generatedDocument.fallback&&<p className="text-xs text-muted-foreground">Diseño base capturado al preparar este documento.</p>}
           </PopoverContent>
-        </Popover></div>
+        </Popover></>}</div>
       </header>
       {ticketError&&<p role="alert" className="text-sm text-destructive">{ticketError}</p>}
       {generatedDocument.error&&<div role="alert" className="space-y-3 py-3"><p className="text-sm text-destructive">{generatedDocument.error}</p><div className="flex flex-wrap gap-3"><Button variant="outline" disabled={generatedDocument.pending} onClick={()=>void generatedDocument.prepare({retry:true})}>Reintentar documento</Button><Button variant="ghost" disabled={generatedDocument.pending} onClick={()=>{if(window.confirm('¿Generar otro archivo usando el diseño base capturado? No se cambiará el original, la venta ni su facturación.'))void generatedDocument.prepare({useBase:true})}}>Usar diseño base capturado</Button></div></div>}

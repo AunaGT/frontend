@@ -46,6 +46,7 @@ test("Merchandise can register supplier payments without enabling Cartera", () =
     "../receivables/pages/SupplierPaymentPage.tsx",
     {
       ...common,
+      '@/services/cashSessionsService': { fetchCashSessionPaymentOptions() {} },
       "../hooks/usePayables": {
         useCarteraAccess: () => access,
         useInvalidatePayables: () => async () => {},
@@ -60,7 +61,7 @@ test("Merchandise can register supplier payments without enabling Cartera", () =
       },
       "@tanstack/react-query": {
         useQuery: ({ queryKey, enabled }) =>
-          queryKey[0] === "payment-methods"
+          queryKey[0] === 'cash-payment-options' ? { data: { available: false, sessions: [] } } : queryKey[0] === "payment-methods"
             ? { data: [] }
             : { data: enabled ? [entry] : undefined },
       },

@@ -1,3 +1,4 @@
+import {EventPaymentTermsSummary} from '@/components/shared/EventPaymentTermsSummary'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  *
@@ -37,6 +38,7 @@ import { generateQuotePDF } from "./documents/generateQuotePDF";
 import {quoteAgendaDestination} from './quoteViewModel.mjs';
 import {useTenant} from '@/context/useTenant';
 import {authSessionIdentity} from '@/services/authSession';
+import {packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary';
 
 export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,8 +52,7 @@ export default function QuoteDetailPage() {
   useEffect(()=>{conversionMounted.current=true;return()=>{conversionMounted.current=false}},[]);
   const { hasPermission } = useAuthPermissions();
   const { isEnabled } = useModules();
-  const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings();
-  const fmt = (n: number) => formatMoney(n, locale, currencyCode);
+  const { locale, currencyCode:companyCurrencyCode, companyName, companyLogoUrl } = useSystemSettings();
 
   const canManage = hasPermission("quotes.manage");
   const [pendingStatus, setPendingStatus] = useState<QuoteStatus | null>(null);
@@ -66,6 +67,8 @@ export default function QuoteDetailPage() {
     queryFn: () => fetchQuoteById(id!),
     enabled: Boolean(id&&company?.id),
   });
+  const currencyCode=packageDocumentCurrency(quote?.packageGroups??quote?.package_groups,companyCurrencyCode);
+  const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const statusMutation = useMutation({
     mutationFn: (status: QuoteStatus) => updateQuoteStatus(id!, status),
@@ -106,7 +109,7 @@ export default function QuoteDetailPage() {
   });
   useEffect(() => { if (quote) setPaymentTerms({ payment_condition: quote.payment_condition ?? 'CASH', credit_days: quote.credit_days ?? null }); }, [quote]);
   const paymentMutation = useMutation({
-    mutationFn: () => updateQuote(id!, paymentTerms),
+    mutationFn: () => updateQuote(id!, {...paymentTerms,expectedRevision:quote?.integration_revision}),
     onSuccess: updated => { queryClient.setQueryData(['quote', id], updated); void queryClient.invalidateQueries({ queryKey: ['quotes'] }); toast({ title: 'Condición de pago actualizada' }); },
     onError: (error: Error) => toast({ title: 'No se pudo guardar', description: error.message, variant: 'destructive' }),
   });
@@ -173,9 +176,11 @@ export default function QuoteDetailPage() {
   }
 
   const linkedOrder = quote.convertedChildren?.find((c) => c.doc_type === "ORDER");
+  const incompletePackages=(quote.packageGroups??quote.package_groups??[]).some(g=>g.state!=='COMPLETE')
   const canConvert =
     ordersEnabled &&
     canManage &&
+    hasPermission('orders.create') &&
     !linkedOrder &&
     !quote.hasDirectSale &&
     !quote.engagementId &&
@@ -184,11 +189,12 @@ export default function QuoteDetailPage() {
   const canCreateSale=isEnabled('sales')&&canManage&&hasPermission('sales.create')&&!isConsolidated&&!!branch?.id&&quote.branch_id===branch.id&&!linkedOrder&&!quote.engagementId&&!quote.hasDirectSale&&quote.status==='ACCEPTED';
 
   const publicUrl = quote.public_token ? `${window.location.origin}/q/${quote.public_token}` : "";
-  const shareable = ["SENT", "ACCEPTED"].includes(quote.status);
+  const shareable = !incompletePackages&&["SENT", "ACCEPTED"].includes(quote.status);
   return <div className="quotes-page mx-auto w-full max-w-[1560px] space-y-5 p-4 sm:p-8">
     {isFetching && <LoadingIndicator message="Actualizando cotización…" />}
     <header className="auna-page-toolbar"><div><div className="flex flex-wrap items-center gap-3"><h1 className="text-2xl font-semibold">{quote.reference || quote.id.slice(0, 8)}</h1><QuoteStatusBadge status={quote.status} /></div><p className="auna-module-description">Creada el {formatDateTime(quote.created_at, undefined, locale)} por {quote.createdBy?.name || "usuario del sistema"}</p></div>
       <div className="compact-filter-actions">
+        {quote.status==='DRAFT'&&!quote.hasDirectSale&&!quote.engagementId&&!linkedOrder&&hasPermission('quotes.create')&&quote.branch_id===branch?.id&&<Button variant="outline" onClick={()=>navigate('/cotizaciones/'+quote.id+'/editar')}>Editar cotización</Button>}
         {canSchedule&&<Button variant="outline" aria-label={quote.engagementId?'Ver contratación':'Agendar servicios'} onClick={()=>navigate(quoteAgendaDestination(quote))}><CalendarDays className="mr-2 h-4 w-4" aria-hidden="true"/>{quote.engagementId?'Ver contratación':'Agendar servicios'}</Button>}
         {shareable&&<Button variant="outline" onClick={()=>void handleEmailLink()}><Mail className="mr-2 h-4 w-4" aria-hidden/>Enviar por correo</Button>}
         {canCreateSale&&<Button variant="outline" aria-label="Crear borrador de venta" aria-busy={saleMutation.isPending} disabled={saleMutation.isPending||convertMutation.isPending} onClick={()=>saleMutation.mutate({quoteId:quote.id,companyId:company!.id,branchId:branch!.id,sessionIdentity,identity:conversionIdentity})}>{saleMutation.isPending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden/>}Crear borrador de venta</Button>}
@@ -205,17 +211,18 @@ export default function QuoteDetailPage() {
         <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><User className="h-5 w-5 text-brand-orange" />Cliente</CardTitle></CardHeader><CardContent className="space-y-2 text-sm"><strong className="block text-base">{quote.customer || quote.customerContact?.name || "Consumidor final"}</strong><p className="text-muted-foreground">NIT: {quote.is_final_consumer ? "CF" : quote.customer_nit || quote.customerContact?.tax_id || "No registrado"}</p>{quote.customerContact?.email && <p className="break-all">{quote.customerContact.email}</p>}{quote.customerContact?.phone && <p>{quote.customerContact.phone}</p>}</CardContent></Card>
         <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><CalendarDays className="h-5 w-5 text-brand-orange" />Condiciones</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><div className="flex justify-between gap-3"><span className="text-muted-foreground">Válida hasta</span><strong>{quote.valid_until ? formatDateTime(quote.valid_until, undefined, locale) : "Sin fecha"}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Moneda</span><strong>{currencyCode}</strong></div><div className="flex justify-between"><span className="text-muted-foreground">Sucursal</span><strong>{quote.branch?.name || "—"}</strong></div></CardContent></Card>
       </div>
-      <QuoteLines locale={locale} currencyCode={currencyCode} key={quote.id} lines={quote.lines.map((line) => ({ ...line, name: line.item_name ?? line.product?.name ?? line.product_id, code: line.product?.barcode, image: line.product?.image_url }))} money={fmt} />
+      <QuoteLines groups={quote.packageGroups??quote.package_groups} locale={locale} currencyCode={currencyCode} key={quote.id} lines={quote.lines.map((line) => ({ ...line, name: line.item_name ?? line.product?.name ?? line.product_id, code: line.product?.barcode, image: line.product?.image_url }))} money={fmt} />
+      <EventPaymentTermsSummary value={quote.eventPaymentTerms??quote.event_payment_terms}/>
       <Card className="auna-surface"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas</CardTitle></CardHeader><CardContent className="whitespace-pre-wrap text-sm text-muted-foreground">{quote.notes || "Sin notas adicionales."}</CardContent></Card>
       {Boolean(quote.stock_reservations?.length) && <div className="rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">Apartado temporal activo: {quote.stock_reservations!.reduce((sum, r) => sum + r.qty, 0)} unidades{quote.stock_reservations![0].expires_at ? ` · vence ${formatDateTime(quote.stock_reservations![0].expires_at!, undefined, locale)}` : ""}.</div>}
       </div>
       <aside className="space-y-5">
         <Card className="auna-surface"><CardHeader><CardTitle className="text-lg">Condición de pago</CardTitle></CardHeader><CardContent className="space-y-3">{quote.status === 'DRAFT' && hasPermission('quotes.create') ? <><CommercialPaymentFields customerId={quote.customer_contact_id} value={paymentTerms} onChange={setPaymentTerms} /><Button variant="outline" disabled={paymentMutation.isPending} onClick={() => paymentMutation.mutate()}>Guardar condición de pago</Button></> : <p>{quote.payment_condition === 'CREDIT' ? `A crédito · ${quote.credit_days} días desde la venta` : 'Al contado'}</p>}</CardContent></Card>
-        <QuoteSummary subtotal={quote.subtotal} discount={quote.discount_total} total={quote.total} money={fmt} />
+        <QuoteSummary pending={incompletePackages} subtotal={quote.subtotal} discount={quote.discount_total} total={quote.total} money={fmt} />
         <Card className="auna-surface" id="enlace-publico"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><Link2 className="h-5 w-5 text-brand-orange" />Enlace público</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><p className="text-muted-foreground">Comparte esta cotización para que tu cliente pueda revisarla en línea.</p>{shareable ? <><Input readOnly aria-label="Enlace público de cotización" value={publicUrl} /><Button variant="outline" className="w-full" onClick={() => void handleCopyLink()}><Link2 className="mr-2 h-4 w-4" />Copiar enlace</Button>{publicUrl && <Button asChild variant="outline" className="w-full"><a href={publicUrl} target="_blank" rel="noopener noreferrer"><ExternalLink className="mr-2 h-4 w-4" />Vista previa pública</a></Button>}</> : <p className="border-t pt-3">Disponible al generar la cotización. Los borradores no se comparten desde esta vista.</p>}</CardContent></Card>
-        <Card className="auna-surface" id="documentos"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Documentos</CardTitle></CardHeader><CardContent><Button variant="outline" className="w-full" disabled={pdfBusy} onClick={() => void handlePdf()}>{pdfBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}Descargar PDF</Button></CardContent></Card>
+        <Card className="auna-surface" id="documentos"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Documentos</CardTitle></CardHeader><CardContent><Button variant="outline" className="w-full" disabled={pdfBusy||incompletePackages} title={incompletePackages?'Completa los paquetes antes de descargar':undefined} onClick={() => void handlePdf()}>{pdfBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}Descargar PDF</Button></CardContent></Card>
         {canManage && ["DRAFT", "SENT", "ACCEPTED"].includes(quote.status) && <Card className="auna-surface"><CardHeader><CardTitle className="text-lg">Gestionar cotización</CardTitle></CardHeader><CardContent className="space-y-3">
-          {quote.status === "DRAFT" && <Button className="w-full bg-brand-orange text-white" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate("SENT")}>Generar cotización</Button>}
+          {quote.status === "DRAFT" && <Button className="w-full bg-brand-orange text-white" disabled={statusMutation.isPending||incompletePackages} title={incompletePackages?'Completa las cantidades de los paquetes antes de enviar':undefined} onClick={() => statusMutation.mutate("SENT")}>Generar cotización</Button>}
           {quote.status === "SENT" && <><Button className="w-full" disabled={statusMutation.isPending} onClick={() => statusMutation.mutate("ACCEPTED")}>Registrar aceptación</Button><Button className="w-full" variant="outline" disabled={statusMutation.isPending} onClick={() => setPendingStatus("REJECTED")}>Registrar rechazo</Button></>}
           {!linkedOrder && !quote.hasDirectSale && <Button variant="outline" className="w-full text-destructive" disabled={statusMutation.isPending} onClick={() => setPendingStatus("CANCELLED")}>Cancelar cotización</Button>}
         </CardContent></Card>}

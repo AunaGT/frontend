@@ -27,6 +27,9 @@ import { useToast } from "@/hooks/use-toast";
 import { ProductPicker } from "@/components/shared/ProductPicker";
 import { CollectionEmptyState } from '@/components/shared/CollectionEmptyState'
 import { CommercialPaymentFields, type CommercialPaymentTerms } from "@/components/shared/CommercialPaymentFields";
+import {EventPaymentTermsFields} from '@/components/shared/EventPaymentTermsFields'
+import {eventPaymentDraft,eventPaymentDraftErrors,eventPaymentPayload} from '@/modules/appointments/eventPaymentDraft'
+import {fetchQuotePaymentTermsCapability} from '@/services/quoteService'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuoteProductImage, QuoteSummary, QuoteServiceConditions } from "./QuotePresentation";
 import { useSystemSettings } from "@/hooks/useSystemSettings";
@@ -38,6 +41,7 @@ import {QuotePackagesEditor} from './components/QuotePackagesEditor'
 import {quotePackageSeed,packageSelectionsPayload,useQuotePackagePreview} from './packageSelection'
 import {authSessionIdentity} from '@/services/authSession'
 import type {PackageScope,PackageSelection} from '@/modules/inventory/packages/types'
+import {packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary'
 import { useTenant } from "@/context/useTenant";
 import { adaptApiSupplier, fetchSupplierById } from "@/services/supplierService";
 import { SavedCustomerMany2One } from "@/modules/sales";
@@ -72,7 +76,8 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
   const navigate = useNavigate();
   const { toast } = useToast();
   const { hasPermission,user } = useAuthPermissions();
-  const { locale, currencyCode,inventoryUnitsEnabled } = useSystemSettings();
+  const { locale, currencyCode:companyCurrencyCode,inventoryUnitsEnabled,timezone } = useSystemSettings();
+  const currencyCode=packageDocumentCurrency(initialQuote?.packageGroups??initialQuote?.package_groups,companyCurrencyCode);
   const fmt = (n: number) => formatMoney(n, locale, currencyCode);
 
   const canCreate = hasPermission("quotes.create");
@@ -85,6 +90,9 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
   const [notes, setNotes] = useState(initialQuote?.notes??'');
   const [validUntil, setValidUntil] = useState(initialQuote?.valid_until?.slice(0,10)??'');
   const [paymentTerms, setPaymentTerms] = useState<CommercialPaymentTerms>({ payment_condition: initialQuote?.payment_condition??'CASH', credit_days: initialQuote?.credit_days??null });
+  const [eventTerms,setEventTerms]=useState(()=>eventPaymentDraft(initialQuote?.event_payment_terms,timezone))
+  const [eventTermsTouched,setEventTermsTouched]=useState(false),[eventTermsErrors,setEventTermsErrors]=useState<Record<string,string>>({})
+  useEffect(()=>{if(!eventTermsTouched&&!initialQuote?.event_payment_terms)setEventTerms(value=>({...value,referenceTimezone:timezone}))},[timezone,eventTermsTouched,initialQuote?.event_payment_terms])
   const seed=useMemo(()=>quotePackageSeed(initialQuote??{}),[initialQuote])
   const [packageSelections,setPackageSelections]=useState<PackageSelection[]>(seed.selections)
   const [cartItems, setCartItems] = useState<CartLine[]>(()=>((initialQuote?.lines??[]).filter(l=>!l.package_component_key)).map(line=>({
@@ -101,7 +109,7 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
   const { branches, branch, company,registerTenantExitGuard } = useTenant();
   const [targetBranchId, setTargetBranchId] = useState(initialQuote?.branch_id??branch?.id ?? "");
   const sessionId=authSessionIdentity()
-  const packageScope=useMemo<PackageScope|null>(()=>company?.id&&targetBranchId&&user?.id?{companyId:company.id,branchId:targetBranchId,userId:user.id,sessionId}:null,[company?.id,targetBranchId,user?.id,sessionId])
+  const packageScope=useMemo<PackageScope|null>(()=>company?.id&&targetBranchId&&user?.id?{companyId:company.id,branchId:targetBranchId,activeBranchId:branch?.id??null,userId:user.id,sessionId}:null,[company?.id,targetBranchId,branch?.id,user?.id,sessionId])
   const packagePreview=useQuotePackagePreview(packageScope,packageSelections,seed.groups,initialQuote?.integration_revision?{quoteId:initialQuote.id,expectedRevision:initialQuote.integration_revision}:undefined)
   const [saveError,setSaveError]=useState(''),[conflict,setConflict]=useState(false)
   const packageTotal=packagePreview.groups.reduce((sum,g)=>sum+BigInt((g.amount??'0.00').replace('.','')),0n)
@@ -124,10 +132,12 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
   const pricingSelectionContext=JSON.stringify([scopeKey,customerContactId,manualPriceTier,selectedPriceTier])
   const livePricingContext=useRef(pricingSelectionContext);livePricingContext.current=pricingSelectionContext
   const pricingReadyContext=useRef<string|null>(null)
-  const reviewContextValue=JSON.stringify([scopeKey,cartItems,packageSelections,customer,customerNit,isFinalConsumer,pickedCustomerId,effectivePriceTier,notes,paymentTerms,validUntil])
+  const termsCapability=useQuery({queryKey:['quote-payment-terms-capability',company?.id,sessionId],queryFn:({signal})=>fetchQuotePaymentTermsCapability(signal),enabled:!!company?.id&&canCreate})
+  const hasServiceItems=cartItems.some(l=>l.product.kind==='SERVICE')||packagePreview.groups.some(g=>g.components.some(c=>c.itemKind==='SERVICE'))
+  const reviewContextValue=JSON.stringify([scopeKey,cartItems,packageSelections,customer,customerNit,isFinalConsumer,pickedCustomerId,effectivePriceTier,notes,paymentTerms,validUntil,eventTerms])
   const reviewContext=useRef('');reviewContext.current=reviewContextValue
   const initialContext=useRef(reviewContextValue)
-  const guard=useDraftGuard(mode==='edit'?initialContext.current!==reviewContextValue:cartItems.length>0||packageSelections.length>0||!!notes||!!customer,registerTenantExitGuard,scopeKey)
+  const guard=useDraftGuard(mode==='edit'?initialContext.current!==reviewContextValue:cartItems.length>0||packageSelections.length>0||!!notes||!!customer||eventTerms.enabled,registerTenantExitGuard,scopeKey)
 
   const getAvailableQty = useCallback(
     (product: Product) => {
@@ -363,6 +373,10 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
 
   const handleSave = async (send = false) => {
     if(isSaving||conflict||packagePreview.pending||packagePreview.error||send&&packagePreview.incomplete)return
+    const termsErrors=eventPaymentDraftErrors(eventTerms)
+    if(eventTerms.enabled&&!hasServiceItems)termsErrors.depositPercent='Agrega al menos un servicio o desactiva estas condiciones.'
+    if(Object.keys(termsErrors).length){setEventTermsErrors(termsErrors);document.querySelector<HTMLElement>(`[data-event-payment-field="${Object.keys(termsErrors)[0]}"]`)?.focus();return}
+    if(eventTermsTouched&&eventTerms.enabled&&termsCapability.data?.enabled!==true){setSaveError('La función aún no está disponible. Conservamos tus cambios; revisa la actualización con el administrador.');return}
     if(cartItems.some(line=>line.unitSelection&&!line.unitSelection.sourceLineId)&&pricingReadyContext.current!==pricingSelectionContext){toast({title:'Tarifa pendiente',description:'Espera a que se confirme la tarifa del cliente antes de guardar.',variant:'destructive'});return}
     const reviewed=reviewContextValue
     if(reviewed!==reviewContext.current)return
@@ -420,6 +434,7 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
         sales_channel: salesChannel,
         ...(manualPriceTier ? { price_tier: selectedPriceTier } : {}),
         ...paymentTerms,
+        ...(eventTermsTouched?{eventPaymentTerms:eventPaymentPayload(eventTerms)}:{}),
         notes: notes.trim() || undefined,
         valid_until: validUntil ? new Date(validUntil).toISOString() : undefined,
         ...((packageSelections.length||seed.groups.length)?{packages:packageSelectionsPayload(packageSelections)}:{}),
@@ -465,6 +480,7 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
       </div>
       <div className="space-y-3 border-t border-border/70 pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
         <CommercialPaymentFields customerId={customerContactId} value={paymentTerms} onChange={setPaymentTerms} />
+        {(hasServiceItems||eventTerms.enabled)&&<EventPaymentTermsFields value={eventTerms} total={Math.max(0,cartTotal+Number(packageTotal)/100-Number(initialQuote?.discount_total??0)).toFixed(2)} currencyCode={currencyCode} available={termsCapability.data?.enabled===true} disabled={isSaving||conflict} errors={eventTermsErrors} onChange={value=>{setEventTerms(value);setEventTermsTouched(true);setEventTermsErrors({})}}/>}
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5"><Label htmlFor="valid">Válida hasta</Label><Input id="valid" type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} /></div>
           {branches.length > 1 && <div className="space-y-1.5"><Label htmlFor="quote-branch">Sucursal</Label><Select value={targetBranchId} disabled={mode==='edit'||packageSelections.length>0||cartItems.length>0} onValueChange={setTargetBranchId}><SelectTrigger id="quote-branch"><SelectValue /></SelectTrigger><SelectContent>{branches.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}</SelectContent></Select></div>}
@@ -473,21 +489,21 @@ export default function QuoteEditor({mode='create',initialQuote}:{mode?:'create'
       </div>
     </CardContent></Card>
     <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <Card className="auna-surface min-w-0"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Productos y servicios</CardTitle></CardHeader><CardContent className="space-y-3">
+      <Card className="auna-surface min-w-0"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><Package className="h-5 w-5 text-brand-orange" />Contenido de la cotización</CardTitle><p className="text-sm text-muted-foreground">Agrega productos y servicios individuales o usa un paquete comercial. Puedes combinar ambos.</p></CardHeader><CardContent className="space-y-4">
           <ProductPicker companyId={company?.id} branchId={targetBranchId} money={fmt} onPick={addProduct} />
-          {!cartItems.length ? <CollectionEmptyState compact title="Dale forma a esta propuesta" description="Busca un producto para agregarlo a la cotización." />
-            : <section className="auna-data-table-shell auna-table-embedded quote-lines-scroll" tabIndex={0} role="region" aria-label="Partidas de la cotización"><Table className="auna-data-table min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
+          {hasPermission('products.view')&&<div className="border-t border-border/70 pt-3"><QuotePackagesEditor scope={packageScope} value={packageSelections} onChange={setPackageSelections} preview={packagePreview} disabled={isSaving||conflict}/></div>}
+          {!cartItems.length&&!packageSelections.length ? <CollectionEmptyState compact title="Dale forma a esta propuesta" description="Busca un producto para agregarlo a la cotización." />
+            : cartItems.length ? <section className="auna-data-table-shell auna-table-embedded quote-lines-scroll" tabIndex={0} role="region" aria-label="Partidas de la cotización"><Table className="auna-data-table min-w-[700px]"><TableHeader><TableRow><TableHead>Producto</TableHead><TableHead>Cantidad</TableHead><TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Subtotal</TableHead><TableHead><span className="sr-only">Acciones</span></TableHead></TableRow></TableHeader><TableBody>{cartItems.map((line) => <TableRow key={line.id}>
               <TableCell><div className="flex items-center gap-3"><QuoteProductImage src={line.product.imageUrl} name={line.name} /><div><strong>{line.name}</strong><p className="text-xs text-muted-foreground">{line.product.barcode || 'Sin código'} · {line.product.kind==='SERVICE' ? `${line.product.serviceUnitLabel} · Sin control de existencias` : `Disponible: ${getAvailableQty(line.product)}`}</p>{line.product.kind==='SERVICE'&&<QuoteServiceConditions snapshot={initialQuote?.lines.find(l=>l.id===line.id)?.service_schedule_snapshot??serviceConditions.data?.conditions?.[line.product.id]}/>}</div></div></TableCell>
               <TableCell><Input type="text" inputMode={line.product.kind==='SERVICE' ? 'decimal' : 'numeric'} className="w-24" aria-label={`Cantidad de ${line.name}`} aria-invalid={lineTotals[line.id]===null} value={line.qty} onChange={event=>updateQty(line.id,event.target.value)} />{line.unitSelection&&<UnitLineFields product={line.product} selection={line.unitSelection} quantity={line.qty} disabled={isSaving} onSelect={id=>selectLineUnit(line.id,id)} onAcceptRounding={accepted=>setCartItems(rows=>rows.map(row=>row.id===line.id?{...row,unitSelection:{...row.unitSelection!,acceptRounding:accepted}}:row))}/>}</TableCell><TableCell className="text-right">{line.unitSelection?`${currencyCode} ${formatUnitDecimal(line.unitSelection.unitPrice,locale)} / ${line.unitSelection.snapshot.presentation?.label??line.unitSelection.snapshot.baseUnit.label}`:fmt(line.price)}</TableCell><TableCell className="text-right font-medium">{lineTotals[line.id] ? fmt(Number(lineTotals[line.id])) : '—'}</TableCell><TableCell><Button variant="ghost" size="icon" aria-label={`Quitar ${line.name}`} onClick={() => updateQty(line.id,'0')}><Trash2 className="h-4 w-4" /></Button></TableCell>
-            </TableRow>)}</TableBody></Table></section>}
+            </TableRow>)}</TableBody></Table></section> : null}
         </CardContent></Card>
       <aside className="space-y-4 xl:sticky xl:top-4">
-        <QuoteSummary subtotal={cartTotal+Number(packageTotal)/100} discount={initialQuote?.discount_total} total={cartTotal+Number(packageTotal)/100-Number(initialQuote?.discount_total??0)} money={fmt} />
+        <QuoteSummary subtotal={cartTotal+Number(packageTotal)/100} discount={initialQuote?.discount_total} total={cartTotal+Number(packageTotal)/100-Number(initialQuote?.discount_total??0)} money={fmt} pending={packagePreview.incomplete} />
         {packagePreview.incomplete&&<p role="status" className="text-sm text-destructive">Total pendiente de completar. El resumen solo incluye artículos y paquetes completos; no puedes enviar esta propuesta aún.</p>}
         <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="flex items-center gap-2 text-lg"><FileText className="h-5 w-5 text-brand-orange" />Notas</CardTitle></CardHeader><CardContent><Label htmlFor="notes" className="sr-only">Notas adicionales</Label><Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Condiciones, entrega o información para el cliente…" /></CardContent></Card>
         <div className="space-y-3"><Button variant="outline" className="h-12 w-full" disabled={isSaving || (!cartItems.length&&!packageSelections.length) || hasInvalidQuantities||packagePreview.pending||!!packagePreview.error||conflict} onClick={() => handleSave()}>{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Guardar borrador</Button>{canManage && <Button className="h-12 w-full bg-brand-orange text-white hover:bg-brand-orange/90" disabled={isSaving || (!cartItems.length&&!packageSelections.length) || hasInvalidQuantities||packagePreview.pending||!!packagePreview.error||packagePreview.incomplete||conflict} title={packagePreview.incomplete?'Completa las cantidades de los paquetes antes de enviar':undefined} onClick={() => void handleSave(true)}><FileText className="mr-2 h-4 w-4" />Generar cotización</Button>}<Button variant="ghost" className="w-full" disabled={isSaving} onClick={() => guard.request(()=>navigate("/cotizaciones"))}>Cancelar</Button></div>
       </aside>
     </div>
-    {hasPermission('products.view')&&<Card className="auna-surface"><CardContent className="pt-4"><QuotePackagesEditor scope={packageScope} value={packageSelections} onChange={setPackageSelections} preview={packagePreview} disabled={isSaving||conflict}/></CardContent></Card>}
   </div>;
 }

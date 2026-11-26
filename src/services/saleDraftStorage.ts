@@ -33,6 +33,8 @@ export interface NewSaleDraft {
   adminAuthorizedProductIds: string[]
   promotionCodes: string[]
   productPageSize: number
+  /** Selecciones de paquetes; precio y componentes los vuelve a calcular el servidor. */
+  packages?: import('@/modules/inventory/packages/types').PackageSelection[]
 }
 
 type DraftScope={companyId:string;branchId:string}

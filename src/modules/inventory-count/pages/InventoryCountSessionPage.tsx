@@ -129,7 +129,7 @@ export default function InventoryCountSessionPage() {
   const canSubmit = hasPermission("inventory_count.submit");
   const canApprove = hasPermission("inventory_count.approve");
   const canCancel = hasPermission("inventory_count.cancel");
-  const canExport = hasPermission("inventory_count.export", "reports.view");
+  const canExport = hasPermission("inventory_count.export", "reports.view") && hasPermission('reports.financial');
   const canStart = hasPermission("inventory_count.create");
 
   const sessionQuery = useQuery({
@@ -334,7 +334,7 @@ export default function InventoryCountSessionPage() {
         <div className="min-w-0"><div className="flex flex-wrap gap-3 items-center"><strong className="text-lg">Conteo {session.id.slice(0, 8).toUpperCase()}</strong><CountStatusBadge status={session.status} /></div><dl className="grid gap-3 mt-3 sm:grid-cols-3 text-sm"><div><dt className="text-muted-foreground">Almacén</dt><dd className="font-medium mt-1">{session.warehouse?.name || "Todos los almacenes"}</dd></div><div><dt className="text-muted-foreground">Iniciada por</dt><dd className="font-medium mt-1">{session.createdBy.name}</dd></div><div><dt className="text-muted-foreground">Fecha de inicio</dt><dd className="font-medium mt-1">{session.started_at ? new Date(session.started_at).toLocaleString(locale) : "Pendiente"}</dd></div></dl></div>
         <div className="lg:border-l lg:pl-4"><div className="flex justify-between gap-4 mb-3"><span className="text-sm text-muted-foreground">Progreso del conteo</span><strong>{session.progress?.pct ?? 0}%</strong></div><div role="progressbar" aria-label="Progreso total del conteo" aria-valuemin={0} aria-valuemax={100} aria-valuenow={session.progress?.pct ?? 0} className="h-2 rounded-full bg-muted overflow-hidden"><div className="h-full bg-primary" style={{ width: `${session.progress?.pct ?? 0}%` }} /></div><p className="text-xs text-muted-foreground mt-3">{session.progress?.countedLines ?? 0} de {session.progress?.totalLines ?? 0} líneas completas{doubleCount ? " · Dos lecturas por línea" : ""}</p></div>
       </CardContent></Card>
-      {session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
+      {hasPermission('products.view_costs') && session.totals && (inReview || pendingSecond || session.status === "APPROVED") && <div className="rounded-xl border bg-card p-4 flex flex-wrap justify-between gap-3 text-sm"><span className="text-muted-foreground">Valor aproximado de las diferencias (a costo)</span><strong>{fmt(session.totals.valueDeltaApprox)}</strong></div>}
       {Boolean(session.totals?.mismatchLines) && <p role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-800 dark:text-amber-300">Hay {session.totals?.mismatchLines} líneas con lecturas distintas. Corrígelas antes de enviar a revisión.</p>}
       {isDraft && sessionActions}
       <details className="rounded-2xl border bg-card"><summary className="cursor-pointer p-4 text-sm font-medium">Configuración y historial del conteo</summary><Card className="auna-surface border-0 shadow-none">
@@ -397,11 +397,10 @@ export default function InventoryCountSessionPage() {
 
       {!isDraft && (
         <>
-        {!locked&&<ScannerField scopeKey={scanKey} label="Localizar para contar" onScan={async(code,signal)=>{const matches=await findCountScan(sessionId,code,signal);if(signal.aborted||liveScanKey.current!==scanKey)return;if(matches.length===1)await revealLine(matches[0].lineId,signal);else setScanChoices({key:scanKey,items:matches})}}/>}
         {scanChoices.length>0&&<section aria-label="Elegir ubicación del producto" className="space-y-2"><p className="text-sm">El producto aparece en varias líneas. Elige dónde estás contando.</p><div className="flex flex-wrap gap-2">{scanChoices.map(choice=><Button key={choice.lineId} variant="outline" disabled={locked} onClick={()=>void revealLine(choice.lineId).catch(e=>toast({title:'No se pudo localizar la línea',description:e.message,variant:'destructive'}))}>{choice.name} · {choice.location}</Button>)}</div></section>}
         {revealed.key===scanKey&&revealed.rows.length>0&&<p role="status" className="text-sm text-muted-foreground">Las coincidencias escaneadas se mantienen visibles aunque estén fuera de tus filtros o página. Escanear no suma ni guarda: ingresa la cantidad y usa Guardar o Enter.</p>}
         <section className="compact-filter-toolbar" aria-label="Filtros del conteo"><div className="flex flex-wrap items-center gap-3">
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="flex min-w-[min(100%,28rem)] flex-1 flex-col gap-2 sm:flex-row sm:items-center">
                 <Input
                   aria-label="Escanear o buscar producto"
                   placeholder="Escanea o busca por producto / código…"
@@ -434,6 +433,7 @@ export default function InventoryCountSessionPage() {
                   </label>
                 )}
               </div>
+          {!locked&&<ScannerField scopeKey={scanKey} label="Localizar para contar" onScan={async(code,signal)=>{const matches=await findCountScan(sessionId,code,signal);if(signal.aborted||liveScanKey.current!==scanKey)return;if(matches.length===1)await revealLine(matches[0].lineId,signal);else setScanChoices({key:scanKey,items:matches})}}/>}
           {sessionActions}
         </div></section><Card className="auna-surface">
           <CardHeader className="pb-2">
@@ -642,7 +642,7 @@ export default function InventoryCountSessionPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <ExportDialog open={exportOpen} onOpenChange={value => { if (!exportPending) setExportOpen(value) }} title="Exportar conteo" summary="Descarga todas las líneas de esta sesión, con cantidades, ubicaciones y diferencias. Los filtros de la tabla no limitan este informe." formats={["pdf", "csv"]} pending={exportPending} onExport={async ({ format }) => { if (format !== "pdf" && format !== "csv") return; setExportPending(true); try { await downloadInventorySessionReport(sessionId, format); setExportOpen(false) } catch (error) { toast({ title: "No se pudo exportar", description: error instanceof Error ? error.message : "Reintenta la descarga.", variant: "destructive" }) } finally { setExportPending(false) } }} />
+      <ExportDialog open={exportOpen && canExport} onOpenChange={value => { if (!exportPending) setExportOpen(value) }} title="Exportar conteo" summary="Descarga todas las líneas de esta sesión, con cantidades, ubicaciones y diferencias valorizadas. Requiere acceso a reportes financieros." formats={["pdf", "csv"]} pending={exportPending} onExport={async ({ format }) => { if (!canExport || format !== "pdf" && format !== "csv") return; setExportPending(true); try { await downloadInventorySessionReport(sessionId, format); setExportOpen(false) } catch (error) { toast({ title: "No se pudo exportar", description: error instanceof Error ? error.message : "Reintenta la descarga.", variant: "destructive" }) } finally { setExportPending(false) } }} />
     </div></div>
   );
 }
@@ -686,7 +686,8 @@ export function LineRow({
   const baseDecimals=row.unit_snapshot?.baseUnit.decimals??0;
   const baseLabel=row.unit_snapshot?.baseUnit.label??'unidades';
   const diff = row.difference;
-  const vd = row.valueDifference;
+  const {hasPermission}=useAuthPermissions();
+  const vd = hasPermission('products.view_costs') ? row.valueDifference : null;
   const mismatch = row.countMismatch;
 
   const commit = async (secondary = false) => {

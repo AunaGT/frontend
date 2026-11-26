@@ -46,9 +46,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, CreditCard, Printer, Receipt, Search, ChevronDown, PauseCircle, RotateCcw, Landmark, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2 } from 'lucide-react'
+import { ArrowLeft, CreditCard, Printer, Receipt, Search, ChevronDown, PauseCircle, RotateCcw, Gift, Landmark, ArrowLeftRight, ImageIcon, Package, UserRound, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { LoadingState, LoadingIndicator } from '@/components/shared/LoadingState'
 import { useToast } from '@/hooks/use-toast'
+import { ToastAction } from '@/components/ui/toast'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchWarehouses } from '@/services/warehouseService'
 import { fetchStockByLocation } from '@/services/stockMoveService'
@@ -57,12 +58,16 @@ import {SALES_QUERY_KEY} from '@/hooks/useSales'
 import {usePosAvailability} from './hooks/usePosAvailability'
 import {usePosCatalog,preparePosPrices} from './hooks/usePosCatalog'
 import { usePaymentMethods, PaymentMethod as PaymentMethodType } from '@/hooks/usePaymentMethods'
-import { isCashMethod } from '@/services/paymentMethodsService'
+import { allowedOnRegister, isCashMethod } from '@/services/paymentMethodsService'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { checkCustomerCredit } from '@/modules/receivables'
 import { formatMoney } from '@/utils'
 import {useCheckoutFlow} from './checkout/useCheckoutFlow'
+import {CommercialPackagesEditor} from '@/modules/inventory/packages/CommercialPackagesEditor'
+import {packageSelectionsPayload,useCommercialPackagePreview} from '@/modules/inventory/packages/selection'
+import type {PackageSelection} from '@/modules/inventory/packages/types'
+import {authSessionIdentity} from '@/services/authSession'
 import {CheckoutRecoveryNotice} from './checkout/CheckoutRecoveryNotice'
 import {downloadSavedSaleTicket} from './documents/saleTicketRecovery'
 import {usePrintDestination,PrintDestination} from '@/modules/config/hardware/public'
@@ -100,6 +105,7 @@ import {
 import { OpenCashRegisterPrompt } from './OpenCashRegisterPrompt'
 import { CashRegisterPicker } from './CashRegisterPicker'
 import { closeCashSession, fetchCashSessionCurrent } from '@/services/cashSessionsService'
+import { joinCashTurn } from '@/services/cashMyTurnService'
 import { CASH_SESSION_CURRENT_QUERY_KEY } from '@/modules/cash-closure'
 import type { CashRegisterSessionDto, CashSessionCurrentResult } from '@/services/cashSessionsService'
 import type { CartProduct } from './types'
@@ -255,7 +261,7 @@ export default function NewSalePage() {
   const [selectedLineKey, setSelectedLineKey] = useState<string | null>(null)
   const [unitChange, setUnitChange] = useState<{from: string; to: string; scope: string} | null>(null)
   const [quantityDraft, setQuantityDraft] = useState<{owner: string; value: string; replace: boolean} | null>(null)
-  const [actionPanel, setActionPanel] = useState<'customer' | 'promotions' | 'options' | 'unit' | 'print' | 'turn' | null>(null)
+  const [actionPanel, setActionPanel] = useState<'customer' | 'promotions' | 'packages' | 'options' | 'unit' | 'print' | 'turn' | null>(null)
   const [pendingPresentation,setPendingPresentation]=useState<{product:Product;scope:string;generation:number}|null>(null)
   const handledPresentation=useRef<object|null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -266,9 +272,16 @@ export default function NewSalePage() {
   const [storedDraftRevision, setStoredDraftRevision] = useState(0)
   const restoredDraftId=useRef<string|undefined>()
   const [loadedOrder, setLoadedOrder] = useState<Order | null>(null)
+  // Packages travel as selections only; the server derives components, stock and the agreed price.
+  const [packages,setPackages]=useState<PackageSelection[]>([])
+  const packageScope=useMemo(()=>checkoutScope.companyId&&checkoutScope.branchId&&checkoutScope.userId?{...checkoutScope,sessionId:authSessionIdentity(),purpose:'sale' as const}:null,[checkoutScope])
+  const packagePreview=useCommercialPackagePreview(packageScope,packages)
+  const packagesReady=!packages.length||!packagePreview.pending&&!packagePreview.error&&!packagePreview.incomplete&&packagePreview.groups.length===packages.length
+  const packagesTotal=packagesReady?packagePreview.groups.reduce((sum,g)=>sum+Math.round(Number(g.amount??0)*100),0)/100:0
+  const [cashRegisterMeta, setCashRegisterMeta] = useState<{ id: string; name: string; kind?: 'PHYSICAL' | 'VIRTUAL' } | null>(null)
   const visiblePaymentMethods = useMemo(
-    () => paymentMethods.filter((method) => salesAllowCredit || !method.is_credit),
-    [paymentMethods, salesAllowCredit]
+    () => paymentMethods.filter((method) => (salesAllowCredit || !method.is_credit) && allowedOnRegister(method, cashRegisterMeta?.kind)),
+    [paymentMethods, salesAllowCredit, cashRegisterMeta?.kind]
   )
   /** Producto que el mostrador ya no tiene, pero sí hay en otra ubicación. */
   type ElsewhereState = { generation:number;product: Product;selection?:{presentationId?:string|null;priceContext?:string}; atPos: number|string; rows: { label: string; stock: number|string }[] }
@@ -327,9 +340,9 @@ export default function NewSalePage() {
   },[availableProducts,loadedOrder])
   const getAvailableQtyExact=useCallback((p:Product)=>String(availabilityRef.current[p.id]?.available??exactProductValues(p).stock),[])
   const cart = useCart({ availableProducts:cartProducts, getUnitPrice, getAvailableQty,getAvailableQtyExact,priceContext:unitPriceTier,isCurrent:()=>unitOwner.active&&currentScope.current===unitOwner.key })
-  const draftGuard=useDraftGuard(cart.cartItems.length>0,registerTenantExitGuard,scopeKey)
+  const draftGuard=useDraftGuard(cart.cartItems.length>0||packages.length>0,registerTenantExitGuard,scopeKey)
   const oldCartScope=useRef(scopeKey)
-  useEffect(()=>{if(oldCartScope.current!==scopeKey){oldCartScope.current=scopeKey;unitPrepareOwner.current=null;setUnitPreparing(false);cart.clearCart();setScannedProducts([]);setLoadedOrder(null);setUnitPricesById({});availabilityRef.current={};setPaymentMethod(null);setAmountReceived('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('');setCreditOverride(false);setSaleStep('products');setMobileView('catalog');setQuantityDraft(null);setSelectedLineKey(null);setActionPanel(null);setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setIsFinalConsumer(true)}},[scopeKey])
+  useEffect(()=>{if(oldCartScope.current!==scopeKey){oldCartScope.current=scopeKey;unitPrepareOwner.current=null;setUnitPreparing(false);cart.clearCart();setPackages([]);setScannedProducts([]);setLoadedOrder(null);setUnitPricesById({});availabilityRef.current={};setPaymentMethod(null);setAmountReceived('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('');setCreditOverride(false);setSaleStep('products');setMobileView('catalog');setQuantityDraft(null);setSelectedLineKey(null);setActionPanel(null);setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setIsFinalConsumer(true)}},[scopeKey])
   const hydrateOrderCartRef=useRef(cart.hydrateFromLines)
   hydrateOrderCartRef.current=cart.hydrateFromLines
   useEffect(()=>{
@@ -510,9 +523,9 @@ export default function NewSalePage() {
     const original=loadedOrder.lines.find(line=>line.product_id===item.id)
     try {return [item.id,original ? previewPartialLineTotal(String(original.qty),String(original.line_total),item.qty,String(original.qty_fulfilled || 0)) : null]} catch {return [item.id,null]}
   })) : cart.lineTotals
-  const displayTotal = loadedOrder ? Number(Object.values(displayLineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n))/100 : !promotionsEnabled
+  const displayTotal = loadedOrder ? Number(Object.values(displayLineTotals).reduce((sum,total)=>sum+(total ? BigInt(total.replace('.','')) : 0n),0n))/100 : Math.round(((!promotionsEnabled
     ? cart.cartTotal
-    : (promotions.finalTotal ?? cart.cartTotal)
+    : (promotions.finalTotal ?? cart.cartTotal))+packagesTotal)*100)/100
   const changeAmount =
     isCashMethod(currentPaymentMethod,name=>name.toLowerCase()==='efectivo') && amountReceived
       ? Math.max(0, parseFloat(amountReceived) - displayTotal)
@@ -588,17 +601,18 @@ export default function NewSalePage() {
               }
 
   // Caja elegida en el selector previo; null = aún no se ha elegido (se muestra el picker)
-  const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(null)
+  const [selectedRegisterId, setSelectedRegisterId] = useState<string | null>(() => searchParams.get('caja'))
   const [cashCheckDone, setCashCheckDone] = useState(false)
   const [cashCheckError, setCashCheckError] = useState<string | null>(null)
   const [cashSessionOpen, setCashSessionOpen] = useState(false)
-  const [cashRegisterMeta, setCashRegisterMeta] = useState<{ id: string; name: string } | null>(null)
   const [activeCashSession, setActiveCashSession] = useState<CashRegisterSessionDto | null>(null)
   // La caja resuelta ya tiene un turno abierto, pero de otra persona: no es "mi" turno
   // aunque el backend haya encontrado uno abierto — hay que bloquear, no dejar vender.
   const [openedByOther, setOpenedByOther] = useState<{ id: string; name: string | null } | null>(null)
   const [showCloseCashDialog, setShowCloseCashDialog] = useState(false)
   const [isClosingCashSession, setIsClosingCashSession] = useState(false)
+  const [isJoiningCashTurn, setIsJoiningCashTurn] = useState(false)
+  const cashCheckRequest = useRef(0)
 
   const isAdminUser = String(user?.role?.name ?? '').toLowerCase() === 'admin'
 
@@ -615,10 +629,10 @@ export default function NewSalePage() {
     (r: Extract<CashSessionCurrentResult, { ok: true }>) => {
       const session = r.session ?? null
       const belongsToOther = Boolean(
-        session && !isAdminUser && String(session.opened_by_id) !== String(user?.id)
+        session && (session.operation_mode === 'SHARED' ? session.can_operate !== true : !isAdminUser && String(session.opened_by_id) !== String(user?.id))
       )
       setCashRegisterMeta(
-        r.register?.id ? { id: r.register.id, name: r.register.name } : null
+        r.register?.id ? { id: r.register.id, name: r.register.name, kind: r.register.kind } : null
       )
       setCashSessionOpen(Boolean(session) && !belongsToOther)
       setActiveCashSession(session)
@@ -632,9 +646,11 @@ export default function NewSalePage() {
   )
 
   const runCashCheck = useCallback(async (registerId: string) => {
+    const request = ++cashCheckRequest.current, identity = scopeKey
     setCashCheckError(null)
     setCashCheckDone(false)
-    const r = await fetchCashSessionCurrent(registerId)
+    const r = await fetchCashSessionCurrent(registerId, undefined, { companyId: company?.id || '', branchId: branch?.id || '', actorId: user?.id || '' })
+    if (request !== cashCheckRequest.current || currentScope.current !== identity) return
     setCashCheckDone(true)
     if (r.ok === false) {
       setCashCheckError(r.message)
@@ -645,14 +661,16 @@ export default function NewSalePage() {
       return
     }
     applyCashCheckResult(r)
-  }, [applyCashCheckResult])
+  }, [applyCashCheckResult, scopeKey, company?.id, branch?.id, user?.id])
 
   useEffect(() => {
     if (selectedRegisterId) void runCashCheck(selectedRegisterId)
   }, [selectedRegisterId, runCashCheck])
 
   const handleCashSessionOpened = useCallback(async () => {
-    const r = await fetchCashSessionCurrent(selectedRegisterId ?? undefined)
+    const request = ++cashCheckRequest.current, identity = scopeKey
+    const r = await fetchCashSessionCurrent(selectedRegisterId ?? undefined, undefined, { companyId: company?.id || '', branchId: branch?.id || '', actorId: user?.id || '' })
+    if (request !== cashCheckRequest.current || currentScope.current !== identity) return
     setCashCheckDone(true)
     setCashCheckError(null)
     if (r.ok === false) {
@@ -671,7 +689,7 @@ export default function NewSalePage() {
         variant: 'destructive',
       })
     }
-  }, [applyCashCheckResult, toast])
+  }, [applyCashCheckResult, toast, selectedRegisterId, scopeKey, company?.id, branch?.id, user?.id])
 
   const canUserCloseCashTurn = useMemo(() => {
     if (!activeCashSession || !user) return false
@@ -683,18 +701,24 @@ export default function NewSalePage() {
 
   const confirmCloseCashSession = useCallback(async () => {
     setIsClosingCashSession(true)
+    const closedSessionId = activeCashSession?.id
     try {
       await closeCashSession(
-        cashRegisterMeta?.id ? { cash_register_id: cashRegisterMeta.id } : {}
+        cashRegisterMeta?.id ? { cash_register_id: cashRegisterMeta.id, cash_register_session_id: activeCashSession?.id } : {}
       )
       await queryClient.invalidateQueries({ queryKey: CASH_SESSION_CURRENT_QUERY_KEY })
       setShowCloseCashDialog(false)
       setCashSessionOpen(false)
       setActiveCashSession(null)
+      // 3B.2/3C: el aviso ofrece contar el turno (arqueo precargado) o, si no declara, entregar el efectivo; quien solo vende no se desvía.
+      const canCount = closedSessionId && hasPermission('cashclosure.create', 'cashclosure.create_own')
+      const canHandover = closedSessionId && hasPermission('cash.transfers.operate_own', 'cash.transfers.operate_team')
       toast({
         title: 'Turno cerrado',
         description:
           'Ya puede abrir otro turno si lo necesita. El arqueo y cierre contable siguen en «Cierre de caja».',
+        ...(canCount ? { action: <ToastAction altText="Contar el efectivo del turno" onClick={() => navigate(`/cierre-caja/nuevo?turno=${encodeURIComponent(closedSessionId)}`)}>Contar efectivo</ToastAction> }
+          : canHandover ? { action: <ToastAction altText="Entregar el efectivo del turno" onClick={() => navigate(`/cierre-caja/turnos/${encodeURIComponent(closedSessionId)}/entregar`)}>Entregar efectivo</ToastAction> } : {}),
       })
     } catch (e) {
       toast({
@@ -705,7 +729,7 @@ export default function NewSalePage() {
     } finally {
       setIsClosingCashSession(false)
     }
-  }, [cashRegisterMeta?.id, toast, queryClient])
+  }, [cashRegisterMeta?.id, activeCashSession?.id, hasPermission, navigate, toast, queryClient])
   const [hasStoredDraft, setHasStoredDraft] = useState(false)
   useEffect(() => {
     setHasStoredDraft(userId ? hasNewSaleDraft(userId,checkoutScope) : false)
@@ -731,6 +755,7 @@ export default function NewSalePage() {
         setSalesChannel('POS')
       }
       setAmountReceived(draft.amountReceived ?? '')
+      setPackages(Array.isArray(draft.packages)?structuredClone(draft.packages):[])
       setCreditDueDate(draft.creditDueDate ?? '')
       setInitialCreditPayment(draft.initialCreditPayment ?? '')
       setInitialCreditMethod(draft.initialCreditMethod ?? '')
@@ -908,7 +933,7 @@ export default function NewSalePage() {
       })
       return
     }
-    const hasCart = cart.cartItems.length > 0
+    const hasCart = cart.cartItems.length > 0 || packages.length > 0
     const hasCustomer = !isFinalConsumer && customer.trim().length > 0
     if (!hasCart && !hasCustomer) {
       toast({
@@ -933,9 +958,11 @@ export default function NewSalePage() {
       adminAuthorizedProductIds: [...cart.adminAuthorizedProducts],
       promotionCodes: promotions.promotionCodes,
       productPageSize,
+      ...(packages.length?{packages}:{}),
     },checkoutScope)
     restoredDraftId.current=undefined
     cart.clearCart()
+    setPackages([])
     promotions.clearPromotions()
     setCustomer('Consumidor final')
     setCustomerNit('')
@@ -992,7 +1019,7 @@ export default function NewSalePage() {
       if(order.lines.some(line=>resolved.missingIds.includes(line.product_id)&&line.item_kind!=='SERVICE'&&!isUnitDocumentLine(line)))throw Error('No se pudieron cargar todos los productos pendientes del pedido. Revisa su disponibilidad en esta sucursal.')
       orderLineIdByProductRef.current = map
       setUnitPricesById(prices)
-      setLoadedOrder(order)
+      setLoadedOrder(order);setPackages([])
       setPaymentMethod(null)
       setAmountReceived('')
       setSaleStep('products')
@@ -1052,7 +1079,7 @@ export default function NewSalePage() {
     setQuantityDraft(null)
     setSelectedLineKey(null)
     orderLineIdByProductRef.current = new Map()
-    cart.clearCart()
+    cart.clearCart();setPackages([])
     pedidoLoadedRef.current = null
     setSearchParams((prev) => {
       prev.delete('pedido')
@@ -1081,7 +1108,7 @@ export default function NewSalePage() {
     if(attempt.draftId&&consumeNewSaleDraft(userId,checkoutScope,attempt.draftId))setStoredDraftRevision(r=>r+1)
     if(ownsCart){
       restoredDraftId.current=undefined
-      cart.clearCart();promotions.clearPromotions()
+      cart.clearCart();promotions.clearPromotions();setPackages([])
       setPaymentMethod(null);setSaleStep('products');setMobileView('catalog');setQuantityDraft(null);setSelectedLineKey(null);setActionPanel(null)
       if(loadedOrder)clearLoadedOrder()
       setCustomer('Consumidor final');setCustomerNit('');setPickedCustomerId('__none__');setSalesChannel('POS');setIsFinalConsumer(true);setAmountReceived('');setProductSearch('');setInitialCreditPayment('');setInitialCreditMethod('');setCreditDueDate('')
@@ -1091,7 +1118,7 @@ export default function NewSalePage() {
     void ticketFor(attempt.saleId!)
   },JSON.stringify(user?.permissions??[]),restoredDraftId.current)
   useEffect(()=>setIsProcessing(unitPreparing||checkout.pending||!!checkout.attempt||checkout.blocked),[unitPreparing,checkout.pending,checkout.attempt,checkout.blocked])
-  const reviewContextValue=JSON.stringify([scopeKey,cart.cartItems.map(item=>[item.id,item.qty,item.unitSelection]),unitPriceTier,customer,customerNit,isFinalConsumer,pickedCustomerId,salesChannel,paymentMethod?.id,amountReceived,initialCreditPayment,initialCreditMethod,creditDueDate,creditOverride,promotions.promotionCodes])
+  const reviewContextValue=JSON.stringify([scopeKey,cart.cartItems.map(item=>[item.id,item.qty,item.unitSelection]),unitPriceTier,customer,customerNit,isFinalConsumer,pickedCustomerId,salesChannel,paymentMethod?.id,amountReceived,initialCreditPayment,initialCreditMethod,creditDueDate,creditOverride,promotions.promotionCodes,packages])
   const reviewContext=useRef('');reviewContext.current=reviewContextValue
   const visibleCheckout=lastCheckout?.scopeKey===scopeKey?lastCheckout:null
   const checkoutNotice=<CheckoutRecoveryNotice attempt={checkout.attempt} pending={checkout.pending} hasProcessingButton={saleStep==='payment'&&Boolean(selectedRegisterId)&&cashSessionOpen&&cashCheckDone&&!cashCheckError&&!isHydrating} error={checkout.error} lastSaleId={visibleCheckout?.saleId??checkout.attempt?.saleId} ticketFailed={visibleCheckout?.ticketFailed} ticketPending={visibleCheckout?.ticketPending} onCheck={()=>void checkout.reconcile()} canRetry={checkout.canRetry} onRetry={()=>void checkout.retry()} productNames={Object.fromEntries(availableProducts.map(product=>[product.id,product.name]))} onTicket={()=>void ticketFor(visibleCheckout?.saleId??checkout.attempt!.saleId!)} onDetail={()=>navigate(`/ventas/${visibleCheckout?.saleId??checkout.attempt?.saleId}/factura`)}/>
@@ -1128,8 +1155,8 @@ export default function NewSalePage() {
   const presentationChoice=pendingPresentation?.scope===scopeKey&&pendingPresentation.generation===cartGeneration()&&saleStep==='products'&&!checkoutLocked&&!loadedOrder&&checkout.isCurrent()?pendingPresentation:null
   cartAcceptsAdditions.current=saleStep==='products'&&!checkoutLocked
   const availabilityPending = Boolean(cart.availabilityDialog?.open || cart.adminAuthDialog?.open || elsewhere)
-  const paymentReviewBlocked = !cart.cartItems.length || cart.hasInvalidQuantities || hasPendingAdditions() || quantityPending || availabilityPending || Boolean(presentationChoice) ||
-    promotions.isValidating || (pricingReadyRef.current !== pricingContext && !loadedOrder) || checkoutLocked
+  const paymentReviewBlocked = (!cart.cartItems.length&&!packages.length) || !packagesReady || cart.hasInvalidQuantities || hasPendingAdditions() || quantityPending || availabilityPending || Boolean(presentationChoice) ||
+    promotions.isValidating || (cart.cartItems.length>0 && pricingReadyRef.current !== pricingContext && !loadedOrder) || checkoutLocked
   const goToPayment = () => {
     if (paymentReviewBlocked || hasPendingAdditions() || !canCreate || !cashSessionOpen || !unitOwner.active || currentScope.current !== scopeKey) return
     cartAcceptsAdditions.current=false
@@ -1172,7 +1199,8 @@ export default function NewSalePage() {
     if(unitPrepareOwner.current||isProcessing||checkout.attempt)return
     if(reviewContext.current!==reviewContextValue)return
     if (cart.hasInvalidQuantities) {toast({title:'Revisa las cantidades',description:'Cada partida debe tener una cantidad válida para su unidad de cobro.',variant:'destructive'});return}
-    if (pricingReadyRef.current!==pricingContext && !loadedOrder) {toast({title:'Precios pendientes',description:'Espera a que se actualicen los precios antes de cobrar.',variant:'destructive'});return}
+    if (!packagesReady) {toast({title:'Revisa los paquetes',description:'Completa la selección y espera el precio acordado antes de cobrar.',variant:'destructive'});return}
+    if (cart.cartItems.length>0 && pricingReadyRef.current!==pricingContext && !loadedOrder) {toast({title:'Precios pendientes',description:'Espera a que se actualicen los precios antes de cobrar.',variant:'destructive'});return}
     if (!canCreate) {
       toast({ title: 'Sin permiso para crear ventas', variant: 'destructive' })
       return
@@ -1189,8 +1217,8 @@ export default function NewSalePage() {
       toast({ title: 'Selecciona un método de pago', variant: 'destructive' })
       return
     }
-    if (cart.cartItems.length === 0) {
-      toast({ title: 'Agrega al menos un producto', variant: 'destructive' })
+    if (cart.cartItems.length === 0 && !packages.length) {
+      toast({ title: 'Agrega al menos un producto o paquete', variant: 'destructive' })
       return
     }
     if (isCreditSale) {
@@ -1254,6 +1282,7 @@ export default function NewSalePage() {
         qty: item.qty,
         ...selectedUnitPayload(item.unitSelection),
       })),
+      ...(packages.length?{packages:packageSelectionsPayload(packages)}:{}),
       amount_received: isCash && amountReceived ? Number(amountReceived) : undefined,
       change: isCash ? changeAmount : undefined,
       admin_authorized_products: Array.from(cart.adminAuthorizedProducts),
@@ -1353,15 +1382,22 @@ export default function NewSalePage() {
           </Button>
           <h1 className="text-xl font-bold">Punto de venta</h1>
         </div>
-        <Alert variant="destructive">
-          <AlertTitle>Caja en uso</AlertTitle>
+        <Alert variant={activeCashSession?.can_join ? 'default' : 'destructive'}>
+          <AlertTitle>{activeCashSession?.can_join ? 'Este turno es compartido' : 'Caja en uso'}</AlertTitle>
           <AlertDescription className="mt-2">
             {cashRegisterMeta?.name ? `La caja "${cashRegisterMeta.name}"` : 'Esta caja'} ya tiene un
-            turno abierto por {openedByOther.name ?? 'otro usuario'}. Debe cerrar ese turno o utilizar
-            una caja asignada.
+            turno abierto por {openedByOther.name ?? 'otro usuario'}. {activeCashSession?.can_join ? 'Puedes unirte con tu usuario. Cada operación quedará registrada a tu nombre.' : 'No tienes autorización para operar este turno. Elige otra caja o consulta a un encargado.'}
           </AlertDescription>
         </Alert>
         <div className="flex flex-wrap gap-2">
+          {activeCashSession?.can_join && <Button disabled={isJoiningCashTurn} onClick={async () => {
+            if (isJoiningCashTurn || !activeCashSession) return
+            const identity = scopeKey
+            setIsJoiningCashTurn(true)
+            try { await joinCashTurn(activeCashSession.id, { companyId: company?.id || '', branchId: branch?.id || '', actorId: user?.id || '' }); if (currentScope.current === identity) await runCashCheck(selectedRegisterId as string) }
+            catch (error) { if (currentScope.current === identity) toast({ title: 'No se pudo unir al turno', description: (error as Error).message, variant: 'destructive' }) }
+            finally { if (currentScope.current === identity) setIsJoiningCashTurn(false) }
+          }}>{isJoiningCashTurn ? 'Uniéndome…' : `Unirme al turno de ${openedByOther.name ?? 'la caja'}`}</Button>}
           <Button type="button" onClick={() => void runCashCheck(selectedRegisterId as string)}>
             Reintentar
           </Button>
@@ -1378,6 +1414,7 @@ export default function NewSalePage() {
         <OpenCashRegisterPrompt
           registerName={cashRegisterMeta?.name}
           registerId={cashRegisterMeta?.id}
+          registerKind={cashRegisterMeta?.kind}
           onOpened={handleCashSessionOpened}
           onBack={() => setSelectedRegisterId(null)}
         />
@@ -1398,17 +1435,24 @@ export default function NewSalePage() {
       {hasStoredDraft && <div className="pos-order-notice"><span><RotateCcw className="h-4 w-4" aria-hidden="true" /> Tenés una venta guardada para continuar.</span><Button type="button" size="sm" variant="outline" onClick={handleRecoverSavedSale} disabled={checkoutLocked}>Recuperar venta guardada</Button></div>}
       {saleStep === 'products' && <nav className="pos-mobile-switch" aria-label="Secciones de la venta">
         <Button type="button" variant={mobileView === 'catalog' ? 'default' : 'outline'} aria-pressed={mobileView === 'catalog'} onClick={() => setMobileView('catalog')}>Productos</Button>
-        <Button type="button" variant={mobileView === 'sale' ? 'default' : 'outline'} aria-pressed={mobileView === 'sale'} onClick={() => setMobileView('sale')}>Venta ({cart.cartItems.length})</Button>
+        <Button type="button" variant={mobileView === 'sale' ? 'default' : 'outline'} aria-pressed={mobileView === 'sale'} onClick={() => setMobileView('sale')}>Venta ({cart.cartItems.length+packages.length})</Button>
       </nav>}
       {isHydrating&&<LoadingIndicator message="Recuperando productos de la venta…" />}
       <fieldset className="pos-workspace min-w-0" data-step={saleStep} disabled={checkoutLocked}>
         <div className="pos-sale-column" data-mobile-active={mobileView === 'sale' || saleStep === 'payment'}>
-          <header className="pos-sale-heading"><div><h2>Venta actual</h2><span>{cart.cartItems.length} {cart.cartItems.length === 1 ? 'producto' : 'productos'}</span></div>
-            <Button type="button" variant="ghost" className="pos-turn-button" onClick={() => setActionPanel('turn')}><span className="pos-turn-dot" />{cashRegisterMeta?.name ?? 'Caja'} · {activeCashSession ? 'Turno abierto' : 'Ver caja'}<span className="ml-auto">Ver turno ↗</span></Button>
+          <header className="pos-sale-heading"><div><h2>Venta actual</h2><span>{cart.cartItems.length} {cart.cartItems.length === 1 ? 'producto' : 'productos'}{packages.length>0&&` · ${packages.length} ${packages.length===1?'paquete':'paquetes'}`}</span></div>
+            <Button type="button" variant="ghost" className="pos-turn-button" onClick={() => navigate('/cierre-caja/mi-turno')}><span className="pos-turn-dot" />{cashRegisterMeta?.name ?? 'Caja'} · {activeCashSession ? 'Turno abierto' : 'Ver caja'}<span className="ml-auto">Mi turno ↗</span></Button>
           </header>
           <Button type="button" variant="ghost" className="pos-customer-button" onClick={() => setActionPanel('customer')}><UserRound className="h-4 w-4" aria-hidden="true" /><span><strong>{isFinalConsumer ? 'Consumidor final' : customer || 'Seleccionar cliente'}</strong><small>{customerNit ? `ID fiscal: ${customerNit}` : 'Cliente y datos fiscales'}</small></span><ChevronDown className="ml-auto h-4 w-4" aria-hidden="true" /></Button>
           <section className="pos-cart" aria-label="Productos en la venta">
-            {!cart.cartItems.length ? <CollectionEmptyState compact title="¿Qué llevamos hoy?" description="Tocá un producto o escaneá su código para comenzar la venta." /> :
+            {packages.length>0&&<ul className="pos-cart-lines" aria-label="Paquetes en la venta">{packages.map(selection=>{const group=packagePreview.groups.find(g=>g.groupId===selection.groupId);return <li key={selection.groupId} className="pos-cart-line">
+              <button type="button" className="pos-line-select" aria-label={`Revisar paquete ${group?.name??''}`} onClick={() => {if(!checkoutLocked&&saleStep==='products')setActionPanel('packages')}}>
+                <span><strong><Gift className="mr-1 inline h-4 w-4" aria-hidden="true" />{group?.name??'Paquete'}{group?.variantName?` · ${group.variantName}`:''}</strong><small>{packagePreview.pending?'Revisando precio…':group?.state==='INCOMPLETE'?'Falta completar la selección':packagePreview.error||'Precio acordado del paquete'}</small></span>
+                <b>{group?.amount!=null&&group.state==='COMPLETE'?fmt(Number(group.amount)):'—'}</b>
+              </button>
+              {saleStep === 'products' && <Button type="button" variant="ghost" size="icon" className="pos-remove-line" aria-label={`Quitar paquete ${group?.name??''}`} disabled={checkoutLocked} onClick={() => {if(!checkoutLocked)setPackages(value=>value.filter(row=>row.groupId!==selection.groupId))}}><Trash2 className="h-4 w-4" aria-hidden="true" /></Button>}
+            </li>})}</ul>}
+            {!cart.cartItems.length ? !packages.length&&<CollectionEmptyState compact title="¿Qué llevamos hoy?" description="Tocá un producto o escaneá su código para comenzar la venta." /> :
               <ul className="pos-cart-lines">{cart.cartItems.map(item => {const key=item.lineKey??item.id;const label=item.unitSelection?.snapshot.presentation?.label??item.unitSelection?.snapshot.baseUnit.label??item.serviceUnitLabel??'unidad';return <li key={key} className={`pos-cart-line ${selectedKey===key?'is-selected':''}`}>
                 <button type="button" className="pos-line-select" aria-label={`Seleccionar ${item.name}, ${label}`} aria-pressed={selectedKey===key} onClick={() => selectLine(key)}>
                   <span><strong>{item.qty} × {item.name}</strong><small>{item.unitSelection?.snapshot.presentation?.name??label} · {item.unitSelection ? `${currencyCode} ${formatUnitDecimal(item.unitSelection.unitPrice,locale)}` : fmt(item.price)} / {label}</small>{item.unitSelection?.snapshot.presentation&&<small>{presentationEquivalence(item.qty,item.unitSelection,locale)}</small>}</span>
@@ -1430,6 +1474,7 @@ export default function NewSalePage() {
               <div className="pos-quick-actions">
                 <Button type="button" variant="outline" aria-label="Aplicar cantidad" disabled={!selectedLine || !normalizedQuantity || checkoutLocked} onClick={applyQuantity}>Aplicar cantidad</Button>
                 {promotionsEnabled && !loadedOrder && <Button type="button" variant="outline" onClick={() => setActionPanel('promotions')}><Receipt className="h-4 w-4" aria-hidden="true" />Promoción</Button>}
+                {!loadedOrder && <Button type="button" variant="outline" onClick={() => setActionPanel('packages')}><Gift className="h-4 w-4" aria-hidden="true" />Paquete</Button>}
                 {canLoadOrders && !loadedOrder && <Button type="button" variant="outline" onClick={() => setLoadOrderOpen(true)}><Package className="h-4 w-4" aria-hidden="true" />Pedido</Button>}
                 <Button type="button" variant="outline" onClick={() => setActionPanel('options')}><SlidersHorizontal className="h-4 w-4" aria-hidden="true" />Más acciones</Button>
               </div>
@@ -1438,6 +1483,7 @@ export default function NewSalePage() {
           </div>}
           <section className="pos-checkout" aria-label="Total y registro de la venta">
             {promotionsEnabled && Boolean(promotions.appliedPromotions?.length) && <div className="pos-total-detail"><span>Promociones aplicadas</span><span>−{fmt(promotions.totalDiscount ?? 0)}</span></div>}
+            {packages.length>0 && promotionsEnabled && Boolean(promotions.appliedPromotions?.length) && <p className="pos-tax-note">Las promociones aplican a los artículos sueltos; los paquetes conservan su precio acordado.</p>}
             <div className="pos-total"><span>Total</span><strong>{fmt(displayTotal)}</strong></div>
             <p className="pos-tax-note">{vatRegime === 'general' && displayTotal>0 ? `IVA incluido (${ivaRate}%): ${fmt(displayTotal-displayTotal/(1+ivaRate/100))}` : 'Según la configuración fiscal de tu empresa'}</p>
             {saleStep === 'products' ? <Button ref={paymentReviewButtonRef} type="button" className="pos-pay-button" aria-label="Ir al pago" disabled={Boolean(paymentReviewBlocked) || !canCreate || !cashSessionOpen} onClick={goToPayment}><span>Ir al pago</span><span>{fmt(displayTotal)}</span><ChevronDown className="h-5 w-5 -rotate-90" aria-hidden="true" /></Button> :
@@ -1447,7 +1493,7 @@ export default function NewSalePage() {
                 (creditCheck.data != null && !creditCheck.data.ok && !(canOverrideCredit&&creditOverride))))}>
                 <span role="status" aria-live="polite">{isProcessing || unitPreparing || checkout.pending ? 'Procesando…' : isCreditSale ? 'Registrar venta a crédito' : 'Confirmar pago'}</span><span>{fmt(displayTotal)}</span>
               </Button>}
-            {saleStep === 'products' && <Button type="button" variant="ghost" className="pos-save-button" onClick={() => {handleSaveForLater();setPaymentMethod(null);setAmountReceived('');setQuantityDraft(null)}} disabled={checkoutLocked || (!cart.cartItems.length && (isFinalConsumer || !customer.trim()))}><PauseCircle className="h-4 w-4" aria-hidden="true" />Guardar y continuar después</Button>}
+            {saleStep === 'products' && <Button type="button" variant="ghost" className="pos-save-button" onClick={() => {handleSaveForLater();setPaymentMethod(null);setAmountReceived('');setQuantityDraft(null)}} disabled={checkoutLocked || (!cart.cartItems.length && !packages.length && (isFinalConsumer || !customer.trim()))}><PauseCircle className="h-4 w-4" aria-hidden="true" />Guardar y continuar después</Button>}
           </section>
         </div>
         <section className="pos-payment-panel" aria-labelledby="pos-payment-title" hidden={saleStep !== 'payment'}>
@@ -1531,7 +1577,7 @@ export default function NewSalePage() {
                   <AlertDescription>
                     Selecciona un cliente registrado y confirma su vencimiento.
                     <div className="mt-3 space-y-2"><Label htmlFor="credit-initial-payment">Abono recibido hoy (opcional)</Label><Input id="credit-initial-payment" type="number" min={0} step="0.01" value={initialCreditPayment} placeholder="0.00" onChange={event => setInitialCreditPayment(event.target.value)} />
-                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
+                    {Number(initialCreditPayment) > 0 && <><Label htmlFor="credit-initial-method">Medio de cobro del abono</Label><select id="credit-initial-method" className="auna-control auna-control-select w-full px-3" value={initialCreditMethod} onChange={event => setInitialCreditMethod(event.target.value)}><option value="">Selecciona el medio de cobro</option>{paymentMethods.filter(method => !method.is_credit && allowedOnRegister(method, cashRegisterMeta?.kind)).map(method => <option key={method.id} value={method.id}>{method.name}</option>)}</select></>}
                     <p className="font-semibold">Saldo pendiente: {fmt(Math.max(0, displayTotal - Number(initialCreditPayment || 0)))}</p></div>
                   </AlertDescription>
                 </Alert>
@@ -1585,7 +1631,14 @@ export default function NewSalePage() {
         <div className="pos-catalog-column" hidden={saleStep !== 'products'} data-mobile-active={mobileView === 'catalog'}>
           <aside className="pos-catalog" aria-labelledby="pos-catalog-title">
             <header className="pos-catalog-heading">
-              <h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
+              <section aria-labelledby="pos-catalog-title" className="flex flex-wrap items-center justify-between gap-2"><h2 id="pos-catalog-title" className="text-base font-semibold">Buscar productos</h2>
+              <ScannerField compact scopeKey={`${scopeKey}:${cartGeneration()}:${saleStep}`} enabled={saleStep==='products'&&!checkoutLocked&&!loadedOrder&&!decisionPendienteRef.current&&!presentationChoice} label="Agregar por código" onScan={async(code,signal)=>{
+                const generation=cartGeneration();if(!additionIsCurrent(generation)||saleStep!=='products'||checkoutLocked||loadedOrder||presentationChoice)return
+                await trackAddition(generation,async()=>{
+                  const result=await resolveContextScan(code,'SALE',signal);if(signal.aborted||!additionIsCurrent(generation))return
+                  const product=adaptApiProduct(result.product);setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product]);await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier})
+                })
+              }}/></section>
               <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
                 <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -1639,13 +1692,6 @@ export default function NewSalePage() {
                   />
                 </div>
               </div>
-              <ScannerField compact scopeKey={`${scopeKey}:${cartGeneration()}:${saleStep}`} enabled={saleStep==='products'&&!checkoutLocked&&!loadedOrder&&!decisionPendienteRef.current&&!presentationChoice} label="Agregar por código" onScan={async(code,signal)=>{
-                const generation=cartGeneration();if(!additionIsCurrent(generation)||saleStep!=='products'||checkoutLocked||loadedOrder||presentationChoice)return
-                await trackAddition(generation,async()=>{
-                  const result=await resolveContextScan(code,'SALE',signal);if(signal.aborted||!additionIsCurrent(generation))return
-                  const product=adaptApiProduct(result.product);setScannedProducts(previous=>[...previous.filter(p=>p.id!==product.id),product]);await addProduct(product,{presentationId:result.presentationId,priceContext:unitPriceTier})
-                })
-              }}/>
               <nav className="pos-category-rail" aria-label="Categorías de productos">
                 <button type="button" className="pos-category-row pos-all-category" aria-pressed={!selectedCategoryName} onClick={() => {setSelectedCategoryName(null);setProductLayout('flat');setProductPage(1)}}><Package className="h-5 w-5" aria-hidden="true" /><span>Todos</span></button>
                 {categorySummaries.map(category => <CategoryBrowseCard key={category.name} name={category.name} count={category.count} imageUrl={category.imageUrl} disabled={checkoutLocked} selected={selectedCategoryName===category.name} onSelect={() => {setSelectedCategoryName(category.name);setProductLayout('byCategory');setProductPage(1)}} />)}
@@ -1716,7 +1762,7 @@ export default function NewSalePage() {
       }}/>
       <Dialog open={actionPanel !== null} onOpenChange={open => {if(!open)setActionPanel(null)}}>
         <DialogContent variant="auna" className="pos-action-dialog">
-          <DialogHeader><DialogTitle>{actionPanel === 'customer' ? 'Cliente y datos fiscales' : actionPanel === 'promotions' ? 'Promociones de la venta' : actionPanel === 'unit' ? 'Presentación y equivalencias' : actionPanel === 'print' ? 'Ticket e impresión' : actionPanel === 'turn' ? 'Turno de caja' : 'Acciones de la venta'}</DialogTitle><DialogDescription>Se aplica a esta venta en la caja actual.</DialogDescription></DialogHeader>
+          <DialogHeader><DialogTitle>{actionPanel === 'customer' ? 'Cliente y datos fiscales' : actionPanel === 'promotions' ? 'Promociones de la venta' : actionPanel === 'packages' ? 'Paquetes de la venta' : actionPanel === 'unit' ? 'Presentación y equivalencias' : actionPanel === 'print' ? 'Ticket e impresión' : actionPanel === 'turn' ? 'Turno de caja' : 'Acciones de la venta'}</DialogTitle><DialogDescription>Se aplica a esta venta en la caja actual.</DialogDescription></DialogHeader>
           <fieldset disabled={checkoutLocked} className="min-w-0 space-y-4">
             {actionPanel === 'customer' && <div className="space-y-3">                  {canPickSavedCustomer && (
                     <SavedCustomerMany2One
@@ -1785,16 +1831,17 @@ export default function NewSalePage() {
                   )}
 </div>}
             {actionPanel === 'promotions' && promotionsEnabled && !loadedOrder && <PromotionCodeInput appliedPromotions={promotions.appliedPromotions ?? []} totalDiscount={promotions.totalDiscount ?? 0} isValidating={promotions.isValidating ?? false} onApplyCode={promotions.applyCode} onRemovePromotion={promotions.removePromotion} />}
+            {actionPanel === 'packages' && !loadedOrder && <CommercialPackagesEditor scope={packageScope} value={packages} onChange={value=>{if(!checkoutLocked&&saleStep==='products')setPackages(value)}} preview={packagePreview} disabled={checkoutLocked||saleStep!=='products'}/>}
             {actionPanel === 'unit' && selectedLine?.unitSelection && <UnitLineFields product={selectedLine} selection={selectedLine.unitSelection} quantity={selectedLine.qty} disabled={checkoutLocked || Boolean(loadedOrder)} onSelect={id => {
               if(checkoutLocked||!selectedKey)return
               try {const selection=selectProductUnit(selectedLine,id,selectedLine.unitSelection!.priceContext);setSelectedLineKey(selectedKey);setUnitChange({from:selectedKey,to:unitCartKey(selectedLine.id,selection),scope:scopeKey});cart.selectCartUnit(selectedKey,id)} catch(error){toast({title:'Revisá la presentación',description:(error as Error).message,variant:'destructive'})}
             }} onAcceptRounding={accepted => {if(!checkoutLocked&&selectedKey)cart.acceptCartRounding(selectedKey,accepted)}} />}
             {actionPanel === 'print' && <PrintDestination route={printDestination.route} value={printDestination.destinationId} onChange={printDestination.onChange} disabled={checkoutLocked}/>}
-            {actionPanel === 'turn' && <div className="space-y-3"><p className="font-medium">{cashRegisterMeta?.name ?? 'Caja'}</p>{activeCashSession && <dl className="pos-turn-details"><dt>Abierto por</dt><dd>{activeCashSession.openedBy?.name ?? '—'}</dd><dt>Fondo inicial</dt><dd>{fmt(Number(activeCashSession.opening_float))}</dd><dt>Inicio</dt><dd>{new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}</dd></dl>}{canUserCloseCashTurn ? <Button type="button" variant="outline" className="text-destructive" disabled={checkoutLocked || isClosingCashSession} onClick={() => {setActionPanel(null);setShowCloseCashDialog(true)}}>Cerrar caja (fin de turno)</Button> : <p className="text-xs text-muted-foreground">Solo quien abrió el turno o un supervisor puede cerrarlo.</p>}</div>}
+            {actionPanel === 'turn' && <div className="space-y-3"><p className="font-medium">{cashRegisterMeta?.name ?? 'Caja'}</p>{activeCashSession && <dl className="pos-turn-details"><dt>Abierto por</dt><dd>{activeCashSession.openedBy?.name ?? '—'}</dd><dt>Fondo inicial</dt><dd>{fmt(Number(activeCashSession.opening_float))}</dd><dt>Inicio</dt><dd>{new Date(activeCashSession.opened_at).toLocaleString(locale || 'es-GT')}</dd></dl>}{activeCashSession && (hasPermission('cash.movements.create_own') || hasPermission('cash.movements.create_team')) && <Button type="button" variant="outline" disabled={checkoutLocked} onClick={() => navigate(`/cierre-caja/movimientos/nuevo?turno=${encodeURIComponent(activeCashSession.id)}`)}><ArrowLeftRight className="h-4 w-4" aria-hidden="true" />Ingresar o retirar efectivo</Button>}{canUserCloseCashTurn ? <Button type="button" variant="outline" className="text-destructive" disabled={checkoutLocked || isClosingCashSession} onClick={() => {setActionPanel(null);setShowCloseCashDialog(true)}}>Cerrar caja (fin de turno)</Button> : <p className="text-xs text-muted-foreground">Solo quien abrió el turno o un supervisor puede cerrarlo.</p>}</div>}
             {actionPanel === 'options' && <div className="pos-options">
               <Button type="button" variant="outline" onClick={() => setActionPanel('customer')}><UserRound className="h-4 w-4" aria-hidden="true" />Cliente y datos fiscales</Button>
               <Button type="button" variant="outline" onClick={() => setActionPanel('print')}><Printer className="h-4 w-4" aria-hidden="true" />Ticket e impresión</Button>
-              <Button type="button" variant="outline" onClick={() => setActionPanel('turn')}><Landmark className="h-4 w-4" aria-hidden="true" />Ver turno de caja</Button>
+              <Button type="button" variant="outline" onClick={() => navigate('/cierre-caja/mi-turno')}><Landmark className="h-4 w-4" aria-hidden="true" />Mi turno</Button>
               {salesShowChannels && <div><Label>Canal de venta</Label><Select value={salesChannel} onValueChange={value => {if(value==='POS'||value==='WHOLESALE'||value==='ONLINE')setSalesChannel(value)}}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="POS">Mostrador (POS)</SelectItem><SelectItem value="WHOLESALE">Mayoreo / ruta</SelectItem><SelectItem value="ONLINE">En línea</SelectItem></SelectContent></Select><p className="mt-1 text-xs text-muted-foreground">El canal puede cambiar precios y promociones aplicables.</p></div>}
             </div>}
           </fieldset>

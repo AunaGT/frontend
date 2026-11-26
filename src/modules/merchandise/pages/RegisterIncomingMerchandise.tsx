@@ -11,7 +11,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useAuthPermissions } from '@/hooks/useAuthPermissions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -27,7 +27,7 @@ import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { usePaymentMethods } from '@/hooks/usePaymentMethods'
 import { ProductPicker } from '@/components/shared/ProductPicker'
 import {ScannerField} from '@/components/shared/ScannerField'
-import {resolveContextScan} from '@/services/contextScannerService'
+import {resolveContextScan,scannerIdentity} from '@/services/contextScannerService'
 import {adaptApiProduct} from '@/services/productService'
 import { SupplierPicker } from '@/components/shared/SupplierPicker'
 import '../merchandise.css'
@@ -60,6 +60,7 @@ interface IncomingItem {
 export const RegisterIncomingMerchandise = () => {
   const { hasPermission } = useAuthPermissions()
   const navigate = useNavigate()
+  const route = useLocation()
   const { toast } = useToast()
   const queryClient = useQueryClient()
   const { currencyCode, locale,inventoryUnitsEnabled } = useSystemSettings()
@@ -80,6 +81,9 @@ export const RegisterIncomingMerchandise = () => {
   const [waitingScan,setWaitingScan]=useState<{product:Product;presentationId:string|null}[]>([])
   const [scanFocus,setScanFocus]=useState({id:'',tick:0})
   const receivedSeed=useRef('')
+  const manualPaymentTerm=useRef(false)
+  const focusScanner=useRef(false)
+  const [seedPending,setSeedPending]=useState(false),[seedError,setSeedError]=useState(''),[seedRetry,setSeedRetry]=useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [paymentTermId, setPaymentTermId] = useState('')
   const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'PAID'>('PENDING')
@@ -89,11 +93,13 @@ export const RegisterIncomingMerchandise = () => {
   const [paymentReference, setPaymentReference] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [locationId, setLocationId] = useState('default')
-  const draftGuard=useDraftGuard(items.length>0||!!notes,registerTenantExitGuard,scopeKey)
+  const hasDraft=items.length>0||waitingScan.length>0||!!selectedSupplierId||!!notes||!!paymentTermId||paymentStatus!=='PENDING'||!!paymentMethodId||!!paidAtLocal||!!paymentReference||!!dueDate||locationId!=='default'
+  const latestDraft=useRef(hasDraft);latestDraft.current=hasDraft
+  const draftGuard=useDraftGuard(hasDraft,registerTenantExitGuard,scopeKey)
   const previousScope=useRef(scopeKey)
   useEffect(()=>{
     owner.active=true
-    if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setItems([]);setSelectedSupplierId('');setNotes('');setIsSubmitting(false);setWaitingScan([]);setScanFocus({id:'',tick:0});retry.current=null;pendingOwner.current=null}
+    if(previousScope.current!==scopeKey){previousScope.current=scopeKey;setItems([]);setSelectedSupplierId('');setNotes('');setIsSubmitting(false);setWaitingScan([]);setScanFocus({id:'',tick:0});setSeedPending(false);setSeedError('');focusScanner.current=false;manualPaymentTerm.current=false;receivedSeed.current='';retry.current=null;pendingOwner.current=null}
     return()=>{owner.active=false;owner.controller.abort()}
   },[owner,scopeKey])
 
@@ -119,7 +125,8 @@ export const RegisterIncomingMerchandise = () => {
     [supplierDetail]
   )
 
-  const selectSupplier = (supplierId: string) => {
+  const selectSupplier = (supplierId: string, fromSeed = false) => {
+    manualPaymentTerm.current=fromSeed
     if (supplierId !== selectedSupplierId) {
       setItems([])
       setPaymentTermId('')
@@ -141,6 +148,7 @@ export const RegisterIncomingMerchandise = () => {
       setPaymentTermId('')
       return
     }
+    if (manualPaymentTerm.current) return
     const def = paymentTermsOptions.find((x) => x.isDefault) || paymentTermsOptions[0]
     setPaymentTermId(String(def.id))
   }, [selectedSupplierId, paymentTermsOptions])
@@ -189,8 +197,8 @@ export const RegisterIncomingMerchandise = () => {
   const handleAddProduct = (product: Product,presentationId?:string|null) => {
     if (!selectedSupplierId || items.some(item => item.product_id === product.id)) return
     const selection=inventoryUnitsEnabled||product.unitConfiguration?selectProductUnit(product,presentationId,'LIST','PURCHASE'):undefined
-    let cost=String(product.cost??0)
-    if(selection){try{cost=normalizeUnitDecimal(deriveUnitPrice(normalizeUnitDecimal(exactProductValues(product).cost,{decimals:6}),selection.snapshot.factor),{decimals:6})}catch{cost=''}}
+    let cost=hasPermission('products.view_costs')?String(product.cost??0):''
+    if(selection&&hasPermission('products.view_costs')){try{cost=normalizeUnitDecimal(deriveUnitPrice(normalizeUnitDecimal(exactProductValues(product).cost,{decimals:6}),selection.snapshot.factor),{decimals:6})}catch{cost=''}}
     setItems(previous => [...previous, {
       product,unitSelection:selection,
       product_id: product.id, product_name: product.name, image_url: product.imageUrl,
@@ -200,21 +208,44 @@ export const RegisterIncomingMerchandise = () => {
     setItemsPage(Math.ceil((items.length + 1) / 8))
   }
   async function scanProduct(code:string,signal:AbortSignal){
-    if(pendingOwner.current||isSubmitting||!owner.active)return
+    if(pendingOwner.current||isSubmitting||seedPending||!owner.active)return
     const result=await resolveContextScan(code,'PURCHASE',signal);if(signal.aborted||!owner.active||currentScope.current!==scopeKey)return
     const product=adaptApiProduct(result.product),index=items.findIndex(item=>item.product_id===product.id)
     if(index>=0){setItemsPage(Math.floor(index/8)+1);setScanFocus(old=>({id:product.id,tick:old.tick+1}));return}
     if(!selectedSupplierId){setWaitingScan(old=>old.some(row=>row.product.id===product.id)?old:[...old,{product,presentationId:result.presentationId}]);return}
-    handleAddProduct(product,result.presentationId);setScanFocus(old=>({id:product.id,tick:old.tick+1}))
+    focusScanner.current=true;handleAddProduct(product,result.presentationId);setScanFocus(old=>({id:'',tick:old.tick+1}))
   }
-  useEffect(()=>{if(waitingScan.length&&selectedSupplierId&&!isSubmitting){const added=waitingScan.filter(row=>!items.some(item=>item.product_id===row.product.id));for(const row of added)handleAddProduct(row.product,row.presentationId);setItemsPage(Math.max(1,Math.ceil((items.length+added.length)/8)));if(added.length)setScanFocus(old=>({id:added[added.length-1].product.id,tick:old.tick+1}));setWaitingScan([])}},[waitingScan,selectedSupplierId,isSubmitting])
+  useEffect(()=>{if(waitingScan.length&&selectedSupplierId&&!isSubmitting){const added=waitingScan.filter(row=>!items.some(item=>item.product_id===row.product.id));if(added.length){focusScanner.current=true;setScanFocus(old=>({id:'',tick:old.tick+1}))}for(const row of added)handleAddProduct(row.product,row.presentationId);setItemsPage(Math.max(1,Math.ceil((items.length+added.length)/8)));setWaitingScan([])}},[waitingScan,selectedSupplierId,isSubmitting])
   useEffect(()=>{if(scanFocus.id&&typeof document!=='undefined'){const input=document.getElementById(`incoming-count-${scanFocus.id}`);input?.scrollIntoView({block:'center'});input?.focus({preventScroll:true})}},[scanFocus,itemsPage,items.length])
   useEffect(()=>{
-    if(typeof window==='undefined'||!company||!branch)return
-    const params=new URLSearchParams(window.location?.search||''),code=params.get('codigo'),key=JSON.stringify([scopeKey,code])
-    if(!code||receivedSeed.current===key||params.get('empresa')!==company.id||params.get('sucursal')!==branch.id)return
-    receivedSeed.current=key;void scanProduct(code,owner.controller.signal).catch(e=>{if(owner.active)toast({title:'No se pudo preparar el producto',description:e.message,variant:'destructive'})})
-  },[owner,scopeKey])
+    setSeedPending(false);setSeedError('')
+    if(!company||!branch||source!=='PURCHASE')return
+    const params=new URLSearchParams(route.search),code=params.get('codigo'),key=JSON.stringify([scopeKey,code,seedRetry])
+    if(!code||receivedSeed.current===key)return
+    if(params.get('empresa')!==company.id||params.get('sucursal')!==branch.id)return
+    const intent=route.state?.receiptScan,identity=scannerIdentity()
+    if(!hasPermission('products.register_incoming')||intent&&(intent.identity!==identity||intent.code!==code||typeof intent.productId!=='string')){setSeedError('Este acceso ya no corresponde a la sesión o sus permisos. Vuelve a escanear el producto.');return}
+    const controller=new AbortController(),alive=()=>!controller.signal.aborted&&owner.active&&currentScope.current===scopeKey,current=()=>alive()&&scannerIdentity()===identity
+    setSeedPending(true);setSeedError('')
+    void (async()=>{
+      try{
+        const result=await resolveContextScan(code,'PURCHASE',controller.signal)
+        if(!current())return
+        if(intent&&String(result.product.id)!==intent.productId)throw Error('El código ya no corresponde al mismo producto. Vuelve a escanearlo.')
+        if(latestDraft.current)throw Error('Ya hay una entrada en preparación. Agrega el producto con el lector de esta vista.')
+        const product=adaptApiProduct(result.product)
+        if(product.supplierId){setSupplierLabel(product.supplier||'Proveedor habitual');selectSupplier(product.supplierId,true)}
+        focusScanner.current=true
+        setWaitingScan(old=>old.some(row=>row.product.id===product.id)?old:[...old,{product,presentationId:result.presentationId}])
+        receivedSeed.current=key;setSeedPending(false)
+        for(const name of ['codigo','empresa','sucursal'])params.delete(name)
+        navigate(`${route.pathname}${params.size?`?${params}`:''}`,{replace:true,state:null})
+      }catch(error){if(current())setSeedError(error instanceof Error?error.message:'No se pudo preparar el producto.')}
+      finally{if(alive()){setSeedPending(false);if(scannerIdentity()!==identity)setSeedError('La sesión cambió. Vuelve a escanear el producto desde la pantalla principal.')}}
+    })()
+    return()=>controller.abort()
+  },[owner,scopeKey,route.search,route.state,seedRetry,source])
+  useEffect(()=>{if(focusScanner.current&&!seedPending&&!waitingScan.length&&items.length){focusScanner.current=false;if(typeof document!=='undefined')document.querySelector<HTMLButtonElement>('#receipt-scanner [data-scanner-trigger][aria-expanded="false"]')?.focus({preventScroll:true})}},[seedPending,waitingScan.length,items.length])
 
   const handleRemoveProduct = (index: number) => {
     setItems(items.filter((_, i) => i !== index))
@@ -404,31 +435,37 @@ export const RegisterIncomingMerchandise = () => {
   const visibleItems = items.slice((itemsPage - 1) * 8, itemsPage * 8)
 
   if(source!=='PURCHASE')return <OwnReceiptForm key={scopeKey+source} source={source} onSourceChange={setSource} locations={receiveLocations}/>
-  return <div className="merchandise-page min-h-full bg-brand-surface dark:bg-brand-navy">
+  return <div className="merchandise-page merchandise-receipt min-h-full bg-brand-surface dark:bg-brand-navy">
     {draftGuard.dialog}
-    <div className="mx-auto w-full max-w-[1560px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1560px] space-y-3 px-4 py-4 sm:px-6 lg:px-8">
 
       <h1 className="sr-only">Registrar entrada de mercadería</h1>
-      <fieldset disabled={isSubmitting}><EntrySourceSelector source={source} onChange={next=>{if(!pendingOwner.current&&next!==source)draftGuard.request(()=>{setItems([]);setNotes('');setSource(next)})}}/></fieldset>
-      <fieldset disabled={isSubmitting} className="min-w-0 space-y-5">
-        <ScannerField scopeKey={scopeKey} enabled={!isSubmitting&&hasPermission('products.register_incoming')} label="Agregar mercancía por código" onScan={scanProduct}/>
+      <fieldset disabled={isSubmitting||seedPending}><EntrySourceSelector source={source} onChange={next=>{if(!pendingOwner.current&&next!==source)draftGuard.request(()=>{setItems([]);setNotes('');setSource(next)})}}/></fieldset>
+      {seedPending&&<p role="status" className="text-sm text-muted-foreground">Preparando el producto y su proveedor habitual…</p>}
+      {seedError&&<div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive p-3 text-sm"><p>{seedError}</p><Button type="button" variant="outline" onClick={()=>setSeedRetry(value=>value+1)}>Reintentar preparación</Button></div>}
+      <fieldset disabled={isSubmitting||seedPending} className="min-w-0 space-y-3">
         {waitingScan.length>0&&<p role="status" className="text-sm text-muted-foreground">{waitingScan.length} producto(s) listos para agregar: {waitingScan.map(row=>row.product.name).join(', ')}. Selecciona el proveedor para continuar; aún no se ha registrado ninguna entrada.</p>}
-        <Card className="auna-surface"><CardHeader className="pb-3"><CardTitle className="text-lg">Información general</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="auna-surface"><CardHeader className="p-4 pb-3"><CardTitle className="text-base">Datos de la entrada</CardTitle></CardHeader><CardContent className="space-y-3 p-4 pt-0">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-2"><Label>Proveedor <span className="text-brand-orange">*</span></Label><SupplierPicker label={supplierDetail?.name || supplierLabel} onSelect={supplier => { setSupplierLabel(supplier?.name || 'Seleccionar proveedor…'); selectSupplier(supplier?.id || '') }} />{supplierDetailError && <div role="alert" className="space-y-1"><p className="text-xs text-destructive">No se pudieron cargar las condiciones.</p><Button type="button" variant="outline" size="sm" onClick={() => retrySupplier()}>Reintentar</Button></div>}{supplierDetailLoading && <LoadingIndicator message="Cargando condiciones…" />}</div>
           <div className="space-y-2"><Label htmlFor="receipt-location">Almacén / ubicación</Label><select id="receipt-location" className="auna-control auna-control-select auna-receipt-select" value={locationId} onChange={e => setLocationId(e.target.value)}><option value="default">Ubicación de recepción predeterminada</option>{receiveLocations.map(location => <option key={location.id} value={location.id}>{location.warehouse} · {location.name}</option>)}</select></div>
-          <div className="space-y-2"><Label htmlFor="receipt-term">Condición de pago</Label><select id="receipt-term" className="auna-control auna-control-select auna-receipt-select" value={paymentTermId} onChange={e => setPaymentTermId(e.target.value)} disabled={!paymentTermsOptions.length}><option value="">Sin término configurado</option>{paymentTermsOptions.map(term => <option key={term.id} value={term.id}>{term.name}{term.isDefault ? ' (predeterminado)' : ''}</option>)}</select></div>
+          <div className="space-y-2"><Label htmlFor="receipt-term">Condición de pago</Label><select id="receipt-term" className="auna-control auna-control-select auna-receipt-select" value={paymentTermId} onChange={e => setPaymentTermId(e.target.value)} disabled={!paymentTermsOptions.length}><option value="">Sin término configurado</option>{paymentTermsOptions.map(term => <option key={term.id} value={term.id}>{term.name}{term.isDefault ? ' (predeterminado)' : ''}</option>)}</select>{dueDate&&paymentStatus==='PENDING'&&<p className="text-xs text-muted-foreground">Vence: {dueDate}</p>}</div>
           <div className="space-y-2"><Label htmlFor="receipt-status">Estado de pago</Label><select id="receipt-status" className="auna-control auna-control-select auna-receipt-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value as 'PENDING' | 'PAID')}><option value="PENDING">Pendiente de pago</option><option value="PAID" disabled={!hasPermission('merchandise.mark_paid')}>Pagado completamente</option></select></div>
-          <div className="space-y-2"><Label htmlFor="receipt-method">Medio de pago</Label><select id="receipt-method" className="auna-control auna-control-select auna-receipt-select" value={paymentMethodId} onChange={e=>setPaymentMethodId(e.target.value)} disabled={paymentStatus!=='PAID'} required={paymentStatus==='PAID'}><option value="">Selecciona un medio</option>{methods.data?.filter(m=>!m.is_credit).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select>{methods.isError&&<p role="alert" className="text-sm text-destructive">No se pudieron cargar los medios de pago.</p>}</div>
+          </div>
+          {paymentStatus==='PAID'&&<div className="grid gap-3 border-t pt-3 sm:grid-cols-3" role="group" aria-label="Pago de esta compra">
+          <div className="space-y-2"><Label htmlFor="receipt-method">Medio de pago</Label><select id="receipt-method" className="auna-control auna-control-select auna-receipt-select" value={paymentMethodId} onChange={e=>setPaymentMethodId(e.target.value)} required><option value="">Selecciona un medio</option>{methods.data?.filter(m=>!m.is_credit).map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select>{methods.isError&&<p role="alert" className="text-sm text-destructive">No se pudieron cargar los medios de pago.</p>}</div>
+          <div className="space-y-2"><Label htmlFor="receipt-paid">Fecha del pago</Label><Input id="receipt-paid" type="datetime-local" value={paidAtLocal} onChange={e => setPaidAtLocal(e.target.value)} /></div>
           <div className="space-y-2"><Label htmlFor="receipt-reference">Referencia de pago</Label><Input id="receipt-reference" maxLength={255} value={paymentReference} onChange={e => setPaymentReference(e.target.value)} placeholder="Opcional" /></div>
+          </div>}
+          <details className="receipt-extra border-t pt-3"><summary className="cursor-pointer text-sm font-medium">Observaciones y vencimiento{notes.trim()?' · Con observaciones':''}</summary><div className="mt-3 grid gap-3 sm:grid-cols-3">
           <div className="space-y-2"><Label htmlFor="receipt-due">Fecha de vencimiento</Label><Input id="receipt-due" type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="receipt-paid">Fecha del pago</Label><Input id="receipt-paid" type="datetime-local" disabled={paymentStatus !== 'PAID'} value={paidAtLocal} onChange={e => setPaidAtLocal(e.target.value)} /></div>
-          <div className="space-y-2"><Label>Moneda</Label><div className="flex h-10 items-center rounded-md border px-3 text-sm text-muted-foreground">{currencyCode} · moneda del sistema</div></div>
-          <div className="space-y-2 sm:col-span-2 xl:col-span-4"><Label htmlFor="receipt-notes">Observaciones</Label><Textarea id="receipt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre la recepción…" /></div>
+          <div className="space-y-2 sm:col-span-2"><Label htmlFor="receipt-notes">Observaciones</Label><Textarea id="receipt-notes" rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas sobre la recepción…" /></div>
+          </div></details>
         </CardContent></Card>
         <><section className="auna-data-table-shell">
-          <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div className="w-full sm:max-w-md">{selectedSupplierId?<ProductPicker companyId={company?.id} branchId={branch?.id} purchase excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} />:<p className="text-sm text-muted-foreground">Primero selecciona el proveedor de esta compra.</p>}</div></div>
+          <div className="space-y-3 border-b p-4"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">Productos recibidos ({items.length})</h2><div id="receipt-scanner"><ScannerField compact scopeKey={scopeKey} enabled={!isSubmitting&&!seedPending&&hasPermission('products.register_incoming')} label="Agregar mercancía por código" onScan={scanProduct}/></div></div><div className="min-w-0 space-y-1"><p className="text-xs font-medium">Buscar en el catálogo</p>{selectedSupplierId?<ProductPicker companyId={company?.id} branchId={branch?.id} purchase excludedIds={items.map(item => item.product_id)} money={money} onPick={handleAddProduct} />:<p className="text-sm text-muted-foreground">Primero selecciona el proveedor de esta compra.</p>}</div></div>
           <div className="overflow-x-auto"><table className="w-full min-w-[1000px]"><thead><tr><th>#</th><th>Producto</th><th>Código</th><th>Lote</th><th>Caducidad</th><th>Cantidad</th><th>Costo unitario</th><th>Subtotal</th><th>Acciones</th></tr></thead><tbody>
-            {!items.length && <tr><td colSpan={9} className="py-12 text-center text-muted-foreground"><CollectionEmptyState compact title="La entrega está por tomar forma" description={selectedSupplierId ? 'Busca y agrega los productos recibidos para preparar esta entrada.' : 'Selecciona un proveedor para agregar los productos de esta entrega.'} /></td></tr>}
+            {!items.length && <tr><td colSpan={9} className="py-5 text-center text-muted-foreground"><CollectionEmptyState compact title="La entrega está por tomar forma" description={selectedSupplierId ? 'Busca y agrega los productos recibidos para preparar esta entrada.' : 'Selecciona un proveedor para agregar los productos de esta entrega.'} /></td></tr>}
             {visibleItems.map((item, offset) => {
               const index = (itemsPage - 1) * 8 + offset
               return <tr key={item.product_id}><td>{index + 1}</td><td><div className="flex items-center gap-3">{item.image_url ? <img src={item.image_url} alt={item.product_name} className="h-10 w-10 shrink-0 rounded-lg object-cover" /> : <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10"><Package className="h-5 w-5 text-brand-orange" /></span>}<span className="max-w-56 font-medium">{item.product_name}</span></div></td><td>{item.barcode || '—'}</td>
@@ -442,8 +479,7 @@ export const RegisterIncomingMerchandise = () => {
 
         </section>
 <div className="auna-pagination-outside"><Pagination currentPage={itemsPage} totalPages={totalPages} onPageChange={setItemsPage} totalItems={items.length} count={visibleItems.length} pageSize={8} itemLabel="productos" /></div></>
-        <Card className="auna-surface"><CardContent className="grid gap-4 p-5 sm:grid-cols-3"><div><p className="text-sm text-muted-foreground">Productos</p><p className="text-xl font-semibold">{items.length}</p></div><div><p className="text-sm text-muted-foreground">Partidas de la entrada</p><p className="text-xl font-semibold">{items.length}</p></div><div className="sm:text-right"><p className="text-sm text-muted-foreground">Total de la entrada</p><output className="auna-field-value-inline text-2xl font-bold text-brand-orange">{formatUnitMoney(totalExact,locale,currencyCode)}</output></div></CardContent></Card>
-        <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-muted-foreground">Al registrar se actualizarán el inventario, los costos y los lotes.</p><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate('/mercancia')}>Cancelar</Button><Button type="button" onClick={handleSubmit} disabled={isSubmitting || !items.length || !selectedSupplierId || supplierDetailLoading || supplierDetailError || (paymentTermsOptions.length > 0 && !paymentTermId)} className="bg-brand-orange text-white hover:bg-brand-orange/90">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}{isSubmitting ? 'Registrando…' : 'Registrar entrada'}</Button></div></div>
+        <footer className="receipt-summary flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4"><div><p className="text-sm text-muted-foreground">{items.length} producto{items.length===1?'':'s'} · {currencyCode}</p><p className="text-xs text-muted-foreground">Se actualizarán el inventario, los costos y los lotes.</p></div><div className="sm:ml-auto sm:text-right"><p className="text-xs text-muted-foreground">Total de la entrada</p><output className="auna-field-value-inline text-xl font-bold">{formatUnitMoney(totalExact,locale,currencyCode)}</output></div><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate('/mercancia')}>Cancelar</Button><Button type="button" onClick={handleSubmit} disabled={isSubmitting || !items.length || !selectedSupplierId || supplierDetailLoading || supplierDetailError || (paymentTermsOptions.length > 0 && !paymentTermId)} className="bg-brand-orange text-white hover:bg-brand-orange/90">{isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}{isSubmitting ? 'Registrando…' : 'Registrar entrada'}</Button></div></footer>
       </fieldset>
     </div>
   </div>

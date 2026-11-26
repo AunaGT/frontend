@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { SECTION_KEYS, SETTINGS_SECTIONS, type EditableSection } from '../settingsModel'
 import { useSettingsDraft, type SaveOutcome } from '../useSettingsDraft'
 import { SettingsNavigation } from '../components/SettingsNavigation'
+import {PORTAL_READ_PERMISSIONS} from '../customerPages/usePortalScope'
 import { SettingsErrorSummary, SettingsSectionActions } from '../components/SettingsSectionActions'
 import { CompanySettingsSection } from '../components/CompanySettingsSection'
 import { FiscalSettingsSection } from '../components/FiscalSettingsSection'
@@ -21,6 +22,7 @@ import { ReturnsPolicySettingsSection } from '../components/ReturnsPolicySetting
 import { SettingsHistorySection } from '../components/SettingsHistorySection'
 import { ExpiryPolicySettingsSection } from '../components/ExpiryPolicySettingsSection'
 import {PayrollRateSettingsSection} from '../components/PayrollRateSettingsSection'
+import {FISCAL_READ_PERMISSIONS} from '../connectors/useConnectorScope'
 import {useModules} from '@/context/useModules'
 import { SettingsRelatedLinks } from '../components/SettingsRelatedLinks'
 import { ModulesSettings } from './ModulesSettings'
@@ -103,6 +105,9 @@ export default function ConfigManagement() {
   useEffect(() => { if (focusErrors) document.getElementById('config-errors')?.focus() }, [focusErrors])
 
   function selectSection(id: typeof active) {
+    if(id==='integraciones'){confirmLeave('/configuracion/integraciones');return}
+    if(id==='paginas-clientes'){confirmLeave('/configuracion/paginas-clientes');return}
+    if(id==='conectores'){confirmLeave('/configuracion/conectores');return}
     if(id==='plantillas'){confirmLeave('/configuracion/plantillas');return}
     if (draft.getActivity().pending) { toast({ title: 'Espera a que termine la operación actual.' }); return }
     const next = new URLSearchParams(params); next.set('seccion', id); setNotice(''); setParams(next)
@@ -130,7 +135,7 @@ export default function ConfigManagement() {
 
   return <div className="config-page auna-page-fluid mx-auto w-full min-w-0 space-y-5 p-4 sm:p-8">
     <h1 className="sr-only">Configuración</h1>
-    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} companyName={draft.confirmed.company_name||company?.name} sections={SETTINGS_SECTIONS.filter(s=>(s.id!=='plantillas'||hasPermission('document_templates.view','document_templates.manage','document_templates.publish'))&&(s.id!=='hardware'||hasPermission('hardware.view'))&&(s.id!=='nomina'||(hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll'))))}/><div className="config-center-content space-y-5" role="region" aria-labelledby="config-section-title">
+    <div className="config-center"><SettingsNavigation active={active} onSelect={selectSection} companyName={draft.confirmed.company_name||company?.name} sections={SETTINGS_SECTIONS.filter(s=>(s.id!=='integraciones'||hasPermission('integrations.view','integrations.manage'))&&(s.id!=='paginas-clientes'||hasPermission(...PORTAL_READ_PERMISSIONS))&&(s.id!=='plantillas'||hasPermission('document_templates.view','document_templates.manage','document_templates.publish'))&&(s.id!=='conectores'||hasPermission(...FISCAL_READ_PERMISSIONS))&&(s.id!=='hardware'||hasPermission('hardware.view'))&&(s.id!=='nomina'||(hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll'))))}/><div className="config-center-content space-y-5" role="region" aria-labelledby="config-section-title">
       <h2 id="config-section-title" className="sr-only">{selected.label}</h2>
       <div className="config-context-line"><p>Se aplica a <strong>{draft.confirmed.company_name || company?.name || 'la empresa activa'}</strong></p>{draft.hasChanges && <span role="status">Hay cambios pendientes</span>}</div>
       {notice && <p role="status" className="config-note">{notice}</p>}
@@ -147,6 +152,7 @@ export default function ConfigManagement() {
         {active === 'inventario' && <SettingsRelatedLinks inventoryOnly confirmLeave={confirmLeave} />}
         {active === 'historial' && <SettingsHistorySection />}
         {active==='plantillas'&&hasPermission('document_templates.view','document_templates.manage','document_templates.publish')&&<div className="space-y-3"><h2 className="font-semibold">Diseña tus documentos</h2><p className="text-sm text-muted-foreground">Apariencia, diseños base y versiones publicadas, sin cambiar documentos anteriores.</p><Button onClick={()=>confirmLeave('/configuracion/plantillas')}>Administrar plantillas</Button></div>}
+        {active==='conectores'&&hasPermission(...FISCAL_READ_PERMISSIONS)&&<div className="space-y-3"><h2 className="font-semibold">Conectores</h2><p className="text-sm text-muted-foreground">Configura Infile sin enviar documentos ni activar facturación real.</p><Button onClick={()=>confirmLeave('/configuracion/conectores')}>Administrar conectores</Button></div>}
         {active === 'accesos' && <Card className="config-panel"><CardHeader><CardTitle>{selected.label}</CardTitle><CardDescription>{descriptions.accesos}</CardDescription></CardHeader><CardContent><SettingsRelatedLinks confirmLeave={confirmLeave} /></CardContent></Card>}
         {visited.has('rrhh') && <div hidden={active !== 'rrhh'} key={`hr-${contextKey}`}><HrDocumentsSettings active={active === 'rrhh'} disabled={!canMutate || draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={hrActivity} /></div>}
         {visited.has('nomina')&&<div hidden={active!=='nomina'} key={`payroll-${contextKey}`}><PayrollRateSettingsSection context={{...context,canRead:context.canRead&&hasPermission('payroll.view')&&!!enabledModuleCodes?.has('payroll'),canPublish:canMutate&&hasPermission('payroll.confirm')&&!!enabledModuleCodes?.has('payroll')}} disabled={draft.pending} canStartOperation={draft.canStartOperation} onActivityChange={payrollActivity} currency={draft.confirmed.currency_code||'GTQ'}/></div>}

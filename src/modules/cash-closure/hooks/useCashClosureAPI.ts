@@ -1,4 +1,3 @@
-import { DEFAULT_PAGE_SIZE, TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * Copyright (c) 2026 Diego Patzán. All Rights Reserved.
  * 
@@ -12,23 +11,13 @@ import { DEFAULT_PAGE_SIZE, TABLE_PAGE_SIZES } from '@/utils/pagination'
 /**
  * useCashClosureAPI - Hook for cash closure API operations
  */
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useToast } from '@/hooks/use-toast'
-import { readListUiPersisted, writeListUiPersisted } from '@/hooks/usePersistedListUiState'
 import { useSystemSettings } from '@/hooks/useSystemSettings'
 import { getApiBaseUrl, getAuthToken } from '@/services/api'
 import type { CashClosure, TheoreticalData, PaymentMethodBreakdown, Denomination } from '../types'
 
 const API_URL = getApiBaseUrl()
-const CLOSURE_HISTORY_KEY = 'cierre-caja/historial'
-const CLOSURE_PAGE_SIZES = TABLE_PAGE_SIZES
-
-interface FetchClosuresResponse {
-    closures: CashClosure[]
-    currentPage: number
-    totalPages: number
-}
-
 interface SaveClosurePayload {
     startDate: string
     endDate: string
@@ -81,26 +70,17 @@ interface LastClosureDateResponse {
 }
 
 interface UseCashClosureAPIReturn {
-    closureSummary?: Record<string, number>
     // Loading states
     isCalculating: boolean
     isSaving: boolean
-    isLoadingClosures: boolean
     // Data
     theoreticalData: TheoreticalData | null
-    closures: CashClosure[]
-    currentPage: number
-    totalPages: number
-    pageSize: number
-    setPageSize: (size: number) => void
     // Operations
     getLastClosureDate: (scope: 'day' | 'mine') => Promise<{ suggestedStart: string; suggestedEnd: string } | null>
     calculateTheoretical: (startDate: string, endDate: string, cashierId?: string, cashRegisterSessionId?: string) => Promise<TheoreticalData | null>
-    saveClosure: (payload: SaveClosurePayload) => Promise<boolean>
-    fetchClosures: (page: number, isSeller: boolean, pageSizeOverride?: number, filters?: { status?: string; startDate?: string; endDate?: string }) => Promise<void>
-    fetchClosureDetail: (closureId: string) => Promise<CashClosure | null>
-    approveClosure: (closureId: string, supervisorName: string) => Promise<CashClosure | null>
-    rejectClosure: (closureId: string, reason: string) => Promise<CashClosure | null>
+    saveClosure: (payload: SaveClosurePayload) => Promise<string | null>
+    approveClosure: (closureId: string, expectedUpdatedAt: string) => Promise<CashClosure | null>
+    rejectClosure: (closureId: string, reason: string, expectedUpdatedAt: string) => Promise<CashClosure | null>
 }
 
 export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
@@ -109,25 +89,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
 
     const [isCalculating, setIsCalculating] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
-    const [isLoadingClosures, setIsLoadingClosures] = useState(false)
     const [theoreticalData, setTheoreticalData] = useState<TheoreticalData | null>(null)
-    const [closures, setClosures] = useState<CashClosure[]>([])
-    const [closureSummary, setClosureSummary] = useState<Record<string, number>>()
-    const [currentPage, setCurrentPage] = useState(() => {
-        const s = readListUiPersisted(CLOSURE_HISTORY_KEY)
-        return Math.max(1, Number(s.page) || 1)
-    })
-    const [totalPages, setTotalPages] = useState(1)
-    const [pageSize, setPageSize] = useState(() => {
-        const s = readListUiPersisted(CLOSURE_HISTORY_KEY)
-        const n = Number(s.pageSize)
-        return CLOSURE_PAGE_SIZES.includes(n as (typeof CLOSURE_PAGE_SIZES)[number]) ? n : DEFAULT_PAGE_SIZE
-    })
-
-    useEffect(() => {
-        writeListUiPersisted(CLOSURE_HISTORY_KEY, { page: currentPage, pageSize })
-    }, [currentPage, pageSize])
-
     const getAuthHeaders = () => ({
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${getAuthToken() ?? ''}`
@@ -154,19 +116,15 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
             // Validate stocks first
             const validateResponse = await fetch(`${API_URL}/cash-closures/validate-stocks`, {
                 headers: getAuthHeaders()
-            })
+            }).catch(() => null)
 
-            if (!validateResponse.ok) throw new Error('Error validating stocks')
+            const validationData = validateResponse?.ok ? await validateResponse.json().catch(() => null) : null
 
-            const validationData = await validateResponse.json()
-
-            if (!validationData.valid && validationData.products.length > 0) {
+            if (validationData && !validationData.valid && validationData.products.length > 0) {
                 toast({
-                    title: 'Stock Negativo Detectado',
-                    description: `Hay ${validationData.negative_stock_count} producto(s) con stock negativo.`,
-                    variant: 'destructive'
+                    title: 'Inventario por revisar',
+                    description: `Hay ${validationData.negative_stock_count} producto(s) con stock negativo. Puedes continuar con el arqueo; revisa el inventario por separado.`,
                 })
-                return null
             }
 
             const params = new URLSearchParams({
@@ -199,13 +157,13 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
             const data: TheoreticalData = await response.json()
             setTheoreticalData(data)
 
-            if (data.metrics.total_transactions === 0 && !(data.cash_session?.opening_float > 0)) {
+            if (data.metrics.total_transactions === 0 && !(data.cash_session?.opening_float > 0) && data.theoretical.net_total === 0) {
                 toast({
                     title: 'Sin ventas en el período',
                     description: 'No hay ventas en el período seleccionado. Puedes guardar el cierre con total Q 0.00 si lo deseas.',
                     variant: 'default',
                 })
-            } else if (data.metrics.total_transactions === 0 && data.cash_session?.opening_float > 0) {
+            } else if (data.metrics.total_transactions === 0 && data.cash_session?.opening_float > 0 && !data.theoretical.total_collections && !data.theoretical.total_returns && !data.theoretical.total_supplier_payments) {
                 toast({
                     title: 'Cálculo completado',
                     description: `Sin ventas en el turno. Debe haber ${data.cash_session.expected_cash_in_drawer.toFixed(2)} en efectivo (fondo inicial).`,
@@ -231,27 +189,18 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
         }
     }, [toast])
 
-    const saveClosure = useCallback(async (payload: SaveClosurePayload): Promise<boolean> => {
+    const saveClosure = useCallback(async (payload: SaveClosurePayload): Promise<string | null> => {
         setIsSaving(true)
         try {
             const closureData: Record<string, unknown> = {
                 startDate: payload.startDate,
                 endDate: payload.endDate,
                 cashierName: payload.cashierName,
-                cashierSignature: null,
-                supervisorName: null,
-                supervisorSignature: null,
-                theoreticalTotal: payload.theoreticalData.theoretical.net_total,
-                theoreticalSales: payload.theoreticalData.theoretical.total_sales,
-                theoreticalReturns: payload.theoreticalData.theoretical.total_returns,
-                actualTotal: payload.actualTotal,
-                totalTransactions: payload.theoreticalData.metrics.total_transactions,
-                totalCustomers: payload.theoreticalData.metrics.total_customers,
-                averageTicket: payload.theoreticalData.metrics.average_ticket,
+                calculationKey: payload.theoreticalData.calculation_key,
+                actualTotal: Number(payload.actualTotal.toFixed(2)),
                 notes: payload.notes.trim() || null,
-                unidentifiedCollectionsAmount: payload.theoreticalData.unidentified_collections_amount || 0,
-                paymentBreakdowns: payload.paymentBreakdown,
-                denominations: payload.denominations.filter(d => d.quantity > 0)
+                paymentBreakdowns: payload.paymentBreakdown.map(row => ({ ...(row.breakdown_key ? { breakdown_key: row.breakdown_key } : {}), payment_method_id: row.payment_method_id, actual_amount: Number(Number(row.actual_amount).toFixed(2)), actual_count: row.actual_count, notes: row.notes })),
+                denominations: payload.denominations.filter(d => d.quantity > 0).map(d => ({ denomination: d.denomination, type: d.type, quantity: d.quantity }))
             }
             if (payload.cashierId) closureData.cashierId = payload.cashierId
             if (payload.cashRegisterSessionId) {
@@ -264,12 +213,12 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
                 body: JSON.stringify(closureData)
             })
 
-            const savedOrErr = await response.json().catch(() => ({})) as { message?: string; closure_number?: number }
+            const savedOrErr = await response.json().catch(() => ({})) as { id?: string; message?: string; closure_number?: number }
 
             if (!response.ok) {
                 const msg = savedOrErr.message || `Error al guardar (${response.status})`
                 toast({ title: 'Error', description: msg, variant: 'destructive' })
-                return false
+                return null
             }
 
             toast({
@@ -278,7 +227,7 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
             })
 
             setTheoreticalData(null)
-            return true
+            return savedOrErr.id || null
         } catch (error) {
             console.error('Error saving closure:', error)
             toast({
@@ -286,107 +235,48 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
                 description: error instanceof Error ? error.message : 'No se pudo guardar el cierre de caja',
                 variant: 'destructive'
             })
-            return false
+            return null
         } finally {
             setIsSaving(false)
         }
     }, [toast])
 
-    const fetchClosures = useCallback(async (page: number, isSeller: boolean, pageSizeOverride?: number, filters?: { status?: string; startDate?: string; endDate?: string }): Promise<void> => {
-        setIsLoadingClosures(true)
-        const size = pageSizeOverride ?? (isSeller ? 1 : pageSize)
-        if (pageSizeOverride != null) setPageSize(pageSizeOverride)
-        try {
-            const params = new URLSearchParams({ page: String(page), pageSize: String(size), includeSummary: 'true' })
-            if (filters?.status) params.set('status', filters.status)
-            if (filters?.startDate) params.set('startDate', filters.startDate)
-            if (filters?.endDate) params.set('endDate', filters.endDate)
-            const response = await fetch(`${API_URL}/cash-closures?${params.toString()}`, {
-                headers: getAuthHeaders()
-            })
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
-
-            const data = await response.json()
-
-            if (data && Array.isArray(data.items)) {
-                setClosureSummary(data.summary)
-                setClosures(data.items)
-                setCurrentPage(data.page || 1)
-                setTotalPages(data.totalPages || 1)
-            } else {
-                setClosureSummary(undefined)
-                setClosures([])
-                setCurrentPage(1)
-                setTotalPages(1)
-            }
-        } catch (error) {
-            console.error('Error fetching closures:', error)
-            setClosureSummary(undefined)
-            setClosures([])
-            toast({
-                title: 'Error',
-                description: 'No se pudieron cargar los cierres de caja',
-                variant: 'destructive'
-            })
-        } finally {
-            setIsLoadingClosures(false)
-        }
-    }, [toast, pageSize])
-
-    const fetchClosureDetail = useCallback(async (closureId: string): Promise<CashClosure | null> => {
-        try {
-            const response = await fetch(`${API_URL}/cash-closures/${closureId}`, {
-                headers: getAuthHeaders()
-            })
-            return await response.json()
-        } catch (error) {
-            console.error('Error fetching closure detail:', error)
-            toast({
-                title: 'Error',
-                description: 'No se pudo cargar el detalle del cierre',
-                variant: 'destructive'
-            })
-            return null
-        }
-    }, [toast])
-
-    const approveClosure = useCallback(async (closureId: string, supervisorName: string): Promise<CashClosure | null> => {
+    const approveClosure = useCallback(async (closureId: string, expectedUpdatedAt: string): Promise<CashClosure | null> => {
         try {
             const response = await fetch(`${API_URL}/cash-closures/${closureId}/status`, {
                 method: 'PATCH',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ status: 'Aprobado', supervisor_name: supervisorName })
+                body: JSON.stringify({ status: 'Aprobado', expectedUpdatedAt })
             })
 
-            if (!response.ok) throw new Error('Error al aprobar el cierre')
+            if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || 'Error al aprobar el cierre') }
 
             const updatedClosure = await response.json()
             toast({ title: 'Cierre Aprobado' })
             return updatedClosure
         } catch (error) {
             console.error('Error approving closure:', error)
-            toast({ title: 'Error', description: 'No se pudo aprobar el cierre', variant: 'destructive' })
+            toast({ title: 'No se pudo aprobar', description: error instanceof Error ? error.message : 'Recarga el arqueo e inténtalo nuevamente.', variant: 'destructive' })
             return null
         }
     }, [toast])
 
-    const rejectClosure = useCallback(async (closureId: string, reason: string): Promise<CashClosure | null> => {
+    const rejectClosure = useCallback(async (closureId: string, reason: string, expectedUpdatedAt: string): Promise<CashClosure | null> => {
         try {
             const response = await fetch(`${API_URL}/cash-closures/${closureId}/status`, {
                 method: 'PATCH',
                 headers: getAuthHeaders(),
-                body: JSON.stringify({ status: 'Rechazado', rejection_reason: reason })
+                body: JSON.stringify({ status: 'Rechazado', rejection_reason: reason, expectedUpdatedAt })
             })
 
-            if (!response.ok) throw new Error('Error al rechazar el cierre')
+            if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || 'Error al rechazar el cierre') }
 
             const updatedClosure = await response.json()
             toast({ title: 'Cierre Rechazado', variant: 'destructive' })
             return updatedClosure
         } catch (error) {
             console.error('Error rejecting closure:', error)
-            toast({ title: 'Error', description: 'No se pudo rechazar el cierre', variant: 'destructive' })
+            toast({ title: 'No se pudo rechazar', description: error instanceof Error ? error.message : 'Recarga el arqueo e inténtalo nuevamente.', variant: 'destructive' })
             return null
         }
     }, [toast])
@@ -394,19 +284,10 @@ export const useCashClosureAPI = (): UseCashClosureAPIReturn => {
     return {
         isCalculating,
         isSaving,
-        isLoadingClosures,
         theoreticalData,
-        closures,
-        closureSummary,
-        currentPage,
-        totalPages,
-        pageSize,
-        setPageSize,
         getLastClosureDate,
         calculateTheoretical,
         saveClosure,
-        fetchClosures,
-        fetchClosureDetail,
         approveClosure,
         rejectClosure
     }

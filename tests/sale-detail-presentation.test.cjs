@@ -9,7 +9,7 @@ const runtime = require('react/jsx-runtime')
 const { renderToStaticMarkup } = require('react-dom/server')
 const { MemoryRouter } = require('react-router-dom')
 const root = path.resolve(__dirname, '../src')
-const sale = { id: 'sale-1', reference: 'V-001', date: '2026-10-08T12:00:00Z', customer: 'Cliente QA', customerNit: '123456-7', isFinalConsumer: false, createdByName: 'Ana QA', status: 'completed', payment: 'Efectivo', total: 20, subtotal: 25, discountTotal: 5, amountReceived: 30, change: 10, items: 2, products: [{ id: 'p-1', name: 'Producto QA', qty: 2, price: 10, imageUrl: '/qa-product.png', barcode: '740001' }] }
+const sale = { capabilities: { viewDocument: true }, id: 'sale-1', reference: 'V-001', date: '2026-10-08T12:00:00Z', customer: 'Cliente QA', customerNit: '123456-7', isFinalConsumer: false, createdByName: 'Ana QA', status: 'completed', payment: 'Efectivo', total: 20, subtotal: 25, discountTotal: 5, amountReceived: 30, change: 10, items: 2, products: [{ id: 'p-1', name: 'Producto QA', qty: 2, price: 10, imageUrl: '/qa-product.png', barcode: '740001' }] }
 test('draft detail never claims applied payment even when a stale raw payment flag says paid',()=>{
   const view=render('SaleInvoicePage',{record:{...sale,status:'draft',payment:null,paymentStatus:'PAID',amountReceived:0,change:0,commercial:{state:'DRAFT',originEngagementId:'e',version:1,confirmedAt:null,fiscalState:'UNRECORDED'}}})
   assert.match(view.html,/Borrador/);assert.match(view.html,/Por definir al confirmar/)
@@ -94,6 +94,24 @@ test('a failed detail request shows an error and retry, not a partial sale or re
 })
 
 for (const name of ['SaleInvoicePage', 'SaleDetailDialog']) {
+  test(`${name} renders products and payment when the API returns null package groups`,()=>{
+    const view=render(name,{record:{...sale,packageGroups:null}})
+    assert.match(view.html,/Producto QA/)
+    assert.match(view.html,/Resumen de pago/)
+    assert.match(view.html,/20\.00/)
+    assert.doesNotMatch(view.html,/Paquetes acordados/)
+  })
+  test(`${name} omits the empty free-product table for a package-only sale but keeps financial totals`, () => {
+    const component={key:'group:product',productId:'p-1',itemName:'Producto incluido',itemKind:'STANDARD',quantity:'2',unitLabel:'unidad',quantityDecimals:0,unitPrice:'10',lineTotal:'20.00',netLineTotal:'20.00'}
+    const record={...sale,packageGroups:[{groupId:'group',name:'Paquete QA',variantName:'Dos unidades',currency:'GTQ',state:'COMPLETE',amount:'20.00',netAmount:'20.00',components:[component],issues:[]}],products:[{...sale.products[0],name:component.itemName,packageComponentKey:component.key}]}
+    const only=render(name,{record})
+    assert.match(only.html,/Paquete QA/);assert.match(only.html,/Total neto/)
+    assert.doesNotMatch(only.html,/<table|<h2>Productos<\/h2>/)
+    const mixed=render(name,{record:{...record,products:[...record.products,{id:'free',name:'Extra QA',qty:1,price:5}]}})
+    assert.match(mixed.html,/<table/);assert.match(mixed.html,/Extra QA/);assert.match(mixed.html,/1 artículo/)
+    const empty=render(name,{record:{...sale,products:[]}})
+    assert.match(empty.html,/Esta venta no tiene productos disponibles/)
+  })
   test(`${name} exposes a compact product table, client and payment regions`, () => {
     const view = render(name)
     assert.ok(view.html.includes('aria-label="Información de la venta"'))

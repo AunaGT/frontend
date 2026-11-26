@@ -18,6 +18,8 @@ import type { Denomination } from '../types'
 import { formatCurrency, toNumber } from '../types'
 
 interface DenominationsCounterProps {
+    currencyCode?: string | null
+    autoAllocate?: boolean
     denominations: Denomination[]
     onUpdateQuantity: (index: number, quantity: number) => void
     cashTotal: number
@@ -26,19 +28,22 @@ interface DenominationsCounterProps {
 }
 
 export const DenominationsCounter = ({
+    currencyCode: frozenCurrency,
+    autoAllocate = true,
     denominations,
     onUpdateQuantity,
     cashTotal,
     expectedCashInDrawer,
     openingFloat = 0,
 }: DenominationsCounterProps) => {
-    const { currencyCode, locale } = useSystemSettings()
+    const { currencyCode: currentCurrency, locale } = useSystemSettings()
+    const currencyCode = frozenCurrency || currentCurrency
     return (
         <div className="space-y-4">
             <div>
                 <h2 className="cash-closure-panel-heading"><Banknote className="h-5 w-5 text-primary" aria-hidden="true" />Arqueo por denominaciones</h2>
                 <p className="text-xs text-muted-foreground mt-1">
-                    Opcional. El total calculado actualiza automáticamente el efectivo contado.
+                    {autoAllocate ? 'Opcional. El total calculado actualiza automáticamente el efectivo contado.' : 'Opcional. Cuenta el efectivo total y distribúyelo entre los medios de efectivo; ninguno se rellenará por suposición.'}
                 </p>
                 {openingFloat > 0 && (
                     <p className="auna-field-message mt-1">

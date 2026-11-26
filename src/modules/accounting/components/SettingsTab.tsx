@@ -17,7 +17,6 @@ import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTab
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
@@ -27,7 +26,7 @@ import {
   getAccountingConfig, updateAccountingConfig, getPeriods, closePeriod, reopenPeriod, closeYear,
   type Account, type AccountingPeriod,
 } from '@/services/accountingService'
-import { getSettings, updateSettings } from '@/services/settingsService'
+import { getSettings, type SystemSettings } from '@/services/settingsService'
 import { MONTH_LABELS } from './format'
 import { OpeningBalancesCard } from './OpeningBalancesCard'
 
@@ -66,18 +65,13 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   const [closingYear, setClosingYear] = useState(currentYear - 1)
   const [closingBusy, setClosingBusy] = useState(false)
 
-  const [vatRegime, setVatRegime] = useState<'general' | 'pequeno'>('general')
-  const [savingRegime, setSavingRegime] = useState(false)
-  const [ivaRate, setIvaRate] = useState('12')
-  const [pequenoRate, setPequenoRate] = useState('5')
-  const [savingRates, setSavingRates] = useState(false)
+  const [fiscalSummary, setFiscalSummary] = useState<{ key: string; data: Pick<SystemSettings, 'vat_affiliation' | 'iva_rate' | 'pequeno_rate'> | null; error: boolean } | null>(null)
   const [section, setSection] = useState('impuestos')
   const [configRevision,setConfigRevision]=useState<number|null>(null)
-  const [fiscalRevisions,setFiscalRevisions]=useState<Record<string,number>|null>(null)
   const [loadError,setLoadError]=useState('')
   const {company,branch,isConsolidated}=useTenant(),{hasPermission}=useAuthPermissions()
-  const scope={companyId:company?.id||'',branchId:branch?.id||(isConsolidated?'all':'')},canEditFiscal=hasPermission('settings.manage')&&!isConsolidated
-  const scopeKey=JSON.stringify([scope.companyId,scope.branchId,canManage,canEditFiscal])
+  const scope={companyId:company?.id||'',branchId:branch?.id||(isConsolidated?'all':'')},canReadFiscal=hasPermission('settings.view','settings.manage'),canEditFiscal=hasPermission('settings.manage')&&!isConsolidated
+  const scopeKey=JSON.stringify([scope.companyId,scope.branchId,canManage,canReadFiscal,canEditFiscal])
   const live=useRef({key:scopeKey,active:true});if(live.current.key!==scopeKey)live.current={key:scopeKey,active:true}
   const owner=live.current,current=()=>owner.active&&live.current===owner
 
@@ -85,65 +79,16 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   const years = Array.from({ length: 6 }, (_, i) => currentYear - 4 + i)
 
   function loadSettings(){
-    setConfigRevision(null);setFiscalRevisions(null);setLoadError('');setSavingConfig(false);setSavingRates(false);setSavingRegime(false)
+    setConfigRevision(null);setFiscalSummary(null);setLoadError('');setSavingConfig(false)
     if(!scope.companyId||!scope.branchId)return
     getAccountingConfig(scope)
       .then((res) => { if(current()){setDefaults(res.defaults); setKeys(res.keys);setConfigRevision(res.revision)} })
       .catch(() => {if(current())setLoadError('No se pudo cargar la configuración. No guardes valores predeterminados; vuelve a cargar.')} )
-    if(canEditFiscal)getSettings({scope})
-      .then((s) => {
-        if(!current())return
-        setVatRegime(/peque/i.test(s.vat_affiliation || '') ? 'pequeno' : 'general')
-        if (s.iva_rate) setIvaRate(s.iva_rate)
-        if (s.pequeno_rate) setPequenoRate(s.pequeno_rate)
-        setFiscalRevisions(s._revisions||{})
-      })
-      .catch(() => {if(current())setLoadError('No se pudieron cargar los ajustes fiscales. Reintenta antes de guardar.')} )
+    if(canReadFiscal)getSettings({scope})
+      .then(data => { if(current())setFiscalSummary({key:scopeKey,data,error:false}) })
+      .catch(() => { if(current())setFiscalSummary({key:scopeKey,data:null,error:true}) })
   }
   useEffect(()=>{owner.active=true;loadSettings();return()=>{owner.active=false}},[scopeKey])
-
-  const handleSaveRegime = async (value: 'general' | 'pequeno') => {
-    if(!current()||!canEditFiscal||!fiscalRevisions||savingRegime)return
-    setSavingRegime(true)
-    try {
-      const saved=await updateSettings({ vat_affiliation: value === 'pequeno' ? 'pequeno_contribuyente' : 'general' },{scope,expectedRevisions:{vat_affiliation:fiscalRevisions.vat_affiliation??0}})
-      if(!current())return
-      setVatRegime(value);setFiscalRevisions(old=>({...old,vat_affiliation:saved._revisions?.vat_affiliation??0}))
-      toast({
-        title: 'Régimen de IVA actualizado',
-        description: value === 'pequeno'
-          ? `Los próximos asientos acumularán el ${pequenoRate}% sobre ventas, sin desglose de IVA`
-          : `Los próximos asientos desglosarán IVA débito y crédito (${ivaRate}%)`,
-      })
-    } catch (e) {
-      if(!current())return
-      toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudo guardar el régimen', variant: 'destructive' })
-    } finally {
-      if(current())setSavingRegime(false)
-    }
-  }
-
-  const handleSaveRates = async () => {
-    if(!current()||!canEditFiscal||!fiscalRevisions||savingRates)return
-    const iva = Number(ivaRate)
-    const pequeno = Number(pequenoRate)
-    if (!Number.isFinite(iva) || iva < 0 || iva >= 100 || !Number.isFinite(pequeno) || pequeno < 0 || pequeno >= 100) {
-      toast({ title: 'Tasas inválidas', description: 'Deben ser números entre 0 y 99', variant: 'destructive' })
-      return
-    }
-    setSavingRates(true)
-    try {
-      const saved=await updateSettings({ iva_rate: String(iva), pequeno_rate: String(pequeno) },{scope,expectedRevisions:{iva_rate:fiscalRevisions.iva_rate??0,pequeno_rate:fiscalRevisions.pequeno_rate??0}})
-      if(!current())return
-      setFiscalRevisions(old=>({...old,iva_rate:saved._revisions?.iva_rate??0,pequeno_rate:saved._revisions?.pequeno_rate??0}))
-      toast({ title: 'Tasas guardadas', description: 'Aplican a los próximos asientos automáticos' })
-    } catch (e) {
-      if(!current())return
-      toast({ title: 'Error', description: e instanceof Error ? e.message : 'No se pudieron guardar las tasas', variant: 'destructive' })
-    } finally {
-      if(current())setSavingRates(false)
-    }
-  }
 
   const loadPeriods = (year: number) => {
     getPeriods(year)
@@ -214,8 +159,7 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
   return (
     <Tabs value={section} onValueChange={setSection} className="accounting-settings-tabs space-y-4">
       {loadError&&<p role="alert" className="text-destructive">{loadError}</p>}
-      <Button variant="outline" disabled={savingConfig||savingRates||savingRegime} onClick={()=>{if(window.confirm('Se descartarán los cambios no guardados de estos ajustes contables. ¿Cargar valores actuales?'))loadSettings()}}>Recargar ajustes actuales</Button>
-      {!canEditFiscal&&<p className="text-sm text-muted-foreground">Para editar impuestos necesitas permiso de gestión de Configuración. Los datos fiscales compartidos se administran también desde Configuración.</p>}
+      <Button variant="outline" disabled={savingConfig} onClick={()=>{if(window.confirm('Se descartarán los cambios no guardados de estos ajustes contables. ¿Cargar valores actuales?'))loadSettings()}}>Recargar ajustes actuales</Button>
       <div className="max-w-full overflow-x-auto pb-1"><ModuleTabsList aria-label="Tareas de configuración contable">
         <ModuleTabsTrigger value="impuestos">Impuestos</ModuleTabsTrigger>
         <ModuleTabsTrigger value="cuentas">Cuentas por defecto</ModuleTabsTrigger>
@@ -230,40 +174,16 @@ export const SettingsTab = ({ accounts, canManage }: { accounts: Account[]; canM
             <Landmark className="h-5 w-5" />Impuestos (SAT)
           </CardTitle>
           <CardDescription>
-            Régimen y tasas con que se contabilizan las operaciones automáticas. Afecta solo a los asientos futuros.
+            Régimen y tasas de la empresa, compartidas con la preparación FEL. Los asientos existentes no se recalculan.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1 w-full max-w-md">
-              <Label className="text-xs">Régimen</Label>
-              <Select value={vatRegime} onValueChange={(v) => void handleSaveRegime(v as 'general' | 'pequeno')} disabled={savingRegime||!canEditFiscal||!fiscalRevisions}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="general">Régimen general — desglosa IVA débito/crédito ({ivaRate}%)</SelectItem>
-                  <SelectItem value="pequeno">Pequeño contribuyente — {pequenoRate}% sobre ventas brutas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 w-[150px]">
-              <Label className="text-xs">Tasa IVA general (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" disabled={!canEditFiscal||!fiscalRevisions||savingRates} value={ivaRate} onChange={(e) => setIvaRate(e.target.value)} />
-            </div>
-            <div className="space-y-1 w-[190px]">
-              <Label className="text-xs">Tarifa pequeño contribuyente (%)</Label>
-              <Input type="number" min={0} max={99} step="0.5" disabled={!canEditFiscal||!fiscalRevisions||savingRates} value={pequenoRate} onChange={(e) => setPequenoRate(e.target.value)} />
-            </div>
-            <Button variant="outline" onClick={handleSaveRates} disabled={savingRates||!canEditFiscal||!fiscalRevisions}>
-              {savingRates ? 'Guardando…' : 'Guardar tasas'}
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground max-w-2xl">
-            En régimen general las ventas separan el IVA débito, las compras el IVA crédito, y el costo de
-            ventas se registra sin IVA (los costos capturados se asumen a precio de factura, con IVA incluido).
-            Como pequeño contribuyente no se acredita IVA: las operaciones se registran por el total y cada venta
-            acumula la tarifa fija sobre ingresos brutos como gasto contra «IVA pequeño contribuyente por pagar».
-            El detalle mensual está en la pestaña Impuestos. Confírmalo con tu contador.
-          </p>
+          {!canReadFiscal ? <p className="text-sm text-muted-foreground">Necesitas permiso de consulta de Configuración para ver los datos fiscales.</p> : fiscalSummary?.key !== scopeKey ? <p role="status" className="text-sm text-muted-foreground">Cargando datos fiscales…</p> : fiscalSummary.error ? <p role="alert" className="text-sm text-destructive">No se pudieron cargar los datos fiscales. Usa «Recargar ajustes actuales» para reintentar.</p> : <dl className="grid gap-4 text-sm sm:grid-cols-3">
+            <div><dt className="text-muted-foreground">Régimen</dt><dd className="mt-1 font-medium">{{ general: 'Régimen general', pequeno_contribuyente: 'Pequeño contribuyente', no_obligado: 'No obligado', exento: 'Exento', otro: 'Otro' }[fiscalSummary.data?.vat_affiliation || ''] || 'Sin configurar'}</dd></div>
+            <div><dt className="text-muted-foreground">Tasa IVA general</dt><dd className="mt-1 font-medium">{fiscalSummary.data?.iva_rate ?? 'Sin configurar'}{fiscalSummary.data?.iva_rate ? ' %' : ''}</dd></div>
+            <div><dt className="text-muted-foreground">Tarifa pequeño contribuyente</dt><dd className="mt-1 font-medium">{fiscalSummary.data?.pequeno_rate ?? 'Sin configurar'}{fiscalSummary.data?.pequeno_rate ? ' %' : ''}</dd></div>
+          </dl>}
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><p className="max-w-2xl text-sm text-muted-foreground">El régimen y las tasas se administran únicamente en Configuración → Datos fiscales. Esta misma configuración se utiliza en Contabilidad y en la preparación FEL.</p>{canReadFiscal && <Button asChild variant="outline" className="min-h-11"><a href="/configuracion?seccion=fiscal">{canEditFiscal ? 'Editar configuración fiscal' : 'Ver configuración fiscal'}</a></Button>}</div>
         </CardContent>
       </Card>
       </TabsContent>

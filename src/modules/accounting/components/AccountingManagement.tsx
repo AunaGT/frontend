@@ -14,6 +14,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Tabs, TabsContent } from '@/components/ui/tabs'
 import { ModuleTabsList, ModuleTabsTrigger } from '@/components/shared/ModuleTabs'
 import { usePageTrail } from '@/components/layout/PageNavigation'
@@ -39,7 +40,10 @@ const AccountingManagement = () => {
   const canManage = hasPermission('accounting.manage')
 
   const [accounts, setAccounts] = useState<Account[]>([])
-  const [activeTab, setActiveTab] = useState('diario')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedTab = searchParams.get('vista') || ''
+  const activeTab = Object.prototype.hasOwnProperty.call(TAB_LABELS, requestedTab) ? requestedTab : 'diario'
+  const setActiveTab = (value: string) => setSearchParams(previous => { const next = new URLSearchParams(previous); next.set('vista', value); return next }, { replace: true })
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [accountsError, setAccountsError] = useState(false)
   usePageTrail([{ label: TAB_LABELS[activeTab] }])
@@ -60,9 +64,10 @@ const AccountingManagement = () => {
 
   useEffect(() => { void loadAccounts() }, [loadAccounts])
 
-  // Auto-contabilizar operaciones pendientes al entrar al módulo (una vez por montaje)
+  // Configuración es consulta/edición de ajustes, nunca una intención de posteo.
+  // Mantener el comportamiento habitual al entrar a las vistas operativas.
   useEffect(() => {
-    if (!canCreate || autoPostedRef.current) return
+    if (activeTab === 'configuracion' || !canCreate || autoPostedRef.current) return
     autoPostedRef.current = true
     postPending()
       .then((res) => {
@@ -71,7 +76,7 @@ const AccountingManagement = () => {
         }
       })
       .catch(() => { /* silencioso: el botón manual del Diario reporta errores */ })
-  }, [canCreate, toast])
+  }, [activeTab, canCreate, toast])
 
   return (
     <div className={`accounting-page mx-auto max-w-[1560px] p-4 sm:p-6 lg:p-8 space-y-5 ${activeTab !== 'configuracion' ? 'auna-page-fluid' : ''}`}>

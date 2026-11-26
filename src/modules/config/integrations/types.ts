@@ -1,0 +1,13 @@
+export type IntegrationScope={companyId:string;userId:string;sessionId:string;branchId?:string}
+export type ScopeCode='products.read'|'categories.read'|'prices.read'|'availability.read'|'quotes.read'|'quotes.create_draft'|'quotes.update_draft'|'quotes.cancel_draft'|'orders.read'|'orders.create_draft'|'orders.update_draft'|'orders.cancel_draft'|'customers.create'
+export type CustomerPolicy='EXISTING_ONLY'|'CREATE_IF_MISSING'
+export type CredentialStatus='ACTIVE'|'PAUSED'|'REVOKED'|'EXPIRED'
+export type CredentialFiltersValue={q:string;status:'ALL'|CredentialStatus;scope:ScopeCode|'ALL'}
+export type UsagePeriod='24h'|'7d'|'30d'
+export type UsageSummary={period:UsagePeriod;from:string;to:string;coverage:'AUTHENTICATED_RECORDED';retentionDays:number;total:number;successful:number;errors:number;errorRate:number|null;byStatus:{family:string;count:number}[];byRoute:{route:string;count:number}[]}
+export type CredentialInput={name:string;ownerId:string;scopes:ScopeCode[];branchIds:string[];days:number|null;customerPolicy:CustomerPolicy;customerPaymentTermId:number|null}
+export type Credential={id:string;name:string;publicId:string;integrationId:string;customerPolicy:CustomerPolicy;customerPaymentTermId:number|null;customerPaymentTermName?:string|null;owner:{id:string;name:string};scopes:ScopeCode[];branches:{id:string;name:string}[];createdAt:string;expiresAt:string|null;revokedAt:string|null;pausedAt:string|null;lastUsedAt:string|null;replacesId:string|null;status:CredentialStatus}
+export type CreatedCredential={credential:Credential;apiKey:string}
+export type Page<T>={items:T[];total:number;page:number;pageSize:number}
+export type ManagementOptions={owners:{id:string;name:string}[];hasMore:boolean;page:number;branches:{id:string;name:string}[];scopes:ScopeCode[];limits:{defaultDays:number;maxDays:number;maxKeys:number;allowNoExpiry:boolean}}
+export type AuditEvent={id:string;action:string;status:number|null;route:string|null;created_at:string;actor_id:string|null;request_id:string|null}

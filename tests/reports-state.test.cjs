@@ -30,3 +30,12 @@ test('changing filters blocks old exports immediately; failed retry removes prio
   const retry = changed.prepare(); h.requests[1].reject(new Error('Sin conexión')); await retry
   assert.equal(h.render().report, null); assert.equal(h.render().error.message, 'Sin conexión')
 })
+test('revoking financial access clears prepared sales data and ignores in-flight privileged responses',async()=>{
+ const h=harness(),filters={branchId:'qa-branch',period:'all'}
+ let request=h.render('qa-company','sales',filters,'financial').prepare();h.requests[0].resolve(fixture());await request
+ assert.ok(h.render().report)
+ assert.equal(h.render('qa-company','sales',filters,'operational').report,null)
+ request=h.render('qa-company','sales',filters,'financial').prepare()
+ h.render('qa-company','sales',filters,'operational');h.requests[1].resolve(fixture());await request
+ assert.equal(h.render().report,null);assert.equal(h.requests[1].args[3].aborted,true)
+})

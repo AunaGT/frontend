@@ -70,7 +70,7 @@ export default function OrdersManagement() {
   const { hasPermission } = useAuthPermissions()
   const { locale, currencyCode, companyName, companyLogoUrl } = useSystemSettings()
   const canCreate = hasPermission('orders.create')
-  const canSell = hasPermission('sales.create')
+  const canSell = hasPermission('orders.manage') && hasPermission('sales.create')
   const [draftFilters, setDraftFilters] = useState<Filters>(EMPTY_FILTERS)
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const deferredSearch = useDeferredValue(filters.search.trim())

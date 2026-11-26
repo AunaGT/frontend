@@ -14,13 +14,16 @@ import { formatQuantity, previewLineTotal } from '@/lib/commercialQuantity'
 import {formatUnitDecimal,unitLineTotal} from '@/modules/inventory/units/public'
 import './saleDetail.css'
 import {saleCommercialState,salePaymentLabel,fiscalLabel} from '../commercialPresentation'
+import {CommercialPackageSummary,packageDocumentCurrency} from '@/components/shared/CommercialPackageSummary'
+import {EventPaymentTermsSummary} from '@/components/shared/EventPaymentTermsSummary'
 
 export function SaleStatusBadge({ status }: { status: SaleStatus }) {
   const labels = { draft:'Borrador',pending: 'Revisar estado', paid: 'Revisar estado', completed: 'Confirmada', cancelled: 'Cancelada',legacy:'Revisar estado' }
   return <StatusBadge status={labels[status] ?? 'Desconocido'} variant={status === 'cancelled' ? 'destructive' : undefined} />
 }
 
-export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; locale?: string; currencyCode?: string }) {
+export function SaleDetailContent({ sale, locale, currencyCode:companyCurrencyCode }: { sale: Sale; locale?: string; currencyCode?: string }) {
+  const currencyCode=packageDocumentCurrency(sale.packageGroups,companyCurrencyCode)
   const fmt = (value: number) => formatMoney(value, locale, currencyCode)
   const date = (value: string) => formatDateTime(value, undefined, locale)
   const contact = sale.customerContact
@@ -31,6 +34,7 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
   const commercialState=saleCommercialState(sale)
   const isDraft=commercialState==='DRAFT'
   const returns = sale.hasReturns ? sale.returnDetails ?? [] : []
+  const packageKeys=new Set(sale.packageGroups?.flatMap(g=>g.components.map(c=>c.key))),freeProducts=sale.products.filter(p=>!packageKeys.has(p.packageComponentKey??''))
   const total = sale.hasReturns ? sale.adjustedTotal ?? sale.total : sale.total
   const hasDiscount = Number(sale.discountTotal) > 0
   const customerName = sale.customer || (sale.isFinalConsumer ? 'Consumidor final' : 'Cliente sin nombre')
@@ -45,6 +49,7 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
   return (
     <div className="sale-detail-layout">
       <div className="sale-detail-main">
+        <EventPaymentTermsSummary value={sale.eventPaymentTerms} locale={locale}/>
         <section className="auna-surface rounded-xl border" aria-label="Información de la venta">
           <header className="sale-detail-heading"><FileText aria-hidden /><h2>Información de la venta</h2></header>
           <dl className="sale-detail-facts">
@@ -60,15 +65,16 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
           </dl>
         </section>
 
+        <CommercialPackageSummary groups={sale.packageGroups} lines={sale.products} mode={isDraft?'quote':'sale'} locale={locale}/>
         <section className="auna-surface rounded-xl border overflow-hidden" aria-label="Productos de la venta">
-          <header className="sale-detail-heading"><Package aria-hidden /><h2>Productos</h2><span className="ml-auto text-sm text-muted-foreground">{sale.products.length} {sale.products.length === 1 ? 'artículo' : 'artículos'}</span></header>
+          {(freeProducts.length>0||!sale.packageGroups?.length)&&<><header className="sale-detail-heading"><Package aria-hidden /><h2>Productos</h2><span className="ml-auto text-sm text-muted-foreground">{freeProducts.length} {freeProducts.length === 1 ? 'artículo' : 'artículos'}</span></header>
           <div className="sale-detail-products">
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Producto</TableHead><TableHead className="text-right">Cantidad</TableHead>
                 <TableHead className="text-right">Precio unitario</TableHead><TableHead className="text-right">Descuento</TableHead><TableHead className="text-right">Subtotal</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{sale.products.map((product, index) => (
+              <TableBody>{freeProducts.map((product, index) => (
                 <TableRow key={`${product.id}-${index}`}>
                   <TableCell><div className="flex items-center gap-3 min-w-40">
                     {product.imageUrl ? <img src={product.imageUrl} alt="" loading="lazy" width={44} height={44} className="h-11 w-11 shrink-0 rounded-lg border border-border bg-background object-contain" /> : <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground"><Package className="h-5 w-5" aria-hidden /></span>}
@@ -82,7 +88,7 @@ export function SaleDetailContent({ sale, locale, currencyCode }: { sale: Sale; 
               ))}</TableBody>
             </Table>
             {!sale.products.length && <CollectionEmptyState compact title="Las partidas cuentan la historia" description="Esta venta no tiene productos disponibles para mostrar." />}
-          </div>
+          </div></>}
           <div className="sale-detail-financial-footer">
             <p className="text-xs text-muted-foreground">{sale.hasReturns ? 'El total neto descuenta las devoluciones registradas.' : 'Importes registrados al realizar la venta.'}{hasDiscount && sale.products.some(product => product.lineTotal == null) ? ' El descuento de esta venta histórica está registrado a nivel del documento.' : ''}</p>
             <dl className="sale-detail-payment">

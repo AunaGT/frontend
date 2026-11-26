@@ -32,7 +32,7 @@ import {
   type Account, type JournalEntry,
 } from '@/services/accountingService'
 import { useTenant } from '@/context/useTenant'
-import { fmtQ, fmtDate, SOURCE_LABELS , rangoTexto } from './format'
+import { fmtQ, fmtDate, SOURCE_LABELS, canReverseJournalEntry, rangoTexto } from './format'
 import { exportJournal } from './exportExcel'
 import { ExportDialog } from '@/components/shared/ExportDialog'
 import { NewEntryDialog } from './NewEntryDialog'
@@ -207,7 +207,7 @@ export const JournalTab = ({ accounts, canCreate }: { accounts: Account[]; canCr
                     <td className="text-muted-foreground">{entry.branch?.name ?? 'Empresa'}</td>
                     <td><Badge variant="secondary">{SOURCE_LABELS[entry.source_type]}</Badge></td>
                     <td className="text-right whitespace-nowrap font-medium">{fmtQ(entryTotal(entry))}</td>
-                    <td className="text-right"><div className="flex items-center justify-end gap-2">{statusBadge(entry)}{canCreate && !entry.reversal_of_id && (!entry.reversals || entry.reversals.length === 0) && entry.source_type !== 'CLOSING' && <Button variant="ghost" size="sm" aria-label={`Anular asiento ${entry.entry_number}`} onClick={() => void handleReverse(entry)}><Undo2 className="h-4 w-4 mr-1" />Anular</Button>}</div></td>
+                    <td className="text-right"><div className="flex items-center justify-end gap-2">{statusBadge(entry)}{canCreate && canReverseJournalEntry(entry) && <Button variant="ghost" size="sm" aria-label={`Anular asiento ${entry.entry_number}`} onClick={() => void handleReverse(entry)}><Undo2 className="h-4 w-4 mr-1" />Anular</Button>}</div></td>
                   </tr>
                   {expanded && <tr id={`entry-lines-${entry.id}`} className="accounting-journal-lines"><td colSpan={7}>
                     <table aria-label={`Líneas del asiento ${entry.entry_number}`} className="auna-data-table">

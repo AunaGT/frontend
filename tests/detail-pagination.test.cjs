@@ -39,3 +39,28 @@ test('both participant tables share the requested size while waitlist admission 
   assert.deepEqual(changes,[50,50])
   assert.equal(nodes.find(n=>n.props.children==='Admitir').props.disabled,true, 'A later waitlist page never bypasses FIFO')
 })
+
+test('product history keeps table and pagination during page changes without reusing another product', () => {
+  const {QueryClient,QueryObserver}=require('@tanstack/react-query')
+  const client=new QueryClient(),data={items:[{id:'i',qty:'1',net_total:'12',sale:{id:'s',date:'2026-10-16',customer:'QA'}}],page:1,pageSize:10,totalItems:21,totalPages:3,nextPage:2,prevPage:null}
+  client.setQueryData(['product-commercial-history','p',1,10],data)
+  let page=1,observer,options
+  const nodes=[]
+  const { ProductCommercialHistory } = loadReportModule('../inventory/products/ProductCommercialHistory.tsx', {
+    '@/hooks/usePersistedListUiState': { usePersistedListUiState: () => ({ page, pageSize:10, setPage:value=>{page=value},setPageSize(){} }) },
+    '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale:'es-GT',currencyCode:'GTQ' }) },
+    '@/services/api': { apiFetch:()=>new Promise(()=>{}) },
+    '@tanstack/react-query': {useQuery:o=>{options=o;if(!observer)observer=new QueryObserver(client,o);else observer.setOptions(o);return observer.getCurrentResult()}},
+    'react-router-dom':{Link:({to,children})=>React.createElement('a',{href:to},children)},
+  },nodes)
+  const render=()=>{nodes.length=0;return renderToStaticMarkup(React.createElement(ProductCommercialHistory,{productId:'p'}))}
+  let unsubscribe
+  try{
+    render();unsubscribe=observer.subscribe(()=>{})
+    page=2;const html=render()
+    assert.match(html,/Historial de ventas/);assert.match(html,/Paginación de partidas/)
+    assert.doesNotMatch(html,/Cargando historial/)
+    assert.equal(nodes.find(n=>n.props.itemLabel==='partidas').props.loading,true)
+    assert.equal(options.placeholderData(data,{queryKey:['product-commercial-history','other',1,10]}),undefined)
+  }finally{unsubscribe?.();observer?.destroy();client.clear()}
+})

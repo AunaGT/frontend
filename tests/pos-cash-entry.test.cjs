@@ -20,10 +20,15 @@ function render(component, { registers = [register], refreshedRegisters = regist
   const values = { registers, loading: false, ...state }, nodes = [], writes = [], selections = [], updates = [], cache = new Map()
   let index = 0, opened = 0, back = 0
   const overrides = {
+    'react-router-dom': { useNavigate: () => () => {} },
     '@/context/useAuth': { useAuth: () => ({ user }) },
-    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => all }) },
+    '@/context/useTenant': { useTenant: () => ({ company: { id: 'c' }, branch: { id: 'b' } }) },
+    '@/hooks/useAuthPermissions': { useAuthPermissions: () => ({ hasPermission: () => all, isAdmin: user?.role?.name === 'admin' && user.role.system_key === 'ADMIN' && user.role.company_id == null }) },
     '@/hooks/useSystemSettings': { useSystemSettings: () => ({ locale: 'es-GT', currencyCode: 'GTQ' }) },
-    '@/services/cashSessionsService': { listCashRegisters: async () => refreshedRegisters, openCashSession: async payload => { writes.push(payload); if (failure) throw Error(failure) } },
+    // 3B.2: el aviso de apertura consulta el fondo retenido de la caja; sin fondo se comporta como antes.
+    '@/services/cashCustodyService': { fetchRegisterFloat: async () => ({ available: false, amount: '0.00' }) },
+    '@tanstack/react-query': { useQuery: () => ({ data: undefined, isLoading: false }) },
+    '@/services/cashSessionsService': { listCashRegisters: async () => refreshedRegisters, openCashSession: async payload => { writes.push(payload); if (failure) throw Error(failure) }, closeCashSession: async payload => { writes.push(payload); if (failure) throw Error(failure) } },
   }
   function load(target) {
     if (cache.has(target)) return cache.get(target).exports
@@ -69,13 +74,33 @@ test('cash picker distinguishes opening and continuing with accessible orange ac
   assert.ok(resume && !resume.props.disabled)
   assert.ok(open.html.includes('Ana'))
 })
+test('explicit authorized non-default boxes are selectable without reassigning the global preference', () => {
+  const view = render('CashRegisterPicker', { registers: [{ ...register, id: 'other', name: 'Caja autorizada', is_default: false, access_control_version: 1, can_open: true }, { ...register, id: 'denied', name: 'Caja sin acceso', access_control_version: 1, can_open: false }] })
+  assert.ok(view.html.includes('Caja autorizada')); assert.equal(view.html.includes('Caja sin acceso'), false)
+})
+test('supervisors can terminate an inaccessible occupied box without acquiring permission to sell in it', async () => {
+  const occupied = { ...register, access_control_version: 1, can_open: false, open_session: { ...session, opened_by_id: 'removed' } }
+  for (const user of [{ id: 'u-1', role: { name: 'Supervisor' } }, { id: 'u-1', role: { name: 'admin', system_key: 'ADMIN', company_id: null } }]) {
+    const view = render('CashRegisterPicker', { registers: [occupied], user, all: true, state: { closeTarget: occupied } })
+    assert.ok(view.html.includes('Caja principal'))
+    assert.ok(view.nodes.some(n => n.props['aria-label'] === 'Terminar turno de Caja principal'))
+    assert.equal(view.nodes.some(n => n.props['aria-label'] === 'Continuar venta en Caja principal' && !n.props.disabled), false)
+    const confirm = view.nodes.find(n => n.props.confirmText === 'Terminar turno')
+    assert.ok(confirm); await confirm.props.onConfirm()
+    assert.deepEqual(view.writes, [{ cash_register_id: register.id, cash_register_session_id: session.id }])
+  }
+  const seller = render('CashRegisterPicker', { registers: [occupied] })
+  assert.equal(seller.nodes.some(n => n.props['aria-label'] === 'Terminar turno de Caja principal'), false)
+})
 
 test('cash picker cannot offer continuing another seller’s turn, but preserves admin access', () => {
   const registers = [{ ...register, open_session: { ...session, opened_by_id: 'other' } }]
   const seller = render('CashRegisterPicker', { registers, all: true })
   assert.ok(seller.html.includes('Turno de otro usuario'))
   assert.ok(seller.nodes.some(n => n.props.disabled && n.props.children === 'Caja en uso'))
-  const admin = render('CashRegisterPicker', { registers, all: true, user: { id: 'u-1', role: { name: 'admin' } } })
+  const alias = render('CashRegisterPicker', { registers, all: true, user: { id: 'u-1', role: { name: 'admin' } } })
+  assert.ok(alias.nodes.some(n => n.props.disabled && n.props.children === 'Caja en uso'))
+  const admin = render('CashRegisterPicker', { registers, all: true, user: { id: 'u-1', role: { name: 'admin', system_key: 'ADMIN', company_id: null } } })
   assert.ok(admin.nodes.some(n => n.props['aria-label'] === 'Continuar venta en Caja principal' && !n.props.disabled))
 })
 

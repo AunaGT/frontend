@@ -96,11 +96,11 @@ export const useCashClosureForm = (): UseCashClosureFormReturn => {
 
     // Calculations
     const getCashTotal = useCallback(() => {
-        return denominations.reduce((sum, denom) => sum + toNumber(denom.subtotal), 0)
+        return denominations.reduce((cents, denom) => cents + Math.round(toNumber(denom.denomination) * 100) * denom.quantity, 0) / 100
     }, [denominations])
 
     const getActualTotal = useCallback(() => {
-        return paymentBreakdown.reduce((sum, item) => sum + toNumber(item.actual_amount), 0)
+        return paymentBreakdown.reduce((cents, item) => cents + Math.round(toNumber(item.actual_amount) * 100), 0) / 100
     }, [paymentBreakdown])
 
     const getTotalDifference = useCallback((theoreticalTotal: number) => {
@@ -135,7 +135,7 @@ export const useCashClosureForm = (): UseCashClosureFormReturn => {
         setDenominations(prev => {
             const updated = [...prev]
             updated[index].quantity = quantity
-            updated[index].subtotal = quantity * toNumber(updated[index].denomination)
+            updated[index].subtotal = Math.round(toNumber(updated[index].denomination) * 100) * quantity / 100
             return updated
         })
     }, [])
